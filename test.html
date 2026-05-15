@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Socket Test</title>
+  <link rel="icon" href="data:,">
+</head>
+<body>
+
+<h2>Socket.IO Working Test</h2>
+
+<script src="http://localhost:5000/socket.io/socket.io.js"></script>
+
+<script>
+  const socket = io("http://localhost:5000");
+
+  const AUCTION_ID = "69f57dafbf82653e21415457"; // ✅ NEW ID
+  const USER_ID = "69f0be7cb2c11ae627fcea9f";
+
+  // CONNECT
+  socket.on("connect", () => {
+    console.log("✅ Connected:", socket.id);
+
+    socket.emit("joinAuction", AUCTION_ID);
+    console.log("📥 Joined auction:", AUCTION_ID);
+  });
+
+  // RECEIVE BID
+  socket.on("bidUpdate", (data) => {
+    console.log("🔥 New Bid Received:", data);
+  });
+
+  // AUCTION ENDED
+  socket.on("auctionEnded", (data) => {
+    console.log("🏁 Auction Ended:", data);
+  });
+
+  // SEND HIGH BID
+  setTimeout(() => {
+    console.log("📤 Sending HIGH Bid...");
+
+    socket.emit("placeBid", {
+      auctionId: AUCTION_ID,
+      bidAmount: 10000,   // 🔥 HIGH VALUE
+      userId: USER_ID
+    });
+
+  }, 2000);
+
+</script>
+
+</body>
+</html>

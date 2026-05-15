@@ -1,0 +1,171 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#root,
+#root > div {
+  width: 100%;
+  min-height: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.admin-action-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.admin-action-panel nav {
+  flex-shrink: 0;
+}
+
+.admin-action-panel main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background-color: #020617;
+}
+
+a {
+  color: inherit;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.admin-announcement-track {
+  animation: admin-announcement-crawl 34s linear infinite;
+}
+
+.admin-announcement-track:hover {
+  animation-play-state: paused;
+}
+
+.admin-platform-scroll {
+  scrollbar-color: #10b981 #0f172a;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.admin-platform-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.admin-platform-scroll::-webkit-scrollbar-track {
+  background: #0f172a;
+  border-radius: 999px;
+}
+
+.admin-platform-scroll::-webkit-scrollbar-thumb {
+  background: #10b981;
+  border-radius: 999px;
+}
+
+.admin-announcement-shell:fullscreen {
+  display: flex;
+  align-items: center;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #020617;
+  border: 0;
+  border-radius: 0;
+  padding: 24px 72px 24px 24px;
+}
+
+.admin-announcement-shell:fullscreen .admin-announcement-track {
+  animation-duration: 24s;
+}
+
+.admin-announcement-shell:fullscreen article {
+  height: 56px;
+  padding-left: 28px;
+  padding-right: 28px;
+  font-size: 16px;
+}
+
+.admin-action-panel {
+  scrollbar-color: #10b981 #0f172a;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.admin-action-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.admin-action-panel::-webkit-scrollbar-track {
+  background: #0f172a;
+  border-radius: 999px;
+}
+
+.admin-action-panel::-webkit-scrollbar-thumb {
+  background: #10b981;
+  border-radius: 999px;
+}
+
+.admin-action-panel:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  overflow: auto;
+  background: #020617;
+  padding: 8px;
+}
+
+.admin-action-panel:fullscreen main {
+  height: auto;
+  min-height: calc(100vh - 82px);
+}
+
+.admin-action-panel main {
+  scrollbar-color: #10b981 #0f172a;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.admin-action-panel main::-webkit-scrollbar {
+  width: 8px;
+}
+
+.admin-action-panel main::-webkit-scrollbar-track {
+  background: #0f172a;
+  border-radius: 999px;
+}
+
+.admin-action-panel main::-webkit-scrollbar-thumb {
+  background: #10b981;
+  border-radius: 999px;
+}
+
+@keyframes admin-announcement-crawl {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}

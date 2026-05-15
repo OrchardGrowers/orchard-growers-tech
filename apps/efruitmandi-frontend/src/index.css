@@ -1,0 +1,159 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================= */
+/* 🌍 GLOBAL RESET / BASE STYLES */
+/* ============================= */
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: #eef3ef;
+  color: #111827;
+}
+
+/* ============================= */
+/* 📱 APP SAFE AREAS */
+/* ============================= */
+
+/* Top navbar height (fixed) */
+.app-top-space {
+  padding-top: 56px; /* match navbar height */
+}
+
+/* Bottom navbar height (fixed) */
+.app-bottom-space {
+  padding-bottom: 64px; /* match bottom nav */
+}
+
+/* ============================= */
+/* 📱 HIDE SCROLLBAR */
+/* ============================= */
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
+}
+
+/* ============================= */
+/* 🟢 BUTTON STYLES */
+/* ============================= */
+
+.btn-primary {
+  @apply bg-green-700 text-white px-4 py-2 rounded-lg;
+}
+
+.btn-primary:hover {
+  @apply bg-green-800;
+}
+
+/* ============================= */
+/* 🔘 TAB STYLES */
+/* ============================= */
+
+.tab-active {
+  @apply bg-red-500 text-white border-red-500;
+}
+
+.tab-inactive {
+  @apply bg-gray-100 text-gray-700 border-gray-300;
+}
+
+/* ============================= */
+/* 📦 CARD STYLES */
+/* ============================= */
+
+.card {
+  @apply bg-white rounded-xl shadow p-3;
+}
+
+/* ============================= */
+/* 🟢 STATUS BADGES */
+/* ============================= */
+
+.badge-active {
+  @apply bg-green-500 text-white px-2 py-1 rounded text-xs;
+}
+
+.badge-ended {
+  @apply bg-red-500 text-white px-2 py-1 rounded text-xs;
+}
+
+/* ============================= */
+/* 📱 NAVBAR COLORS (SYNC TOP + BOTTOM) */
+/* ============================= */
+
+.app-navbar {
+  @apply bg-green-700 text-white;
+}
+
+/* ============================= */
+/* 🔥 MOBILE TOUCH IMPROVEMENT */
+/* ============================= */
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Hide native browser password reveal icons so custom eye buttons do not duplicate. */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
+
+input[type="password"]::-webkit-credentials-auto-fill-button {
+  visibility: hidden;
+  display: none !important;
+  pointer-events: none;
+}
+
+/* ============================= */
+/* 🎯 OPTIONAL: SOFT SHADOW */
+/* ============================= */
+
+.soft-shadow {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+@keyframes startup-logo-zoom {
+  0% {
+    opacity: 0;
+    transform: scale(0.74);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  65% {
+    transform: scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.startup-logo-zoom {
+  animation: startup-logo-zoom 1.25s ease-in-out both;
+  transform-origin: center;
+}
+
+
+button,
+a,
+[role="button"] {
+  transition-property: transform, background-color, border-color, color, box-shadow;
+}
+
+button:active,
+a:active,
+[role="button"]:active {
+  transform: scale(0.98);
+}

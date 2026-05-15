@@ -1,0 +1,251 @@
+import Product from "../models/Product.js";
+import Auction from "../models/Auction.js";
+import User from "../models/User.js";
+
+const AUCTION_DELAY_MS = 5 * 60 * 1000;
+const AUCTION_DURATION_MS = 5 * 60 * 1000;
+
+const canSeeBasePrice = (product, user) =>
+  user?.role === "grower" &&
+  product?.createdBy &&
+  (product.createdBy._id || product.createdBy)?.toString() === user.id?.toString();
+
+const serializeProduct = (product, user) => {
+  const data = product.toObject ? product.toObject() : { ...product };
+
+  if (!canSeeBasePrice(data, user)) {
+    delete data.basePrice;
+  }
+
+  return data;
+};
+
+const makeFirmPrefix = (user) => {
+  const source =
+    user?.orchardName || user?.businessName || user?.name || "Grower Firm";
+  const words = source
+    .toUpperCase()
+    .replace(/[^A-Z0-9 ]/g, "")
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (words.length > 1) {
+    return words.map((word) => word[0]).join("").slice(0, 5);
+  }
+
+  return (words[0] || "LOT").slice(0, 3);
+};
+
+const generateLotNo = async (userId) => {
+  const user = await User.findById(userId).select(
+    "name orchardName businessName"
+  );
+  const year = new Date().getFullYear();
+  const yearStart = new Date(year, 0, 1);
+  const yearEnd = new Date(year + 1, 0, 1);
+  const firmLotCount = await Product.countDocuments({
+    createdBy: userId,
+    createdAt: { $gte: yearStart, $lt: yearEnd },
+  });
+  const sequence = String(firmLotCount + 1).padStart(3, "0");
+
+  return `${makeFirmPrefix(user)}/${year}/${sequence}`;
+};
+
+const getUploadedFiles = (req, fieldName) => {
+  if (Array.isArray(req.files)) {
+    return req.files.filter((file) => file.fieldname === fieldName);
+  }
+
+  return req.files?.[fieldName] || [];
+};
+
+// CREATE PRODUCT WITH IMAGE
+export const createProduct = async (req, res) => {
+  try {
+    const title = String(req.body.title || "").trim();
+    const fruitName = String(req.body.fruitName || "").trim();
+    const variety = String(req.body.variety || "").trim();
+    const description = String(req.body.description || "").trim();
+    const packingType = String(req.body.packingType || "").trim();
+    const location = String(req.body.location || "").trim();
+    const quantity = Number(req.body.quantity || 0);
+    const packingWeightKg = Number(req.body.packingWeightKg || 0);
+    const totalWeightKg = Number(req.body.totalWeightKg || 0);
+    const basePrice = Number(req.body.basePrice || 0);
+
+    if (!title || !fruitName || !variety || !packingType || !location) {
+      return res.status(400).json({ msg: "Title, fruit, variety, packing, and location are required" });
+    }
+
+    if (!Number.isFinite(basePrice) || basePrice <= 0) {
+      return res.status(400).json({ msg: "Base price must be greater than zero" });
+    }
+
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      return res.status(400).json({ msg: "Quantity must be greater than zero" });
+    }
+
+    if (!Number.isFinite(totalWeightKg) || totalWeightKg <= 0) {
+      return res.status(400).json({ msg: "Total weight must be greater than zero" });
+    }
+
+    let requestedGradeLots = [];
+
+    try {
+      requestedGradeLots = req.body.gradeLots ? JSON.parse(req.body.gradeLots) : [];
+    } catch {
+      return res.status(400).json({ msg: "Invalid grade lot details" });
+    }
+    if (!Array.isArray(requestedGradeLots)) {
+      return res.status(400).json({ msg: "Invalid grade lot details" });
+    }
+
+    const gradeLots = requestedGradeLots.map((lot) => {
+      const files = getUploadedFiles(req, lot.fieldName).slice(0, 5);
+      const boxes = Number(lot.boxes || 0);
+      const weightKg = Number(lot.weightKg || 0);
+
+      return {
+        grade: lot.grade,
+        boxes,
+        weightKg,
+        images: files.map((file) => file.path),
+      };
+    });
+
+    const totalGradeBoxes = gradeLots.reduce(
+      (sum, lot) => sum + Number(lot.boxes || 0),
+      0
+    );
+
+    if (totalGradeBoxes <= 0) {
+      return res.status(400).json({ msg: "At least one grade lot with boxes is required" });
+    }
+
+    const imagePaths = gradeLots.flatMap((lot) => lot.images);
+    const sampleVideo = getUploadedFiles(req, "sampleVideo")[0]?.path || "";
+    const auctionStartAt = new Date(Date.now() + AUCTION_DELAY_MS);
+    const auctionEndAt = new Date(auctionStartAt.getTime() + AUCTION_DURATION_MS);
+
+    const generatedLotNo = await generateLotNo(req.user.id);
+
+    const product = await Product.create({
+      title,
+      fruitName,
+      variety,
+      description,
+      quantity,
+      lotNo: generatedLotNo,
+      packingType,
+      packingWeightKg,
+      totalWeightKg,
+      basePrice,
+      auctionStartTime: auctionStartAt,
+      location,
+      images: imagePaths,
+      gradeLots,
+      sampleVideo,
+      createdBy: req.user.id,
+      status: "IN_AUCTION",
+    });
+
+    const auction = await Auction.create({
+      product: product._id,
+      startingPrice: Number(basePrice || 0),
+      currentBid: Number(basePrice || 0),
+      status: "SCHEDULED",
+      startTime: auctionStartAt,
+      endTime: auctionEndAt,
+    });
+
+    res.json({
+      message: "Product created",
+      product,
+      auction,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+// GET PRODUCTS
+export const getProducts = async (req, res) => {
+  try {
+    const products = await Product.find().populate(
+      "createdBy",
+      "name orchardName businessName role"
+    );
+    res.json(products.map((product) => serializeProduct(product, req.user)));
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+// GET SINGLE PRODUCT WITH AUCTION DETAIL
+export const getProductById = async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id).populate(
+      "createdBy",
+      "name orchardName businessName role location"
+    );
+
+    if (!product) {
+      return res.status(404).json({ msg: "Product not found" });
+    }
+
+    const auction = await Auction.findOne({ product: product._id })
+      .sort({ createdAt: -1 })
+      .populate("highestBidder", "name businessName role");
+
+    const serializedProduct = serializeProduct(product, req.user);
+    const serializedAuction = auction?.toObject ? auction.toObject() : auction;
+
+    if (serializedAuction && !canSeeBasePrice(serializedProduct, req.user)) {
+      delete serializedAuction.startingPrice;
+    }
+
+    res.json({ product: serializedProduct, auction: serializedAuction });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+// DELETE PRODUCT BEFORE IT GOES TO MARKET
+export const deleteProduct = async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+
+    if (!product) {
+      return res.status(404).json({ msg: "Product not found" });
+    }
+
+    if (product.createdBy.toString() !== req.user.id) {
+      return res.status(403).json({ msg: "You can delete only your own listing" });
+    }
+
+    const linkedAuction = await Auction.findOne({
+      product: product._id,
+      status: { $in: ["SCHEDULED", "ACTIVE"] },
+    });
+
+    if (linkedAuction) {
+      return res.status(400).json({
+        msg: "This lot is already sent to market and cannot be deleted",
+      });
+    }
+
+    if (["IN_AUCTION", "SOLD"].includes(product.status)) {
+      return res.status(400).json({
+        msg: "This lot cannot be deleted after market confirmation",
+      });
+    }
+
+    await product.deleteOne();
+
+    res.json({ msg: "Listing deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
