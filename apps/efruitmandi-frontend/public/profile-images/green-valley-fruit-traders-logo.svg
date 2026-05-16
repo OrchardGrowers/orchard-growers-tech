@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title id="title">Green Valley Fruit Traders logo</title>
+  <rect width="128" height="128" rx="28" fill="#f0fdf4"/>
+  <circle cx="64" cy="68" r="34" fill="#16a34a"/>
+  <path d="M34 72c18 20 42 27 70 15-7 22-28 36-52 31-22-5-37-22-38-43 7 2 14 1 20-3z" fill="#15803d"/>
+  <circle cx="54" cy="70" r="19" fill="#ef4444"/>
+  <circle cx="76" cy="73" r="17" fill="#facc15"/>
+  <path d="M56 48c10-17 29-24 47-18-14 4-26 12-35 26z" fill="#166534"/>
+  <path d="M63 39c-9-12-24-16-39-11 12 4 22 11 29 23z" fill="#22c55e"/>
+  <path d="M51 36c6 7 10 15 12 27" fill="none" stroke="#14532d" stroke-width="6" stroke-linecap="round"/>
+  <path d="M37 91h54" stroke="#ffffff" stroke-width="8" stroke-linecap="round" opacity=".9"/>
+</svg>
