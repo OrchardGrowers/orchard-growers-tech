@@ -698,7 +698,7 @@ function App() {
 
         <section
           className="mt-2 grid flex-1 min-h-0 gap-0 overflow-hidden"
-          style={{ gridTemplateColumns: `${platformRailWidth}px minmax(0, 1fr)` }}
+          style={{ gridTemplateColumns: `${platformRailWidth}px 6px minmax(0, 1fr)` }}
         >
           <PlatformRail
             activePlatform={activePlatform}
@@ -712,6 +712,14 @@ function App() {
               setActiveTab(tab);
             }}
             onLogout={logout}
+          />
+
+          <div
+            onMouseDown={(event) =>
+              setRailResizeStart({ x: event.clientX, width: platformRailWidth })
+            }
+            className="admin-resize-handle cursor-col-resize hover:bg-emerald-500 bg-emerald-600/40 transition-all active:bg-emerald-500"
+            title="Drag to resize panel (left-right)"
           />
 
           <div ref={actionPanelRef} className="admin-action-panel min-w-0 h-full overflow-hidden bg-slate-950 flex flex-col min-h-0">

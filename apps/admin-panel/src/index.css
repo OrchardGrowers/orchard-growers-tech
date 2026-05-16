@@ -169,3 +169,28 @@ a {
     transform: translateX(-50%);
   }
 }
+
+.admin-resize-handle {
+  cursor: col-resize;
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.admin-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 3px;
+  height: 100%;
+  transform: translateX(-50%);
+  background: currentColor;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+
+.admin-resize-handle:hover::after,
+.admin-resize-handle:active::after {
+  opacity: 1;
+}
