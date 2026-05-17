@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
 const API_BASE =
   ((import.meta as ImportMeta & { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL) ||
@@ -92,24 +93,37 @@ type FileMeta = {
   mimetype?: string;
 };
 
-type AdminPlatform = 'orchard' | 'efruitmandi';
+type AdminPlatform = 'main' | 'orchard' | 'efruitmandi' | 'userManagement' | 'system';
 type AdminTab =
-  | 'control'
+  | 'dashboard'
   | 'inventory'
   | 'productAdmin'
   | 'purchase'
   | 'sales'
+  | 'unitsOutlets'
+  | 'expenses'
   | 'financials'
-  | 'settings'
+  | 'reports'
+  | 'orchardLogistics'
+  | 'efruitDashboard'
   | 'users'
-  | 'notifications'
   | 'kyc'
-  | 'verified'
-  | 'salesGraph'
-  | 'salesPatternsGraph'
-  | 'auctionPatternsGraph'
-  | 'transactionsGraph'
-  | 'orders';
+  | 'produceLots'
+  | 'quotes'
+  | 'deals'
+  | 'transactions'
+  | 'firmLogistics'
+  | 'supportDisputes'
+  | 'analytics'
+  | 'efruitSettings'
+  | 'staffUsers'
+  | 'customers'
+  | 'sellers'
+  | 'buyers'
+  | 'rolesPermissions'
+  | 'suspendedUsers'
+  | 'notifications'
+  | 'systemSettings';
 type ReviewAction = 'APPROVE' | 'REJECT' | 'HOLD' | 'SUSPEND' | 'TERMINATE';
 type UploadedFile = { label: string; path?: string; fileName?: string };
 type AdminProduct = {
@@ -158,7 +172,7 @@ const marketSnapshotCards = [
   { title: 'Pear A+ Mandi Rate', text: 'Royal Delicious | Min 500 Max 1200 | Average: 850 +5%' },
   { title: 'Orchard Growers Inventory', text: 'Plants, seeds, tools, manure, growth tonic, and own-brand stock watch' },
   { title: 'Buyer Orders', text: 'Paid orders generate invoices; COD creates challan with greeting' },
-  { title: 'EfruitMandi Users', text: 'Update buyer, grower, driver, KYC, and verification records' },
+  { title: 'eFruitMandi Users', text: 'Update buyer, grower, driver, KYC, and verification records' },
 ];
 
 const emptyProductDraft: ProductDraft = {
@@ -174,7 +188,338 @@ const emptyProductDraft: ProductDraft = {
   images: '',
 };
 
+type AdminTabButton = { id: AdminTab; label: string; count?: number };
+type SidebarMenuItem = { label: string; icon: MenuIconName; tab?: AdminTab; action?: () => void; count?: number; children?: string[] };
+type SidebarGroup = {
+  platform: AdminPlatform;
+  title: string;
+  subtitle: string;
+  action?: () => void;
+  items: SidebarMenuItem[];
+};
+type ModulePlan = {
+  title: string;
+  text: string;
+  pages?: string[];
+  fields?: string[];
+  rules?: string[];
+};
+
+const adminRoutePaths: Record<AdminTab, string> = {
+  dashboard: '/dashboard',
+  inventory: '/orchard/inventory',
+  productAdmin: '/orchard/products',
+  purchase: '/orchard/purchase',
+  sales: '/orchard/sales-invoice',
+  unitsOutlets: '/orchard/units-outlets',
+  expenses: '/orchard/expenses',
+  financials: '/orchard/financials',
+  reports: '/orchard/reports',
+  orchardLogistics: '/orchard/logistics-api',
+  efruitDashboard: '/efruitmandi/dashboard',
+  users: '/efruitmandi/users',
+  kyc: '/efruitmandi/kyc-verification',
+  produceLots: '/efruitmandi/produce-lots',
+  quotes: '/efruitmandi/quotes',
+  deals: '/efruitmandi/deals',
+  transactions: '/efruitmandi/transactions',
+  firmLogistics: '/efruitmandi/logistics-api',
+  supportDisputes: '/efruitmandi/support-disputes',
+  analytics: '/efruitmandi/analytics',
+  efruitSettings: '/efruitmandi/settings',
+  staffUsers: '/users/staff',
+  customers: '/users/customers',
+  sellers: '/users/sellers-growers-farmers',
+  buyers: '/users/buyers',
+  rolesPermissions: '/users/roles-permissions',
+  suspendedUsers: '/users/suspended',
+  notifications: '/notifications',
+  systemSettings: '/system-settings',
+};
+
+const adminTabPlatforms: Record<AdminTab, AdminPlatform> = {
+  dashboard: 'main',
+  inventory: 'orchard',
+  productAdmin: 'orchard',
+  purchase: 'orchard',
+  sales: 'orchard',
+  unitsOutlets: 'orchard',
+  expenses: 'orchard',
+  financials: 'orchard',
+  reports: 'orchard',
+  orchardLogistics: 'orchard',
+  efruitDashboard: 'efruitmandi',
+  users: 'efruitmandi',
+  kyc: 'efruitmandi',
+  produceLots: 'efruitmandi',
+  quotes: 'efruitmandi',
+  deals: 'efruitmandi',
+  transactions: 'efruitmandi',
+  firmLogistics: 'efruitmandi',
+  supportDisputes: 'efruitmandi',
+  analytics: 'efruitmandi',
+  efruitSettings: 'efruitmandi',
+  staffUsers: 'userManagement',
+  customers: 'userManagement',
+  sellers: 'userManagement',
+  buyers: 'userManagement',
+  rolesPermissions: 'userManagement',
+  suspendedUsers: 'userManagement',
+  notifications: 'main',
+  systemSettings: 'main',
+};
+
+const platformTabs: Record<AdminPlatform, AdminTabButton[]> = {
+  main: [
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'notifications', label: 'Notifications' },
+    { id: 'systemSettings', label: 'System Settings' },
+  ],
+  orchard: [
+    { id: 'inventory', label: 'Inventory' },
+    { id: 'productAdmin', label: 'Products' },
+    { id: 'purchase', label: 'Purchase' },
+    { id: 'sales', label: 'Sales & Invoice' },
+    { id: 'unitsOutlets', label: 'Units / Outlets' },
+    { id: 'expenses', label: 'Expenses' },
+    { id: 'financials', label: 'Financials' },
+    { id: 'reports', label: 'Reports' },
+    { id: 'orchardLogistics', label: 'Logistics API' },
+  ],
+  efruitmandi: [
+    { id: 'efruitDashboard', label: 'Dashboard' },
+    { id: 'users', label: 'Users' },
+    { id: 'kyc', label: 'KYC Verification' },
+    { id: 'produceLots', label: 'Produce Lots' },
+    { id: 'quotes', label: 'Quotes' },
+    { id: 'deals', label: 'Deals' },
+    { id: 'transactions', label: 'Transactions' },
+    { id: 'firmLogistics', label: 'Logistics API' },
+    { id: 'supportDisputes', label: 'Support & Disputes' },
+    { id: 'analytics', label: 'Analytics' },
+    { id: 'efruitSettings', label: 'Settings' },
+  ],
+  userManagement: [
+    { id: 'staffUsers', label: 'Staff Users' },
+    { id: 'customers', label: 'Customers' },
+    { id: 'sellers', label: 'Sellers / Growers / Farmers' },
+    { id: 'buyers', label: 'Buyers' },
+    { id: 'rolesPermissions', label: 'Roles & Permissions' },
+    { id: 'suspendedUsers', label: 'Suspended Users' },
+  ],
+  system: [{ id: 'systemSettings', label: 'System Settings' }],
+};
+
+const modulePlans: Partial<Record<AdminTab, ModulePlan>> = {
+  dashboard: {
+    title: 'Admin Dashboard',
+    text: 'Single control window for OrchardGrowers.in operations and eFruitMandi.live marketplace monitoring.',
+    pages: ['Orchard Growers snapshot', 'eFruitMandi verification snapshot', 'Notifications', 'System settings'],
+  },
+  inventory: {
+    title: 'Orchard Growers Inventory',
+    text: 'Keep OrchardGrowers.in product inventory, stock movement, outlet stock, online visibility, and stock alerts separate from eFruitMandi marketplace lots.',
+    pages: ['Add Product', 'Product List', 'Categories', 'Current Stock', 'Stock In', 'Stock Out', 'Stock Transfer', 'Damaged / Dead Stock', 'Low Stock Alert'],
+    fields: ['Product Name', 'Category', 'SKU', 'Unit Type', 'Purchase Price', 'Selling Price', 'GST %', 'Opening Stock', 'Current Stock', 'Unit / Outlet', 'Online Visible', 'Status'],
+  },
+  productAdmin: {
+    title: 'Orchard Growers Products',
+    text: 'Create and maintain Orchard Growers product records for the inventory and sales workflow.',
+    fields: ['Product Name', 'Category', 'SKU', 'Unit Type', 'Purchase Price', 'Selling Price', 'GST %', 'Opening Stock', 'Current Stock', 'Unit / Outlet', 'Online Visible', 'Status'],
+  },
+  purchase: {
+    title: 'Purchase Management',
+    text: 'Manage own-unit purchases, stock transfers, and third-party vendor purchases. Third-party manufacturing is excluded for now.',
+    pages: [
+      'Within Own Unit',
+      'Add Unit',
+      'Unit Purchase Entry',
+      'Unit Stock Transfer',
+      'From Third Party Vendor',
+      'Add Vendor / Party',
+      'Purchase Entry',
+      'Purchase Bill Upload',
+      'Payment Status',
+      'Vendor Ledger',
+    ],
+  },
+  sales: {
+    title: 'Sales & Invoice',
+    text: 'Manage Orchard Growers online orders, offline sales, invoices, payment collection, refunds, and delivery status with stock deduction.',
+    pages: [
+      'Online Orders',
+      'Offline Sales',
+      'Create Invoice',
+      'GST Invoice',
+      'Proforma Invoice',
+      'Payment Received',
+      'Pending Payment',
+      'Refund / Cancellation',
+      'Dispatch / Delivery Status',
+    ],
+    fields: ['Customer', 'Product', 'Quantity', 'Unit Price', 'Discount', 'GST / Tax', 'Total Amount', 'Payment Mode', 'Unit / Outlet', 'Stock Deduction', 'Invoice PDF'],
+  },
+  unitsOutlets: {
+    title: 'Units / Outlets',
+    text: 'Operate stock, sales, expenses, and profit reporting by Orchard Growers unit or outlet.',
+    pages: ['Add Unit / Outlet', 'Unit Manager', 'Unit Inventory', 'Unit Sales', 'Unit Expenses', 'Unit Stock Transfer', 'Unit-wise Profit / Loss'],
+  },
+  expenses: {
+    title: 'Expenses',
+    text: 'Track operating expenses with approvals, payment mode, bill upload, and unit allocation.',
+    pages: [
+      'Add Expense',
+      'Labour Expense',
+      'Transport Expense',
+      'Packaging Expense',
+      'Rent',
+      'Electricity / Water',
+      'Marketing Expense',
+      'Repair & Maintenance',
+      'Staff Salary',
+      'Miscellaneous',
+    ],
+    fields: ['Expense Date', 'Expense Category', 'Unit / Outlet', 'Amount', 'Paid To', 'Payment Mode', 'Bill Upload', 'Approved By', 'Status'],
+  },
+  financials: {
+    title: 'Financials',
+    text: 'Track income, payments, ledgers, cashbook, bankbook, profit or loss, and GST / tax reporting.',
+    pages: [
+      'Income',
+      'Expenses',
+      'Purchase Payments',
+      'Customer Payments',
+      'Vendor Ledger',
+      'Customer Ledger',
+      'Cashbook',
+      'Bankbook',
+      'Daily Profit / Loss',
+      'Monthly Profit / Loss',
+      'GST / Tax Report',
+    ],
+  },
+  reports: {
+    title: 'Reports',
+    text: 'Consolidated Orchard Growers operational reports for inventory, purchase, sales, expense, and finance teams.',
+    pages: ['Inventory Report', 'Purchase Report', 'Sales Report', 'Expense Report', 'Financial Report', 'Unit-wise Report'],
+  },
+  orchardLogistics: {
+    title: 'Orchard Growers Logistics API',
+    text: 'Integrate orchardgrowers.in orders with logistics partners for serviceability, rate checks, pickup scheduling, labels, tracking, delivery exceptions, returns, and courier settlement records.',
+    pages: ['Provider Setup', 'API Credentials', 'Serviceability Check', 'Rate Calculator', 'Pickup Scheduling', 'AWB / Shipping Label', 'Tracking Webhooks', 'Dispatch Status Sync', 'Delivery Exceptions', 'Return / RTO', 'Courier Ledger', 'Integration Logs'],
+    fields: ['Provider Name', 'API Key / Secret', 'Pickup Address', 'Origin PIN', 'Destination PIN', 'Package Weight', 'Invoice Value', 'COD / Prepaid', 'AWB Number', 'Tracking URL', 'Webhook Status', 'Retry Count'],
+    rules: ['Orchard Growers orders create shipment requests after invoice or dispatch approval.', 'Delivery status updates must sync back to Sales & Invoice.', 'Failed webhook events stay visible for manual retry and support review.'],
+  },
+  efruitDashboard: {
+    title: 'eFruitMandi Dashboard',
+    text: 'Marketplace monitoring only. Lot creation, quote submission, deal creation, transaction records, service charge, and settlement status are automated.',
+    rules: [
+      'Seller / grower lists produce lot',
+      'Buyer submits quoted price',
+      'Seller accepts quoted price',
+      'Deal is created automatically',
+      'Payment / escrow / gateway status is tracked',
+      'Transaction record and platform service charge are generated automatically',
+      'Settlement status is updated',
+    ],
+  },
+  users: {
+    title: 'eFruitMandi Users',
+    text: 'Manage seller, grower, farmer, buyer, transporter, staff, and suspended user profiles with verification actions and admin remarks.',
+    pages: ['View Profile', 'Edit Profile', 'View Uploaded Documents', 'Verify User', 'Approve User', 'Reject User', 'Ask for Resubmission', 'Suspend User', 'Terminate User', 'Reactivate User', 'Add Admin Remark'],
+  },
+  kyc: {
+    title: 'KYC Verification',
+    text: 'Review uploaded identity, business, farmer, banking, and address documents with approval, rejection, resubmission, and expiry statuses.',
+    pages: ['Aadhaar / ID Proof', 'PAN', 'GST Certificate', 'Farmer Proof / Land Proof', 'Business Proof', 'Bank Details', 'Address Proof', 'Other Documents'],
+    fields: ['Pending', 'Under Review', 'Approved', 'Rejected', 'Resubmission Required', 'Expired'],
+  },
+  produceLots: {
+    title: 'Produce Lots',
+    text: 'Admin monitors listed produce lots and handles exception cases only. Sellers, growers, and farmers create lots from their own account.',
+    pages: ['View Listed Lots', 'Edit Lot if Required', 'Pause / Hide Lot', 'Approve / Reject Problematic Lot', 'Lot Issue History'],
+    rules: ['Do not create manual produce lots from admin by default.', 'Use edit only for support, correction, or suspicious listing cases.'],
+  },
+  quotes: {
+    title: 'Quote Management',
+    text: 'Review quote requests, quoted prices, accepted deals, rejected quotes, and deal conversion without manual marketplace billing.',
+    pages: ['Active Quote Requests', 'Quoted Prices', 'Accepted Deals', 'Rejected Quotes', 'Deal Conversion'],
+    fields: ['Quote', 'Quoted Price', 'Price Offer', 'Quote Request', 'Deal Price', 'Accepted Deal', 'Price Negotiation'],
+  },
+  deals: {
+    title: 'Deal Management',
+    text: 'Monitor accepted marketplace deals and intervene only for cancellation, support, or dispute handling.',
+    pages: ['Active Deals', 'Completed Deals', 'Cancelled Deals', 'Disputed Deals', 'Deal Support'],
+  },
+  transactions: {
+    title: 'Transactions',
+    text: 'Track payment status, gateway status, platform service charge, refunds, and settlement status generated from accepted deals.',
+    pages: ['Payment Status', 'Platform Service Charge', 'Escrow / Payment Gateway Status', 'Refund Status', 'Settlement Status'],
+  },
+  firmLogistics: {
+    title: 'Registered Firm Logistics API',
+    text: 'Allow individual firms registered on eFruitMandi.live to connect their own logistics providers or platform-approved providers for produce movement after accepted deals.',
+    pages: ['Firm Logistics Onboarding', 'Provider Mapping', 'Firm API Credentials', 'Serviceability Rules', 'Pickup Slots', 'Vehicle / Transporter Assignment', 'Freight Quote Rules', 'Tracking Webhooks', 'Delivery Proof', 'SLA Monitoring', 'Settlement / Service Charge Mapping', 'Integration Logs'],
+    fields: ['Firm', 'Provider', 'API Key / Secret', 'Pickup Location', 'Destination Location', 'Produce Lot', 'Accepted Deal', 'Freight Charge', 'Transporter', 'Vehicle Number', 'Tracking Status', 'Proof of Delivery'],
+    rules: ['Firm logistics must connect to accepted deals only, not manual inventory.', 'Admin monitors API health, credentials, delivery exceptions, and settlement mapping.', 'Firm-specific credentials and webhook logs remain isolated per registered firm.'],
+  },
+  supportDisputes: {
+    title: 'Support & Disputes',
+    text: 'Handle exception workflows for sellers, buyers, payments, produce quality, and accounts.',
+    pages: ['Seller Issues', 'Buyer Issues', 'Payment Issues', 'Quality Disputes', 'Account Issues'],
+  },
+  analytics: {
+    title: 'Analytics',
+    text: 'One analytics module for marketplace and Orchard Growers patterns.',
+    pages: ['Sales Pattern', 'Quote Pattern', 'Deal Pattern', 'Produce-wise Demand', 'Location-wise Demand', 'Transaction Pattern', 'Revenue Pattern'],
+  },
+  efruitSettings: {
+    title: 'eFruitMandi Settings',
+    text: 'Configure verification queues, marketplace exception rules, transaction monitoring defaults, service charge settings, and admin preferences.',
+  },
+  staffUsers: {
+    title: 'Staff Users',
+    text: 'Manage admin panel staff access and internal users for Orchard Growers and eFruitMandi operations.',
+    pages: ['Super Admin', 'Admin', 'Unit Manager', 'Inventory Manager', 'Sales Executive', 'Purchase Manager', 'Finance Manager', 'Verification Officer', 'Support Executive', 'Viewer'],
+  },
+  customers: {
+    title: 'Customers',
+    text: 'Customer records for Orchard Growers sales, invoicing, payments, refunds, and support follow-up.',
+  },
+  sellers: {
+    title: 'Sellers / Growers / Farmers',
+    text: 'Profile, document, verification, account status, and support controls for produce sellers.',
+  },
+  buyers: {
+    title: 'Buyers',
+    text: 'Buyer profile, quote activity, deal history, payment status, support, and account controls.',
+  },
+  suspendedUsers: {
+    title: 'Suspended Users',
+    text: 'Review suspended, held, and terminated users with admin remarks and reactivation controls.',
+  },
+  systemSettings: {
+    title: 'System Settings',
+    text: 'Global settings for admin access, notification defaults, platform routing, security, and operational preferences.',
+  },
+};
+
+const rolePermissionPlan = [
+  { role: 'Super Admin', access: 'Full control' },
+  { role: 'Admin', access: 'Operational admin access across assigned modules' },
+  { role: 'Unit Manager', access: 'Own unit data only' },
+  { role: 'Inventory Manager', access: 'Products and stock only' },
+  { role: 'Sales Executive', access: 'Sales and invoice only' },
+  { role: 'Purchase Manager', access: 'Purchase management only' },
+  { role: 'Finance Manager', access: 'Financials only' },
+  { role: 'Verification Officer', access: 'eFruitMandi users and KYC only' },
+  { role: 'Support Executive', access: 'Support and disputes only' },
+  { role: 'Viewer', access: 'Read-only access' },
+];
+
 function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [token, setToken] = useState(() => localStorage.getItem('adminToken') || '');
   const [admin, setAdmin] = useState<Admin | null>(() => {
     try {
@@ -192,16 +537,17 @@ function App() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activePlatform, setActivePlatform] = useState<AdminPlatform>('orchard');
-  const [activeTab, setActiveTab] = useState<AdminTab>('inventory');
   const [viewingFile, setViewingFile] = useState<UploadedFile | null>(null);
   const [adminSearch, setAdminSearch] = useState('');
   const [productDraft, setProductDraft] = useState<ProductDraft>(emptyProductDraft);
   const [platformRailWidth, setPlatformRailWidth] = useState(() => Number(localStorage.getItem('adminPlatformRailWidth')) || 145);
   const [railResizeStart, setRailResizeStart] = useState<{ x: number; width: number } | null>(null);
   const [fullscreenTarget, setFullscreenTarget] = useState<'announcement' | 'action' | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const announcementBarRef = useRef<HTMLElement | null>(null);
   const actionPanelRef = useRef<HTMLDivElement | null>(null);
+  const activeTab = getTabFromPath(location.pathname);
+  const activePlatform = adminTabPlatforms[activeTab];
 
   const authHeaders = useMemo(
     () => ({
@@ -271,6 +617,10 @@ function App() {
   useEffect(() => {
     loadRequests();
   }, [token]);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     localStorage.setItem('adminPlatformRailWidth', String(platformRailWidth));
@@ -436,13 +786,14 @@ function App() {
     if (quantity === null) return;
     const basePrice = window.prompt('Update product price', String(product.basePrice ?? 0));
     if (basePrice === null) return;
-    const status = window.prompt('Status: AVAILABLE, IN_AUCTION, SOLD', product.status || 'AVAILABLE');
+    const status = window.prompt('Status: ACTIVE, QUOTE_ENABLED, INACTIVE', formatProductStatus(product.status || 'AVAILABLE'));
     if (status === null) return;
+    const nextStatus = normalizeProductStatusInput(status);
 
     const res = await fetch(`${API_BASE}/admin/products/${product._id}`, {
       method: 'PATCH',
       headers: authHeaders,
-      body: JSON.stringify({ quantity: Number(quantity), basePrice: Number(basePrice), status: status.toUpperCase() }),
+      body: JSON.stringify({ quantity: Number(quantity), basePrice: Number(basePrice), status: nextStatus }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -482,7 +833,7 @@ function App() {
       setMessage(data.msg || 'User update failed');
       return;
     }
-    setMessage('EfruitMandi user information updated.');
+    setMessage('eFruitMandi user information updated.');
     loadRequests();
   };
 
@@ -550,110 +901,158 @@ function App() {
   const approvedVerificationCount = verificationRequests.filter(
     (request) => request.status === 'APPROVED'
   ).length;
-  const tabs: { id: AdminTab; label: string; count?: number }[] =
-    activePlatform === 'orchard'
-      ? [
-          { id: 'control', label: 'Orchard Command' },
-          { id: 'inventory', label: 'Inventory', count: products.length },
-          { id: 'productAdmin', label: 'Add Product' },
-          { id: 'orders', label: 'Buyer Orders', count: orders.length },
-        ]
-      : [
-          { id: 'control', label: 'Mandi Command' },
-          { id: 'users', label: 'User Records', count: users.length },
-          { id: 'notifications', label: 'Review Alerts', count: notificationCount },
-          { id: 'kyc', label: 'KYC Desk', count: kycRequests.length },
-          { id: 'verified', label: 'Verification Desk', count: verificationRequests.length },
-        ];
+  const countByTab: Partial<Record<AdminTab, number>> = {
+    inventory: products.length,
+    sales: orders.length,
+    users: users.length,
+    kyc: kycRequests.length + verificationRequests.length,
+    sellers: users.filter((user) => user.role === 'grower').length,
+    buyers: users.filter((user) => user.role === 'buyer').length,
+    suspendedUsers: users.filter((user) => ['HOLD', 'SUSPENDED', 'TERMINATED'].includes(user.accountStatus || '')).length,
+    notifications: notificationCount,
+  };
+  const tabs = platformTabs[activePlatform].map((tab) => ({
+    ...tab,
+    count: countByTab[tab.id],
+  }));
+  const actionTab = tabs.find((tab) => tab.id === activeTab);
+  const actionTabs = [
+    {
+      id: activeTab,
+      label: actionTab?.label || getAdminTabTitle(activeTab, activePlatform),
+      count: countByTab[activeTab],
+    },
+  ];
   const activeTitle = getAdminTabTitle(activeTab, activePlatform);
   const searchedProducts = filterProducts(products, adminSearch);
   const searchedUsers = filterUsers(users, adminSearch);
-  const activePanel =
-    activeTab === 'control' ? (
-      <HomePanel
-        activePlatform={activePlatform}
-        pendingKycCount={pendingKycCount}
-        pendingVerificationCount={pendingVerificationCount}
-        approvedKycCount={approvedKycCount}
-        approvedVerificationCount={approvedVerificationCount}
-        productCount={products.length}
-        userCount={users.length}
-        onOpenTab={setActiveTab}
-      />
-    ) : activeTab === 'inventory' ? (
-      <InventoryPanel products={searchedProducts} onUpdateStock={updateProductStock} />
-    ) : activeTab === 'productAdmin' ? (
-      <ProductAdminPanel draft={productDraft} onChange={setProductDraft} onSubmit={saveOrchardProduct} />
-    ) : activeTab === 'purchase' ? (
-      <SimpleAdminPanel
-        title="Purchase"
-        text="Manage incoming Orchard Growers stock, vendor buying, nursery purchases, and product intake before inventory posting."
-      />
-    ) : activeTab === 'sales' ? (
-      <OrdersPanel orders={orders} />
-    ) : activeTab === 'financials' ? (
-      <SimpleAdminPanel
-        title="Financials"
-        text="Track order value, challans, invoices, payment collections, COD dues, and Orchard Growers account summaries."
-      />
-    ) : activeTab === 'settings' ? (
-      <SimpleAdminPanel
-        title={activePlatform === 'orchard' ? 'Orchard Growers Settings' : 'EfruitMandi Settings'}
-        text={
-          activePlatform === 'orchard'
-            ? 'Configure Orchard Growers product rules, stock alerts, payment workflow, platform defaults, and admin preferences.'
-            : 'Configure EfruitMandi user rules, verification queues, graph defaults, auction monitoring, and admin preferences.'
-        }
-      />
-    ) : activeTab === 'salesGraph' ? (
-      <SimpleAdminPanel
-        title="Sales Graph"
-        text="Visualize EfruitMandi sales volume, order value, buyer growth, and platform revenue trends."
-      />
-    ) : activeTab === 'salesPatternsGraph' ? (
-      <SimpleAdminPanel
-        title="Sales Patterns Graph"
-        text="Analyze repeating sales patterns by product category, buyer segment, season, and region."
-      />
-    ) : activeTab === 'auctionPatternsGraph' ? (
-      <SimpleAdminPanel
-        title="Auction Patterns Graph"
-        text="Track auction timing, bid movement, winning prices, and buyer participation patterns."
-      />
-    ) : activeTab === 'transactionsGraph' ? (
-      <SimpleAdminPanel
-        title="Transactions Graph"
-        text="Monitor paid orders, COD challans, invoice conversion, refunds, and settlement movement."
-      />
-    ) : activeTab === 'users' ? (
-      <UsersPanel users={searchedUsers} onEdit={editUserInfo} onStatus={setUserStatus} />
-    ) : activeTab === 'notifications' ? (
-      <NotificationsPanel
-        kycRequests={kycRequests}
-        verificationRequests={verificationRequests}
-        onOpenTab={setActiveTab}
-      />
-    ) : activeTab === 'kyc' ? (
-      <RequestSection title="KYC Requests" count={kycRequests.length}>
-        {kycRequests.map((user) => (
-          <KycRequestCard key={user._id} user={user} onReview={review} onViewFile={setViewingFile} />
-        ))}
-      </RequestSection>
-    ) : activeTab === 'verified' ? (
-      <RequestSection title="Get Verified Requests" count={verificationRequests.length}>
-        {verificationRequests.map((request) => (
-          <VerificationRequestCard
-            key={request._id}
-            request={request}
-            onReview={review}
-            onEdit={editVerificationRequest}
-            onViewFile={setViewingFile}
+  const sidebarGroups = getSidebarGroups(countByTab, logout);
+  const openTab = (tab: AdminTab) => navigate(adminRoutePaths[tab]);
+  const renderPanel = (tab: AdminTab) => {
+    if (tab === 'dashboard') {
+      return (
+        <AdminDashboardPanel
+          pendingKycCount={pendingKycCount}
+          pendingVerificationCount={pendingVerificationCount}
+          approvedKycCount={approvedKycCount}
+          approvedVerificationCount={approvedVerificationCount}
+          productCount={products.length}
+          orderCount={orders.length}
+          userCount={users.length}
+          onOpenTab={openTab}
+        />
+      );
+    }
+
+    if (tab === 'inventory') return <InventoryPanel products={searchedProducts} onUpdateStock={updateProductStock} />;
+    if (tab === 'productAdmin') {
+      return (
+        <section className="space-y-4">
+          <ModulePlanPanel plan={modulePlans.productAdmin} />
+          <ProductAdminPanel draft={productDraft} onChange={setProductDraft} onSubmit={saveOrchardProduct} />
+        </section>
+      );
+    }
+    if (tab === 'sales') {
+      return (
+        <section className="space-y-4">
+          <ModulePlanPanel plan={modulePlans.sales} />
+          <OrdersPanel orders={orders} />
+        </section>
+      );
+    }
+    if (['purchase', 'unitsOutlets', 'expenses', 'financials', 'reports'].includes(tab)) {
+      return <ModulePlanPanel plan={modulePlans[tab]} />;
+    }
+    if (tab === 'efruitDashboard') {
+      return (
+        <section className="space-y-4">
+          <HomePanel
+            activePlatform="efruitmandi"
+            pendingKycCount={pendingKycCount}
+            pendingVerificationCount={pendingVerificationCount}
+            approvedKycCount={approvedKycCount}
+            approvedVerificationCount={approvedVerificationCount}
+            productCount={products.length}
+            userCount={users.length}
+            onOpenTab={openTab}
           />
-        ))}
-      </RequestSection>
-    ) : (
-      <OrdersPanel orders={orders} />
-    );
+          <ModulePlanPanel plan={modulePlans.efruitDashboard} />
+        </section>
+      );
+    }
+    if (tab === 'users') {
+      return (
+        <section className="space-y-4">
+          <ModulePlanPanel plan={modulePlans.users} />
+          <UsersPanel users={searchedUsers} onEdit={editUserInfo} onStatus={setUserStatus} />
+        </section>
+      );
+    }
+    if (tab === 'kyc') {
+      return (
+        <KycVerificationPanel
+          kycRequests={kycRequests}
+          verificationRequests={verificationRequests}
+          onReview={review}
+          onEditVerification={editVerificationRequest}
+          onViewFile={setViewingFile}
+        />
+      );
+    }
+    if (['produceLots', 'quotes', 'deals', 'transactions', 'supportDisputes', 'analytics', 'efruitSettings'].includes(tab)) {
+      return <ModulePlanPanel plan={modulePlans[tab]} />;
+    }
+    if (tab === 'staffUsers' || tab === 'customers') return <ModulePlanPanel plan={modulePlans[tab]} />;
+    if (tab === 'sellers') {
+      return (
+        <UsersPanel
+          title="Sellers / Growers / Farmers"
+          badge="Profile, documents, verification, account status"
+          emptyLabel="No sellers, growers, or farmers found."
+          users={searchedUsers.filter((user) => user.role === 'grower')}
+          onEdit={editUserInfo}
+          onStatus={setUserStatus}
+        />
+      );
+    }
+    if (tab === 'buyers') {
+      return (
+        <UsersPanel
+          title="Buyers"
+          badge="Profile, quotes, deals, payments"
+          emptyLabel="No buyers found."
+          users={searchedUsers.filter((user) => user.role === 'buyer')}
+          onEdit={editUserInfo}
+          onStatus={setUserStatus}
+        />
+      );
+    }
+    if (tab === 'rolesPermissions') return <RolesPermissionsPanel />;
+    if (tab === 'suspendedUsers') {
+      return (
+        <UsersPanel
+          title="Suspended Users"
+          badge="Hold, suspended, terminated"
+          emptyLabel="No suspended users found."
+          users={searchedUsers.filter((user) => ['HOLD', 'SUSPENDED', 'TERMINATED'].includes(user.accountStatus || ''))}
+          onEdit={editUserInfo}
+          onStatus={setUserStatus}
+        />
+      );
+    }
+    if (tab === 'notifications') {
+      return (
+        <NotificationsPanel
+          kycRequests={kycRequests}
+          verificationRequests={verificationRequests}
+          onOpenTab={openTab}
+        />
+      );
+    }
+    if (tab === 'systemSettings') return <ModulePlanPanel plan={modulePlans.systemSettings} />;
+    return <Navigate to={adminRoutePaths.dashboard} replace />;
+  };
 
   return (
     <div className="h-full overflow-hidden bg-slate-950 p-2 text-slate-100">
@@ -663,7 +1062,7 @@ function App() {
           isFullscreen={fullscreenTarget === 'announcement'}
           onFullscreen={toggleAnnouncementFullscreen}
         />
-        <section className="mt-2 grid gap-2 md:grid-cols-[108px_220px_minmax(0,1fr)]">
+        <section className="admin-top-nav mt-2 grid gap-2 md:grid-cols-[108px_220px_minmax(0,1fr)]">
           <div className="flex h-11 items-center justify-center px-1">
             <img src={LOGO_URL} alt="Orchard Growers Admin" className="h-9 w-auto object-contain" />
           </div>
@@ -682,36 +1081,53 @@ function App() {
             <div className="flex gap-2">
               <button
                 onClick={loadRequests}
-                className="h-8 rounded-lg bg-white px-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-100"
+                className="admin-refresh-button h-8 rounded-lg bg-white px-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-100"
               >
                 {loading ? 'Loading...' : 'Refresh'}
               </button>
               <button
                 onClick={logout}
-                className="h-8 rounded-lg bg-white px-3 text-sm font-semibold text-slate-950 transition hover:bg-red-100"
+                className="admin-logout-button h-8 rounded-lg bg-white px-3 text-sm font-semibold text-slate-950 transition hover:bg-red-100"
               >
                 Logout
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen((open) => !open)}
+                aria-expanded={mobileMenuOpen}
+                aria-controls="mobile-admin-menu"
+                className="admin-mobile-menu-button hidden h-8 w-8 items-center justify-center rounded-lg bg-white text-slate-950 transition hover:bg-emerald-100"
+              >
+                <MenuIcon name="menu" />
               </button>
             </div>
           </div>
         </section>
+        {mobileMenuOpen && (
+          <MobileAdminMenu
+            groups={sidebarGroups}
+            activePlatform={activePlatform}
+            activeTab={activeTab}
+            onOpenTab={(tab) => openTab(tab)}
+            onOpenPlatform={(platform) => openTab(getDefaultTabForPlatform(platform))}
+            onClose={() => setMobileMenuOpen(false)}
+          />
+        )}
 
         <section
-          className="mt-2 grid flex-1 min-h-0 gap-0 overflow-hidden"
-          style={{ gridTemplateColumns: `${platformRailWidth}px 6px minmax(0, 1fr)` }}
+          className="admin-shell-grid mt-2 grid flex-1 min-h-0 gap-0 overflow-hidden"
+          style={{ '--admin-platform-rail-width': `${platformRailWidth}px` } as CSSProperties}
         >
           <PlatformRail
             activePlatform={activePlatform}
             activeTab={activeTab}
+            groups={sidebarGroups}
             onChange={(platform) => {
-              setActivePlatform(platform);
-              setActiveTab(platform === 'orchard' ? 'inventory' : 'users');
+              openTab(getDefaultTabForPlatform(platform));
             }}
             onOpenTab={(platform, tab) => {
-              setActivePlatform(platform);
-              setActiveTab(tab);
+              openTab(tab);
             }}
-            onLogout={logout}
           />
 
           <div
@@ -724,9 +1140,9 @@ function App() {
 
           <div ref={actionPanelRef} className="admin-action-panel min-w-0 h-full overflow-hidden bg-slate-950 flex flex-col min-h-0">
             <AdminButtonTabs
-              tabs={tabs}
+              tabs={actionTabs}
               activeTab={activeTab}
-              onChange={setActiveTab}
+              onChange={openTab}
             />
             <main className="flex-1 min-h-0 overflow-y-auto border-x border-slate-700 bg-slate-950 p-4 text-slate-100">
               {message && (
@@ -734,12 +1150,18 @@ function App() {
                   {message}
                 </p>
               )}
-              {activePanel}
+              <Routes>
+                <Route path="/" element={<Navigate to={adminRoutePaths.dashboard} replace />} />
+                {(Object.entries(adminRoutePaths) as [AdminTab, string][]).map(([tab, path]) => (
+                  <Route key={tab} path={path} element={renderPanel(tab)} />
+                ))}
+                <Route path="*" element={<Navigate to={adminRoutePaths.dashboard} replace />} />
+              </Routes>
             </main>
             <AdminButtonTabs
-              tabs={tabs}
+              tabs={actionTabs}
               activeTab={activeTab}
-              onChange={setActiveTab}
+              onChange={openTab}
               showFullscreen
               showTabs={false}
               isFullscreen={fullscreenTarget === 'action'}
@@ -770,6 +1192,11 @@ function MarketSnapshotStrip({
       className="admin-announcement-shell relative overflow-hidden rounded-xl border border-slate-700 bg-slate-900 pr-12 shadow-sm shadow-black/20"
       aria-label="Admin announcements"
     >
+      <div className="admin-mobile-announcement-text hidden items-center gap-2 py-2 pl-3 pr-12 text-xs font-semibold text-slate-200">
+        <span className="shrink-0 text-white">{marketSnapshotCards[0].title}</span>
+        <span className="text-slate-500">|</span>
+        <span className="truncate text-emerald-300">{marketSnapshotCards[0].text}</span>
+      </div>
       <div className="admin-announcement-track flex w-max items-center gap-4 py-2">
         {announcementItems.map((card, index) => (
           <article
@@ -795,7 +1222,76 @@ function MarketSnapshotStrip({
   );
 }
 
+function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: () => void): SidebarGroup[] {
+  return [
+    {
+      platform: 'main',
+      title: 'Dashboard',
+      subtitle: 'Admin overview',
+      items: [
+        { label: 'Dashboard', icon: 'dashboard', tab: 'dashboard' },
+        { label: 'Notifications', icon: 'notification', tab: 'notifications', count: counts.notifications },
+        { label: 'System Settings', icon: 'settings', tab: 'systemSettings' },
+      ],
+    },
+    {
+      platform: 'orchard',
+      title: 'Orchard Growers',
+      subtitle: 'Inventory and products',
+      items: [
+        { label: 'Inventory', icon: 'inventory', tab: 'inventory' },
+        { label: 'Products', icon: 'plus', tab: 'productAdmin' },
+        { label: 'Purchase', icon: 'purchase', tab: 'purchase' },
+        { label: 'Sales & Invoice', icon: 'sales', tab: 'sales' },
+        { label: 'Units / Outlets', icon: 'outlet', tab: 'unitsOutlets' },
+        { label: 'Expenses', icon: 'expense', tab: 'expenses' },
+        { label: 'Financials', icon: 'financials', tab: 'financials' },
+        { label: 'Reports', icon: 'report', tab: 'reports' },
+      ],
+    },
+    {
+      platform: 'efruitmandi',
+      title: 'eFruitMandi',
+      subtitle: 'Marketplace control',
+      items: [
+        { label: 'Dashboard', icon: 'dashboard', tab: 'efruitDashboard' },
+        { label: 'Users', icon: 'users', tab: 'users' },
+        { label: 'KYC Verification', icon: 'verify', tab: 'kyc' },
+        { label: 'Produce Lots', icon: 'lot', tab: 'produceLots' },
+        { label: 'Quotes', icon: 'quotes', tab: 'quotes' },
+        { label: 'Deals', icon: 'deal', tab: 'deals' },
+        { label: 'Transactions', icon: 'transaction', tab: 'transactions' },
+        { label: 'Support & Disputes', icon: 'support', tab: 'supportDisputes' },
+        { label: 'Analytics', icon: 'chart', tab: 'analytics' },
+        { label: 'Settings', icon: 'settings', tab: 'efruitSettings' },
+      ],
+    },
+    {
+      platform: 'userManagement',
+      title: 'User Management',
+      subtitle: 'Accounts and access',
+      items: [
+        { label: 'Staff Users', icon: 'users', tab: 'staffUsers' },
+        { label: 'Customers', icon: 'users', tab: 'customers' },
+        { label: 'Sellers / Growers / Farmers', icon: 'users', tab: 'sellers' },
+        { label: 'Buyers', icon: 'users', tab: 'buyers' },
+        { label: 'Roles & Permissions', icon: 'roles', tab: 'rolesPermissions' },
+        { label: 'Suspended Users', icon: 'verify', tab: 'suspendedUsers' },
+      ],
+    },
+    {
+      platform: 'system',
+      title: 'Logout',
+      subtitle: 'End session',
+      action: onLogout,
+      items: [{ label: 'Logout', icon: 'logout', action: onLogout }],
+    },
+  ];
+}
+
 type MenuIconName =
+  | 'menu'
+  | 'dashboard'
   | 'plus'
   | 'purchase'
   | 'sales'
@@ -805,110 +1301,175 @@ type MenuIconName =
   | 'verify'
   | 'chart'
   | 'pattern'
-  | 'auction'
-  | 'transaction';
+  | 'quotes'
+  | 'transaction'
+  | 'inventory'
+  | 'users'
+  | 'outlet'
+  | 'expense'
+  | 'report'
+  | 'lot'
+  | 'deal'
+  | 'support'
+  | 'notification'
+  | 'roles';
 
 function PlatformRail({
   activePlatform,
   activeTab,
+  groups,
   onChange,
   onOpenTab,
-  onLogout,
 }: {
   activePlatform: AdminPlatform;
   activeTab: AdminTab;
+  groups: SidebarGroup[];
   onChange: (platform: AdminPlatform) => void;
   onOpenTab: (platform: AdminPlatform, tab: AdminTab) => void;
-  onLogout: () => void;
 }) {
-  const orchardMenu: { label: string; icon: MenuIconName; tab?: AdminTab; action?: () => void }[] = [
-    { label: 'Add Product', icon: 'plus', tab: 'productAdmin' },
-    { label: 'Purchase', icon: 'purchase', tab: 'purchase' },
-    { label: 'Sales', icon: 'sales', tab: 'sales' },
-    { label: 'Financials', icon: 'financials', tab: 'financials' },
-    { label: 'Setting', icon: 'settings', tab: 'settings' },
-    { label: 'Logout', icon: 'logout', action: onLogout },
-  ];
-  const efruitMenu: { label: string; icon: MenuIconName; tab?: AdminTab; action?: () => void }[] = [
-    { label: 'View Verification Requests', icon: 'verify', tab: 'verified' },
-    { label: 'Sales Graph', icon: 'chart', tab: 'salesGraph' },
-    { label: 'Sales Patterns Graph', icon: 'pattern', tab: 'salesPatternsGraph' },
-    { label: 'Auction Patterns Graph', icon: 'auction', tab: 'auctionPatternsGraph' },
-    { label: 'Transactions Graph', icon: 'transaction', tab: 'transactionsGraph' },
-    { label: 'Settings', icon: 'settings', tab: 'settings' },
-    { label: 'Logout', icon: 'logout', action: onLogout },
-  ];
-
   return (
     <aside className="admin-platform-scroll h-full overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/40 p-2">
       <div className="flex h-full flex-col gap-2">
-        <div
-          className={`rounded-lg border px-2 py-3 ${
-          activePlatform === 'orchard'
-            ? 'border-emerald-500 bg-emerald-950 text-emerald-100'
-            : 'border-slate-700 bg-slate-900 text-slate-200'
-        }`}
-        >
-          <button type="button" onClick={() => onChange('orchard')} className="w-full text-left">
-            <span className="block text-base font-semibold">Orchard Growers</span>
-            <span className="mt-1 block text-xs font-medium text-slate-400">Inventory and products</span>
-          </button>
-          <div className="mt-3 space-y-1">
-            {orchardMenu.map((item) => {
-              const selected = item.tab && activePlatform === 'orchard' && activeTab === item.tab;
-              return (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => (item.action ? item.action() : item.tab && onOpenTab('orchard', item.tab))}
-                  className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold transition ${
-                    selected ? 'bg-emerald-600 text-white' : 'text-slate-200 hover:bg-slate-800 hover:text-white'
-                  }`}
-                >
-                  <MenuIcon name={item.icon} />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
+        {groups.map((group) => (
+          <div
+            key={group.title}
+            className={`rounded-lg border px-2 py-3 ${
+              activePlatform === group.platform
+                ? 'border-emerald-500 bg-emerald-950 text-emerald-100'
+                : 'border-slate-700 bg-slate-900 text-slate-200'
+            }`}
+          >
+            <button type="button" onClick={() => (group.action ? group.action() : onChange(group.platform))} className="w-full text-left">
+              <span className="block text-base font-semibold whitespace-nowrap overflow-hidden text-ellipsis">{group.title}</span>
+              <span className="mt-1 block text-xs font-medium text-slate-400 whitespace-nowrap overflow-hidden text-ellipsis">{group.subtitle}</span>
+            </button>
+            <div className="mt-3 space-y-1">
+              {group.items.map((item) => {
+                const selected = item.tab && activePlatform === group.platform && activeTab === item.tab;
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => (item.action ? item.action() : item.tab && onOpenTab(group.platform, item.tab))}
+                    className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold transition ${
+                      selected ? 'bg-emerald-600 text-white' : 'text-slate-200 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
+                    <MenuIcon name={item.icon} />
+                    <span>
+                      {item.label}
+                      {typeof item.count === 'number' && ` (${item.count})`}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
-        <div
-          className={`rounded-lg border px-2 py-3 ${
-            activePlatform === 'efruitmandi'
-              ? 'border-emerald-500 bg-emerald-950 text-emerald-100'
-              : 'border-slate-700 bg-slate-900 text-slate-200'
-          }`}
-        >
-          <button type="button" onClick={() => onChange('efruitmandi')} className="w-full text-center">
-            <span className="block text-base font-semibold">EfruitMandi</span>
-            <span className="mt-1 block text-xs font-medium text-slate-400">Users and verification</span>
-          </button>
-          <div className="mt-3 space-y-1">
-            {efruitMenu.map((item) => {
-              const selected = item.tab && activePlatform === 'efruitmandi' && activeTab === item.tab;
-              return (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => (item.action ? item.action() : item.tab && onOpenTab('efruitmandi', item.tab))}
-                  className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold transition ${
-                    selected ? 'bg-emerald-600 text-white' : 'text-slate-200 hover:bg-slate-800 hover:text-white'
-                  }`}
-                >
-                  <MenuIcon name={item.icon} />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        ))}
       </div>
     </aside>
   );
 }
 
+function MobileAdminMenu({
+  groups,
+  activePlatform,
+  activeTab,
+  onOpenTab,
+  onOpenPlatform,
+  onClose,
+}: {
+  groups: SidebarGroup[];
+  activePlatform: AdminPlatform;
+  activeTab: AdminTab;
+  onOpenTab: (tab: AdminTab) => void;
+  onOpenPlatform: (platform: AdminPlatform) => void;
+  onClose: () => void;
+}) {
+  const runAction = (action: () => void) => {
+    action();
+    onClose();
+  };
+
+  return (
+    <div id="mobile-admin-menu" className="admin-mobile-menu fixed z-40 md:hidden">
+      <div className="mb-2 flex items-center justify-between gap-3 border-b border-slate-800 pb-2">
+        <span className="text-sm font-black text-white">Admin Menu</span>
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex h-8 w-8 items-center justify-center rounded-md bg-slate-800 text-slate-100 hover:bg-slate-700"
+          aria-label="Close menu"
+        >
+          x
+        </button>
+      </div>
+      <div className="space-y-2">
+        {groups.map((group) => (
+          <section
+            key={group.title}
+            className={`rounded-lg border px-2 py-2 ${
+              activePlatform === group.platform
+                ? 'border-emerald-500 bg-emerald-950 text-emerald-100'
+                : 'border-slate-700 bg-slate-900 text-slate-200'
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => (group.action ? runAction(group.action) : onOpenPlatform(group.platform))}
+              className="flex w-full items-center justify-between gap-2 text-left"
+            >
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-bold">{group.title}</span>
+                <span className="mt-0.5 block truncate text-[11px] font-semibold text-slate-400">{group.subtitle}</span>
+              </span>
+              <MenuIcon name={group.items[0]?.icon || 'dashboard'} />
+            </button>
+            <div className="mt-2 grid grid-cols-2 gap-1">
+              {group.items.map((item) => {
+                const selected = item.tab && activeTab === item.tab;
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => (item.action ? runAction(item.action) : item.tab && onOpenTab(item.tab))}
+                    className={`flex min-h-10 items-center gap-2 rounded-md px-2 py-2 text-left text-[11px] font-bold transition ${
+                      selected ? 'bg-emerald-600 text-white' : 'text-slate-200 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
+                    <MenuIcon name={item.icon} />
+                    <span className="min-w-0 truncate">
+                      {item.label}
+                      {typeof item.count === 'number' && ` (${item.count})`}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function MenuIcon({ name }: { name: MenuIconName }) {
   const paths: Record<MenuIconName, ReactNode> = {
+    menu: (
+      <>
+        <path d="M4 6h16" />
+        <path d="M4 12h16" />
+        <path d="M4 18h16" />
+      </>
+    ),
+    dashboard: (
+      <>
+        <path d="M3 13h8V3H3v10Z" />
+        <path d="M13 21h8V11h-8v10Z" />
+        <path d="M13 3v6h8V3h-8Z" />
+        <path d="M3 21h8v-6H3v6Z" />
+      </>
+    ),
     plus: (
       <>
         <path d="M12 5v14" />
@@ -970,13 +1531,11 @@ function MenuIcon({ name }: { name: MenuIconName }) {
         <path d="M4 21h16" />
       </>
     ),
-    auction: (
+    quotes: (
       <>
-        <path d="m14 4 6 6" />
-        <path d="m8 10 6 6" />
-        <path d="m7 11 8-8" />
-        <path d="m13 17 8-8" />
-        <path d="M3 21h8" />
+        <path d="M4 5h16v10H7l-3 3V5Z" />
+        <path d="M8 9h8" />
+        <path d="M8 12h5" />
       </>
     ),
     transaction: (
@@ -985,6 +1544,77 @@ function MenuIcon({ name }: { name: MenuIconName }) {
         <path d="M17 17H4l3 3" />
         <path d="M12 8v8" />
         <path d="M9.5 10.5c0-1.1 1-1.8 2.5-1.8s2.5.7 2.5 1.8S13.5 12 12 12s-2.5.4-2.5 1.5 1 1.8 2.5 1.8 2.5-.7 2.5-1.8" />
+      </>
+    ),
+    inventory: (
+      <>
+        <path d="M3 7l9-4 9 4-9 4-9-4Z" />
+        <path d="M3 7v10l9 4 9-4V7" />
+        <path d="M12 11v10" />
+      </>
+    ),
+    users: (
+      <>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </>
+    ),
+    outlet: (
+      <>
+        <path d="M4 10h16" />
+        <path d="M5 10l1-6h12l1 6" />
+        <path d="M6 10v10h12V10" />
+        <path d="M9 20v-6h6v6" />
+      </>
+    ),
+    expense: (
+      <>
+        <path d="M7 3h10v18H7V3Z" />
+        <path d="M9 7h6" />
+        <path d="M9 11h6" />
+        <path d="M9 15h3" />
+      </>
+    ),
+    report: (
+      <>
+        <path d="M6 3h9l3 3v15H6V3Z" />
+        <path d="M14 3v4h4" />
+        <path d="M9 13h6" />
+        <path d="M9 17h6" />
+      </>
+    ),
+    lot: (
+      <>
+        <path d="M4 17c4-10 12-10 16 0" />
+        <path d="M12 7v10" />
+        <path d="M8 11c2 1 6 1 8 0" />
+      </>
+    ),
+    deal: (
+      <>
+        <path d="M7 11l3 3 7-7" />
+        <path d="M21 12a9 9 0 1 1-4-7.5" />
+      </>
+    ),
+    support: (
+      <>
+        <path d="M12 18h.01" />
+        <path d="M9.09 9a3 3 0 1 1 5.82 1c0 2-3 2-3 4" />
+        <path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+      </>
+    ),
+    notification: (
+      <>
+        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+        <path d="M10 21h4" />
+      </>
+    ),
+    roles: (
+      <>
+        <path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4Z" />
+        <path d="M9 12l2 2 4-5" />
       </>
     ),
   };
@@ -1072,22 +1702,186 @@ function FullscreenIcon({ active }: { active: boolean }) {
 }
 
 function getAdminTabTitle(activeTab: AdminTab, activePlatform: AdminPlatform) {
+  if (activeTab === 'dashboard') return 'Admin Dashboard';
   if (activeTab === 'inventory') return 'Orchard Growers Inventory System';
-  if (activeTab === 'productAdmin') return 'Add Orchard Growers Product';
+  if (activeTab === 'productAdmin') return 'Orchard Growers Products';
   if (activeTab === 'purchase') return 'Orchard Growers Purchase';
-  if (activeTab === 'sales') return 'Orchard Growers Sales';
+  if (activeTab === 'sales') return 'Orchard Growers Sales & Invoice';
+  if (activeTab === 'unitsOutlets') return 'Orchard Growers Units / Outlets';
+  if (activeTab === 'expenses') return 'Orchard Growers Expenses';
   if (activeTab === 'financials') return 'Orchard Growers Financials';
-  if (activeTab === 'settings') return activePlatform === 'orchard' ? 'Orchard Growers Settings' : 'EfruitMandi Settings';
-  if (activeTab === 'users') return 'EfruitMandi User Information Desk';
-  if (activeTab === 'notifications') return 'EfruitMandi Review Alerts';
-  if (activeTab === 'kyc') return 'EfruitMandi KYC Desk';
-  if (activeTab === 'verified') return 'EfruitMandi Verification Desk';
-  if (activeTab === 'salesGraph') return 'EfruitMandi Sales Graph';
-  if (activeTab === 'salesPatternsGraph') return 'EfruitMandi Sales Patterns Graph';
-  if (activeTab === 'auctionPatternsGraph') return 'EfruitMandi Auction Patterns Graph';
-  if (activeTab === 'transactionsGraph') return 'EfruitMandi Transactions Graph';
-  if (activeTab === 'orders') return 'Orchard Growers Buyer Orders';
-  return activePlatform === 'orchard' ? 'Orchard Growers Admin Command' : 'EfruitMandi Admin Command';
+  if (activeTab === 'reports') return 'Orchard Growers Reports';
+  if (activeTab === 'efruitDashboard') return 'eFruitMandi Dashboard';
+  if (activeTab === 'users') return 'eFruitMandi Users';
+  if (activeTab === 'notifications') return 'Admin Notifications';
+  if (activeTab === 'kyc') return 'eFruitMandi KYC Verification';
+  if (activeTab === 'produceLots') return 'eFruitMandi Produce Lots';
+  if (activeTab === 'quotes') return 'eFruitMandi Quotes';
+  if (activeTab === 'deals') return 'eFruitMandi Deals';
+  if (activeTab === 'transactions') return 'eFruitMandi Transactions';
+  if (activeTab === 'supportDisputes') return 'eFruitMandi Support & Disputes';
+  if (activeTab === 'analytics') return 'eFruitMandi Analytics';
+  if (activeTab === 'efruitSettings') return 'eFruitMandi Settings';
+  if (activeTab === 'staffUsers') return 'Staff Users';
+  if (activeTab === 'customers') return 'Customers';
+  if (activeTab === 'sellers') return 'Sellers / Growers / Farmers';
+  if (activeTab === 'buyers') return 'Buyers';
+  if (activeTab === 'rolesPermissions') return 'Roles & Permissions';
+  if (activeTab === 'suspendedUsers') return 'Suspended Users';
+  if (activeTab === 'systemSettings') return 'System Settings';
+  return activePlatform === 'orchard' ? 'Orchard Growers Admin Command' : 'Admin Command';
+}
+
+function AdminDashboardPanel({
+  pendingKycCount,
+  pendingVerificationCount,
+  approvedKycCount,
+  approvedVerificationCount,
+  productCount,
+  orderCount,
+  userCount,
+  onOpenTab,
+}: {
+  pendingKycCount: number;
+  pendingVerificationCount: number;
+  approvedKycCount: number;
+  approvedVerificationCount: number;
+  productCount: number;
+  orderCount: number;
+  userCount: number;
+  onOpenTab: (tab: AdminTab) => void;
+}) {
+  const cards = [
+    { label: 'Orchard Products', value: productCount, action: 'Open Inventory', tab: 'inventory' as const },
+    { label: 'Sales & Invoice', value: orderCount, action: 'Open Sales', tab: 'sales' as const },
+    { label: 'eFruitMandi Users', value: userCount, action: 'Open Users', tab: 'users' as const },
+    { label: 'Review Queue', value: pendingKycCount + pendingVerificationCount, action: 'Open KYC', tab: 'kyc' as const },
+  ];
+
+  return (
+    <section className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {cards.map((card) => (
+          <button
+            key={card.label}
+            onClick={() => onOpenTab(card.tab)}
+            className="rounded-2xl border border-slate-800 bg-slate-900 p-5 text-left hover:border-emerald-500"
+          >
+            <p className="text-sm font-bold text-slate-400">{card.label}</p>
+            <p className="mt-3 text-3xl font-black text-white">{card.value}</p>
+            <p className="mt-4 text-sm font-bold text-emerald-300">{card.action}</p>
+          </button>
+        ))}
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <MetricCard label="Approved KYC" value={approvedKycCount} />
+        <MetricCard label="Approved Verifications" value={approvedVerificationCount} />
+      </div>
+      <ModulePlanPanel plan={modulePlans.dashboard} />
+    </section>
+  );
+}
+
+function ModulePlanPanel({ plan }: { plan?: ModulePlan }) {
+  const safePlan = plan || {
+    title: 'Module',
+    text: 'Admin workflow controls will appear here as this module is expanded.',
+  };
+
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+      <h2 className="text-lg font-bold text-white">{safePlan.title}</h2>
+      <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-400">{safePlan.text}</p>
+      {safePlan.pages?.length ? (
+        <PlanList title="Pages" items={safePlan.pages} />
+      ) : null}
+      {safePlan.fields?.length ? (
+        <PlanList title="Fields / Statuses" items={safePlan.fields} />
+      ) : null}
+      {safePlan.rules?.length ? (
+        <PlanList title="Business Logic" items={safePlan.rules} />
+      ) : null}
+      {!safePlan.pages?.length && !safePlan.fields?.length && !safePlan.rules?.length && (
+        <div className="mt-5 rounded-xl border border-dashed border-slate-700 bg-slate-950 p-5 text-sm font-semibold text-slate-500">
+          Admin workflow controls will appear here as this module is expanded.
+        </div>
+      )}
+    </section>
+  );
+}
+
+function PlanList({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="mt-5 rounded-xl border border-dashed border-slate-700 bg-slate-950 p-4">
+      <p className="text-sm font-black text-white">{title}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {items.map((item) => (
+          <span key={item} className="rounded-full bg-slate-900 px-3 py-1 text-xs font-bold text-slate-300">
+            {item}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RolesPermissionsPanel() {
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-lg font-bold text-white">Roles & Permissions</h2>
+        <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-bold text-emerald-300">
+          Permission planning
+        </span>
+      </div>
+      <div className="space-y-3">
+        {rolePermissionPlan.map((item) => (
+          <article key={item.role} className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+              <h3 className="text-base font-bold text-white">{item.role}</h3>
+              <p className="text-sm font-semibold text-slate-400">{item.access}</p>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function KycVerificationPanel({
+  kycRequests,
+  verificationRequests,
+  onReview,
+  onEditVerification,
+  onViewFile,
+}: {
+  kycRequests: KycUser[];
+  verificationRequests: VerificationRequest[];
+  onReview: (type: 'kyc' | 'verification', id: string, action: ReviewAction) => void;
+  onEditVerification: (request: VerificationRequest) => void;
+  onViewFile: (file: UploadedFile) => void;
+}) {
+  return (
+    <section className="space-y-4">
+      <ModulePlanPanel plan={modulePlans.kyc} />
+      <RequestSection title="KYC Verification" count={kycRequests.length}>
+        {kycRequests.map((user) => (
+          <KycRequestCard key={user._id} user={user} onReview={onReview} onViewFile={onViewFile} />
+        ))}
+      </RequestSection>
+      <RequestSection title="User Verification Requests" count={verificationRequests.length}>
+        {verificationRequests.map((request) => (
+          <VerificationRequestCard
+            key={request._id}
+            request={request}
+            onReview={onReview}
+            onEdit={onEditVerification}
+            onViewFile={onViewFile}
+          />
+        ))}
+      </RequestSection>
+    </section>
+  );
 }
 
 function HomePanel({
@@ -1113,15 +1907,15 @@ function HomePanel({
     activePlatform === 'orchard'
       ? [
           { label: 'Products in Inventory', value: productCount, action: 'Open Inventory', tab: 'inventory' as const },
-          { label: 'Buyer Orders', value: pendingVerificationCount + pendingKycCount, action: 'Open Orders', tab: 'orders' as const },
+          { label: 'Buyer Orders', value: pendingVerificationCount + pendingKycCount, action: 'Open Sales & Invoice', tab: 'sales' as const },
           { label: 'Product Entry Desk', value: productCount, action: 'Add Product', tab: 'productAdmin' as const },
           { label: 'Verified Supply Base', value: approvedVerificationCount + approvedKycCount, action: 'View Signals', tab: 'inventory' as const },
         ]
       : [
           { label: 'User Accounts', value: userCount, action: 'Open User Records', tab: 'users' as const },
           { label: 'KYC Queue', value: pendingKycCount, action: 'Open KYC Desk', tab: 'kyc' as const },
-          { label: 'Verification Queue', value: pendingVerificationCount, action: 'Open Verification Desk', tab: 'verified' as const },
-          { label: 'Verified Accounts', value: approvedVerificationCount + approvedKycCount, action: 'Review Verified Users', tab: 'verified' as const },
+          { label: 'Verification Queue', value: pendingVerificationCount, action: 'Open Verification Desk', tab: 'kyc' as const },
+          { label: 'Verified Accounts', value: approvedVerificationCount + approvedKycCount, action: 'Review Verified Users', tab: 'users' as const },
         ];
 
   return (
@@ -1157,6 +1951,7 @@ function InventoryPanel({
         <MetricCard label="Low Stock Watch" value={lowStock} />
         <MetricCard label="Available Listings" value={products.filter((product) => product.status === 'AVAILABLE').length} />
       </div>
+      <ModulePlanPanel plan={modulePlans.inventory} />
       <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-bold text-white">Orchard Growers Inventory</h2>
@@ -1190,7 +1985,7 @@ function InventoryPanel({
                 </div>
                 <div className="flex flex-col justify-between gap-3">
                   <span className="rounded-full bg-emerald-950 px-3 py-1 text-center text-xs font-bold text-emerald-300">
-                    {product.status || 'AVAILABLE'}
+                    {formatProductStatus(product.status || 'AVAILABLE')}
                   </span>
                   <button
                     onClick={() => onUpdateStock(product)}
@@ -1243,9 +2038,9 @@ function ProductAdminPanel({
             onChange={(event) => update('status', event.target.value)}
             className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400"
           >
-            <option value="AVAILABLE">Available</option>
-            <option value="IN_AUCTION">In Auction</option>
-            <option value="SOLD">Sold</option>
+            <option value="AVAILABLE">Active</option>
+            <option value="IN_AUCTION">Quote Enabled</option>
+            <option value="SOLD">Inactive</option>
           </select>
         </label>
       </div>
@@ -1280,17 +2075,23 @@ function UsersPanel({
   users,
   onEdit,
   onStatus,
+  title = 'eFruitMandi User Information',
+  badge = 'Profile, role, account status',
+  emptyLabel = 'No eFruitMandi users found.',
 }: {
   users: AdminUser[];
   onEdit: (user: AdminUser) => void;
   onStatus: (user: AdminUser, status: string) => void;
+  title?: string;
+  badge?: string;
+  emptyLabel?: string;
 }) {
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-bold text-white">EfruitMandi User Information</h2>
+        <h2 className="text-lg font-bold text-white">{title}</h2>
         <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-bold text-emerald-300">
-          Profile, role, account status
+          {badge}
         </span>
       </div>
       <div className="space-y-3">
@@ -1323,7 +2124,7 @@ function UsersPanel({
             </div>
           </article>
         ))}
-        {!users.length && <EmptyState label="No EfruitMandi users found." />}
+        {!users.length && <EmptyState label={emptyLabel} />}
       </div>
     </section>
   );
@@ -1392,7 +2193,7 @@ function NotificationsPanel({
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-bold text-white">EfruitMandi Review Alerts</h2>
+        <h2 className="text-lg font-bold text-white">eFruitMandi Review Alerts</h2>
         <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-bold text-emerald-300">
           {pendingKyc.length + pendingVerification.length} pending
         </span>
@@ -1413,7 +2214,7 @@ function NotificationsPanel({
             title={`${request.orchardName} requested verification`}
             detail="Class1 and Class2 approval required."
             action="Review Request"
-            onClick={() => onOpenTab('verified')}
+            onClick={() => onOpenTab('kyc')}
           />
         ))}
         {!pendingKyc.length && !pendingVerification.length && <EmptyState />}
@@ -1818,6 +2619,42 @@ function filterUsers(users: AdminUser[], search: string) {
       .toLowerCase()
       .includes(query)
   );
+}
+
+function getTabFromPath(pathname: string): AdminTab {
+  const normalizedPath = pathname.replace(/\/+$/, '') || '/';
+  const matchedRoute = (Object.entries(adminRoutePaths) as [AdminTab, string][]).find(
+    ([, path]) => path === normalizedPath
+  );
+
+  return matchedRoute?.[0] || 'dashboard';
+}
+
+function getDefaultTabForPlatform(platform: AdminPlatform): AdminTab {
+  const defaultTabs: Record<AdminPlatform, AdminTab> = {
+    main: 'dashboard',
+    orchard: 'inventory',
+    efruitmandi: 'efruitDashboard',
+    userManagement: 'staffUsers',
+    system: 'systemSettings',
+  };
+
+  return defaultTabs[platform];
+}
+
+function normalizeProductStatusInput(status: string) {
+  const nextStatus = status.trim().toUpperCase().replace(/\s+/g, '_');
+  if (['ACTIVE', 'AVAILABLE'].includes(nextStatus)) return 'AVAILABLE';
+  if (['QUOTE_ENABLED', 'QUOTE_MODE'].includes(nextStatus)) return 'IN_AUCTION';
+  if (['INACTIVE', 'SOLD'].includes(nextStatus)) return 'SOLD';
+  return nextStatus;
+}
+
+function formatProductStatus(status: string) {
+  if (status === 'AVAILABLE') return 'ACTIVE';
+  if (status === 'IN_AUCTION') return 'QUOTE ENABLED';
+  if (status === 'SOLD') return 'INACTIVE';
+  return status;
 }
 
 function normalizeFileUrl(path?: string) {

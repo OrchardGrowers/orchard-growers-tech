@@ -84,6 +84,39 @@ a {
   border-radius: 999px;
 }
 
+.admin-shell-grid {
+  grid-template-columns: var(--admin-platform-rail-width, 145px) 6px minmax(0, 1fr);
+}
+
+.admin-mobile-menu {
+  top: 96px;
+  right: 8px;
+  width: min(360px, calc(100vw - 16px));
+  max-height: calc(100vh - 112px);
+  overflow-y: auto;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  background: #020617;
+  padding: 10px;
+  box-shadow: 0 20px 50px rgb(0 0 0 / 0.45);
+  scrollbar-color: #10b981 #0f172a;
+  scrollbar-width: thin;
+}
+
+.admin-mobile-menu::-webkit-scrollbar {
+  width: 8px;
+}
+
+.admin-mobile-menu::-webkit-scrollbar-track {
+  background: #0f172a;
+  border-radius: 999px;
+}
+
+.admin-mobile-menu::-webkit-scrollbar-thumb {
+  background: #10b981;
+  border-radius: 999px;
+}
+
 .admin-announcement-shell:fullscreen {
   display: flex;
   align-items: center;
@@ -193,4 +226,100 @@ a {
 .admin-resize-handle:hover::after,
 .admin-resize-handle:active::after {
   opacity: 1;
+}
+
+@media (max-width: 767px) {
+  .admin-announcement-shell {
+    min-height: 38px;
+  }
+
+  .admin-announcement-track {
+    display: none;
+  }
+
+  .admin-mobile-announcement-text {
+    display: flex !important;
+  }
+
+  .admin-announcement-shell > button {
+    width: 28px;
+    height: 28px;
+  }
+
+  .admin-top-nav {
+    grid-template-columns: 44px minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .admin-top-nav > label {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+
+  .admin-top-nav > div:last-child {
+    min-width: 0;
+    min-height: 44px;
+  }
+
+  .admin-top-nav > div:last-child > span:first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .admin-top-nav > div:last-child > span:nth-child(2),
+  .admin-top-nav .admin-logout-button {
+    display: none;
+  }
+
+  .admin-top-nav .admin-refresh-button {
+    width: 34px;
+    padding-left: 0;
+    padding-right: 0;
+    overflow: hidden;
+    color: transparent;
+    position: relative;
+  }
+
+  .admin-top-nav .admin-refresh-button::after {
+    content: 'R';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #020617;
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .admin-top-nav .admin-mobile-menu-button {
+    display: flex;
+  }
+
+  .admin-shell-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .admin-shell-grid .admin-platform-scroll {
+    display: none;
+  }
+
+  .admin-shell-grid .admin-resize-handle {
+    display: none;
+  }
+
+  .admin-shell-grid .admin-action-panel {
+    min-height: 0;
+    border-radius: 10px;
+  }
+
+  .admin-action-panel main {
+    padding: 12px;
+    border-left: 1px solid #334155;
+    border-right: 1px solid #334155;
+  }
 }
