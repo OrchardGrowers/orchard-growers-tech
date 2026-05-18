@@ -11,3 +11,12 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     </BrowserRouter>
   </React.StrictMode>
 );
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    const baseUrl = ((import.meta as ImportMeta & { env?: { BASE_URL?: string } }).env?.BASE_URL) || '/';
+    navigator.serviceWorker
+      .register(`${baseUrl}pwa-service-worker.js`)
+      .catch(() => undefined);
+  });
+}

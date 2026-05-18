@@ -61,7 +61,21 @@ const isDealOpen = (date = new Date()) => {
 
 // ================= MIDDLEWARE =================
 const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || "";
-const allowedOrigins = allowedOriginsEnv.split(",").map((s) => s.trim()).filter(Boolean);
+const normalizeOrigin = (origin = "") => origin.trim().replace(/\/+$/, "");
+const allowedOrigins = allowedOriginsEnv.split(",").map(normalizeOrigin).filter(Boolean);
+const originMatches = (origin, allowedOrigin) => {
+  if (allowedOrigin === "*") return true;
+  if (!allowedOrigin.includes("*")) return origin === allowedOrigin;
+
+  const pattern = allowedOrigin
+    .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*/g, ".*");
+  return new RegExp(`^${pattern}$`).test(origin);
+};
+const isOriginAllowed = (origin) => {
+  const normalizedOrigin = normalizeOrigin(origin);
+  return allowedOrigins.length === 0 || allowedOrigins.some((allowedOrigin) => originMatches(normalizedOrigin, allowedOrigin));
+};
 
 const corsOptions = {
   origin: (origin, callback) => {
@@ -69,7 +83,7 @@ const corsOptions = {
     if (!origin) return callback(null, true);
 
     // If no explicit allowed origins configured, accept all origins (backwards compatible)
-    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+    if (isOriginAllowed(origin)) {
       return callback(null, true);
     }
 

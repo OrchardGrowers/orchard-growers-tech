@@ -1,5 +1,7 @@
 import { useNavigate } from "react-router-dom";
 
+const logoUrl = `${process.env.PUBLIC_URL || ""}/logo.png`;
+
 const trustBadges = [
   {
     title: "Escrow Enabled",
@@ -17,7 +19,7 @@ const trustBadges = [
   {
     title: "Orchard Growers",
     detail: "Trusted Growers and Buyers",
-    logo: "/logo.png",
+    logo: logoUrl,
     logoClass: "h-9 w-auto object-contain",
     mobileLogoClass: "h-5 w-auto object-contain lg:h-9",
   },
@@ -36,7 +38,7 @@ export default function AuthBrandShell({ children, compact = false }) {
             className="absolute left-6 top-5 rounded-md p-1 sm:left-8 lg:left-8 lg:top-7"
             aria-label="Go to home"
           >
-            <img src="/logo.png" alt="E-Fruit Mandi" className="h-10 w-auto sm:h-11 lg:h-16 xl:h-20" />
+            <img src={logoUrl} alt="E-Fruit Mandi" className="h-10 w-auto sm:h-11 lg:h-16 xl:h-20" />
           </button>
 
           <div className="max-w-2xl pt-5 sm:pt-6 lg:pt-0">

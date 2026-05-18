@@ -1,7 +1,19 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 
-const ADMIN_ROLES = new Set(["EMPLOYEE", "ADMIN", "SUPER_ADMIN"]);
+const ADMIN_ROLES = new Set([
+  "SUPER_ADMIN",
+  "ADMIN",
+  "UNIT_MANAGER",
+  "INVENTORY_MANAGER",
+  "SALES_EXECUTIVE",
+  "PURCHASE_MANAGER",
+  "FINANCE_MANAGER",
+  "VERIFICATION_OFFICER",
+  "SUPPORT_EXECUTIVE",
+  "VIEWER",
+  "EMPLOYEE",
+]);
 
 const getTokenFromHeader = (authHeader = "") =>
   authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : authHeader;

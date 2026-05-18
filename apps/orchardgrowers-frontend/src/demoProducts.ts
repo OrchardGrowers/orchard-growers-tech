@@ -1,5 +1,7 @@
 import type { Product } from "./types";
 
+const publicAssetUrl = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, "")}`;
+
 type DemoProductSpec = {
   slug: string;
   title: string;
@@ -279,7 +281,7 @@ export const DEMO_PRODUCTS: Product[] = demoProductSpecs.map((spec, index) => ({
   basePrice: spec.basePrice,
   images: Array.from({ length: 5 }, (_, imageIndex) =>
     spec.slug === "season-winter" && imageIndex === 0
-      ? "/product-images/orchard-growers-winter-hardy-plants-ai.png"
+      ? publicAssetUrl("/product-images/orchard-growers-winter-hardy-plants-ai.png")
       : `https://source.unsplash.com/640x480/?${encodeURIComponent(spec.imageQuery)}&sig=${spec.slug}-${imageIndex + 1}`
   ),
   status: "AVAILABLE",

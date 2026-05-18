@@ -24,6 +24,7 @@ import {
 } from "react-icons/fa";
 import Products from "./pages/Products";
 import API from "./services/api";
+import InstallAppPrompt, { openOrchardInstallPrompt } from "./components/InstallAppPrompt";
 import { withDemoProducts } from "./demoProducts";
 import type { Product } from "./types";
 
@@ -242,7 +243,9 @@ const serviceDropdownItems = [
 const educationDropdownItems = ["Learn"];
 const earthDropdownItems = ["Blogs", "Donate"];
 
-const bannerImages = Array.from({ length: 8 }, (_, index) => `/ad-banners/banner-${index + 1}.png`);
+const publicAssetUrl = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, "")}`;
+const logoUrl = publicAssetUrl("/logo.png");
+const bannerImages = Array.from({ length: 6 }, (_, index) => publicAssetUrl(`/ad-banners/banner-${index + 1}.png`));
 const orchardCover =
   "https://images.unsplash.com/photo-1560807707-8cc77767d783?auto=format&fit=crop&w=900&q=80";
 const fallbackLotImage =
@@ -273,6 +276,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
         </Routes>
       </main>
+      <InstallAppPrompt />
       <StickyWhatsapp />
     </div>
   );
@@ -428,7 +432,7 @@ function TopNav() {
         </div>
         <div className="mx-auto flex h-16 max-w-[1180px] items-center gap-3 px-3">
         <Link to="/" className="flex shrink-0 items-center gap-2 rounded px-1.5 py-1">
-          <img src="/logo.png" alt="Orchard Growers" className="h-14 w-auto object-contain" />
+          <img src={logoUrl} alt="Orchard Growers" className="h-14 w-auto object-contain" />
         </Link>
         <nav className="hidden h-10 min-w-0 flex-1 rounded-md bg-green-700 px-1 md:block" aria-label="Primary navigation">
           <div className="flex h-full items-stretch text-sm font-semibold text-white">
@@ -517,6 +521,13 @@ function TopNav() {
           </button>
         </div>
         <div className="hidden shrink-0 items-center gap-5 text-2xl text-green-700 md:flex">
+          <button
+            type="button"
+            onClick={openOrchardInstallPrompt}
+            className="rounded-full border border-green-700 px-3 py-2 text-xs font-semibold text-green-700 hover:bg-green-50"
+          >
+            Download App
+          </button>
           <Link to={accountPath} aria-label="Account" title="Account" className="hover:text-green-900">
             <FaUser />
           </Link>
@@ -1514,7 +1525,7 @@ function StatsCard() {
 function CompanyCard() {
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4">
-      <img src="/logo.png" alt="" className="mb-8 h-8 w-20 object-contain" />
+      <img src={logoUrl} alt="" className="mb-8 h-8 w-20 object-contain" />
       <h2 className="text-base font-semibold text-slate-900">Orchard Growers</h2>
       <p className="mt-2 text-xs text-slate-600">Plants, tools, services, education tips, and Save Our Earth updates.</p>
     </section>
@@ -1524,7 +1535,7 @@ function CompanyCard() {
 function SidebarContactCard() {
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-5 text-green-900">
-      <img src="/logo.png" alt="Orchard Growers" className="mb-8 h-9 w-auto object-contain" />
+      <img src={logoUrl} alt="Orchard Growers" className="mb-8 h-9 w-auto object-contain" />
       <div className="space-y-4 text-sm">
         <p>WhatsApp: +917018108900</p>
         <p>Call: +917018108900</p>
@@ -1744,6 +1755,9 @@ function ProfilePage() {
             <Link to="/cart" className="rounded-full border-2 border-green-700 px-6 py-3 text-sm font-semibold text-green-700 transition-all hover:bg-green-50">
               View Cart
             </Link>
+            <button type="button" onClick={openOrchardInstallPrompt} className="rounded-full border-2 border-green-700 px-6 py-3 text-sm font-semibold text-green-700 transition-all hover:bg-green-50">
+              Download App
+            </button>
           </div>
         </div>
 
@@ -1969,7 +1983,7 @@ function AuthPage() {
       <div className="grid min-h-[620px] md:grid-cols-[1fr_520px]">
         <div className="hidden bg-green-800 p-10 text-white md:flex md:flex-col md:justify-between">
           <Link to="/" className="inline-flex">
-            <img src="/logo.png" alt="Orchard Growers" className="h-16 w-auto rounded bg-white/95 px-3 py-2 object-contain" />
+            <img src={logoUrl} alt="Orchard Growers" className="h-16 w-auto rounded bg-white/95 px-3 py-2 object-contain" />
           </Link>
           <div>
             <p className="text-sm font-medium uppercase tracking-[0.28em] text-green-100">Orchard Growers</p>

@@ -4,26 +4,85 @@ import Product from "../models/Product.js";
 import Order from "../models/Order.js";
 import VerificationRequest from "../models/VerificationRequest.js";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
+import nodemailer from "nodemailer";
 
 const ADMIN_SELECT = "-password -__v";
 const USER_SELECT = "-password -__v";
-const ADMIN_ROLES = ["EMPLOYEE", "ADMIN", "SUPER_ADMIN"];
+const ADMIN_ROLES = [
+  "SUPER_ADMIN",
+  "ADMIN",
+  "UNIT_MANAGER",
+  "INVENTORY_MANAGER",
+  "SALES_EXECUTIVE",
+  "PURCHASE_MANAGER",
+  "FINANCE_MANAGER",
+  "VERIFICATION_OFFICER",
+  "SUPPORT_EXECUTIVE",
+  "VIEWER",
+  "EMPLOYEE",
+];
 const ADMIN_STATUSES = ["ACTIVE", "TERMINATED"];
 const USER_ROLES = [null, "grower", "buyer", "driver"];
 const USER_STATUSES = ["ACTIVE", "HOLD", "SUSPENDED", "TERMINATED"];
 const ROLE_LABELS = {
   SUPER_ADMIN: "Super Admin",
-  ADMIN: "Admin X",
-  EMPLOYEE: "Admin Y",
+  ADMIN: "Admin",
+  UNIT_MANAGER: "Unit Manager",
+  INVENTORY_MANAGER: "Inventory Manager",
+  SALES_EXECUTIVE: "Sales Executive",
+  PURCHASE_MANAGER: "Purchase Manager",
+  FINANCE_MANAGER: "Finance Manager",
+  VERIFICATION_OFFICER: "Verification Officer",
+  SUPPORT_EXECUTIVE: "Support Executive",
+  VIEWER: "Viewer",
+  EMPLOYEE: "Admin",
 };
 const ADMIN_CLASS_LABELS = {
   SUPER_ADMIN: "SUPER",
   ADMIN: "CLASS1",
+  VERIFICATION_OFFICER: "CLASS2",
   EMPLOYEE: "CLASS2",
 };
 
 const normalizeEmail = (email = "") => email.trim().toLowerCase();
+const PASSWORD_RULE_MESSAGE = "Password must be at least 8 characters and include a letter and a number";
+const ADMIN_RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
+const ALLOWED_ADMIN_SIGNUP_EMAILS = new Set(
+  [
+    "testadminclassI@orchardgrowers.in",
+    "testadminclassII@orchardgrowers.in",
+    "testclassIII@orchardgrowers.in",
+    "pawann@orchardgrowers.in",
+    "hr.ho@orchardgrowers.in",
+    "invest@orchardgrowers.in",
+    "careers@orchardgrowers.in",
+    "grievance@orchardgrowers.in",
+    "no-reply@orchardgrowers.in",
+    "founder@orchardgrowers.in",
+    "adminho@orchardgrowers.in",
+    "sales.ffccbb@orchardgrowers.in",
+    "komal@orchardgrowers.in",
+  ].map(normalizeEmail)
+);
+const ADMIN_SIGNUP_ROLE_BY_EMAIL = new Map(
+  [
+    ["testadminclassI@orchardgrowers.in", "ADMIN"],
+    ["testadminclassII@orchardgrowers.in", "VERIFICATION_OFFICER"],
+    ["testclassIII@orchardgrowers.in", "VIEWER"],
+    ["pawann@orchardgrowers.in", "ADMIN"],
+    ["hr.ho@orchardgrowers.in", "SUPPORT_EXECUTIVE"],
+    ["invest@orchardgrowers.in", "FINANCE_MANAGER"],
+    ["careers@orchardgrowers.in", "SUPPORT_EXECUTIVE"],
+    ["grievance@orchardgrowers.in", "SUPPORT_EXECUTIVE"],
+    ["no-reply@orchardgrowers.in", "VIEWER"],
+    ["founder@orchardgrowers.in", "ADMIN"],
+    ["adminho@orchardgrowers.in", "ADMIN"],
+    ["sales.ffccbb@orchardgrowers.in", "SALES_EXECUTIVE"],
+    ["komal@orchardgrowers.in", "ADMIN"],
+  ].map(([email, role]) => [normalizeEmail(email), role])
+);
 const isTestAdminEnabled = () => process.env.NODE_ENV !== "production";
 const TEST_ADMIN_ACCOUNTS = [
   {
@@ -82,6 +141,87 @@ const safeAdmin = (admin) => ({
 
 const getAdminClass = (role) => ADMIN_CLASS_LABELS[role] || "CLASS2";
 
+const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+const validateAdminPassword = (password = "") => {
+  if (typeof password !== "string" || password.length < 8) return PASSWORD_RULE_MESSAGE;
+  if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) return PASSWORD_RULE_MESSAGE;
+  return "";
+};
+
+const getSignupRole = (email) => ADMIN_SIGNUP_ROLE_BY_EMAIL.get(email) || "EMPLOYEE";
+
+const getDefaultAdminName = (email) =>
+  email
+    .split("@")[0]
+    .replace(/[._-]+/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+
+const hashResetToken = (token = "") =>
+  crypto.createHash("sha256").update(token).digest("hex");
+
+const createPasswordResetToken = () => {
+  const token = crypto.randomBytes(32).toString("hex");
+  return {
+    token,
+    tokenHash: hashResetToken(token),
+    expiresAt: new Date(Date.now() + ADMIN_RESET_TOKEN_TTL_MS),
+  };
+};
+
+const truthyEnv = (value = "") => ["1", "true", "yes"].includes(String(value).toLowerCase());
+
+const getResetBaseUrl = (req) =>
+  (process.env.ADMIN_RESET_BASE_URL || process.env.ADMIN_PANEL_URL || req.get("origin") || "")
+    .trim()
+    .replace(/\/+$/, "");
+
+const buildAdminResetUrl = (req, email, token) => {
+  const baseUrl = getResetBaseUrl(req);
+  if (!baseUrl) return "";
+
+  const separator = baseUrl.includes("?") ? "&" : "?";
+  return `${baseUrl}${separator}mode=reset&email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`;
+};
+
+const getSmtpTransport = () => {
+  const host = process.env.SMTP_HOST || "";
+  const from = process.env.SMTP_FROM || process.env.ADMIN_RESET_FROM_EMAIL || process.env.SMTP_USER || "";
+  if (!host || !from) return null;
+
+  const port = Number(process.env.SMTP_PORT || 587);
+  const user = process.env.SMTP_USER || "";
+  const pass = process.env.SMTP_PASS || "";
+
+  return {
+    from,
+    transporter: nodemailer.createTransport({
+      host,
+      port,
+      secure: truthyEnv(process.env.SMTP_SECURE) || port === 465,
+      ...(user && pass ? { auth: { user, pass } } : {}),
+    }),
+  };
+};
+
+const sendAdminPasswordResetEmail = async ({ req, email, token }) => {
+  const mailConfig = getSmtpTransport();
+  if (!mailConfig) return false;
+
+  const resetUrl = buildAdminResetUrl(req, email, token);
+  if (!resetUrl) return false;
+
+  await mailConfig.transporter.sendMail({
+    from: mailConfig.from,
+    to: email,
+    subject: "Admin password reset",
+    text: `Use this secure link to reset your admin password. It expires in 30 minutes:\n\n${resetUrl}`,
+    html: `<p>Use this secure link to reset your admin password. It expires in 30 minutes:</p><p><a href="${resetUrl}">Reset admin password</a></p>`,
+  });
+
+  return true;
+};
+
 const hasDualApproval = (reviews = []) => {
   const approvedClasses = new Set(
     reviews
@@ -120,6 +260,55 @@ const requireSuperAdmin = (req, res) => {
   }
 
   return admin;
+};
+
+export const signupAdmin = async (req, res) => {
+  const email = normalizeEmail(req.body.email);
+  const name = String(req.body.name || "").trim();
+  const { password, confirmPassword } = req.body;
+
+  if (!email || !isValidEmail(email)) {
+    return res.status(400).json({ msg: "Valid admin email is required" });
+  }
+
+  if (!ALLOWED_ADMIN_SIGNUP_EMAILS.has(email)) {
+    return res.status(403).json({ msg: "This email is not allowed for admin signup" });
+  }
+
+  const passwordError = validateAdminPassword(password);
+  if (passwordError) return res.status(400).json({ msg: passwordError });
+
+  if (confirmPassword && password !== confirmPassword) {
+    return res.status(400).json({ msg: "Passwords do not match" });
+  }
+
+  const existingAdmin = await Admin.findOne({ email }).select("+resetPasswordTokenHash +resetPasswordExpiresAt");
+  if (existingAdmin?.status === "TERMINATED") {
+    return res.status(403).json({ msg: "Admin account terminated" });
+  }
+
+  if (existingAdmin?.password) {
+    return res.status(409).json({ msg: "Admin already exists. Please login or reset password." });
+  }
+
+  const isNewAdmin = !existingAdmin;
+  const admin = existingAdmin || new Admin({ email });
+  admin.name = name || admin.name || getDefaultAdminName(email);
+  admin.email = email;
+  admin.password = await bcrypt.hash(password, 10);
+  admin.role = isNewAdmin ? getSignupRole(email) : admin.role || getSignupRole(email);
+  admin.status = "ACTIVE";
+  admin.resetPasswordTokenHash = undefined;
+  admin.resetPasswordExpiresAt = undefined;
+  admin.resetPasswordRequestedAt = undefined;
+  admin.passwordChangedAt = new Date();
+  await admin.save();
+
+  res.status(201).json({
+    token: signAdminToken(admin),
+    role: admin.role,
+    admin: safeAdmin(admin),
+  });
 };
 
 export const loginAdmin = async (req, res) => {
@@ -193,6 +382,84 @@ export const loginAdmin = async (req, res) => {
     role: admin.role,
     admin: safeAdmin(admin),
   });
+};
+
+export const requestAdminPasswordReset = async (req, res) => {
+  const email = normalizeEmail(req.body.email);
+  const response = { msg: "If the admin email is registered, reset instructions have been sent." };
+
+  if (!email || !isValidEmail(email) || !ALLOWED_ADMIN_SIGNUP_EMAILS.has(email)) {
+    return res.json(response);
+  }
+
+  const admin = await Admin.findOne({ email }).select("+resetPasswordTokenHash +resetPasswordExpiresAt");
+  if (!admin || admin.status === "TERMINATED") {
+    return res.json(response);
+  }
+
+  const { token, tokenHash, expiresAt } = createPasswordResetToken();
+  admin.resetPasswordTokenHash = tokenHash;
+  admin.resetPasswordExpiresAt = expiresAt;
+  admin.resetPasswordRequestedAt = new Date();
+  await admin.save();
+
+  let emailSent = false;
+  try {
+    emailSent = await sendAdminPasswordResetEmail({ req, email, token });
+  } catch (err) {
+    console.error("Admin reset email failed:", err.message || err);
+  }
+
+  if (isTestAdminEnabled()) {
+    return res.json({
+      ...response,
+      emailSent,
+      resetToken: token,
+      resetUrl: buildAdminResetUrl(req, email, token),
+    });
+  }
+
+  res.json(response);
+};
+
+export const resetAdminPassword = async (req, res) => {
+  const email = normalizeEmail(req.body.email);
+  const token = String(req.body.token || "").trim();
+  const { password, confirmPassword } = req.body;
+
+  if (!email || !isValidEmail(email) || !token) {
+    return res.status(400).json({ msg: "Valid email and reset token are required" });
+  }
+
+  const passwordError = validateAdminPassword(password);
+  if (passwordError) return res.status(400).json({ msg: passwordError });
+
+  if (confirmPassword && password !== confirmPassword) {
+    return res.status(400).json({ msg: "Passwords do not match" });
+  }
+
+  const admin = await Admin.findOne({
+    email,
+    resetPasswordTokenHash: hashResetToken(token),
+    resetPasswordExpiresAt: { $gt: new Date() },
+  }).select("+resetPasswordTokenHash +resetPasswordExpiresAt");
+
+  if (!admin) {
+    return res.status(400).json({ msg: "Reset link is invalid or expired" });
+  }
+
+  if (admin.status === "TERMINATED") {
+    return res.status(403).json({ msg: "Admin account terminated" });
+  }
+
+  admin.password = await bcrypt.hash(password, 10);
+  admin.resetPasswordTokenHash = undefined;
+  admin.resetPasswordExpiresAt = undefined;
+  admin.resetPasswordRequestedAt = undefined;
+  admin.passwordChangedAt = new Date();
+  await admin.save();
+
+  res.json({ msg: "Password reset successful. Please login." });
 };
 
 export const getAdminAnalytics = async (req, res) => {

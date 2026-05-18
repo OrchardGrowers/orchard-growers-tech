@@ -15,3 +15,12 @@ root.render(
 // to log results (for example: reportWebVitals(console.log))
 // or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
 reportWebVitals();
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    const publicUrl = process.env.PUBLIC_URL || "";
+    navigator.serviceWorker
+      .register(`${publicUrl}/pwa-service-worker.js`)
+      .catch(() => undefined);
+  });
+}

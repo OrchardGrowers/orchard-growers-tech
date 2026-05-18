@@ -13,9 +13,12 @@ import {
   listKycRequests,
   listOrders,
   loginAdmin,
+  requestAdminPasswordReset,
+  resetAdminPassword,
   reviewKycRequest,
   reviewVerificationRequest,
   setUserStatusByAdmin,
+  signupAdmin,
   terminateAdmin,
   updateAdmin,
   updateProductByAdmin,
@@ -38,36 +41,62 @@ const ensureActiveAdmin = async (req, res, next) => {
   req.admin = admin;
   next();
 };
+const ADMIN_ACCESS_ROLES = [
+  "SUPER_ADMIN",
+  "ADMIN",
+  "UNIT_MANAGER",
+  "INVENTORY_MANAGER",
+  "SALES_EXECUTIVE",
+  "PURCHASE_MANAGER",
+  "FINANCE_MANAGER",
+  "VERIFICATION_OFFICER",
+  "SUPPORT_EXECUTIVE",
+  "VIEWER",
+  "EMPLOYEE",
+];
+const ADMIN_MANAGEMENT_ROLES = ["SUPER_ADMIN"];
+const ANALYTICS_ROLES = ADMIN_ACCESS_ROLES;
+const USER_READ_ROLES = ADMIN_ACCESS_ROLES;
+const USER_WRITE_ROLES = ["SUPER_ADMIN", "ADMIN", "VERIFICATION_OFFICER", "SUPPORT_EXECUTIVE", "EMPLOYEE"];
+const PRODUCT_READ_ROLES = ADMIN_ACCESS_ROLES;
+const PRODUCT_WRITE_ROLES = ["SUPER_ADMIN", "ADMIN", "INVENTORY_MANAGER", "EMPLOYEE"];
+const ORDER_READ_ROLES = ADMIN_ACCESS_ROLES;
+const VERIFICATION_READ_ROLES = ADMIN_ACCESS_ROLES;
+const VERIFICATION_WRITE_ROLES = ["SUPER_ADMIN", "ADMIN", "VERIFICATION_OFFICER", "EMPLOYEE"];
+const requireRoles = (...roles) => authorize(...roles);
 const adminOnly = [
   protect,
-  authorize("EMPLOYEE", "ADMIN", "SUPER_ADMIN"),
+  authorize(...ADMIN_ACCESS_ROLES),
   wrapAsync(ensureActiveAdmin),
 ];
 
 router.post("/login", wrapAsync(loginAdmin));
+router.post("/signup", wrapAsync(signupAdmin));
+router.post("/forgot-password", wrapAsync(requestAdminPasswordReset));
+router.post("/reset-password", wrapAsync(resetAdminPassword));
 
-router.get("/analytics", ...adminOnly, wrapAsync(getAdminAnalytics));
+router.get("/analytics", ...adminOnly, requireRoles(...ANALYTICS_ROLES), wrapAsync(getAdminAnalytics));
 
-router.get("/admins", ...adminOnly, wrapAsync(listAdmins));
-router.post("/admins", ...adminOnly, wrapAsync(createAdmin));
-router.patch("/admins/:id", ...adminOnly, wrapAsync(updateAdmin));
-router.patch("/admins/:id/status", ...adminOnly, wrapAsync(terminateAdmin));
-router.delete("/admins/:id", ...adminOnly, wrapAsync(deleteAdmin));
+router.get("/admins", ...adminOnly, requireRoles(...ADMIN_MANAGEMENT_ROLES), wrapAsync(listAdmins));
+router.post("/admins", ...adminOnly, requireRoles(...ADMIN_MANAGEMENT_ROLES), wrapAsync(createAdmin));
+router.patch("/admins/:id", ...adminOnly, requireRoles(...ADMIN_MANAGEMENT_ROLES), wrapAsync(updateAdmin));
+router.patch("/admins/:id/status", ...adminOnly, requireRoles(...ADMIN_MANAGEMENT_ROLES), wrapAsync(terminateAdmin));
+router.delete("/admins/:id", ...adminOnly, requireRoles(...ADMIN_MANAGEMENT_ROLES), wrapAsync(deleteAdmin));
 
-router.get("/users", ...adminOnly, wrapAsync(listUsers));
-router.patch("/users/:id", ...adminOnly, wrapAsync(updateUserByAdmin));
-router.patch("/users/:id/status", ...adminOnly, wrapAsync(setUserStatusByAdmin));
-router.delete("/users/:id", ...adminOnly, wrapAsync(deleteUserByAdmin));
+router.get("/users", ...adminOnly, requireRoles(...USER_READ_ROLES), wrapAsync(listUsers));
+router.patch("/users/:id", ...adminOnly, requireRoles(...USER_WRITE_ROLES), wrapAsync(updateUserByAdmin));
+router.patch("/users/:id/status", ...adminOnly, requireRoles(...USER_WRITE_ROLES), wrapAsync(setUserStatusByAdmin));
+router.delete("/users/:id", ...adminOnly, requireRoles("SUPER_ADMIN", "ADMIN"), wrapAsync(deleteUserByAdmin));
 
-router.get("/products", ...adminOnly, wrapAsync(listProductsByAdmin));
-router.post("/products", ...adminOnly, wrapAsync(createProductByAdmin));
-router.patch("/products/:id", ...adminOnly, wrapAsync(updateProductByAdmin));
+router.get("/products", ...adminOnly, requireRoles(...PRODUCT_READ_ROLES), wrapAsync(listProductsByAdmin));
+router.post("/products", ...adminOnly, requireRoles(...PRODUCT_WRITE_ROLES), wrapAsync(createProductByAdmin));
+router.patch("/products/:id", ...adminOnly, requireRoles(...PRODUCT_WRITE_ROLES), wrapAsync(updateProductByAdmin));
 
-router.get("/verification-requests", ...adminOnly, wrapAsync(listVerificationRequests));
-router.patch("/verification-requests/:id", ...adminOnly, wrapAsync(updateVerificationRequestByAdmin));
-router.post("/verification-requests/:id/review", ...adminOnly, wrapAsync(reviewVerificationRequest));
-router.get("/kyc-requests", ...adminOnly, wrapAsync(listKycRequests));
-router.post("/kyc-requests/:userId/review", ...adminOnly, wrapAsync(reviewKycRequest));
-router.get("/orders", ...adminOnly, wrapAsync(listOrders));
+router.get("/verification-requests", ...adminOnly, requireRoles(...VERIFICATION_READ_ROLES), wrapAsync(listVerificationRequests));
+router.patch("/verification-requests/:id", ...adminOnly, requireRoles(...VERIFICATION_WRITE_ROLES), wrapAsync(updateVerificationRequestByAdmin));
+router.post("/verification-requests/:id/review", ...adminOnly, requireRoles(...VERIFICATION_WRITE_ROLES), wrapAsync(reviewVerificationRequest));
+router.get("/kyc-requests", ...adminOnly, requireRoles(...VERIFICATION_READ_ROLES), wrapAsync(listKycRequests));
+router.post("/kyc-requests/:userId/review", ...adminOnly, requireRoles(...VERIFICATION_WRITE_ROLES), wrapAsync(reviewKycRequest));
+router.get("/orders", ...adminOnly, requireRoles(...ORDER_READ_ROLES), wrapAsync(listOrders));
 
 export default router;

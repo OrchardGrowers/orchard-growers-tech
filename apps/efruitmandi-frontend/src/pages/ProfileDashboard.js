@@ -20,7 +20,10 @@ import {
 import API from "../services/api";
 import { saveUserToStorage, sanitizeUserForStorage } from "../utils/userStorage";
 
-const orchardCover = "/profile-banners/efruitmandi-profile-cover.png";
+const assetUrl = (path) => `${process.env.PUBLIC_URL || ""}${path}`;
+const logoUrl = assetUrl("/logo.png");
+const orchardCover = assetUrl("/profile-banners/efruitmandi-profile-cover.png");
+const buyerLogoUrl = assetUrl("/profile-images/green-valley-fruit-traders-logo.svg");
 const youtubeUrl = "https://www.youtube.com/results?search_query=Efruit+Mandi";
 
 const mandiRates = [
@@ -329,8 +332,8 @@ export default function ProfileDashboard() {
     : "Verification requires Orchard Growers Team approval and fee.";
   const trustedActionLabel = isBuyer ? "Visit Buyers Space" : "Visit Growers Orchard";
   const organizationLogo = isBuyer
-    ? "/profile-images/green-valley-fruit-traders-logo.svg"
-    : "/logo.png";
+    ? buyerLogoUrl
+    : logoUrl;
   const companyLogoUrl = user.companyLogoUrl || organizationLogo;
   const bannerUrl = user.bannerUrl || orchardCover;
   const avatarUrl = user.avatarUrl;

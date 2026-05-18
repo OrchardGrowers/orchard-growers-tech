@@ -10,9 +10,31 @@ const adminSchema = new mongoose.Schema({
     trim: true,
   },
   password: String,
+  resetPasswordTokenHash: {
+    type: String,
+    select: false,
+  },
+  resetPasswordExpiresAt: {
+    type: Date,
+    select: false,
+  },
+  resetPasswordRequestedAt: Date,
+  passwordChangedAt: Date,
   role: {
     type: String,
-    enum: ["EMPLOYEE", "ADMIN", "SUPER_ADMIN"],
+    enum: [
+      "SUPER_ADMIN",
+      "ADMIN",
+      "UNIT_MANAGER",
+      "INVENTORY_MANAGER",
+      "SALES_EXECUTIVE",
+      "PURCHASE_MANAGER",
+      "FINANCE_MANAGER",
+      "VERIFICATION_OFFICER",
+      "SUPPORT_EXECUTIVE",
+      "VIEWER",
+      "EMPLOYEE",
+    ],
     default: "EMPLOYEE",
   },
   status: {

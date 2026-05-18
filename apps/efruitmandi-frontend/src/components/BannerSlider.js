@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 
+const BANNER_COUNT = 6;
+const assetUrl = (path) => `${process.env.PUBLIC_URL || ""}${path}`;
+
 export default function BannerSlider() {
   const banners = useMemo(
     () =>
-      Array.from({ length: 8 }, (_, index) => ({
-        src: `/ad-banners/banner-${index + 1}.png`,
+      Array.from({ length: BANNER_COUNT }, (_, index) => ({
+        src: assetUrl(`/ad-banners/banner-${index + 1}.png`),
         alt: `Orchard Growers ad banner ${index + 1}`,
       })),
     []

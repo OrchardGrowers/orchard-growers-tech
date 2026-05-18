@@ -72,6 +72,7 @@ const orchardCover =
   "https://images.unsplash.com/photo-1560807707-8cc77767d783?auto=format&fit=crop&w=900&q=80";
 const fallbackLotImage =
   "https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?auto=format&fit=crop&w=1200&q=80";
+const logoUrl = `${process.env.PUBLIC_URL || ""}/logo.png`;
 
 const newsItems = [
   "Fresh apple lots opening in Himachal mandis",
@@ -893,7 +894,7 @@ function CompanyCard({ onOpen }) {
       onClick={onOpen}
       className="block w-full rounded-lg border border-gray-200 bg-white p-4 text-left transition hover:border-green-300 hover:shadow-sm"
     >
-      <img src="/logo.png" alt="" className="mb-8 h-8 w-20 object-contain" />
+      <img src={logoUrl} alt="" className="mb-8 h-8 w-20 object-contain" />
       <h2 className="text-base font-semibold text-gray-900">Orchard Growers</h2>
       <p className="mt-2 text-xs text-gray-600">Agriculture marketplace updates and fruit lots.</p>
     </button>
@@ -989,7 +990,7 @@ function AdCard({ user, onListLot }) {
       <div className="mt-4 flex items-center justify-center gap-4">
         <Avatar name={user.name || "P"} className="h-14 w-14 text-base" />
         <div className="flex h-14 w-14 items-center justify-center rounded-md border border-green-100 bg-green-50 p-2">
-          <img src="/logo.png" alt="" className="h-full w-full object-contain" />
+          <img src={logoUrl} alt="" className="h-full w-full object-contain" />
         </div>
       </div>
       <button

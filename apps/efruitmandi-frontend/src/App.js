@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import StartupSplash from "./components/StartupSplash";
 import AppFeedback from "./components/AppFeedback";
+import InstallAppPrompt from "./components/InstallAppPrompt";
 
 // 🔹 Layout
 import MainLayout from "./layouts/MainLayout";
@@ -33,6 +34,7 @@ function App() {
     >
       <AppFeedback />
       <StartupSplash />
+      <InstallAppPrompt />
       <Routes>
 
         {/* 🔹 Main Layout Wrapper */}

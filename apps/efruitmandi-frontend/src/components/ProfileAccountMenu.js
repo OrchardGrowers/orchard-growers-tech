@@ -5,6 +5,7 @@ import {
   FaChartLine,
   FaChevronRight,
   FaCommentDots,
+  FaDownload,
   FaDollarSign,
   FaFileInvoice,
   FaHandshake,
@@ -19,6 +20,7 @@ import {
   FaTruck,
   FaUserCircle,
 } from "react-icons/fa";
+import { openEFruitInstallPrompt } from "./InstallAppPrompt";
 
 export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobile = false }) {
   const [activeGrowerMenuItem, setActiveGrowerMenuItem] = useState(
@@ -270,6 +272,16 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
       </div>
 
       <div className="shrink-0 border-t border-white/15 py-2">
+        <button
+          type="button"
+          onClick={openEFruitInstallPrompt}
+          className="flex w-full items-center gap-4 px-4 py-2.5 text-left text-sm font-semibold text-white transition hover:bg-green-800"
+        >
+          <span className="flex w-6 justify-center text-lg text-yellow-300">
+            <FaDownload />
+          </span>
+          <span>Download App</span>
+        </button>
         <button
           type="button"
           onClick={onLogout}

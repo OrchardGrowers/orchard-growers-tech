@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 
+const logoUrl = `${process.env.PUBLIC_URL || ""}/logo.png`;
+
 export default function StartupSplash() {
   const [visible, setVisible] = useState(
     () => sessionStorage.getItem("startupSplashSeen") !== "true"
@@ -21,7 +23,7 @@ export default function StartupSplash() {
   return (
     <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-[#18a64b]">
       <img
-        src="/logo.png"
+        src={logoUrl}
         alt="E-Fruit Mandi"
         className="startup-logo-zoom w-[150px] max-w-[58vw]"
       />

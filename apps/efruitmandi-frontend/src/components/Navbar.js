@@ -15,6 +15,8 @@ import { getCountries } from "../services/countryService";
 import { getCurrentUser, logoutUser } from "../utils/auth";
 import ProfileAccountMenu from "./ProfileAccountMenu";
 
+const logoUrl = `${process.env.PUBLIC_URL || ""}/logo.png`;
+
 export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -128,7 +130,7 @@ export default function Navbar() {
             aria-label="Go to home"
             className="shrink-0 rounded-full bg-white/10 p-1"
           >
-            <img src="/logo.png" className="h-7 w-auto" alt="Orchard Growers" />
+            <img src={logoUrl} className="h-7 w-auto" alt="Orchard Growers" />
           </Link>
 
           <SearchForm
@@ -159,7 +161,7 @@ export default function Navbar() {
               href="https://www.youtube.com/results?search_query=Efruit+Mandi"
               target="_blank"
               rel="noreferrer"
-              className="hidden h-8 w-8 items-center justify-center rounded-full bg-white text-red-600 min-[360px]:flex"
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-red-600"
               aria-label="Learn us on YouTube"
               title="YouTube"
             >
@@ -182,7 +184,7 @@ export default function Navbar() {
       <header className="fixed left-0 right-0 top-0 z-50 hidden bg-green-700 shadow-sm md:block">
         <div className="mx-auto flex h-14 max-w-[1180px] items-center gap-3 px-4">
           <Link to="/" aria-label="Go to home" className="shrink-0">
-            <img src="/logo.png" className="h-11 w-auto object-contain" alt="Orchard Growers" />
+            <img src={logoUrl} className="h-11 w-auto object-contain" alt="Orchard Growers" />
           </Link>
 
           <SearchForm

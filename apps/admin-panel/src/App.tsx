@@ -1,17 +1,104 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import InstallAppPrompt, { openAdminInstallPrompt } from './components/InstallAppPrompt';
 
-const API_BASE =
-  ((import.meta as ImportMeta & { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL) ||
-  'http://localhost:5000/api';
+const DEFAULT_DEV_API_BASE = 'http://localhost:5000/api';
+const rawApiBase =
+  ((import.meta as ImportMeta & { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL) || '';
+
+const normalizeApiBase = (value: string) => {
+  const trimmed = value.trim().replace(/\/+$/, '');
+  if (!trimmed) return '';
+  return /\/api$/i.test(trimmed) ? trimmed : `${trimmed}/api`;
+};
+
+const API_BASE = normalizeApiBase(
+  rawApiBase ||
+    (typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname)
+      ? DEFAULT_DEV_API_BASE
+      : '')
+);
 const FILE_BASE = API_BASE.replace(/\/api\/?$/, '');
 const LOGO_URL = new URL('../logo.png', import.meta.url).href;
+
+const adminMemoryStorage = new Map<string, string>();
+
+const getAdminStorageItem = (key: string) => {
+  try {
+    const stored = window.localStorage.getItem(key);
+    return stored ?? adminMemoryStorage.get(key) ?? '';
+  } catch {
+    return adminMemoryStorage.get(key) ?? '';
+  }
+};
+
+const setAdminStorageItem = (key: string, value: string) => {
+  adminMemoryStorage.set(key, value);
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Some mobile/private browsers block localStorage. Keep the session in memory.
+  }
+};
+
+const removeAdminStorageItem = (key: string) => {
+  adminMemoryStorage.delete(key);
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Ignore storage errors so logout/session expiry cannot get stuck.
+  }
+};
+
+const readAdminJson = <T,>(key: string): T | null => {
+  const value = getAdminStorageItem(key);
+  if (!value) return null;
+
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    removeAdminStorageItem(key);
+    return null;
+  }
+};
+
+const readResponseJson = async (res: Response) => {
+  const text = await res.text();
+  if (!text) return {};
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { msg: text };
+  }
+};
+
+const getNetworkErrorMessage = (err: unknown) => {
+  if (err instanceof TypeError) {
+    return 'Admin API request failed. Check VITE_API_URL, HTTPS, and backend CORS ALLOWED_ORIGINS.';
+  }
+
+  return err instanceof Error ? err.message : 'Admin API request failed';
+};
+
+type AdminRole =
+  | 'SUPER_ADMIN'
+  | 'ADMIN'
+  | 'UNIT_MANAGER'
+  | 'INVENTORY_MANAGER'
+  | 'SALES_EXECUTIVE'
+  | 'PURCHASE_MANAGER'
+  | 'FINANCE_MANAGER'
+  | 'VERIFICATION_OFFICER'
+  | 'SUPPORT_EXECUTIVE'
+  | 'VIEWER'
+  | 'EMPLOYEE';
 
 type Admin = {
   id: string;
   name: string;
   email: string;
-  role: 'EMPLOYEE' | 'ADMIN' | 'SUPER_ADMIN';
+  role: AdminRole;
   roleLabel?: string;
 };
 
@@ -93,7 +180,7 @@ type FileMeta = {
   mimetype?: string;
 };
 
-type AdminPlatform = 'main' | 'orchard' | 'efruitmandi' | 'userManagement' | 'system';
+type AdminPlatform = 'main' | 'orchard' | 'efruitmandi' | 'userManagement' | 'notifications' | 'system' | 'download' | 'logout';
 type AdminTab =
   | 'dashboard'
   | 'inventory'
@@ -104,7 +191,6 @@ type AdminTab =
   | 'expenses'
   | 'financials'
   | 'reports'
-  | 'orchardLogistics'
   | 'efruitDashboard'
   | 'users'
   | 'kyc'
@@ -112,7 +198,6 @@ type AdminTab =
   | 'quotes'
   | 'deals'
   | 'transactions'
-  | 'firmLogistics'
   | 'supportDisputes'
   | 'analytics'
   | 'efruitSettings'
@@ -123,7 +208,8 @@ type AdminTab =
   | 'rolesPermissions'
   | 'suspendedUsers'
   | 'notifications'
-  | 'systemSettings';
+  | 'systemSettings'
+  | 'downloadApp';
 type ReviewAction = 'APPROVE' | 'REJECT' | 'HOLD' | 'SUSPEND' | 'TERMINATE';
 type UploadedFile = { label: string; path?: string; fileName?: string };
 type AdminProduct = {
@@ -165,6 +251,17 @@ type ProductDraft = {
   packingType: string;
   status: string;
   images: string;
+};
+type AdminAuthMode = 'login' | 'signup' | 'forgot' | 'reset';
+
+const normalizeAdminEmail = (value: string) => value.trim().toLowerCase();
+const isValidAdminEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+const getAdminPasswordValidationMessage = (value: string) => {
+  if (value.length < 8 || !/[A-Za-z]/.test(value) || !/\d/.test(value)) {
+    return 'Password must be at least 8 characters and include a letter and a number.';
+  }
+
+  return '';
 };
 
 const marketSnapshotCards = [
@@ -215,7 +312,6 @@ const adminRoutePaths: Record<AdminTab, string> = {
   expenses: '/orchard/expenses',
   financials: '/orchard/financials',
   reports: '/orchard/reports',
-  orchardLogistics: '/orchard/logistics-api',
   efruitDashboard: '/efruitmandi/dashboard',
   users: '/efruitmandi/users',
   kyc: '/efruitmandi/kyc-verification',
@@ -223,7 +319,6 @@ const adminRoutePaths: Record<AdminTab, string> = {
   quotes: '/efruitmandi/quotes',
   deals: '/efruitmandi/deals',
   transactions: '/efruitmandi/transactions',
-  firmLogistics: '/efruitmandi/logistics-api',
   supportDisputes: '/efruitmandi/support-disputes',
   analytics: '/efruitmandi/analytics',
   efruitSettings: '/efruitmandi/settings',
@@ -235,6 +330,7 @@ const adminRoutePaths: Record<AdminTab, string> = {
   suspendedUsers: '/users/suspended',
   notifications: '/notifications',
   systemSettings: '/system-settings',
+  downloadApp: '/download-app',
 };
 
 const adminTabPlatforms: Record<AdminTab, AdminPlatform> = {
@@ -247,7 +343,6 @@ const adminTabPlatforms: Record<AdminTab, AdminPlatform> = {
   expenses: 'orchard',
   financials: 'orchard',
   reports: 'orchard',
-  orchardLogistics: 'orchard',
   efruitDashboard: 'efruitmandi',
   users: 'efruitmandi',
   kyc: 'efruitmandi',
@@ -255,7 +350,6 @@ const adminTabPlatforms: Record<AdminTab, AdminPlatform> = {
   quotes: 'efruitmandi',
   deals: 'efruitmandi',
   transactions: 'efruitmandi',
-  firmLogistics: 'efruitmandi',
   supportDisputes: 'efruitmandi',
   analytics: 'efruitmandi',
   efruitSettings: 'efruitmandi',
@@ -265,16 +359,13 @@ const adminTabPlatforms: Record<AdminTab, AdminPlatform> = {
   buyers: 'userManagement',
   rolesPermissions: 'userManagement',
   suspendedUsers: 'userManagement',
-  notifications: 'main',
-  systemSettings: 'main',
+  notifications: 'notifications',
+  systemSettings: 'system',
+  downloadApp: 'download',
 };
 
 const platformTabs: Record<AdminPlatform, AdminTabButton[]> = {
-  main: [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'notifications', label: 'Notifications' },
-    { id: 'systemSettings', label: 'System Settings' },
-  ],
+  main: [{ id: 'dashboard', label: 'Dashboard' }],
   orchard: [
     { id: 'inventory', label: 'Inventory' },
     { id: 'productAdmin', label: 'Products' },
@@ -284,7 +375,6 @@ const platformTabs: Record<AdminPlatform, AdminTabButton[]> = {
     { id: 'expenses', label: 'Expenses' },
     { id: 'financials', label: 'Financials' },
     { id: 'reports', label: 'Reports' },
-    { id: 'orchardLogistics', label: 'Logistics API' },
   ],
   efruitmandi: [
     { id: 'efruitDashboard', label: 'Dashboard' },
@@ -294,7 +384,6 @@ const platformTabs: Record<AdminPlatform, AdminTabButton[]> = {
     { id: 'quotes', label: 'Quotes' },
     { id: 'deals', label: 'Deals' },
     { id: 'transactions', label: 'Transactions' },
-    { id: 'firmLogistics', label: 'Logistics API' },
     { id: 'supportDisputes', label: 'Support & Disputes' },
     { id: 'analytics', label: 'Analytics' },
     { id: 'efruitSettings', label: 'Settings' },
@@ -307,14 +396,60 @@ const platformTabs: Record<AdminPlatform, AdminTabButton[]> = {
     { id: 'rolesPermissions', label: 'Roles & Permissions' },
     { id: 'suspendedUsers', label: 'Suspended Users' },
   ],
+  notifications: [{ id: 'notifications', label: 'Notifications' }],
   system: [{ id: 'systemSettings', label: 'System Settings' }],
+  download: [{ id: 'downloadApp', label: 'Download App' }],
+  logout: [{ id: 'dashboard', label: 'Dashboard' }],
 };
+
+const allAdminTabs = Object.keys(adminRoutePaths) as AdminTab[];
+const adminRoleLabels: Record<AdminRole, string> = {
+  SUPER_ADMIN: 'Super Admin',
+  ADMIN: 'Admin',
+  UNIT_MANAGER: 'Unit Manager',
+  INVENTORY_MANAGER: 'Inventory Manager',
+  SALES_EXECUTIVE: 'Sales Executive',
+  PURCHASE_MANAGER: 'Purchase Manager',
+  FINANCE_MANAGER: 'Finance Manager',
+  VERIFICATION_OFFICER: 'Verification Officer',
+  SUPPORT_EXECUTIVE: 'Support Executive',
+  VIEWER: 'Viewer',
+  EMPLOYEE: 'Admin',
+};
+const adminRolePermissions: Record<AdminRole, AdminTab[]> = {
+  SUPER_ADMIN: allAdminTabs,
+  ADMIN: allAdminTabs.filter((tab) => tab !== 'systemSettings'),
+  EMPLOYEE: allAdminTabs.filter((tab) => tab !== 'systemSettings'),
+  UNIT_MANAGER: ['dashboard', 'inventory', 'productAdmin', 'sales', 'unitsOutlets', 'expenses', 'reports', 'notifications', 'downloadApp'],
+  INVENTORY_MANAGER: ['dashboard', 'inventory', 'productAdmin', 'reports', 'notifications', 'downloadApp'],
+  SALES_EXECUTIVE: ['dashboard', 'sales', 'customers', 'reports', 'notifications', 'downloadApp'],
+  PURCHASE_MANAGER: ['dashboard', 'inventory', 'purchase', 'reports', 'notifications', 'downloadApp'],
+  FINANCE_MANAGER: ['dashboard', 'expenses', 'financials', 'transactions', 'reports', 'analytics', 'notifications', 'downloadApp'],
+  VERIFICATION_OFFICER: ['dashboard', 'efruitDashboard', 'users', 'kyc', 'produceLots', 'sellers', 'buyers', 'suspendedUsers', 'notifications', 'downloadApp'],
+  SUPPORT_EXECUTIVE: ['dashboard', 'users', 'customers', 'sellers', 'buyers', 'supportDisputes', 'suspendedUsers', 'notifications', 'downloadApp'],
+  VIEWER: ['dashboard', 'reports', 'efruitDashboard', 'analytics', 'notifications', 'downloadApp'],
+};
+const adminRolePermissionSets = Object.fromEntries(
+  Object.entries(adminRolePermissions).map(([role, tabs]) => [role, new Set(tabs)])
+) as Record<AdminRole, Set<AdminTab>>;
+const normalizeAdminRole = (role?: string): AdminRole =>
+  role && Object.prototype.hasOwnProperty.call(adminRoleLabels, role) ? (role as AdminRole) : 'VIEWER';
+const canAccessAdminTab = (role: AdminRole, tab: AdminTab) =>
+  adminRolePermissionSets[role]?.has(tab) || false;
+const getAccessibleTabsForRole = (role: AdminRole) =>
+  allAdminTabs.filter((tab) => canAccessAdminTab(role, tab));
+const getDefaultAdminTab = (role: AdminRole) =>
+  (canAccessAdminTab(role, 'dashboard') ? 'dashboard' : getAccessibleTabsForRole(role)[0]) || 'dashboard';
 
 const modulePlans: Partial<Record<AdminTab, ModulePlan>> = {
   dashboard: {
     title: 'Admin Dashboard',
     text: 'Single control window for OrchardGrowers.in operations and eFruitMandi.live marketplace monitoring.',
     pages: ['Orchard Growers snapshot', 'eFruitMandi verification snapshot', 'Notifications', 'System settings'],
+  },
+  notifications: {
+    title: 'Notifications',
+    text: 'Review admin alerts, pending approvals, verification updates, and operational notices from one place.',
   },
   inventory: {
     title: 'Orchard Growers Inventory',
@@ -403,13 +538,6 @@ const modulePlans: Partial<Record<AdminTab, ModulePlan>> = {
     text: 'Consolidated Orchard Growers operational reports for inventory, purchase, sales, expense, and finance teams.',
     pages: ['Inventory Report', 'Purchase Report', 'Sales Report', 'Expense Report', 'Financial Report', 'Unit-wise Report'],
   },
-  orchardLogistics: {
-    title: 'Orchard Growers Logistics API',
-    text: 'Integrate orchardgrowers.in orders with logistics partners for serviceability, rate checks, pickup scheduling, labels, tracking, delivery exceptions, returns, and courier settlement records.',
-    pages: ['Provider Setup', 'API Credentials', 'Serviceability Check', 'Rate Calculator', 'Pickup Scheduling', 'AWB / Shipping Label', 'Tracking Webhooks', 'Dispatch Status Sync', 'Delivery Exceptions', 'Return / RTO', 'Courier Ledger', 'Integration Logs'],
-    fields: ['Provider Name', 'API Key / Secret', 'Pickup Address', 'Origin PIN', 'Destination PIN', 'Package Weight', 'Invoice Value', 'COD / Prepaid', 'AWB Number', 'Tracking URL', 'Webhook Status', 'Retry Count'],
-    rules: ['Orchard Growers orders create shipment requests after invoice or dispatch approval.', 'Delivery status updates must sync back to Sales & Invoice.', 'Failed webhook events stay visible for manual retry and support review.'],
-  },
   efruitDashboard: {
     title: 'eFruitMandi Dashboard',
     text: 'Marketplace monitoring only. Lot creation, quote submission, deal creation, transaction records, service charge, and settlement status are automated.',
@@ -456,13 +584,6 @@ const modulePlans: Partial<Record<AdminTab, ModulePlan>> = {
     text: 'Track payment status, gateway status, platform service charge, refunds, and settlement status generated from accepted deals.',
     pages: ['Payment Status', 'Platform Service Charge', 'Escrow / Payment Gateway Status', 'Refund Status', 'Settlement Status'],
   },
-  firmLogistics: {
-    title: 'Registered Firm Logistics API',
-    text: 'Allow individual firms registered on eFruitMandi.live to connect their own logistics providers or platform-approved providers for produce movement after accepted deals.',
-    pages: ['Firm Logistics Onboarding', 'Provider Mapping', 'Firm API Credentials', 'Serviceability Rules', 'Pickup Slots', 'Vehicle / Transporter Assignment', 'Freight Quote Rules', 'Tracking Webhooks', 'Delivery Proof', 'SLA Monitoring', 'Settlement / Service Charge Mapping', 'Integration Logs'],
-    fields: ['Firm', 'Provider', 'API Key / Secret', 'Pickup Location', 'Destination Location', 'Produce Lot', 'Accepted Deal', 'Freight Charge', 'Transporter', 'Vehicle Number', 'Tracking Status', 'Proof of Delivery'],
-    rules: ['Firm logistics must connect to accepted deals only, not manual inventory.', 'Admin monitors API health, credentials, delivery exceptions, and settlement mapping.', 'Firm-specific credentials and webhook logs remain isolated per registered firm.'],
-  },
   supportDisputes: {
     title: 'Support & Disputes',
     text: 'Handle exception workflows for sellers, buyers, payments, produce quality, and accounts.',
@@ -494,6 +615,10 @@ const modulePlans: Partial<Record<AdminTab, ModulePlan>> = {
     title: 'Buyers',
     text: 'Buyer profile, quote activity, deal history, payment status, support, and account controls.',
   },
+  rolesPermissions: {
+    title: 'Roles & Permissions',
+    text: 'View staff access levels and module permissions for admin panel operations.',
+  },
   suspendedUsers: {
     title: 'Suspended Users',
     text: 'Review suspended, held, and terminated users with admin remarks and reactivation controls.',
@@ -501,6 +626,10 @@ const modulePlans: Partial<Record<AdminTab, ModulePlan>> = {
   systemSettings: {
     title: 'System Settings',
     text: 'Global settings for admin access, notification defaults, platform routing, security, and operational preferences.',
+  },
+  downloadApp: {
+    title: 'Download App',
+    text: 'Admin download links and release information for Orchard Growers and eFruitMandi apps.',
   },
 };
 
@@ -521,21 +650,17 @@ function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const [token, setToken] = useState(() => {
-    try {
-      return localStorage.getItem('adminToken') || '';
-    } catch {
-      return '';
-    }
+    return getAdminStorageItem('adminToken');
   });
   const [admin, setAdmin] = useState<Admin | null>(() => {
-    try {
-      return JSON.parse(localStorage.getItem('adminUser') || 'null');
-    } catch {
-      return null;
-    }
+    return readAdminJson<Admin>('adminUser');
   });
+  const [authMode, setAuthMode] = useState<AdminAuthMode>('login');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('testadmin@efruitmandi.local');
   const [password, setPassword] = useState('admin12345');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetToken, setResetToken] = useState('');
   const [message, setMessage] = useState('');
   const [kycRequests, setKycRequests] = useState<KycUser[]>([]);
   const [verificationRequests, setVerificationRequests] = useState<VerificationRequest[]>([]);
@@ -547,21 +672,20 @@ function App() {
   const [adminSearch, setAdminSearch] = useState('');
   const [productDraft, setProductDraft] = useState<ProductDraft>(emptyProductDraft);
   const [platformRailWidth, setPlatformRailWidth] = useState(() => {
-    try {
-      const raw = localStorage.getItem('adminPlatformRailWidth');
-      const parsed = Number(raw);
-      if (!Number.isFinite(parsed) || parsed <= 0) return 145;
-      return parsed;
-    } catch {
-      return 145;
-    }
+    const raw = getAdminStorageItem('adminPlatformRailWidth');
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed <= 0) return 145;
+    return parsed;
   });
   const [railResizeStart, setRailResizeStart] = useState<{ x: number; width: number } | null>(null);
   const [fullscreenTarget, setFullscreenTarget] = useState<'announcement' | 'action' | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const announcementBarRef = useRef<HTMLElement | null>(null);
   const actionPanelRef = useRef<HTMLDivElement | null>(null);
-  const activeTab = getTabFromPath(location.pathname);
+  const routeTab = getTabFromPath(location.pathname);
+  const adminRole = normalizeAdminRole(admin?.role);
+  const defaultAllowedTab = getDefaultAdminTab(adminRole);
+  const activeTab = canAccessAdminTab(adminRole, routeTab) ? routeTab : defaultAllowedTab;
   const activePlatform = adminTabPlatforms[activeTab];
 
   const authHeaders = useMemo(() => {
@@ -572,27 +696,230 @@ function App() {
     return headers;
   }, [token]);
 
+  const switchAuthMode = (mode: AdminAuthMode) => {
+    setAuthMode(mode);
+    setMessage('');
+    setPassword('');
+    setConfirmPassword('');
+    if (mode !== 'reset') setResetToken('');
+  };
+
+  const validateAuthEmail = () => {
+    const nextEmail = normalizeAdminEmail(email);
+    if (!nextEmail || !isValidAdminEmail(nextEmail)) {
+      setMessage('Valid admin email is required.');
+      return '';
+    }
+
+    return nextEmail;
+  };
+
+  const validateNewPassword = () => {
+    const passwordMessage = getAdminPasswordValidationMessage(password);
+    if (passwordMessage) {
+      setMessage(passwordMessage);
+      return false;
+    }
+
+    if (password !== confirmPassword) {
+      setMessage('Passwords do not match.');
+      return false;
+    }
+
+    return true;
+  };
+
   const login = async (event: FormEvent) => {
     event.preventDefault();
     setMessage('');
-    const res = await fetch(`${API_BASE}/admin/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setMessage(data.msg || 'Admin login failed');
+
+    const loginEmail = validateAuthEmail();
+    if (!loginEmail) return;
+
+    if (!API_BASE) {
+      setMessage('Admin API URL is not configured. Set VITE_API_URL for the admin panel deployment.');
       return;
     }
-    localStorage.setItem('adminToken', data.token);
-    localStorage.setItem('adminUser', JSON.stringify(data.admin));
-    setToken(data.token);
-    setAdmin(data.admin);
+
+    try {
+      const res = await fetch(`${API_BASE}/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginEmail, password }),
+      });
+      const data = await readResponseJson(res);
+
+      if (!res.ok) {
+        setMessage(data.msg || 'Admin login failed');
+        return;
+      }
+
+      if (!data.token || !data.admin) {
+        setMessage('Admin login response did not include session data.');
+        return;
+      }
+
+      setAdminStorageItem('adminToken', data.token);
+      setAdminStorageItem('adminUser', JSON.stringify(data.admin));
+      setToken(data.token);
+      setAdmin(data.admin);
+
+      if (location.pathname === '/') {
+        navigate(adminRoutePaths.dashboard, { replace: true });
+      }
+    } catch (err) {
+      setMessage(getNetworkErrorMessage(err));
+    }
+  };
+
+  const signup = async (event: FormEvent) => {
+    event.preventDefault();
+    setMessage('');
+
+    const signupEmail = validateAuthEmail();
+    if (!signupEmail || !validateNewPassword()) return;
+
+    if (!API_BASE) {
+      setMessage('Admin API URL is not configured. Set VITE_API_URL for the admin panel deployment.');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/admin/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email: signupEmail, password, confirmPassword }),
+      });
+      const data = await readResponseJson(res);
+
+      if (!res.ok) {
+        setMessage(data.msg || 'Admin signup failed');
+        return;
+      }
+
+      if (!data.token || !data.admin) {
+        setMessage('Admin signup response did not include session data.');
+        return;
+      }
+
+      setAdminStorageItem('adminToken', data.token);
+      setAdminStorageItem('adminUser', JSON.stringify(data.admin));
+      setToken(data.token);
+      setAdmin(data.admin);
+      setPassword('');
+      setConfirmPassword('');
+
+      if (location.pathname === '/') {
+        navigate(adminRoutePaths.dashboard, { replace: true });
+      }
+    } catch (err) {
+      setMessage(getNetworkErrorMessage(err));
+    }
+  };
+
+  const requestPasswordReset = async (event: FormEvent) => {
+    event.preventDefault();
+    setMessage('');
+
+    const resetEmail = validateAuthEmail();
+    if (!resetEmail) return;
+
+    if (!API_BASE) {
+      setMessage('Admin API URL is not configured. Set VITE_API_URL for the admin panel deployment.');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/admin/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resetEmail }),
+      });
+      const data = await readResponseJson(res);
+
+      if (!res.ok) {
+        setMessage(data.msg || 'Reset request failed');
+        return;
+      }
+
+      if (data.resetToken) {
+        setResetToken(data.resetToken);
+        setAuthMode('reset');
+        setMessage(data.emailSent ? 'Reset link sent. Test token filled.' : 'Test reset token generated.');
+        return;
+      }
+
+      setMessage(data.msg || 'If the admin email is registered, reset instructions have been sent.');
+    } catch (err) {
+      setMessage(getNetworkErrorMessage(err));
+    }
+  };
+
+  const resetPasswordWithToken = async (event: FormEvent) => {
+    event.preventDefault();
+    setMessage('');
+
+    const resetEmail = validateAuthEmail();
+    if (!resetEmail) return;
+
+    if (!resetToken.trim()) {
+      setMessage('Reset token is required.');
+      return;
+    }
+
+    if (!validateNewPassword()) return;
+
+    if (!API_BASE) {
+      setMessage('Admin API URL is not configured. Set VITE_API_URL for the admin panel deployment.');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/admin/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: resetEmail,
+          token: resetToken.trim(),
+          password,
+          confirmPassword,
+        }),
+      });
+      const data = await readResponseJson(res);
+
+      if (!res.ok) {
+        setMessage(data.msg || 'Password reset failed');
+        return;
+      }
+
+      setPassword('');
+      setConfirmPassword('');
+      setResetToken('');
+      setAuthMode('login');
+      setMessage(data.msg || 'Password reset successful. Please login.');
+      if (location.search) {
+        navigate('/', { replace: true });
+      }
+    } catch (err) {
+      setMessage(getNetworkErrorMessage(err));
+    }
+  };
+
+  const clearAdminSession = (nextMessage?: string) => {
+    removeAdminStorageItem('adminToken');
+    removeAdminStorageItem('adminUser');
+    setToken('');
+    setAdmin(null);
+    if (nextMessage) setMessage(nextMessage);
   };
 
   const loadRequests = async () => {
     if (!token) return;
+    if (!API_BASE) {
+      setMessage('Admin API URL is not configured. Set VITE_API_URL for the admin panel deployment.');
+      return;
+    }
+
     setLoading(true);
     setMessage('');
     try {
@@ -603,12 +930,18 @@ function App() {
         fetch(`${API_BASE}/admin/users`, { headers: authHeaders }),
         fetch(`${API_BASE}/admin/products`, { headers: authHeaders }),
       ]);
+
+      if ([kycRes, verificationRes, ordersRes, usersRes, productsRes].some((res) => [401, 403].includes(res.status))) {
+        clearAdminSession('Admin session expired or access was revoked. Please log in again.');
+        return;
+      }
+
       const [kycData, verificationData, ordersData, usersData, productsData] = await Promise.all([
-        kycRes.json(),
-        verificationRes.json(),
-        ordersRes.json(),
-        usersRes.json(),
-        productsRes.json(),
+        readResponseJson(kycRes),
+        readResponseJson(verificationRes),
+        readResponseJson(ordersRes),
+        readResponseJson(usersRes),
+        readResponseJson(productsRes),
       ]);
       if (!kycRes.ok) throw new Error(kycData.msg || 'Could not load KYC requests');
       if (!verificationRes.ok) {
@@ -623,7 +956,7 @@ function App() {
       setUsers(usersData || []);
       setProducts(productsData || []);
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Could not load requests');
+      setMessage(getNetworkErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -634,11 +967,24 @@ function App() {
   }, [token]);
 
   useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const resetMode = params.get('mode') === 'reset' || params.has('token');
+    if (!resetMode) return;
+
+    const resetEmail = params.get('email');
+    const nextResetToken = params.get('token');
+    if (resetEmail) setEmail(normalizeAdminEmail(resetEmail));
+    if (nextResetToken) setResetToken(nextResetToken);
+    setAuthMode('reset');
+    setMessage('');
+  }, [location.search]);
+
+  useEffect(() => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
-    localStorage.setItem('adminPlatformRailWidth', String(platformRailWidth));
+    setAdminStorageItem('adminPlatformRailWidth', String(platformRailWidth));
   }, [platformRailWidth]);
 
   useEffect(() => {
@@ -687,10 +1033,7 @@ function App() {
   }, []);
 
   const logout = () => {
-    localStorage.removeItem('adminToken');
-    localStorage.removeItem('adminUser');
-    setToken('');
-    setAdmin(null);
+    clearAdminSession();
   };
 
   const toggleAnnouncementFullscreen = async () => {
@@ -871,37 +1214,119 @@ function App() {
   };
 
   if (!token || !admin) {
+    const authFormTitle: Record<AdminAuthMode, string> = {
+      login: 'Authority Login',
+      signup: 'Authority Signup',
+      forgot: 'Forgot Password',
+      reset: 'Reset Password',
+    };
+    const authButtonLabel: Record<AdminAuthMode, string> = {
+      login: 'Login',
+      signup: 'Create Admin Account',
+      forgot: 'Send Reset Link',
+      reset: 'Reset Password',
+    };
+    const handleAuthSubmit =
+      authMode === 'signup'
+        ? signup
+        : authMode === 'forgot'
+          ? requestPasswordReset
+          : authMode === 'reset'
+            ? resetPasswordWithToken
+            : login;
+
     return (
       <div className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100">
+        <InstallAppPrompt />
         <form
-          onSubmit={login}
+          onSubmit={handleAuthSubmit}
           className="mx-auto max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-xl"
         >
           <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-400">
             Admin Panel
           </p>
-          <h1 className="mt-3 text-2xl font-bold text-white">Authority Login</h1>
+          <h1 className="mt-3 text-2xl font-bold text-white">{authFormTitle[authMode]}</h1>
           {message && <p className="mt-4 rounded bg-red-950 px-3 py-2 text-sm">{message}</p>}
+          {authMode === 'signup' && (
+            <label className="mt-5 block text-sm font-semibold">
+              Name
+              <input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                autoComplete="name"
+                className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-emerald-400"
+              />
+            </label>
+          )}
           <label className="mt-5 block text-sm font-semibold">
             Email
             <input
               value={email}
               onChange={(event) => setEmail(event.target.value)}
+              autoComplete="email"
               className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-emerald-400"
             />
           </label>
-          <label className="mt-4 block text-sm font-semibold">
-            Password
-            <input
-              value={password}
-              type="password"
-              onChange={(event) => setPassword(event.target.value)}
-              className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-emerald-400"
-            />
-          </label>
+          {authMode === 'reset' && (
+            <label className="mt-4 block text-sm font-semibold">
+              Reset Token
+              <input
+                value={resetToken}
+                onChange={(event) => setResetToken(event.target.value)}
+                autoComplete="one-time-code"
+                className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-emerald-400"
+              />
+            </label>
+          )}
+          {authMode !== 'forgot' && (
+            <label className="mt-4 block text-sm font-semibold">
+              Password
+              <input
+                value={password}
+                type="password"
+                onChange={(event) => setPassword(event.target.value)}
+                autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
+                className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-emerald-400"
+              />
+            </label>
+          )}
+          {(authMode === 'signup' || authMode === 'reset') && (
+            <label className="mt-4 block text-sm font-semibold">
+              Confirm Password
+              <input
+                value={confirmPassword}
+                type="password"
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                autoComplete="new-password"
+                className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-emerald-400"
+              />
+            </label>
+          )}
           <button className="mt-6 w-full rounded-lg bg-emerald-600 py-3 text-sm font-bold text-white hover:bg-emerald-500">
-            Login
+            {authButtonLabel[authMode]}
           </button>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm font-semibold">
+            {authMode !== 'login' && (
+              <button type="button" onClick={() => switchAuthMode('login')} className="text-emerald-400 hover:text-emerald-300">
+                Login
+              </button>
+            )}
+            {authMode !== 'signup' && (
+              <button type="button" onClick={() => switchAuthMode('signup')} className="text-emerald-400 hover:text-emerald-300">
+                Signup
+              </button>
+            )}
+            {authMode !== 'forgot' && (
+              <button type="button" onClick={() => switchAuthMode('forgot')} className="text-emerald-400 hover:text-emerald-300">
+                Forgot Password
+              </button>
+            )}
+            {authMode !== 'reset' && (
+              <button type="button" onClick={() => switchAuthMode('reset')} className="text-emerald-400 hover:text-emerald-300">
+                Reset Password
+              </button>
+            )}
+          </div>
         </form>
       </div>
     );
@@ -926,10 +1351,12 @@ function App() {
     suspendedUsers: users.filter((user) => ['HOLD', 'SUSPENDED', 'TERMINATED'].includes(user.accountStatus || '')).length,
     notifications: notificationCount,
   };
-  const tabs = platformTabs[activePlatform].map((tab) => ({
-    ...tab,
-    count: countByTab[tab.id],
-  }));
+  const tabs = platformTabs[activePlatform]
+    .filter((tab) => canAccessAdminTab(adminRole, tab.id))
+    .map((tab) => ({
+      ...tab,
+      count: countByTab[tab.id],
+    }));
   const actionTab = tabs.find((tab) => tab.id === activeTab);
   const actionTabs = [
     {
@@ -941,8 +1368,16 @@ function App() {
   const activeTitle = getAdminTabTitle(activeTab, activePlatform);
   const searchedProducts = filterProducts(products, adminSearch);
   const searchedUsers = filterUsers(users, adminSearch);
-  const sidebarGroups = getSidebarGroups(countByTab, logout);
-  const openTab = (tab: AdminTab) => navigate(adminRoutePaths[tab]);
+  const sidebarGroups = getSidebarGroups(countByTab, logout, adminRole);
+  const openTab = (tab: AdminTab) => {
+    if (!canAccessAdminTab(adminRole, tab)) {
+      setMessage('Access denied for your role.');
+      navigate(adminRoutePaths[defaultAllowedTab], { replace: true });
+      return;
+    }
+
+    navigate(adminRoutePaths[tab]);
+  };
   const renderPanel = (tab: AdminTab) => {
     if (tab === 'dashboard') {
       return (
@@ -1021,56 +1456,77 @@ function App() {
     if (tab === 'staffUsers' || tab === 'customers') return <ModulePlanPanel plan={modulePlans[tab]} />;
     if (tab === 'sellers') {
       return (
-        <UsersPanel
-          title="Sellers / Growers / Farmers"
-          badge="Profile, documents, verification, account status"
-          emptyLabel="No sellers, growers, or farmers found."
-          users={searchedUsers.filter((user) => user.role === 'grower')}
-          onEdit={editUserInfo}
-          onStatus={setUserStatus}
-        />
+        <section className="space-y-4">
+          <ModulePlanPanel plan={modulePlans.sellers} />
+          <UsersPanel
+            title="Sellers / Growers / Farmers"
+            badge="Profile, documents, verification, account status"
+            emptyLabel="No sellers, growers, or farmers found."
+            users={searchedUsers.filter((user) => user.role === 'grower')}
+            onEdit={editUserInfo}
+            onStatus={setUserStatus}
+          />
+        </section>
       );
     }
     if (tab === 'buyers') {
       return (
-        <UsersPanel
-          title="Buyers"
-          badge="Profile, quotes, deals, payments"
-          emptyLabel="No buyers found."
-          users={searchedUsers.filter((user) => user.role === 'buyer')}
-          onEdit={editUserInfo}
-          onStatus={setUserStatus}
-        />
+        <section className="space-y-4">
+          <ModulePlanPanel plan={modulePlans.buyers} />
+          <UsersPanel
+            title="Buyers"
+            badge="Profile, quotes, deals, payments"
+            emptyLabel="No buyers found."
+            users={searchedUsers.filter((user) => user.role === 'buyer')}
+            onEdit={editUserInfo}
+            onStatus={setUserStatus}
+          />
+        </section>
       );
     }
-    if (tab === 'rolesPermissions') return <RolesPermissionsPanel />;
+    if (tab === 'rolesPermissions') {
+      return (
+        <section className="space-y-4">
+          <ModulePlanPanel plan={modulePlans.rolesPermissions} />
+          <RolesPermissionsPanel />
+        </section>
+      );
+    }
     if (tab === 'suspendedUsers') {
       return (
-        <UsersPanel
-          title="Suspended Users"
-          badge="Hold, suspended, terminated"
-          emptyLabel="No suspended users found."
-          users={searchedUsers.filter((user) => ['HOLD', 'SUSPENDED', 'TERMINATED'].includes(user.accountStatus || ''))}
-          onEdit={editUserInfo}
-          onStatus={setUserStatus}
-        />
+        <section className="space-y-4">
+          <ModulePlanPanel plan={modulePlans.suspendedUsers} />
+          <UsersPanel
+            title="Suspended Users"
+            badge="Hold, suspended, terminated"
+            emptyLabel="No suspended users found."
+            users={searchedUsers.filter((user) => ['HOLD', 'SUSPENDED', 'TERMINATED'].includes(user.accountStatus || ''))}
+            onEdit={editUserInfo}
+            onStatus={setUserStatus}
+          />
+        </section>
       );
     }
     if (tab === 'notifications') {
       return (
-        <NotificationsPanel
-          kycRequests={kycRequests}
-          verificationRequests={verificationRequests}
-          onOpenTab={openTab}
-        />
+        <section className="space-y-4">
+          <ModulePlanPanel plan={modulePlans.notifications} />
+          <NotificationsPanel
+            kycRequests={kycRequests}
+            verificationRequests={verificationRequests}
+            onOpenTab={openTab}
+          />
+        </section>
       );
     }
     if (tab === 'systemSettings') return <ModulePlanPanel plan={modulePlans.systemSettings} />;
+    if (tab === 'downloadApp') return <ModulePlanPanel plan={modulePlans.downloadApp} />;
     return <Navigate to={adminRoutePaths.dashboard} replace />;
   };
 
   return (
     <div className="h-full overflow-hidden bg-slate-950 p-2 text-slate-100">
+      <InstallAppPrompt />
       <div className="mx-auto flex h-full min-h-0 max-w-[1360px] flex-col">
         <MarketSnapshotStrip
           announcementRef={announcementBarRef}
@@ -1101,6 +1557,13 @@ function App() {
                 {loading ? 'Loading...' : 'Refresh'}
               </button>
               <button
+                type="button"
+                onClick={openAdminInstallPrompt}
+                className="h-8 rounded-lg bg-white px-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-100"
+              >
+                Download App
+              </button>
+              <button
                 onClick={logout}
                 className="admin-logout-button h-8 rounded-lg bg-white px-3 text-sm font-semibold text-slate-950 transition hover:bg-red-100"
               >
@@ -1124,7 +1587,7 @@ function App() {
             activePlatform={activePlatform}
             activeTab={activeTab}
             onOpenTab={(tab) => openTab(tab)}
-            onOpenPlatform={(platform) => openTab(getDefaultTabForPlatform(platform))}
+            onOpenPlatform={(platform) => openTab(getDefaultTabForPlatform(platform, adminRole))}
             onClose={() => setMobileMenuOpen(false)}
           />
         )}
@@ -1138,7 +1601,7 @@ function App() {
             activeTab={activeTab}
             groups={sidebarGroups}
             onChange={(platform) => {
-              openTab(getDefaultTabForPlatform(platform));
+              openTab(getDefaultTabForPlatform(platform, adminRole));
             }}
             onOpenTab={(platform, tab) => {
               openTab(tab);
@@ -1166,11 +1629,19 @@ function App() {
                 </p>
               )}
               <Routes>
-                <Route path="/" element={<Navigate to={adminRoutePaths.dashboard} replace />} />
+                <Route path="/" element={<Navigate to={adminRoutePaths[defaultAllowedTab]} replace />} />
                 {(Object.entries(adminRoutePaths) as [AdminTab, string][]).map(([tab, path]) => (
-                  <Route key={tab} path={path} element={renderPanel(tab)} />
+                  <Route
+                    key={tab}
+                    path={path}
+                    element={
+                      canAccessAdminTab(adminRole, tab)
+                        ? renderPanel(tab)
+                        : <Navigate to={adminRoutePaths[defaultAllowedTab]} replace />
+                    }
+                  />
                 ))}
-                <Route path="*" element={<Navigate to={adminRoutePaths.dashboard} replace />} />
+                <Route path="*" element={<Navigate to={adminRoutePaths[defaultAllowedTab]} replace />} />
               </Routes>
             </main>
             <AdminButtonTabs
@@ -1237,17 +1708,13 @@ function MarketSnapshotStrip({
   );
 }
 
-function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: () => void): SidebarGroup[] {
-  return [
+function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: () => void, role: AdminRole): SidebarGroup[] {
+  const groups: SidebarGroup[] = [
     {
       platform: 'main',
       title: 'Dashboard',
       subtitle: 'Admin overview',
-      items: [
-        { label: 'Dashboard', icon: 'dashboard', tab: 'dashboard' },
-        { label: 'Notifications', icon: 'notification', tab: 'notifications', count: counts.notifications },
-        { label: 'System Settings', icon: 'settings', tab: 'systemSettings' },
-      ],
+      items: [{ label: 'Dashboard', icon: 'dashboard', tab: 'dashboard' }],
     },
     {
       platform: 'orchard',
@@ -1295,13 +1762,40 @@ function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: (
       ],
     },
     {
+      platform: 'notifications',
+      title: 'Notifications',
+      subtitle: 'Alerts and updates',
+      items: [{ label: 'Notifications', icon: 'notification', tab: 'notifications', count: counts.notifications }],
+    },
+    {
       platform: 'system',
+      title: 'System Settings',
+      subtitle: 'Global settings',
+      items: [{ label: 'System Settings', icon: 'settings', tab: 'systemSettings' }],
+    },
+    {
+      platform: 'download',
+      title: 'Download App',
+      subtitle: 'App releases',
+      items: [{ label: 'Download App', icon: 'download', tab: 'downloadApp' }],
+    },
+    {
+      platform: 'logout',
       title: 'Logout',
       subtitle: 'End session',
       action: onLogout,
       items: [{ label: 'Logout', icon: 'logout', action: onLogout }],
     },
   ];
+
+  return groups
+    .map((group) => ({
+      ...group,
+      items: group.action
+        ? group.items
+        : group.items.filter((item) => !item.tab || canAccessAdminTab(role, item.tab)),
+    }))
+    .filter((group) => group.action || group.items.length > 0);
 }
 
 type MenuIconName =
@@ -1327,7 +1821,8 @@ type MenuIconName =
   | 'deal'
   | 'support'
   | 'notification'
-  | 'roles';
+  | 'roles'
+  | 'download';
 
 function PlatformRail({
   activePlatform,
@@ -1632,6 +2127,13 @@ function MenuIcon({ name }: { name: MenuIconName }) {
         <path d="M9 12l2 2 4-5" />
       </>
     ),
+    download: (
+      <>
+        <path d="M12 3v12" />
+        <path d="m7 10 5 5 5-5" />
+        <path d="M5 21h14" />
+      </>
+    ),
   };
 
   return (
@@ -1744,6 +2246,7 @@ function getAdminTabTitle(activeTab: AdminTab, activePlatform: AdminPlatform) {
   if (activeTab === 'rolesPermissions') return 'Roles & Permissions';
   if (activeTab === 'suspendedUsers') return 'Suspended Users';
   if (activeTab === 'systemSettings') return 'System Settings';
+  if (activeTab === 'downloadApp') return 'Download App';
   return activePlatform === 'orchard' ? 'Orchard Growers Admin Command' : 'Admin Command';
 }
 
@@ -2645,16 +3148,26 @@ function getTabFromPath(pathname: string): AdminTab {
   return matchedRoute?.[0] || 'dashboard';
 }
 
-function getDefaultTabForPlatform(platform: AdminPlatform): AdminTab {
+function getDefaultTabForPlatform(platform: AdminPlatform, role: AdminRole): AdminTab {
   const defaultTabs: Record<AdminPlatform, AdminTab> = {
     main: 'dashboard',
     orchard: 'inventory',
     efruitmandi: 'efruitDashboard',
     userManagement: 'staffUsers',
+    notifications: 'notifications',
     system: 'systemSettings',
+    download: 'downloadApp',
+    logout: 'dashboard',
   };
 
-  return defaultTabs[platform];
+  const platformDefault = defaultTabs[platform];
+  if (canAccessAdminTab(role, platformDefault)) return platformDefault;
+
+  const firstAllowedPlatformTab = platformTabs[platform]
+    ?.map((tab) => tab.id)
+    .find((tab) => canAccessAdminTab(role, tab));
+
+  return firstAllowedPlatformTab || getDefaultAdminTab(role);
 }
 
 function normalizeProductStatusInput(status: string) {
