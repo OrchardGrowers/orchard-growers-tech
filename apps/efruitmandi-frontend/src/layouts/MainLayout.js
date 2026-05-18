@@ -9,7 +9,7 @@ export default function MainLayout() {
   return (
     <div className="flex min-h-screen flex-col bg-[#eef3ef]">
       <Navbar />
-      <main className={`flex-1 ${isHome ? "pt-[106px] md:pt-[74px]" : "pt-[64px]"} px-3`}>
+      <main className={`flex-1 ${isHome ? "pt-[106px] md:pt-[74px]" : "pt-[64px]"} px-3 md:px-4`}>
         <Outlet />
       </main>
       <footer className="px-3 pb-[104px] pt-4 text-center text-xs font-semibold text-gray-600 md:pb-6">

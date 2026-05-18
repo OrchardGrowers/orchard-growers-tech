@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaChevronDown,
@@ -89,6 +89,9 @@ export default function Home() {
   const [auctions, setAuctions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [desktopSection, setDesktopSection] = useState("liveLots");
+  const desktopGridRef = useRef(null);
+  const leftSidebarRef = useBottomPinnedColumn(desktopGridRef);
+  const rightSidebarRef = useBottomPinnedColumn(desktopGridRef);
   const isGrower = isGrowerAccount(user);
   const openProfileEntry = () => {
     if (localStorage.getItem("accessToken")) {
@@ -239,8 +242,11 @@ export default function Home() {
         </div>
       </div>
 
-    <div className="mx-auto hidden max-w-[1134px] gap-5 md:grid md:grid-cols-[218px_minmax(0,554px)_314px]">
-      <aside className="space-y-2.5">
+    <div
+      ref={desktopGridRef}
+      className="hidden w-full gap-5 md:grid md:grid-cols-[218px_minmax(0,1fr)] lg:grid-cols-[218px_minmax(0,1fr)_314px] xl:grid-cols-[240px_minmax(0,1fr)_340px]"
+    >
+      <aside ref={leftSidebarRef} className="self-start space-y-2.5 will-change-transform">
         <ProfileCard
           user={user}
           onOpen={openProfileEntry}
@@ -293,13 +299,80 @@ export default function Home() {
         )}
       </section>
 
-      <aside className="hidden space-y-2.5 lg:block">
+      <aside ref={rightSidebarRef} className="hidden self-start space-y-2.5 will-change-transform lg:block">
         <NewsCard />
             <AdCard user={user} onListLot={() => navigate("/register-grower")} />
       </aside>
     </div>
     </>
   );
+}
+
+function getElementDocumentTop(element) {
+  let top = 0;
+  let current = element;
+
+  while (current) {
+    top += current.offsetTop;
+    current = current.offsetParent;
+  }
+
+  return top;
+}
+
+function useBottomPinnedColumn(containerRef) {
+  const ref = useRef(null);
+  const lastTranslateY = useRef(-1);
+
+  useEffect(() => {
+    let frame = 0;
+
+    const updatePosition = () => {
+      frame = 0;
+      const node = ref.current;
+      const container = containerRef.current;
+      if (!node || !container) return;
+
+      const viewportHeight = window.innerHeight || 0;
+      const columnHeight = node.offsetHeight;
+      const bottomGap = 16;
+      const documentTop = getElementDocumentTop(node);
+      const containerBottom = getElementDocumentTop(container) + container.offsetHeight;
+      const normalTop = documentTop - window.scrollY;
+      const bottomPinnedTop = viewportHeight - columnHeight - bottomGap;
+      const maxTranslateY = Math.max(0, containerBottom - documentTop - columnHeight);
+      const translateY = Math.round(Math.min(Math.max(0, bottomPinnedTop - normalTop), maxTranslateY));
+
+      if (translateY !== lastTranslateY.current) {
+        lastTranslateY.current = translateY;
+        node.style.transform = `translate3d(0, ${translateY}px, 0)`;
+      }
+    };
+
+    const scheduleUpdate = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(updatePosition);
+    };
+
+    scheduleUpdate();
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate);
+
+    const observer = typeof window.ResizeObserver === "function" ? new ResizeObserver(scheduleUpdate) : null;
+    if (observer) {
+      if (ref.current) observer.observe(ref.current);
+      if (containerRef.current) observer.observe(containerRef.current);
+    }
+
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+      observer?.disconnect();
+    };
+  }, [containerRef]);
+
+  return ref;
 }
 
 function HeroCard({ onList }) {

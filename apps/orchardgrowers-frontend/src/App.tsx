@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode, type RefObject } from "react";
 import { Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import {
   FaCamera,
@@ -264,7 +264,7 @@ function App() {
   return (
     <div className="min-h-screen bg-[#eef6f0] text-slate-950">
       <TopNav />
-      <main className="mx-auto max-w-[1134px] pb-16 pt-3 md:pt-5">
+      <main className="w-full pb-16 pt-3 md:px-4 md:pt-5">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/products" element={<Products />} />
@@ -292,8 +292,9 @@ function Home() {
   const [ratingProduct, setRatingProduct] = useState<Product | null>(null);
   const [imagePreview, setImagePreview] = useState<ProductImagePreview | null>(null);
   const [stockMessage, setStockMessage] = useState("");
-  const leftSidebarRef = useBottomPinnedColumn();
-  const rightSidebarRef = useBottomPinnedColumn();
+  const desktopGridRef = useRef<HTMLDivElement | null>(null);
+  const leftSidebarRef = useBottomPinnedColumn(desktopGridRef);
+  const rightSidebarRef = useBottomPinnedColumn(desktopGridRef);
   const user = getStoredUser();
 
   useEffect(() => {
@@ -356,7 +357,10 @@ function Home() {
         </div>
       </div>
 
-      <div className="hidden gap-5 md:grid md:grid-cols-[218px_minmax(0,554px)_314px]">
+      <div
+        ref={desktopGridRef}
+        className="hidden w-full gap-5 md:grid md:grid-cols-[218px_minmax(0,1fr)] lg:grid-cols-[218px_minmax(0,1fr)_314px] xl:grid-cols-[240px_minmax(0,1fr)_340px]"
+      >
         <aside ref={leftSidebarRef} className="self-start space-y-2.5 will-change-transform">
           <ProfileCard user={user} onOpen={() => navigate("/dashboard")} />
           <StatsCard />
@@ -430,7 +434,7 @@ function TopNav() {
         <div className="bg-green-700 px-3 py-1.5 text-center text-xs font-semibold text-white">
           Free Shipping on Orders Over Rs. 499 | New Arrivals Just In!
         </div>
-        <div className="mx-auto flex h-16 max-w-[1180px] items-center gap-3 px-3">
+        <div className="flex h-16 w-full items-center gap-3 px-3">
         <Link to="/" className="flex shrink-0 items-center gap-2 rounded px-1.5 py-1">
           <img src={logoUrl} alt="Orchard Growers" className="h-14 w-auto object-contain" />
         </Link>
@@ -565,8 +569,9 @@ function getElementDocumentTop(element: HTMLElement) {
   return top;
 }
 
-function useBottomPinnedColumn() {
+function useBottomPinnedColumn(containerRef: RefObject<HTMLElement | null>) {
   const ref = useRef<HTMLElement | null>(null);
+  const lastTranslateY = useRef(-1);
 
   useEffect(() => {
     let frame = 0;
@@ -574,17 +579,23 @@ function useBottomPinnedColumn() {
     const updatePosition = () => {
       frame = 0;
       const node = ref.current;
-      if (!node) return;
+      const container = containerRef.current;
+      if (!node || !container) return;
 
       const viewportHeight = window.innerHeight || 0;
       const columnHeight = node.offsetHeight;
       const bottomGap = 16;
       const documentTop = getElementDocumentTop(node);
+      const containerBottom = getElementDocumentTop(container) + container.offsetHeight;
       const normalTop = documentTop - window.scrollY;
       const bottomPinnedTop = viewportHeight - columnHeight - bottomGap;
-      const translateY = Math.max(0, bottomPinnedTop - normalTop);
+      const maxTranslateY = Math.max(0, containerBottom - documentTop - columnHeight);
+      const translateY = Math.round(Math.min(Math.max(0, bottomPinnedTop - normalTop), maxTranslateY));
 
-      node.style.transform = `translate3d(0, ${Math.round(translateY)}px, 0)`;
+      if (translateY !== lastTranslateY.current) {
+        lastTranslateY.current = translateY;
+        node.style.transform = `translate3d(0, ${translateY}px, 0)`;
+      }
     };
 
     const scheduleUpdate = () => {
@@ -596,16 +607,19 @@ function useBottomPinnedColumn() {
     window.addEventListener("scroll", scheduleUpdate, { passive: true });
     window.addEventListener("resize", scheduleUpdate);
 
-    const observer = new ResizeObserver(scheduleUpdate);
-    if (ref.current) observer.observe(ref.current);
+    const observer = typeof window.ResizeObserver === "function" ? new ResizeObserver(scheduleUpdate) : null;
+    if (observer) {
+      if (ref.current) observer.observe(ref.current);
+      if (containerRef.current) observer.observe(containerRef.current);
+    }
 
     return () => {
       if (frame) window.cancelAnimationFrame(frame);
       window.removeEventListener("scroll", scheduleUpdate);
       window.removeEventListener("resize", scheduleUpdate);
-      observer.disconnect();
+      observer?.disconnect();
     };
-  }, []);
+  }, [containerRef]);
 
   return ref;
 }

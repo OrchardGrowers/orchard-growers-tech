@@ -182,7 +182,7 @@ export default function Navbar() {
       </div>
 
       <header className="fixed left-0 right-0 top-0 z-50 hidden bg-green-700 shadow-sm md:block">
-        <div className="mx-auto flex h-14 max-w-[1180px] items-center gap-3 px-4">
+        <div className="flex h-14 w-full items-center gap-3 px-4">
           <Link to="/" aria-label="Go to home" className="shrink-0">
             <img src={logoUrl} className="h-11 w-auto object-contain" alt="Orchard Growers" />
           </Link>
