@@ -520,7 +520,13 @@ const rolePermissionPlan = [
 function App() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [token, setToken] = useState(() => localStorage.getItem('adminToken') || '');
+  const [token, setToken] = useState(() => {
+    try {
+      return localStorage.getItem('adminToken') || '';
+    } catch {
+      return '';
+    }
+  });
   const [admin, setAdmin] = useState<Admin | null>(() => {
     try {
       return JSON.parse(localStorage.getItem('adminUser') || 'null');
@@ -540,7 +546,16 @@ function App() {
   const [viewingFile, setViewingFile] = useState<UploadedFile | null>(null);
   const [adminSearch, setAdminSearch] = useState('');
   const [productDraft, setProductDraft] = useState<ProductDraft>(emptyProductDraft);
-  const [platformRailWidth, setPlatformRailWidth] = useState(() => Number(localStorage.getItem('adminPlatformRailWidth')) || 145);
+  const [platformRailWidth, setPlatformRailWidth] = useState(() => {
+    try {
+      const raw = localStorage.getItem('adminPlatformRailWidth');
+      const parsed = Number(raw);
+      if (!Number.isFinite(parsed) || parsed <= 0) return 145;
+      return parsed;
+    } catch {
+      return 145;
+    }
+  });
   const [railResizeStart, setRailResizeStart] = useState<{ x: number; width: number } | null>(null);
   const [fullscreenTarget, setFullscreenTarget] = useState<'announcement' | 'action' | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -549,13 +564,13 @@ function App() {
   const activeTab = getTabFromPath(location.pathname);
   const activePlatform = adminTabPlatforms[activeTab];
 
-  const authHeaders = useMemo(
-    () => ({
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    }),
-    [token]
-  );
+  const authHeaders = useMemo(() => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    return headers;
+  }, [token]);
 
   const login = async (event: FormEvent) => {
     event.preventDefault();

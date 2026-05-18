@@ -60,12 +60,27 @@ const isDealOpen = (date = new Date()) => {
 };
 
 // ================= MIDDLEWARE =================
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-  })
-);
+const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || "";
+const allowedOrigins = allowedOriginsEnv.split(",").map((s) => s.trim()).filter(Boolean);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow non-browser requests (e.g., server-to-server) when origin is undefined
+    if (!origin) return callback(null, true);
+
+    // If no explicit allowed origins configured, accept all origins (backwards compatible)
+    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true,
+  allowedHeaders: ["Content-Type", "Authorization"],
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+};
+
+app.use(cors(corsOptions));
 
 app.use(express.json({ limit: "200mb" }));
 app.use(express.urlencoded({ limit: "200mb", extended: true }));
@@ -77,6 +92,9 @@ app.use("/api/user", userRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/auctions", auctionRoutes);
+// Compatibility aliases: expose the same auction routes under business-friendly paths
+app.use("/api/deals", auctionRoutes);
+app.use("/api/quotes", auctionRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/delivery", deliveryRoutes);
 app.use("/api/billdesk", billdeskRoutes);
@@ -137,6 +155,12 @@ io.on("connection", (socket) => {
     console.log("Joined deal:", auctionId);
   });
 
+  // Alias for newer clients using business naming
+  socket.on("joinDeal", (auctionId) => {
+    socket.join(auctionId);
+    console.log("Joined deal (alias):", auctionId);
+  });
+
   socket.on("placeDeal", async ({ auctionId, dealAmount, userId, token }) => {
     try {
       if (!isDealOpen()) {
@@ -187,10 +211,88 @@ io.on("connection", (socket) => {
 
         await auction.save();
 
+          io.to(auctionId).emit("dealUpdate", {
+            dealAmount: amount,
+            userId,
+            auctionId,
+          });
+          // Also emit quote-aliased update for migrating clients
+          io.to(auctionId).emit("quoteUpdate", {
+            quotedPrice: amount,
+            buyerId: userId,
+            dealId: auctionId,
+          });
+
+        console.log("New highest deal price:", amount);
+      } else {
+        console.log("Deal price too low");
+      }
+    } catch (err) {
+      console.error("Deal Price Error:", err);
+    }
+  });
+
+  // Accept new client event names that use business terms
+  socket.on("submitQuote", async ({ auctionId, quotedPrice, buyerId, token }) => {
+    try {
+      // reuse same validation and update logic as placeDeal
+      if (!isDealOpen()) {
+        socket.emit("dealRejected", {
+          msg: "Deal is open from 9:00 AM to 4:00 PM IST.",
+        });
+        return;
+      }
+
+      if (!token) {
+        socket.emit("dealRejected", { msg: "Login as a buyer to make a deal." });
+        return;
+      }
+
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const dealBuyer = await User.findById(decoded.id).select("_id role kyc");
+
+      if (!dealBuyer || dealBuyer.role !== "buyer") {
+        socket.emit("dealRejected", {
+          msg: "Only buyer accounts can make a deal or buy fruit lots.",
+        });
+        return;
+      }
+
+      if (dealBuyer.kyc?.status !== "APPROVED") {
+        socket.emit("dealRejected", {
+          msg: "Complete KYC authority verification before starting fruit trading.",
+        });
+        return;
+      }
+
+      const auction = await Auction.findById(auctionId);
+      if (!auction) return;
+
+      if (auction.status !== "ACTIVE") return;
+      if (auction.startTime && new Date() < auction.startTime) return;
+
+      if (new Date() >= auction.endTime) {
+        console.log("Deal time finished");
+        return;
+      }
+
+      const amount = Number(quotedPrice);
+
+      if (amount > auction.currentBid) {
+        auction.currentBid = amount;
+        auction.highestBidder = dealBuyer.id || dealBuyer._id || buyerId;
+
+        await auction.save();
+
         io.to(auctionId).emit("dealUpdate", {
           dealAmount: amount,
-          userId,
+          userId: buyerId,
           auctionId,
+        });
+        io.to(auctionId).emit("quoteUpdate", {
+          quotedPrice: amount,
+          buyerId: buyerId,
+          dealId: auctionId,
         });
 
         console.log("New highest deal price:", amount);
@@ -234,6 +336,11 @@ setInterval(async () => {
           auctionId: auction._id,
           startTime: auction.startTime,
         });
+        // Emit business-friendly alias for newer clients
+        io.to(auction._id.toString()).emit("dealStarted", {
+          auctionId: auction._id,
+          startTime: auction.startTime,
+        });
 
         console.log("Deal started:", auction._id);
       }
@@ -244,6 +351,12 @@ setInterval(async () => {
 
         if (!auction.highestBidder) {
           io.to(auction._id.toString()).emit("auctionEnded", {
+            winner: null,
+            finalPrice: auction.currentBid,
+            orderId: null,
+          });
+          // Alias for business naming
+          io.to(auction._id.toString()).emit("dealEnded", {
             winner: null,
             finalPrice: auction.currentBid,
             orderId: null,
@@ -266,6 +379,12 @@ setInterval(async () => {
           });
 
           io.to(auction._id.toString()).emit("auctionEnded", {
+            winner: auction.highestBidder,
+            finalPrice: auction.currentBid,
+            orderId: order._id,
+          });
+          // Alias for business naming
+          io.to(auction._id.toString()).emit("dealEnded", {
             winner: auction.highestBidder,
             finalPrice: auction.currentBid,
             orderId: order._id,
