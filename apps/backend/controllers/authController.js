@@ -1,23 +1,34 @@
 import User from "../models/User.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { isSmtpConfigured, sendOtpEmail } from "../services/mailService.js";
+import { isMobileOtpConfigured, sendMobileOtp } from "../services/mobileOtpService.js";
 
 const otpStore = new Map();
-const OTP_TTL_MS = 5 * 60 * 1000;
-const TEST_OTP = process.env.TEST_OTP || "345123";
-const isTestOtpEnabled = () => process.env.NODE_ENV !== "production";
-const DEV_TEST_USERS = [
-  {
-    name: "OrchardGrowerstestuser",
-    email: "orchardgrowerstestuser@test.com",
-    phone: "7018108900",
-    role: "buyer",
-    password: "password123",
-    location: "India",
-    businessName: "Orchard Growers Test Buyer",
-    buyerContactPerson: "OrchardGrowerstestuser",
-  },
-];
+const getOtpTtlMs = () => {
+  const minutes = Number(process.env.OTP_EXPIRY_MINUTES || 5);
+  return (Number.isFinite(minutes) && minutes > 0 ? minutes : 5) * 60 * 1000;
+};
+const truthyEnv = (value = "") => ["1", "true", "yes"].includes(String(value).trim().toLowerCase());
+const isProductionLike = () => {
+  const runtime = String(process.env.APP_ENV || process.env.NODE_ENV || "").trim().toLowerCase();
+  return runtime === "production" || runtime === "staging";
+};
+const getLocalTestOtp = () => {
+  const testOtp = String(process.env.TEST_OTP || "").trim();
+  if (!truthyEnv(process.env.ALLOW_TEST_OTP) || isProductionLike()) return "";
+  return /^\d{6}$/.test(testOtp) ? testOtp : "";
+};
+const createOtp = () => {
+  const testOtp = getLocalTestOtp();
+  if (testOtp) return { otp: testOtp, isLocalTestOtp: true };
+
+  return {
+    otp: String(Math.floor(100000 + Math.random() * 900000)),
+    isLocalTestOtp: false,
+  };
+};
+const OTP_PURPOSES = new Set(["auth", "forgot-password"]);
 
 const normalizeIdentifier = (identifier = "") => identifier.trim().toLowerCase();
 const isEmail = (identifier) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
@@ -77,43 +88,174 @@ const safeUserPayload = (user) => ({
 const findByParsedIdentifier = (parsed) =>
   User.findOne({ [parsed.type]: parsed.value });
 
-const getDevTestUser = (parsed, password) => {
-  return DEV_TEST_USERS.find((user) => {
-    const identifierMatches =
-      (parsed.type === "email" && user.email === parsed.value) ||
-      (parsed.type === "phone" && user.phone === parsed.value);
+const getOtpPurpose = (purpose = "auth") => {
+  const normalized = String(purpose || "auth").trim().toLowerCase();
+  return OTP_PURPOSES.has(normalized) ? normalized : "auth";
+};
 
-    return identifierMatches && user.password === password;
-  }) || null;
+const getOtpKey = (parsed, purpose = "auth") => `${getOtpPurpose(purpose)}:${parsed.type}:${parsed.value}`;
+const maskOtpKey = (key = "") => {
+  const [purpose, type, value = ""] = String(key).split(":");
+  if (type === "email") {
+    const [name = "", domain = ""] = value.split("@");
+    return `${purpose}:${type}:${name.slice(0, 2)}***@${domain}`;
+  }
+
+  return `${purpose}:${type}:${value.slice(0, 3)}****${value.slice(-2)}`;
+};
+
+const logOtpError = (message, err) => {
+  if (err?.code === "MOBILE_OTP_PROVIDER_ERROR") {
+    console.error(message, {
+      code: err.code,
+      providerStatus: err.providerStatus,
+      providerBody: err.providerBody,
+    });
+    return;
+  }
+
+  console.error(message, err?.message || err);
+};
+
+const storeOtp = ({ parsed, otp, purpose }) => {
+  const key = getOtpKey(parsed, purpose);
+  otpStore.set(key, {
+    otp,
+    purpose,
+    expiresAt: Date.now() + getOtpTtlMs(),
+    verified: false,
+    used: false,
+  });
+  return key;
+};
+
+const deliverOtp = async ({ parsed, otp, purpose, isLocalTestOtp }) => {
+  if (parsed.type === "email") {
+    if (isLocalTestOtp && !isProductionLike() && !isSmtpConfigured()) {
+      return;
+    }
+
+    await sendOtpEmail({
+      to: parsed.value,
+      otp,
+      purpose: purpose === "forgot-password" ? "password reset" : "account verification",
+    });
+    return;
+  }
+
+  if (isLocalTestOtp && !isProductionLike() && !isMobileOtpConfigured()) {
+    return;
+  }
+
+  try {
+    await sendMobileOtp({ phone: parsed.value, otp });
+  } catch (err) {
+    if (err.code) throw err;
+    const error = new Error("Mobile OTP delivery failed");
+    error.code = "MOBILE_OTP_PROVIDER_ERROR";
+    error.cause = err;
+    throw error;
+  }
+
+  if (isProductionLike() && isLocalTestOtp) {
+    const error = new Error("Phone OTP delivery is not configured");
+    error.code = "PHONE_OTP_NOT_CONFIGURED";
+    throw error;
+  }
+};
+
+const sendOtpForPurpose = async ({ req, res, purpose = "auth", requireExistingUser = false, genericResponse = false }) => {
+  const parsed = parseIdentifier(req.body.identifier || req.body.email);
+
+  if (!parsed) {
+    return res.status(400).json({ msg: "Enter a valid email or phone number" });
+  }
+
+  if (requireExistingUser) {
+    const user = await findByParsedIdentifier(parsed);
+    if (!user) {
+      return genericResponse
+        ? res.json({ message: "If the account exists, an OTP has been sent.", channel: parsed.type })
+        : res.status(404).json({ msg: "User not found" });
+    }
+  }
+
+  const { otp, isLocalTestOtp } = createOtp();
+  const normalizedPurpose = getOtpPurpose(purpose);
+  const key = storeOtp({ parsed, otp, purpose: normalizedPurpose });
+
+  try {
+    await deliverOtp({ parsed, otp, purpose: normalizedPurpose, isLocalTestOtp });
+  } catch (err) {
+    otpStore.delete(key);
+    logOtpError("OTP delivery failed:", err);
+
+    if (err.code === "SMTP_NOT_CONFIGURED") {
+      return res.status(500).json({ msg: "Email service is not configured" });
+    }
+
+    if (err.code === "SMTP_SEND_FAILED") {
+      return res.status(502).json({ msg: "Could not send OTP email. Please try again." });
+    }
+
+    if (err.code === "PHONE_OTP_NOT_CONFIGURED") {
+      return res.status(500).json({ msg: "Phone OTP delivery is not configured" });
+    }
+
+    if (err.code === "MOBILE_OTP_NOT_CONFIGURED") {
+      return res.status(500).json({ msg: "Mobile OTP service is not configured" });
+    }
+
+    if (err.code === "MOBILE_OTP_PROVIDER_UNSUPPORTED") {
+      return res.status(500).json({ msg: "Mobile OTP provider is not supported" });
+    }
+
+    return res.status(502).json({ msg: "Could not send OTP. Please try again." });
+  }
+
+  if (!isProductionLike() && (isLocalTestOtp || parsed.type === "phone")) {
+    console.log(`${isLocalTestOtp ? "Local test OTP" : "Local OTP"} for ${maskOtpKey(key)}: ${otp}`);
+  } else if (!isProductionLike()) {
+    console.log(`OTP delivery accepted for ${maskOtpKey(key)}`);
+  }
+
+  return res.json({
+    message: genericResponse ? "If the account exists, an OTP has been sent." : `OTP sent to ${parsed.type}`,
+    channel: parsed.type,
+    devOtp: isLocalTestOtp ? otp : undefined,
+  });
 };
 
 export const sendOtp = async (req, res) => {
   try {
-    const parsed = parseIdentifier(req.body.identifier);
+    return sendOtpForPurpose({ req, res, purpose: "auth" });
+  } catch (err) {
+    logOtpError("OTP request failed:", err);
+    res.status(500).json({ msg: "Could not send OTP" });
+  }
+};
 
-    if (!parsed) {
-      return res.status(400).json({ msg: "Enter a valid email or phone number" });
-    }
+export const resendOtp = async (req, res) => {
+  try {
+    return sendOtpForPurpose({ req, res, purpose: getOtpPurpose(req.body.purpose || "auth") });
+  } catch (err) {
+    logOtpError("OTP resend failed:", err);
+    res.status(500).json({ msg: "Could not resend OTP" });
+  }
+};
 
-    const otp = isTestOtpEnabled()
-      ? TEST_OTP
-      : String(Math.floor(100000 + Math.random() * 900000));
-    const key = `${parsed.type}:${parsed.value}`;
-    otpStore.set(key, {
-      otp,
-      expiresAt: Date.now() + OTP_TTL_MS,
-      verified: false,
-    });
-
-    console.log(`OTP for ${key}: ${otp}`);
-
-    res.json({
-      message: `OTP sent to ${parsed.type}`,
-      channel: parsed.type,
-      devOtp: process.env.NODE_ENV === "production" ? undefined : otp,
+export const forgotPasswordOtp = async (req, res) => {
+  try {
+    return sendOtpForPurpose({
+      req,
+      res,
+      purpose: "forgot-password",
+      requireExistingUser: true,
+      genericResponse: true,
     });
   } catch (err) {
-    res.status(500).json({ msg: err.message });
+    logOtpError("Forgot password OTP failed:", err);
+    res.status(500).json({ msg: "Could not send password reset OTP" });
   }
 };
 
@@ -121,24 +263,36 @@ export const verifyOtp = async (req, res) => {
   try {
     const parsed = parseIdentifier(req.body.identifier);
     const otp = String(req.body.otp || "").trim();
+    const purpose = getOtpPurpose(req.body.purpose || "auth");
 
     if (!parsed || !otp) {
       return res.status(400).json({ msg: "Identifier and OTP are required" });
     }
 
-    const key = `${parsed.type}:${parsed.value}`;
+    const key = getOtpKey(parsed, purpose);
     const record = otpStore.get(key);
 
-    if (!record || record.expiresAt < Date.now()) {
+    if (!record) {
+      return res.status(400).json({ msg: "Invalid OTP" });
+    }
+
+    if (record.expiresAt < Date.now()) {
       otpStore.delete(key);
       return res.status(400).json({ msg: "OTP expired. Request a new OTP." });
+    }
+
+    if (record.verified && record.used) {
+      return res.json({
+        message: "OTP already verified",
+        channel: parsed.type,
+      });
     }
 
     if (record.otp !== otp) {
       return res.status(400).json({ msg: "Invalid OTP" });
     }
 
-    otpStore.set(key, { ...record, verified: true });
+    otpStore.set(key, { ...record, otp: "", verified: true, used: true });
 
     res.json({
       message: "OTP verified",
@@ -150,13 +304,67 @@ export const verifyOtp = async (req, res) => {
 };
 
 export const isOtpVerified = (parsed) => {
-  const key = `${parsed.type}:${parsed.value}`;
+  const key = getOtpKey(parsed, "auth");
   const record = otpStore.get(key);
-  return Boolean(record?.verified && record.expiresAt >= Date.now());
+  if (!record) return false;
+
+  if (record.expiresAt < Date.now()) {
+    otpStore.delete(key);
+    return false;
+  }
+
+  return Boolean(record.verified && record.used);
 };
 
 export const consumeOtpVerification = (parsed) => {
-  otpStore.delete(`${parsed.type}:${parsed.value}`);
+  otpStore.delete(getOtpKey(parsed, "auth"));
+};
+
+export const resetPasswordWithOtp = async (req, res) => {
+  try {
+    const parsed = parseIdentifier(req.body.identifier || req.body.email);
+    const otp = String(req.body.otp || "").trim();
+    const password = String(req.body.password || "");
+
+    if (!parsed || !otp || !password) {
+      return res.status(400).json({ msg: "Identifier, OTP, and new password are required" });
+    }
+
+    if (password.length < 8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+      return res.status(400).json({ msg: "Password must be at least 8 characters and include a letter and a number" });
+    }
+
+    const key = getOtpKey(parsed, "forgot-password");
+    const record = otpStore.get(key);
+
+    if (!record) {
+      return res.status(400).json({ msg: "Invalid OTP" });
+    }
+
+    if (record.expiresAt < Date.now()) {
+      otpStore.delete(key);
+      return res.status(400).json({ msg: "OTP expired. Request a new OTP." });
+    }
+
+    if (record.used || record.verified || record.otp !== otp) {
+      return res.status(400).json({ msg: "Invalid OTP" });
+    }
+
+    const user = await findByParsedIdentifier(parsed);
+    if (!user) {
+      otpStore.delete(key);
+      return res.status(400).json({ msg: "Invalid OTP" });
+    }
+
+    user.password = await bcrypt.hash(password, 10);
+    await user.save();
+    otpStore.delete(key);
+
+    return res.json({ message: "Password reset successful. Please login." });
+  } catch (err) {
+    console.error("Password reset failed:", err.message || err);
+    return res.status(500).json({ msg: "Could not reset password" });
+  }
 };
 
 // ================= REGISTER USER =================
@@ -188,7 +396,7 @@ export const registerUser = async (req, res) => {
       role: null,
     });
 
-    otpStore.delete(`${parsed.type}:${parsed.value}`);
+    otpStore.delete(getOtpKey(parsed, "auth"));
 
     res.json({
       message: "User registered successfully",
@@ -214,26 +422,10 @@ export const loginUser = async (req, res) => {
       return res.status(400).json({ msg: "Verify OTP before login" });
     }
 
-    let user = await findByParsedIdentifier(parsed);
+    const user = await findByParsedIdentifier(parsed);
 
     if (!user) {
-      const devUser = getDevTestUser(parsed, password);
-      if (!devUser) {
-        return res.status(404).json({ msg: "User not found" });
-      }
-
-      user = await User.create({
-        name: devUser.name,
-        email: devUser.email,
-        phone: devUser.phone,
-        role: devUser.role,
-        password: await bcrypt.hash(devUser.password, 10),
-        location: devUser.location,
-        businessName: devUser.businessName,
-        buyerContactPerson: devUser.buyerContactPerson,
-        isVerified: true,
-        accountStatus: "ACTIVE",
-      });
+      return res.status(404).json({ msg: "User not found" });
     }
 
     if (user.accountStatus && user.accountStatus !== "ACTIVE") {
@@ -258,7 +450,7 @@ export const loginUser = async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    otpStore.delete(`${parsed.type}:${parsed.value}`);
+    otpStore.delete(getOtpKey(parsed, "auth"));
 
     res.json({
       message: "Login successful",

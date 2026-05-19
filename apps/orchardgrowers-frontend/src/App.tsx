@@ -23,7 +23,7 @@ import {
   FaYoutube,
 } from "react-icons/fa";
 import Products from "./pages/Products";
-import API from "./services/api";
+import API, { FILE_BASE_URL } from "./services/api";
 import InstallAppPrompt, { openOrchardInstallPrompt } from "./components/InstallAppPrompt";
 import { withDemoProducts } from "./demoProducts";
 import type { Product } from "./types";
@@ -2904,7 +2904,7 @@ function normalizeProductImage(image: string) {
   const normalized = image ? image.replace(/\\/g, "/") : "";
   if (!normalized) return "";
   if (/^https?:\/\//.test(normalized)) return normalized;
-  return `${import.meta.env.VITE_FILE_URL || "http://localhost:5000"}/${normalized}`;
+  return `${FILE_BASE_URL}/${normalized}`;
 }
 
 export default App;

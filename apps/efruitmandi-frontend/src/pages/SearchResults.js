@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { FaEye, FaSearch, FaSeedling } from "react-icons/fa";
-import API from "../services/api";
-
-const API_BASE_URL = process.env.REACT_APP_SOCKET_URL || "http://localhost:5000";
+import API, { FILE_BASE_URL } from "../services/api";
 
 export default function SearchResults() {
   const navigate = useNavigate();
@@ -155,5 +153,5 @@ function getImageUrl(product) {
     : gradeImage;
   const normalizedImage = image ? image.replace(/\\/g, "/") : "";
 
-  return normalizedImage ? `${API_BASE_URL}/${normalizedImage}` : "";
+  return normalizedImage ? `${FILE_BASE_URL}/${normalizedImage}` : "";
 }

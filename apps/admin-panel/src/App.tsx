@@ -2,9 +2,10 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEven
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import InstallAppPrompt, { openAdminInstallPrompt } from './components/InstallAppPrompt';
 
-const DEFAULT_DEV_API_BASE = 'http://localhost:5000/api';
 const rawApiBase =
-  ((import.meta as ImportMeta & { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL) || '';
+  ((import.meta as ImportMeta & { env?: { VITE_API_BASE_URL?: string; VITE_API_URL?: string } }).env?.VITE_API_BASE_URL) ||
+  ((import.meta as ImportMeta & { env?: { VITE_API_BASE_URL?: string; VITE_API_URL?: string } }).env?.VITE_API_URL) ||
+  '';
 
 const normalizeApiBase = (value: string) => {
   const trimmed = value.trim().replace(/\/+$/, '');
@@ -13,10 +14,7 @@ const normalizeApiBase = (value: string) => {
 };
 
 const API_BASE = normalizeApiBase(
-  rawApiBase ||
-    (typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname)
-      ? DEFAULT_DEV_API_BASE
-      : '')
+  rawApiBase
 );
 const FILE_BASE = API_BASE.replace(/\/api\/?$/, '');
 const LOGO_URL = new URL('../logo.png', import.meta.url).href;
@@ -75,7 +73,7 @@ const readResponseJson = async (res: Response) => {
 
 const getNetworkErrorMessage = (err: unknown) => {
   if (err instanceof TypeError) {
-    return 'Admin API request failed. Check VITE_API_URL, HTTPS, and backend CORS ALLOWED_ORIGINS.';
+    return 'Admin API request failed. Check VITE_API_BASE_URL, HTTPS, and backend CORS origins.';
   }
 
   return err instanceof Error ? err.message : 'Admin API request failed';
@@ -657,8 +655,8 @@ function App() {
   });
   const [authMode, setAuthMode] = useState<AdminAuthMode>('login');
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('testadmin@efruitmandi.local');
-  const [password, setPassword] = useState('admin12345');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [resetToken, setResetToken] = useState('');
   const [message, setMessage] = useState('');
@@ -737,7 +735,7 @@ function App() {
     if (!loginEmail) return;
 
     if (!API_BASE) {
-      setMessage('Admin API URL is not configured. Set VITE_API_URL for the admin panel deployment.');
+      setMessage('Admin API URL is not configured. Set VITE_API_BASE_URL for the admin panel deployment.');
       return;
     }
 
@@ -780,7 +778,7 @@ function App() {
     if (!signupEmail || !validateNewPassword()) return;
 
     if (!API_BASE) {
-      setMessage('Admin API URL is not configured. Set VITE_API_URL for the admin panel deployment.');
+      setMessage('Admin API URL is not configured. Set VITE_API_BASE_URL for the admin panel deployment.');
       return;
     }
 
@@ -825,7 +823,7 @@ function App() {
     if (!resetEmail) return;
 
     if (!API_BASE) {
-      setMessage('Admin API URL is not configured. Set VITE_API_URL for the admin panel deployment.');
+      setMessage('Admin API URL is not configured. Set VITE_API_BASE_URL for the admin panel deployment.');
       return;
     }
 
@@ -870,7 +868,7 @@ function App() {
     if (!validateNewPassword()) return;
 
     if (!API_BASE) {
-      setMessage('Admin API URL is not configured. Set VITE_API_URL for the admin panel deployment.');
+      setMessage('Admin API URL is not configured. Set VITE_API_BASE_URL for the admin panel deployment.');
       return;
     }
 
@@ -916,7 +914,7 @@ function App() {
   const loadRequests = async () => {
     if (!token) return;
     if (!API_BASE) {
-      setMessage('Admin API URL is not configured. Set VITE_API_URL for the admin panel deployment.');
+      setMessage('Admin API URL is not configured. Set VITE_API_BASE_URL for the admin panel deployment.');
       return;
     }
 

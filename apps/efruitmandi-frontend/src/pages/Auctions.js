@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { FaEye, FaSeedling } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
-import API from "../services/api";
+import API, { FILE_BASE_URL } from "../services/api";
 import socket from "../services/socket";
 import { getCurrentUser, isBuyerAccount } from "../utils/auth";
 
 import CountdownTimer from "../components/CountdownTimer";
-
-const API_BASE_URL = process.env.REACT_APP_SOCKET_URL || "http://localhost:5000";
 
 export default function Auctions() {
   const navigate = useNavigate();
@@ -250,5 +248,5 @@ function getImageUrl(product) {
   const image = Array.isArray(product.images) ? product.images[0] : "";
   const normalizedImage = image ? image.replace(/\\/g, "/") : "";
 
-  return normalizedImage ? `${API_BASE_URL}/${normalizedImage}` : "";
+  return normalizedImage ? `${FILE_BASE_URL}/${normalizedImage}` : "";
 }

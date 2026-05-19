@@ -7,11 +7,9 @@ import {
   FaUser,
   FaVideo,
 } from "react-icons/fa";
-import API from "../services/api";
+import API, { FILE_BASE_URL } from "../services/api";
 import CountdownTimer from "../components/CountdownTimer";
 import { getCurrentUser } from "../utils/auth";
-
-const API_BASE_URL = process.env.REACT_APP_SOCKET_URL || "http://localhost:5000";
 
 export default function LotDetails() {
   const { lotId } = useParams();
@@ -312,7 +310,7 @@ function getAllImages(product) {
 
 function toAssetUrl(path) {
   const normalizedPath = path ? path.replace(/\\/g, "/") : "";
-  return normalizedPath ? `${API_BASE_URL}/${normalizedPath}` : "";
+  return normalizedPath ? `${FILE_BASE_URL}/${normalizedPath}` : "";
 }
 
 function formatDate(value) {

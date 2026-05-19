@@ -10,21 +10,37 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+// Local-only seed guard:
+// - ENABLE_SEED prevents accidental execution from normal app startup or CI.
+// - Never run this script in production or staging because it clears demo data collections.
+// - Set ENABLE_SEED=true and SEED_USER_PASSWORD only for local development refreshes.
+if (process.env.ENABLE_SEED !== "true") {
+  throw new Error("Seed script blocked. Set ENABLE_SEED=true to run.");
+}
+
+const seedRuntime = String(process.env.APP_ENV || process.env.NODE_ENV || "").trim().toLowerCase();
+if (["production", "staging"].includes(seedRuntime)) {
+  throw new Error("Seed script blocked in production/staging.");
+}
+
+if (!process.env.SEED_USER_PASSWORD) {
+  throw new Error("Seed script blocked. Set SEED_USER_PASSWORD before running locally.");
+}
+
 const seedData = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI);
-    console.log("Connected to MongoDB");
+    console.log("Seed connected to MongoDB for local development data refresh.");
 
-    // Clear existing data
+    // Local demo refresh only. Admin accounts are intentionally preserved.
     await User.deleteMany({});
-    await Admin.deleteMany({});
     await Product.deleteMany({});
     await Order.deleteMany({});
     await Auction.deleteMany({});
     await VerificationRequest.deleteMany({});
 
-    // Create test users
-    const hashedPassword = await bcrypt.hash("password123", 10);
+    // Create local backup/demo users with the password supplied through SEED_USER_PASSWORD.
+    const hashedPassword = await bcrypt.hash(process.env.SEED_USER_PASSWORD, 10);
 
     const users = [
       {
@@ -32,7 +48,7 @@ const seedData = async () => {
         email: "grower@test.com",
         password: hashedPassword,
         role: "grower",
-        phone: "1234567890",
+        phone: "7082104501",
         isVerified: true,
         orchardName: "Sunny Orchards",
         location: "California",
@@ -42,7 +58,7 @@ const seedData = async () => {
         email: "buyer@test.com",
         password: hashedPassword,
         role: "buyer",
-        phone: "0987654321",
+        phone: "7082104502",
         isVerified: true,
         location: "New York",
       },
@@ -62,7 +78,7 @@ const seedData = async () => {
         email: "driver@test.com",
         password: hashedPassword,
         role: "driver",
-        phone: "1122334455",
+        phone: "7082104504",
         isVerified: true,
         location: "Texas",
       },
@@ -71,7 +87,7 @@ const seedData = async () => {
         email: "pending@test.com",
         password: hashedPassword,
         role: "grower",
-        phone: "5566778899",
+        phone: "7082104505",
         isVerified: false,
         orchardName: "Green Valley",
         location: "Florida",
@@ -79,11 +95,11 @@ const seedData = async () => {
     ];
 
     const createdUsers = await User.insertMany(users);
-    console.log("Created users:", createdUsers.length);
+    console.log("Seeded local demo users:", createdUsers.length);
 
     // Create verification request
     const verificationRequest = new VerificationRequest({
-      user: createdUsers[3]._id, // Alice Pending
+      user: createdUsers[4]._id,
       orchardName: "Green Valley",
       ownerName: "Alice Pending",
       location: "Florida",
@@ -99,7 +115,7 @@ const seedData = async () => {
       adminReviews: [],
     });
     await verificationRequest.save();
-    console.log("Created verification request");
+    console.log("Seeded local verification request.");
 
     // Create demo products for every Orchard Growers category and filter.
     const demoProductSpecs = [
@@ -150,7 +166,7 @@ const seedData = async () => {
     }));
 
     const createdProducts = await Product.insertMany(products);
-    console.log("Created products:", createdProducts.length);
+    console.log("Seeded local demo products:", createdProducts.length);
 
     // Create auction
     const auction = new Auction({
@@ -162,7 +178,7 @@ const seedData = async () => {
       status: "ACTIVE",
     });
     await auction.save();
-    console.log("Created auction");
+    console.log("Seeded local demo auction.");
 
     // Create orders
     const orders = [
@@ -195,10 +211,10 @@ const seedData = async () => {
     ];
 
     const createdOrders = await Order.insertMany(orders);
-    console.log("Created orders:", createdOrders.length);
+    console.log("Seeded local demo orders:", createdOrders.length);
 
-    // Create admins
-    const adminPassword = await bcrypt.hash("admin123", 10);
+    // Preserve real/admin records and only upsert local demo admins.
+    const adminPassword = await bcrypt.hash(process.env.SEED_USER_PASSWORD, 10);
     const admins = [
       {
         name: "Super Admin",
@@ -216,13 +232,19 @@ const seedData = async () => {
       },
     ];
 
-    await Admin.insertMany(admins);
-    console.log("Created admins:", admins.length);
+    for (const admin of admins) {
+      await Admin.updateOne(
+        { email: admin.email },
+        { $set: admin },
+        { upsert: true }
+      );
+    }
+    console.log("Ensured local demo admin accounts:", admins.length);
 
-    console.log("Test data seeded successfully!");
+    console.log("Local seed completed successfully.");
     process.exit(0);
   } catch (error) {
-    console.error("Error seeding data:", error);
+    console.error("Local seed failed:", error.message || error);
     process.exit(1);
   }
 };

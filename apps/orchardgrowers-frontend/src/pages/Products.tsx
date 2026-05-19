@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { FaChevronLeft, FaChevronRight, FaSearchMinus, FaSearchPlus, FaStar } from "react-icons/fa";
 import { withDemoProducts } from "../demoProducts";
+import { FILE_BASE_URL } from "../services/api";
 import { fetchProducts } from "../services/productService";
 import type { Product } from "../types";
 
@@ -483,5 +484,5 @@ function normalizeProductImage(image: string) {
   const normalized = image ? image.replace(/\\/g, "/") : "";
   if (!normalized) return "";
   if (/^https?:\/\//.test(normalized)) return normalized;
-  return `${import.meta.env.VITE_FILE_URL || "http://localhost:5000"}/${normalized}`;
+  return `${FILE_BASE_URL}/${normalized}`;
 }

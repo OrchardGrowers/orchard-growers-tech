@@ -1,9 +1,27 @@
 import axios from "axios";
 import { logoutUser } from "../utils/auth";
 
+const normalizeBaseUrl = (value = "") => value.trim().replace(/\/+$/, "");
+const stripApiSuffix = (value = "") => normalizeBaseUrl(value).replace(/\/api$/i, "");
+const normalizeApiUrl = (value = "") => {
+  const normalized = normalizeBaseUrl(value);
+  if (!normalized) return "";
+  return /\/api$/i.test(normalized) ? normalized : `${normalized}/api`;
+};
+
+export const API_ORIGIN = normalizeBaseUrl(
+  process.env.REACT_APP_API_BASE_URL ||
+    process.env.REACT_APP_SOCKET_URL ||
+    stripApiSuffix(process.env.REACT_APP_API_URL || "") ||
+    ""
+);
+export const API_BASE_URL = normalizeApiUrl(process.env.REACT_APP_API_URL || API_ORIGIN);
+export const FILE_BASE_URL = normalizeBaseUrl(process.env.REACT_APP_FILE_BASE_URL || API_ORIGIN);
+export const SOCKET_URL = normalizeBaseUrl(process.env.REACT_APP_SOCKET_URL || API_ORIGIN);
+
 // ================= AXIOS INSTANCE =================
 const API = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || "http://localhost:5000/api",
+  baseURL: API_BASE_URL,
 });
 
 // ================= REQUEST INTERCEPTOR =================

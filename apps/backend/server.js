@@ -60,9 +60,40 @@ const isDealOpen = (date = new Date()) => {
 };
 
 // ================= MIDDLEWARE =================
+const localDevelopmentOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:3004",
+  "http://localhost:3005",
+  "http://localhost:3010",
+  "http://localhost:4173",
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:3001",
+  "http://127.0.0.1:3004",
+  "http://127.0.0.1:3005",
+  "http://127.0.0.1:3010",
+  "http://127.0.0.1:4173",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174",
+];
+const isProductionLike = () => {
+  const runtime = String(process.env.APP_ENV || process.env.NODE_ENV || "").trim().toLowerCase();
+  return runtime === "production" || runtime === "staging";
+};
 const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || "";
 const normalizeOrigin = (origin = "") => origin.trim().replace(/\/+$/, "");
-const allowedOrigins = allowedOriginsEnv.split(",").map(normalizeOrigin).filter(Boolean);
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  process.env.ADMIN_URL,
+  process.env.EFRUITMANDI_URL,
+  ...allowedOriginsEnv.split(","),
+  ...(!isProductionLike() ? localDevelopmentOrigins : []),
+]
+  .map(normalizeOrigin)
+  .filter(Boolean);
+const uniqueAllowedOrigins = [...new Set(allowedOrigins)];
 const originMatches = (origin, allowedOrigin) => {
   if (allowedOrigin === "*") return true;
   if (!allowedOrigin.includes("*")) return origin === allowedOrigin;
@@ -74,21 +105,22 @@ const originMatches = (origin, allowedOrigin) => {
 };
 const isOriginAllowed = (origin) => {
   const normalizedOrigin = normalizeOrigin(origin);
-  return allowedOrigins.length === 0 || allowedOrigins.some((allowedOrigin) => originMatches(normalizedOrigin, allowedOrigin));
+  return uniqueAllowedOrigins.some((allowedOrigin) => originMatches(normalizedOrigin, allowedOrigin));
+};
+
+const corsOrigin = (origin, callback) => {
+  // Allow non-browser requests (e.g., server-to-server) when origin is undefined.
+  if (!origin) return callback(null, true);
+
+  if (isOriginAllowed(origin)) {
+    return callback(null, true);
+  }
+
+  return callback(new Error("Not allowed by CORS"));
 };
 
 const corsOptions = {
-  origin: (origin, callback) => {
-    // Allow non-browser requests (e.g., server-to-server) when origin is undefined
-    if (!origin) return callback(null, true);
-
-    // If no explicit allowed origins configured, accept all origins (backwards compatible)
-    if (isOriginAllowed(origin)) {
-      return callback(null, true);
-    }
-
-    return callback(new Error("Not allowed by CORS"));
-  },
+  origin: corsOrigin,
   credentials: true,
   allowedHeaders: ["Content-Type", "Authorization"],
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -156,7 +188,7 @@ const server = createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: true,
+    origin: corsOrigin,
     credentials: true,
   },
 });

@@ -17,7 +17,7 @@ import {
   FaTruck,
   FaYoutube,
 } from "react-icons/fa";
-import API from "../services/api";
+import API, { FILE_BASE_URL } from "../services/api";
 import { saveUserToStorage, sanitizeUserForStorage } from "../utils/userStorage";
 
 const assetUrl = (path) => `${process.env.PUBLIC_URL || ""}${path}`;
@@ -1680,7 +1680,7 @@ function MarketLotCard({ item }) {
   const image = Array.isArray(product.images) ? product.images[0] : "";
   const normalizedImage = image ? image.replace(/\\/g, "/") : "";
   const imageUrl = normalizedImage
-    ? `${process.env.REACT_APP_SOCKET_URL || "http://localhost:5000"}/${normalizedImage}`
+    ? `${FILE_BASE_URL}/${normalizedImage}`
     : "";
   const amount = item.currentBid || product.basePrice || item.auctionPrice || 0;
 

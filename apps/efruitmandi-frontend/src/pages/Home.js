@@ -13,7 +13,7 @@ import {
 } from "react-icons/fa";
 import BannerSlider from "../components/BannerSlider";
 import TopFilters from "../components/TopFilters";
-import API from "../services/api";
+import API, { FILE_BASE_URL } from "../services/api";
 import { getCurrentUser, isGrowerAccount } from "../utils/auth";
 import { saveUserToStorage } from "../utils/userStorage";
 
@@ -543,7 +543,7 @@ function MarketCard({ item, amount, badge, buttonLabel, icon, onView, showPrice 
   const image = Array.isArray(item.images) ? item.images[0] : "";
   const normalizedImage = image ? image.replace(/\\/g, "/") : "";
   const imageUrl = normalizedImage
-    ? `${process.env.REACT_APP_SOCKET_URL || "http://localhost:5000"}/${normalizedImage}`
+    ? `${FILE_BASE_URL}/${normalizedImage}`
     : "";
 
   return (
@@ -1170,6 +1170,6 @@ function getProductImage(product) {
   const normalized = image ? image.replace(/\\/g, "/") : "";
 
   return normalized
-    ? `${process.env.REACT_APP_SOCKET_URL || "http://localhost:5000"}/${normalized}`
+    ? `${FILE_BASE_URL}/${normalized}`
     : "";
 }

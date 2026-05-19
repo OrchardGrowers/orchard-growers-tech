@@ -6,7 +6,7 @@ import VerificationRequest from "../models/VerificationRequest.js";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import nodemailer from "nodemailer";
+import { sendEmail } from "../services/mailService.js";
 
 const ADMIN_SELECT = "-password -__v";
 const USER_SELECT = "-password -__v";
@@ -83,29 +83,6 @@ const ADMIN_SIGNUP_ROLE_BY_EMAIL = new Map(
     ["komal@orchardgrowers.in", "ADMIN"],
   ].map(([email, role]) => [normalizeEmail(email), role])
 );
-const isTestAdminEnabled = () => process.env.NODE_ENV !== "production";
-const TEST_ADMIN_ACCOUNTS = [
-  {
-    name: "Test Super Admin",
-    role: "SUPER_ADMIN",
-    email: normalizeEmail(process.env.TEST_SUPER_ADMIN_EMAIL || process.env.TEST_ADMIN1_EMAIL || "admin1@efruitmandi.local"),
-    password: process.env.TEST_SUPER_ADMIN_PASSWORD || process.env.TEST_ADMIN1_PASSWORD || "admin112345",
-  },
-  {
-    name: "Test Admin X",
-    role: "ADMIN",
-    email: normalizeEmail(
-      process.env.TEST_ADMIN_X_EMAIL || process.env.TEST_ADMIN2_EMAIL || process.env.TEST_ADMIN_EMAIL || "testadmin@efruitmandi.local"
-    ),
-    password: process.env.TEST_ADMIN_X_PASSWORD || process.env.TEST_ADMIN2_PASSWORD || process.env.TEST_ADMIN_PASSWORD || "admin12345",
-  },
-  {
-    name: "Test Admin Y",
-    role: "EMPLOYEE",
-    email: normalizeEmail(process.env.TEST_ADMIN_Y_EMAIL || process.env.TEST_ADMIN3_EMAIL || "adminy@efruitmandi.local"),
-    password: process.env.TEST_ADMIN_Y_PASSWORD || process.env.TEST_ADMIN3_PASSWORD || "adminy12345",
-  },
-];
 
 const signAdminToken = (admin) =>
   jwt.sign(
@@ -118,16 +95,6 @@ const isMasterLogin = (email, password) => {
   const masterPassword = process.env.MASTER_ADMIN_PASSWORD || "";
 
   return Boolean(masterEmail && masterPassword && email === masterEmail && password === masterPassword);
-};
-
-const getTestAdminAccount = (email, password) => {
-  if (!isTestAdminEnabled()) return null;
-
-  return (
-    TEST_ADMIN_ACCOUNTS.find(
-      (account) => account.email && account.password && email === account.email && password === account.password
-    ) || null
-  );
 };
 
 const safeAdmin = (admin) => ({
@@ -169,8 +136,6 @@ const createPasswordResetToken = () => {
   };
 };
 
-const truthyEnv = (value = "") => ["1", "true", "yes"].includes(String(value).toLowerCase());
-
 const getResetBaseUrl = (req) =>
   (process.env.ADMIN_RESET_BASE_URL || process.env.ADMIN_PANEL_URL || req.get("origin") || "")
     .trim()
@@ -184,35 +149,11 @@ const buildAdminResetUrl = (req, email, token) => {
   return `${baseUrl}${separator}mode=reset&email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`;
 };
 
-const getSmtpTransport = () => {
-  const host = process.env.SMTP_HOST || "";
-  const from = process.env.SMTP_FROM || process.env.ADMIN_RESET_FROM_EMAIL || process.env.SMTP_USER || "";
-  if (!host || !from) return null;
-
-  const port = Number(process.env.SMTP_PORT || 587);
-  const user = process.env.SMTP_USER || "";
-  const pass = process.env.SMTP_PASS || "";
-
-  return {
-    from,
-    transporter: nodemailer.createTransport({
-      host,
-      port,
-      secure: truthyEnv(process.env.SMTP_SECURE) || port === 465,
-      ...(user && pass ? { auth: { user, pass } } : {}),
-    }),
-  };
-};
-
 const sendAdminPasswordResetEmail = async ({ req, email, token }) => {
-  const mailConfig = getSmtpTransport();
-  if (!mailConfig) return false;
-
   const resetUrl = buildAdminResetUrl(req, email, token);
   if (!resetUrl) return false;
 
-  await mailConfig.transporter.sendMail({
-    from: mailConfig.from,
+  await sendEmail({
     to: email,
     subject: "Admin password reset",
     text: `Use this secure link to reset your admin password. It expires in 30 minutes:\n\n${resetUrl}`,
@@ -340,28 +281,6 @@ export const loginAdmin = async (req, res) => {
     });
   }
 
-  const matchedTestAdmin = getTestAdminAccount(email, password);
-  if (matchedTestAdmin) {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const admin = await Admin.findOneAndUpdate(
-      { email },
-      {
-        name: matchedTestAdmin.name,
-        email,
-        password: hashedPassword,
-        role: matchedTestAdmin.role,
-        status: "ACTIVE",
-      },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
-    );
-
-    return res.json({
-      token: signAdminToken(admin),
-      role: admin.role,
-      admin: safeAdmin(admin),
-    });
-  }
-
   const admin = await Admin.findOne({ email });
 
   if (!admin) return res.status(404).json({ msg: "Admin not found" });
@@ -403,20 +322,10 @@ export const requestAdminPasswordReset = async (req, res) => {
   admin.resetPasswordRequestedAt = new Date();
   await admin.save();
 
-  let emailSent = false;
   try {
-    emailSent = await sendAdminPasswordResetEmail({ req, email, token });
+    await sendAdminPasswordResetEmail({ req, email, token });
   } catch (err) {
     console.error("Admin reset email failed:", err.message || err);
-  }
-
-  if (isTestAdminEnabled()) {
-    return res.json({
-      ...response,
-      emailSent,
-      resetToken: token,
-      resetUrl: buildAdminResetUrl(req, email, token),
-    });
   }
 
   res.json(response);
