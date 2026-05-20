@@ -10,14 +10,38 @@ const normalizeApiUrl = (value = "") => {
 };
 
 export const API_ORIGIN = normalizeBaseUrl(
-  process.env.REACT_APP_API_BASE_URL ||
+  process.env.VITE_API_BASE_URL ||
+    process.env.REACT_APP_API_BASE_URL ||
     process.env.REACT_APP_SOCKET_URL ||
     stripApiSuffix(process.env.REACT_APP_API_URL || "") ||
     ""
 );
-export const API_BASE_URL = normalizeApiUrl(process.env.REACT_APP_API_URL || API_ORIGIN);
+if (!API_ORIGIN) {
+  console.warn("Missing VITE_API_BASE_URL for eFruitMandi frontend.");
+}
+
+export const API_BASE_URL = normalizeApiUrl(process.env.VITE_API_BASE_URL || process.env.REACT_APP_API_URL || API_ORIGIN);
 export const FILE_BASE_URL = normalizeBaseUrl(process.env.REACT_APP_FILE_BASE_URL || API_ORIGIN);
 export const SOCKET_URL = normalizeBaseUrl(process.env.REACT_APP_SOCKET_URL || API_ORIGIN);
+const EFRUITMANDI_PLATFORM = "efruitmandi";
+const PLATFORM_TAGGED_AUTH_PATHS = /^\/?auth\/(send-otp|resend-otp|verify-otp|forgot-password|reset-password|login|register)$/i;
+
+const shouldTagAuthPlatform = (url = "") => {
+  const path = String(url).replace(/^https?:\/\/[^/]+\/api\/?/i, "").replace(/^\/api\/?/i, "");
+  return PLATFORM_TAGGED_AUTH_PATHS.test(path);
+};
+
+const addEfruitmandiPlatform = (data) => {
+  if (!data) return { platform: EFRUITMANDI_PLATFORM };
+  if (typeof FormData !== "undefined" && data instanceof FormData) {
+    if (!data.has("platform")) data.append("platform", EFRUITMANDI_PLATFORM);
+    return data;
+  }
+  if (typeof data === "object" && !(data instanceof URLSearchParams)) {
+    return { ...data, platform: data.platform || EFRUITMANDI_PLATFORM };
+  }
+  return data;
+};
 
 // ================= AXIOS INSTANCE =================
 const API = axios.create({
@@ -30,6 +54,10 @@ API.interceptors.request.use((config) => {
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  if (shouldTagAuthPlatform(config.url)) {
+    config.data = addEfruitmandiPlatform(config.data);
   }
 
   return config;

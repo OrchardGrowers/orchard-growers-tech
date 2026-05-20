@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaBriefcase,
@@ -12,6 +12,14 @@ import {
 } from "react-icons/fa";
 import API from "../services/api";
 import AuthBrandShell from "../components/AuthBrandShell";
+import {
+  getEfruitMandiWidgetId,
+  getEfruitMandiTokenAuth,
+  normalizeIndianMobile,
+  retryMsg91WidgetOtp,
+  sendMsg91WidgetOtp,
+  verifyMsg91WidgetOtp,
+} from "../utils/msg91OtpWidget";
 
 export default function RegisterBuyer() {
   const navigate = useNavigate();
@@ -27,13 +35,25 @@ export default function RegisterBuyer() {
   });
   const [loading, setLoading] = useState(false);
   const [otp, setOtp] = useState("");
+  const [otpReqId, setOtpReqId] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCooldown, setOtpCooldown] = useState(0);
   const [verifiedPhone, setVerifiedPhone] = useState("");
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (otpCooldown <= 0) return undefined;
+    const timer = window.setTimeout(() => setOtpCooldown((seconds) => Math.max(0, seconds - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [otpCooldown]);
 
   const updateForm = (field, value) => {
     setForm({ ...form, [field]: value });
     if (field === "contact") {
       setOtp("");
+      setOtpReqId("");
+      setOtpSent(false);
+      setOtpCooldown(0);
       setVerifiedPhone("");
     }
   };
@@ -43,6 +63,7 @@ export default function RegisterBuyer() {
 
   const sendPhoneOtp = async () => {
     setMessage("");
+    if (otpCooldown > 0) return;
 
     if (!contactValue) {
       setMessage("Enter contact number first.");
@@ -50,22 +71,23 @@ export default function RegisterBuyer() {
     }
 
     try {
-      const res = await API.post("/auth/send-otp", {
-        identifier: contactValue,
-      });
-
-      if (res.data.channel !== "phone") {
+      const widgetId = getEfruitMandiWidgetId();
+      const tokenAuth = getEfruitMandiTokenAuth();
+      const phone = normalizeIndianMobile(contactValue);
+      if (!phone) {
         setMessage("Enter a valid phone number for OTP verification.");
         return;
       }
 
-      setMessage(
-        res.data.devOtp
-          ? `OTP sent to phone. Dev OTP: ${res.data.devOtp}`
-          : "OTP sent to phone."
-      );
+      const result = otpSent
+        ? await retryMsg91WidgetOtp({ widgetId, tokenAuth, reqId: otpReqId })
+        : await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone });
+      setOtpReqId(result.reqId || "");
+      setOtpSent(true);
+      setOtpCooldown(60);
+      setMessage(result.reqId ? "OTP sent to phone." : "OTP sent. Enter the OTP received.");
     } catch (err) {
-      setMessage(err.response?.data?.msg || "Could not send phone OTP.");
+      setMessage(err.response?.data?.msg || err.message || "Could not send phone OTP.");
     }
   };
 
@@ -78,15 +100,25 @@ export default function RegisterBuyer() {
     }
 
     try {
-      await API.post("/auth/verify-otp", {
+      const widgetId = getEfruitMandiWidgetId();
+      const tokenAuth = getEfruitMandiTokenAuth();
+      if (!widgetId || !tokenAuth || !otpSent) {
+        setMessage("Request phone OTP first.");
+        return;
+      }
+
+      const result = await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp: otp.trim(), reqId: otpReqId });
+      await API.post("/auth/verify-mobile-widget-otp", {
         identifier: contactValue,
-        otp: otp.trim(),
+        platform: "efruitmandi",
+        reqId: result.reqId || otpReqId,
+        msg91: result.data,
       });
       setVerifiedPhone(contactValue);
       setMessage("Contact number verified.");
     } catch (err) {
       setVerifiedPhone("");
-      setMessage(err.response?.data?.msg || "Phone OTP verification failed.");
+      setMessage(err.response?.data?.msg || err.message || "Phone OTP verification failed.");
     }
   };
 
@@ -196,6 +228,7 @@ export default function RegisterBuyer() {
           <PhoneOtpControl
             otp={otp}
             verified={phoneVerified}
+            cooldown={otpCooldown}
             onOtpChange={setOtp}
             onSend={sendPhoneOtp}
             onVerify={verifyPhoneOtp}
@@ -228,7 +261,7 @@ export default function RegisterBuyer() {
   );
 }
 
-function PhoneOtpControl({ otp, verified, onOtpChange, onSend, onVerify }) {
+function PhoneOtpControl({ otp, verified, cooldown, onOtpChange, onSend, onVerify }) {
   return (
     <div>
       <div className="mb-1 flex items-center justify-between gap-2 text-sm font-semibold text-gray-700">
@@ -249,10 +282,11 @@ function PhoneOtpControl({ otp, verified, onOtpChange, onSend, onVerify }) {
         />
         <button
           type="button"
+          disabled={cooldown > 0}
           onClick={onSend}
-          className="inline-flex items-center justify-center gap-1 rounded-md bg-green-50 px-3 py-3 text-sm font-bold text-green-700 transition hover:bg-green-100"
+          className="inline-flex items-center justify-center gap-1 rounded-md bg-green-50 px-3 py-3 text-sm font-bold text-green-700 transition hover:bg-green-100 disabled:opacity-50"
         >
-          <FaPaperPlane /> Send
+          <FaPaperPlane /> {cooldown > 0 ? `${cooldown}s` : "Send"}
         </button>
         <button
           type="button"

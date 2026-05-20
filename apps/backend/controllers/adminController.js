@@ -6,10 +6,12 @@ import VerificationRequest from "../models/VerificationRequest.js";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import { sendEmail } from "../services/mailService.js";
+import { sendEmail, sendOtpEmail } from "../services/mailService.js";
 
 const ADMIN_SELECT = "-password -__v";
 const USER_SELECT = "-password -__v";
+const ADMIN_MAIL_PLATFORM = "orchardgrowers";
+const adminOtpStore = new Map();
 const ADMIN_ROLES = [
   "SUPER_ADMIN",
   "ADMIN",
@@ -49,39 +51,34 @@ const ADMIN_CLASS_LABELS = {
 const normalizeEmail = (email = "") => email.trim().toLowerCase();
 const PASSWORD_RULE_MESSAGE = "Password must be at least 8 characters and include a letter and a number";
 const ADMIN_RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
-const ALLOWED_ADMIN_SIGNUP_EMAILS = new Set(
-  [
-    "testadminclassI@orchardgrowers.in",
-    "testadminclassII@orchardgrowers.in",
-    "testclassIII@orchardgrowers.in",
-    "pawann@orchardgrowers.in",
-    "hr.ho@orchardgrowers.in",
-    "invest@orchardgrowers.in",
-    "careers@orchardgrowers.in",
-    "grievance@orchardgrowers.in",
-    "no-reply@orchardgrowers.in",
-    "founder@orchardgrowers.in",
-    "adminho@orchardgrowers.in",
-    "sales.ffccbb@orchardgrowers.in",
-    "komal@orchardgrowers.in",
-  ].map(normalizeEmail)
-);
+const CLASS_I_ADMIN_EMAILS = [
+  "pawann@orchardgrowers.in",
+  "founder@orchardgrowers.in",
+  "adminho@orchardgrowers.in",
+  "komal@orchardgrowers.in",
+].map(normalizeEmail);
+const CLASS_II_ADMIN_EMAILS = [
+  "testadminclassII@orchardgrowers.in",
+  "hr.ho@orchardgrowers.in",
+  "invest@orchardgrowers.in",
+  "careers@orchardgrowers.in",
+  "grievance@orchardgrowers.in",
+].map(normalizeEmail);
+const CLASS_III_ADMIN_EMAILS = [
+  "testadminclassIII@orchardgrowers.in",
+  "sales.ffccbb@orchardgrowers.in",
+].map(normalizeEmail);
+const ALLOWED_ADMIN_SIGNUP_EMAILS = new Set([
+  ...CLASS_I_ADMIN_EMAILS,
+  ...CLASS_II_ADMIN_EMAILS,
+  ...CLASS_III_ADMIN_EMAILS,
+]);
 const ADMIN_SIGNUP_ROLE_BY_EMAIL = new Map(
   [
-    ["testadminclassI@orchardgrowers.in", "ADMIN"],
-    ["testadminclassII@orchardgrowers.in", "VERIFICATION_OFFICER"],
-    ["testclassIII@orchardgrowers.in", "VIEWER"],
-    ["pawann@orchardgrowers.in", "ADMIN"],
-    ["hr.ho@orchardgrowers.in", "SUPPORT_EXECUTIVE"],
-    ["invest@orchardgrowers.in", "FINANCE_MANAGER"],
-    ["careers@orchardgrowers.in", "SUPPORT_EXECUTIVE"],
-    ["grievance@orchardgrowers.in", "SUPPORT_EXECUTIVE"],
-    ["no-reply@orchardgrowers.in", "VIEWER"],
-    ["founder@orchardgrowers.in", "ADMIN"],
-    ["adminho@orchardgrowers.in", "ADMIN"],
-    ["sales.ffccbb@orchardgrowers.in", "SALES_EXECUTIVE"],
-    ["komal@orchardgrowers.in", "ADMIN"],
-  ].map(([email, role]) => [normalizeEmail(email), role])
+    ...CLASS_I_ADMIN_EMAILS.map((email) => [email, "ADMIN"]),
+    ...CLASS_II_ADMIN_EMAILS.map((email) => [email, "VERIFICATION_OFFICER"]),
+    ...CLASS_III_ADMIN_EMAILS.map((email) => [email, "VIEWER"]),
+  ]
 );
 
 const signAdminToken = (admin) =>
@@ -96,24 +93,140 @@ const isMasterLogin = (email, password) => {
 
   return Boolean(masterEmail && masterPassword && email === masterEmail && password === masterPassword);
 };
+const isMasterAdminEmail = (email) => {
+  const masterEmail = normalizeEmail(process.env.MASTER_ADMIN_EMAIL || "");
+  return Boolean(masterEmail && email === masterEmail);
+};
+const getAdminRoleLabel = (admin) => {
+  const email = normalizeEmail(admin.email);
+  if (CLASS_I_ADMIN_EMAILS.includes(email)) return "Class I || Admins";
+  if (CLASS_II_ADMIN_EMAILS.includes(email)) return "Class II || Admins";
+  if (CLASS_III_ADMIN_EMAILS.includes(email)) return "Class III || Admins";
+  return ROLE_LABELS[admin.role] || admin.role;
+};
 
 const safeAdmin = (admin) => ({
   id: admin._id,
   name: admin.name,
   email: admin.email,
   role: admin.role,
-  roleLabel: ROLE_LABELS[admin.role] || admin.role,
+  roleLabel: getAdminRoleLabel(admin),
   status: admin.status,
 });
 
 const getAdminClass = (role) => ADMIN_CLASS_LABELS[role] || "CLASS2";
 
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+const getAdminOtpTtlMs = () => {
+  const minutes = Number(process.env.OTP_EXPIRY_MINUTES || 5);
+  return (Number.isFinite(minutes) && minutes > 0 ? minutes : 5) * 60 * 1000;
+};
+const createAdminOtp = () => String(Math.floor(Math.random() * 1000000)).padStart(6, "0");
+const getAdminOtpKey = (email = "") => `admin-panel:orchardgrowers:${normalizeEmail(email)}`;
+const maskAdminEmail = (email = "") => {
+  const [name = "", domain = ""] = normalizeEmail(email).split("@");
+  return `${name.slice(0, 2)}***@${domain}`;
+};
+const getAdminOtpMode = (mode = "login") => {
+  const normalized = String(mode || "login").trim().toLowerCase();
+  return normalized === "signup" ? "signup" : "login";
+};
+const isAdminOtpVerified = (email = "") => {
+  const key = getAdminOtpKey(email);
+  const record = adminOtpStore.get(key);
+  if (!record) return false;
+
+  if (record.expiresAt < Date.now()) {
+    adminOtpStore.delete(key);
+    return false;
+  }
+
+  return Boolean(record.verified && record.used);
+};
+const consumeAdminOtp = (email = "") => {
+  adminOtpStore.delete(getAdminOtpKey(email));
+};
 
 const validateAdminPassword = (password = "") => {
   if (typeof password !== "string" || password.length < 8) return PASSWORD_RULE_MESSAGE;
   if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) return PASSWORD_RULE_MESSAGE;
   return "";
+};
+
+export const sendAdminOtp = async (req, res) => {
+  const email = normalizeEmail(req.body.email);
+  const mode = getAdminOtpMode(req.body.mode);
+  const response = { message: "If the admin email is eligible, an OTP has been sent." };
+
+  if (!email || !isValidEmail(email) || !ALLOWED_ADMIN_SIGNUP_EMAILS.has(email)) {
+    return res.json(response);
+  }
+
+  const existingAdmin = await Admin.findOne({ email }).select("_id password status");
+  const isEligible =
+    mode === "signup"
+      ? !existingAdmin?.password && existingAdmin?.status !== "TERMINATED"
+      : (Boolean(existingAdmin) && existingAdmin.status !== "TERMINATED") || isMasterAdminEmail(email);
+
+  if (!isEligible) {
+    return res.json(response);
+  }
+
+  const otp = createAdminOtp();
+  adminOtpStore.set(getAdminOtpKey(email), {
+    otp,
+    mode,
+    expiresAt: Date.now() + getAdminOtpTtlMs(),
+    verified: false,
+    used: false,
+  });
+
+  try {
+    await sendOtpEmail({
+      platform: ADMIN_MAIL_PLATFORM,
+      to: email,
+      otp,
+      purpose: mode === "signup" ? "admin signup verification" : "admin login verification",
+    });
+  } catch (err) {
+    adminOtpStore.delete(getAdminOtpKey(email));
+    console.error("Admin OTP email failed:", {
+      email: maskAdminEmail(email),
+      code: err?.code,
+      smtpCode: err?.smtpCode,
+      smtpDetails: err?.smtpDetails,
+      message: err?.message,
+    });
+    return res.status(502).json({ msg: "Could not send OTP. Please try again." });
+  }
+
+  console.log(`Admin OTP delivery accepted for ${maskAdminEmail(email)}`);
+  return res.json({ message: "OTP sent to admin email." });
+};
+
+export const verifyAdminOtp = async (req, res) => {
+  const email = normalizeEmail(req.body.email);
+  const otp = String(req.body.otp || "").trim();
+
+  if (!email || !isValidEmail(email) || !otp) {
+    return res.status(400).json({ msg: "Valid admin email and OTP are required" });
+  }
+
+  const key = getAdminOtpKey(email);
+  const record = adminOtpStore.get(key);
+  if (!record) return res.status(400).json({ msg: "Invalid OTP" });
+
+  if (record.expiresAt < Date.now()) {
+    adminOtpStore.delete(key);
+    return res.status(400).json({ msg: "OTP expired. Request a new OTP." });
+  }
+
+  if (record.used || record.verified || record.otp !== otp) {
+    return res.status(400).json({ msg: "Invalid OTP" });
+  }
+
+  adminOtpStore.set(key, { ...record, otp: "", verified: true, used: true });
+  return res.json({ message: "OTP verified" });
 };
 
 const getSignupRole = (email) => ADMIN_SIGNUP_ROLE_BY_EMAIL.get(email) || "EMPLOYEE";
@@ -154,6 +267,8 @@ const sendAdminPasswordResetEmail = async ({ req, email, token }) => {
   if (!resetUrl) return false;
 
   await sendEmail({
+    platform: ADMIN_MAIL_PLATFORM,
+    purpose: "reset",
     to: email,
     subject: "Admin password reset",
     text: `Use this secure link to reset your admin password. It expires in 30 minutes:\n\n${resetUrl}`,
@@ -223,6 +338,10 @@ export const signupAdmin = async (req, res) => {
     return res.status(400).json({ msg: "Passwords do not match" });
   }
 
+  if (!isAdminOtpVerified(email)) {
+    return res.status(400).json({ msg: "Verify OTP before admin signup" });
+  }
+
   const existingAdmin = await Admin.findOne({ email }).select("+resetPasswordTokenHash +resetPasswordExpiresAt");
   if (existingAdmin?.status === "TERMINATED") {
     return res.status(403).json({ msg: "Admin account terminated" });
@@ -244,6 +363,7 @@ export const signupAdmin = async (req, res) => {
   admin.resetPasswordRequestedAt = undefined;
   admin.passwordChangedAt = new Date();
   await admin.save();
+  consumeAdminOtp(email);
 
   res.status(201).json({
     token: signAdminToken(admin),
@@ -260,6 +380,10 @@ export const loginAdmin = async (req, res) => {
     return res.status(400).json({ msg: "Email and password are required" });
   }
 
+  if (!isAdminOtpVerified(email)) {
+    return res.status(400).json({ msg: "Verify OTP before admin login" });
+  }
+
   if (isMasterLogin(email, password)) {
     const hashedPassword = await bcrypt.hash(password, 10);
     const admin = await Admin.findOneAndUpdate(
@@ -274,6 +398,7 @@ export const loginAdmin = async (req, res) => {
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
 
+    consumeAdminOtp(email);
     return res.json({
       token: signAdminToken(admin),
       role: admin.role,
@@ -295,6 +420,7 @@ export const loginAdmin = async (req, res) => {
   const isMatch = await bcrypt.compare(password, admin.password);
 
   if (!isMatch) return res.status(401).json({ msg: "Wrong password" });
+  consumeAdminOtp(email);
 
   res.json({
     token: signAdminToken(admin),
@@ -614,9 +740,21 @@ export const deleteUserByAdmin = async (req, res) => {
 
 const PRODUCT_ADMIN_FIELDS = [
   "title",
+  "slug",
+  "sku",
+  "hsnCode",
+  "cgst",
+  "sgst",
   "fruitName",
   "variety",
+  "productCategory",
+  "productType",
+  "unit",
   "description",
+  "seoMetaTitle",
+  "seoMetaDescription",
+  "featured",
+  "active",
   "quantity",
   "basePrice",
   "location",
@@ -636,10 +774,16 @@ const normalizeProductAdminPayload = (body = {}) => {
     }
   });
 
-  ["quantity", "basePrice", "packingWeightKg", "totalWeightKg"].forEach((field) => {
+  ["quantity", "basePrice", "packingWeightKg", "totalWeightKg", "cgst", "sgst"].forEach((field) => {
     if (Object.prototype.hasOwnProperty.call(payload, field)) {
       const value = Number(payload[field]);
       payload[field] = Number.isFinite(value) ? value : 0;
+    }
+  });
+
+  ["featured", "active"].forEach((field) => {
+    if (Object.prototype.hasOwnProperty.call(payload, field)) {
+      payload[field] = Boolean(payload[field]);
     }
   });
 

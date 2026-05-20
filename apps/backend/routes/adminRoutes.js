@@ -17,6 +17,7 @@ import {
   resetAdminPassword,
   reviewKycRequest,
   reviewVerificationRequest,
+  sendAdminOtp,
   setUserStatusByAdmin,
   signupAdmin,
   terminateAdmin,
@@ -24,12 +25,26 @@ import {
   updateProductByAdmin,
   updateUserByAdmin,
   updateVerificationRequestByAdmin,
+  verifyAdminOtp,
 } from "../controllers/adminController.js";
 import protect, { authorize } from "../middleware/authMiddleware.js";
+import { createRateLimiter } from "../middleware/rateLimit.js";
 
 const router = express.Router();
 const wrapAsync = (handler) => (req, res, next) =>
   Promise.resolve(handler(req, res, next)).catch(next);
+const adminOtpLimiter = createRateLimiter({
+  keyPrefix: "admin-otp",
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: "Too many OTP requests. Please try again later.",
+});
+const adminOtpVerifyLimiter = createRateLimiter({
+  keyPrefix: "admin-otp-verify",
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: "Too many OTP attempts. Please try again later.",
+});
 
 const ensureActiveAdmin = async (req, res, next) => {
   const admin = await Admin.findById(req.user.id).select("_id status role");
@@ -72,6 +87,8 @@ const adminOnly = [
 
 router.post("/login", wrapAsync(loginAdmin));
 router.post("/signup", wrapAsync(signupAdmin));
+router.post("/send-otp", adminOtpLimiter, wrapAsync(sendAdminOtp));
+router.post("/verify-otp", adminOtpVerifyLimiter, wrapAsync(verifyAdminOtp));
 router.post("/forgot-password", wrapAsync(requestAdminPasswordReset));
 router.post("/reset-password", wrapAsync(resetAdminPassword));
 

@@ -28,6 +28,7 @@ dotenv.config();
 
 let dbConnected = false;
 const app = express();
+app.set("trust proxy", 1);
 
 // Initialize DB connection
 (async () => {
@@ -63,39 +64,52 @@ const isDealOpen = (date = new Date()) => {
 const localDevelopmentOrigins = [
   "http://localhost:3000",
   "http://localhost:3001",
+  "http://localhost:3002",
   "http://localhost:3004",
   "http://localhost:3005",
   "http://localhost:3010",
   "http://localhost:4173",
   "http://localhost:5173",
   "http://localhost:5174",
+  "http://localhost:5175",
   "http://127.0.0.1:3000",
   "http://127.0.0.1:3001",
+  "http://127.0.0.1:3002",
   "http://127.0.0.1:3004",
   "http://127.0.0.1:3005",
   "http://127.0.0.1:3010",
   "http://127.0.0.1:4173",
   "http://127.0.0.1:5173",
   "http://127.0.0.1:5174",
+  "http://127.0.0.1:5175",
 ];
 const isProductionLike = () => {
   const runtime = String(process.env.APP_ENV || process.env.NODE_ENV || "").trim().toLowerCase();
   return runtime === "production" || runtime === "staging";
 };
 const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || "";
+const corsOriginsEnv = process.env.CORS_ORIGINS || "";
 const normalizeOrigin = (origin = "") => origin.trim().replace(/\/+$/, "");
-const allowedOrigins = [
+const configuredOrigins = [
   process.env.CLIENT_URL,
   process.env.ADMIN_URL,
   process.env.EFRUITMANDI_URL,
+  process.env.EFRUITMANDI_CLIENT_URL,
+  process.env.ORCHARD_URL,
+  process.env.ORCHARDGROWERS_CLIENT_URL,
   ...allowedOriginsEnv.split(","),
+  ...corsOriginsEnv.split(","),
+];
+const allowedOrigins = [
+  ...configuredOrigins,
   ...(!isProductionLike() ? localDevelopmentOrigins : []),
 ]
   .map(normalizeOrigin)
-  .filter(Boolean);
+  .filter(Boolean)
+  .filter((origin) => !isProductionLike() || origin !== "*");
 const uniqueAllowedOrigins = [...new Set(allowedOrigins)];
 const originMatches = (origin, allowedOrigin) => {
-  if (allowedOrigin === "*") return true;
+  if (allowedOrigin === "*") return !isProductionLike();
   if (!allowedOrigin.includes("*")) return origin === allowedOrigin;
 
   const pattern = allowedOrigin
@@ -126,7 +140,12 @@ const corsOptions = {
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 };
 
+if (!isProductionLike()) {
+  console.log("CORS allowed origins:", uniqueAllowedOrigins.join(", "));
+}
+
 app.use(cors(corsOptions));
+app.options(["/api/admin/send-otp", "/api/auth/*"], cors(corsOptions));
 
 app.use(express.json({ limit: "200mb" }));
 app.use(express.urlencoded({ limit: "200mb", extended: true }));

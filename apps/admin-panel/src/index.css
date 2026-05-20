@@ -23,6 +23,27 @@ body {
   overflow: hidden;
 }
 
+.admin-auth-page {
+  height: 100%;
+  overflow-y: auto;
+  scrollbar-color: #10b981 #0f172a;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.admin-auth-page::-webkit-scrollbar {
+  width: 8px;
+}
+
+.admin-auth-page::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+.admin-auth-page::-webkit-scrollbar-thumb {
+  background: #10b981;
+  border-radius: 999px;
+}
+
 .admin-action-panel {
   display: flex;
   flex-direction: column;

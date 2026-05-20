@@ -19,10 +19,10 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "dev": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
+    "start": "node scripts/run-react-scripts-with-vite-env.cjs start",
+    "dev": "node scripts/run-react-scripts-with-vite-env.cjs start",
+    "build": "node scripts/run-react-scripts-with-vite-env.cjs build",
+    "test": "node scripts/run-react-scripts-with-vite-env.cjs test",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {

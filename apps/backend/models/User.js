@@ -28,6 +28,33 @@ const userSchema = new mongoose.Schema(
       required: true,
     },
 
+    provider: {
+      type: String,
+      enum: ["local", "google", "facebook"],
+      default: "local",
+    },
+
+    providerId: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    oauthProviders: [
+      {
+        provider: {
+          type: String,
+          enum: ["google", "facebook"],
+          required: true,
+        },
+        providerId: {
+          type: String,
+          trim: true,
+          required: true,
+        },
+      },
+    ],
+
     avatarUrl: {
       type: String,
       default: "",
@@ -239,5 +266,6 @@ const userSchema = new mongoose.Schema(
 
 userSchema.index({ role: 1 });
 userSchema.index({ createdAt: -1 });
+userSchema.index({ provider: 1, providerId: 1 });
 
 export default mongoose.model("User", userSchema);

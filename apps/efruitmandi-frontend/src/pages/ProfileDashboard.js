@@ -19,6 +19,14 @@ import {
 } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
 import { saveUserToStorage, sanitizeUserForStorage } from "../utils/userStorage";
+import {
+  getEfruitMandiWidgetId,
+  getEfruitMandiTokenAuth,
+  normalizeIndianMobile,
+  retryMsg91WidgetOtp,
+  sendMsg91WidgetOtp,
+  verifyMsg91WidgetOtp,
+} from "../utils/msg91OtpWidget";
 
 const assetUrl = (path) => `${process.env.PUBLIC_URL || ""}${path}`;
 const logoUrl = assetUrl("/logo.png");
@@ -155,6 +163,7 @@ function formatCurrency(value) {
 export default function ProfileDashboard() {
   const navigate = useNavigate();
   const locationState = useLocation().state;
+  const hasAccessToken = Boolean(localStorage.getItem("accessToken"));
   const [profile, setProfile] = useState(null);
   const [notice, setNotice] = useState("");
   const [adMenuOpen, setAdMenuOpen] = useState(false);
@@ -166,17 +175,30 @@ export default function ProfileDashboard() {
   const [contactDraft, setContactDraft] = useState({
     phone: "",
     otp: "",
+    otpReqId: "",
+    otpSent: false,
     verifiedPhone: "",
     loading: false,
   });
+  const [contactOtpCooldown, setContactOtpCooldown] = useState(0);
   const [emailDraft, setEmailDraft] = useState({
     email: "",
     otp: "",
     verifiedEmail: "",
     loading: false,
   });
+  const [emailOtpCooldown, setEmailOtpCooldown] = useState(0);
   const [socialDraft, setSocialDraft] = useState(createSocialDraft());
   const [detectingAddress, setDetectingAddress] = useState(false);
+
+  useEffect(() => {
+    if (!contactOtpCooldown && !emailOtpCooldown) return undefined;
+    const timer = window.setTimeout(() => {
+      setContactOtpCooldown((seconds) => Math.max(0, seconds - 1));
+      setEmailOtpCooldown((seconds) => Math.max(0, seconds - 1));
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [contactOtpCooldown, emailOtpCooldown]);
   const [products, setProducts] = useState([]);
   const [auctions, setAuctions] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -209,18 +231,21 @@ export default function ProfileDashboard() {
   }, [locationState]);
 
   useEffect(() => {
+    if (!hasAccessToken) {
+      navigate("/profile", { replace: true });
+    }
+  }, [hasAccessToken, navigate]);
+
+  useEffect(() => {
     const loadProfile = async () => {
+      if (!hasAccessToken) return;
+
       try {
-        const hasToken = Boolean(localStorage.getItem("accessToken"));
         const [profileRes, productRes, auctionRes, orderRes, mandiRateRes] = await Promise.all([
-          hasToken
-            ? API.get("/user/profile").catch(() => ({ data: storedUser }))
-            : Promise.resolve({ data: storedUser }),
+          API.get("/user/profile").catch(() => ({ data: storedUser })),
           API.get("/products").catch(() => ({ data: [] })),
           API.get("/auctions").catch(() => ({ data: [] })),
-          hasToken
-            ? API.get("/orders").catch(() => ({ data: [] }))
-            : Promise.resolve({ data: [] }),
+          API.get("/orders").catch(() => ({ data: [] })),
           API.get("/mandi-rates").catch(() => ({
             data: { source: "fallback", records: mandiRates },
           })),
@@ -241,7 +266,7 @@ export default function ProfileDashboard() {
     };
 
     loadProfile();
-  }, [storedUser]);
+  }, [hasAccessToken, storedUser]);
 
   const user = profile || storedUser;
   const currentUserId = (user._id || user.id || "").toString();
@@ -340,6 +365,8 @@ export default function ProfileDashboard() {
   const lockedAmount = Number(user.lockedAmount || 0);
   const lockedAmountLabel = formatCurrency(lockedAmount);
 
+  if (!hasAccessToken) return null;
+
   const updateMedia = async (field, file) => {
     if (!file) return;
 
@@ -375,21 +402,27 @@ export default function ProfileDashboard() {
     setContactDraft({
       phone: profileContactNo,
       otp: "",
+      otpReqId: "",
+      otpSent: false,
       verifiedPhone: "",
       loading: false,
     });
+    setContactOtpCooldown(0);
     setEmailDraft({
       email: profileEmail,
       otp: "",
       verifiedEmail: "",
       loading: false,
     });
+    setEmailOtpCooldown(0);
     setSocialDraft(createSocialDraft(user));
     setShowEditProfile(true);
   };
 
   const sendContactOtp = async () => {
     const phone = contactDraft.phone.trim();
+
+    if (contactOtpCooldown > 0) return;
 
     if (!phone) {
       setNotice("Enter contact number first.");
@@ -398,11 +431,21 @@ export default function ProfileDashboard() {
 
     try {
       setContactDraft((current) => ({ ...current, loading: true, verifiedPhone: "" }));
-      const res = await API.post("/auth/send-otp", { identifier: phone });
-      const devOtp = res.data?.devOtp ? ` OTP: ${res.data.devOtp}` : "";
-      setNotice(`${res.data?.message || "OTP sent."}${devOtp}`);
+      const widgetId = getEfruitMandiWidgetId();
+      const tokenAuth = getEfruitMandiTokenAuth();
+      const normalizedPhone = normalizeIndianMobile(phone);
+      if (!normalizedPhone) {
+        setNotice("Enter a valid phone number.");
+        return;
+      }
+      const result = contactDraft.otpSent
+        ? await retryMsg91WidgetOtp({ widgetId, tokenAuth, reqId: contactDraft.otpReqId })
+        : await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone: normalizedPhone });
+      setContactDraft((current) => ({ ...current, otpReqId: result.reqId || "", otpSent: true }));
+      setContactOtpCooldown(60);
+      setNotice(result.reqId ? "OTP sent to phone." : "OTP sent. Enter the OTP received.");
     } catch (err) {
-      setNotice(err.response?.data?.msg || "Unable to send OTP.");
+      setNotice(err.response?.data?.msg || err.message || "Unable to send OTP.");
     } finally {
       setContactDraft((current) => ({ ...current, loading: false }));
     }
@@ -419,7 +462,19 @@ export default function ProfileDashboard() {
 
     try {
       setContactDraft((current) => ({ ...current, loading: true }));
-      await API.post("/auth/verify-otp", { identifier: phone, otp });
+      const widgetId = getEfruitMandiWidgetId();
+      const tokenAuth = getEfruitMandiTokenAuth();
+      if (!widgetId || !tokenAuth || !contactDraft.otpSent) {
+        setNotice("Request phone OTP first.");
+        return;
+      }
+      const result = await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp, reqId: contactDraft.otpReqId });
+      await API.post("/auth/verify-mobile-widget-otp", {
+        identifier: phone,
+        platform: "efruitmandi",
+        reqId: result.reqId || contactDraft.otpReqId,
+        msg91: result.data,
+      });
       setContactDraft((current) => ({
         ...current,
         verifiedPhone: phone,
@@ -428,12 +483,14 @@ export default function ProfileDashboard() {
       setNotice("Contact number verified.");
     } catch (err) {
       setContactDraft((current) => ({ ...current, loading: false }));
-      setNotice(err.response?.data?.msg || "OTP verification failed.");
+      setNotice(err.response?.data?.msg || err.message || "OTP verification failed.");
     }
   };
 
   const sendEmailOtp = async () => {
     const email = emailDraft.email.trim();
+
+    if (emailOtpCooldown > 0) return;
 
     if (!email) {
       setNotice("Enter email first.");
@@ -442,9 +499,9 @@ export default function ProfileDashboard() {
 
     try {
       setEmailDraft((current) => ({ ...current, loading: true, verifiedEmail: "" }));
-      const res = await API.post("/auth/send-otp", { identifier: email });
-      const devOtp = res.data?.devOtp ? ` OTP: ${res.data.devOtp}` : "";
-      setNotice(`${res.data?.message || "OTP sent."}${devOtp}`);
+      const res = await API.post("/auth/send-otp", { identifier: email, platform: "efruitmandi" });
+      setEmailOtpCooldown(60);
+      setNotice(res.data?.message || "OTP sent.");
     } catch (err) {
       setNotice(err.response?.data?.msg || "Unable to send OTP.");
     } finally {
@@ -463,7 +520,7 @@ export default function ProfileDashboard() {
 
     try {
       setEmailDraft((current) => ({ ...current, loading: true }));
-      await API.post("/auth/verify-otp", { identifier: email, otp });
+      await API.post("/auth/verify-otp", { identifier: email, otp, platform: "efruitmandi" });
       setEmailDraft((current) => ({
         ...current,
         verifiedEmail: email,
@@ -1115,14 +1172,17 @@ export default function ProfileDashboard() {
                 <input
                   value={contactDraft.phone}
                   inputMode="tel"
-                  onChange={(event) =>
+                  onChange={(event) => {
                     setContactDraft((current) => ({
                       ...current,
                       phone: event.target.value,
                       otp: "",
+                      otpReqId: "",
+                      otpSent: false,
                       verifiedPhone: "",
-                    }))
-                  }
+                    }));
+                    setContactOtpCooldown(0);
+                  }}
                   placeholder="Enter contact number"
                   className="w-full rounded-md border border-green-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-green-700"
                 />
@@ -1139,10 +1199,10 @@ export default function ProfileDashboard() {
                   <button
                     type="button"
                     onClick={sendContactOtp}
-                    disabled={contactDraft.loading}
+                    disabled={contactDraft.loading || contactOtpCooldown > 0}
                     className="rounded-md bg-white px-3 py-2 text-xs font-extrabold text-green-800 disabled:opacity-60"
                   >
-                    Send
+                    {contactOtpCooldown > 0 ? `${contactOtpCooldown}s` : "Send"}
                   </button>
                   <button
                     type="button"
@@ -1173,14 +1233,15 @@ export default function ProfileDashboard() {
                 <input
                   value={emailDraft.email}
                   inputMode="email"
-                  onChange={(event) =>
+                  onChange={(event) => {
                     setEmailDraft((current) => ({
                       ...current,
                       email: event.target.value,
                       otp: "",
                       verifiedEmail: "",
-                    }))
-                  }
+                    }));
+                    setEmailOtpCooldown(0);
+                  }}
                   placeholder="Enter email address"
                   className="w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-blue-700"
                 />
@@ -1197,10 +1258,10 @@ export default function ProfileDashboard() {
                   <button
                     type="button"
                     onClick={sendEmailOtp}
-                    disabled={emailDraft.loading}
+                    disabled={emailDraft.loading || emailOtpCooldown > 0}
                     className="rounded-md bg-white px-3 py-2 text-xs font-extrabold text-blue-800 disabled:opacity-60"
                   >
-                    Send
+                    {emailOtpCooldown > 0 ? `${emailOtpCooldown}s` : "Send"}
                   </button>
                   <button
                     type="button"
@@ -1851,7 +1912,7 @@ function ImagePreviewModal({ image, onClose }) {
         className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white text-lg font-bold text-gray-900 shadow"
         aria-label="Close full image"
       >
-        X
+        ×
       </button>
       <img
         src={image.src}

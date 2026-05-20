@@ -3,9 +3,21 @@ import mongoose from "mongoose";
 const productSchema = new mongoose.Schema(
   {
     title: String, // Apple, Mango
+    slug: { type: String, index: true },
+    sku: { type: String, index: true },
+    hsnCode: String,
+    cgst: { type: Number, default: 0 },
+    sgst: { type: Number, default: 0 },
     fruitName: String,
     variety: String,
+    productCategory: String,
+    productType: String,
+    unit: String,
     description: String,
+    seoMetaTitle: String,
+    seoMetaDescription: String,
+    featured: { type: Boolean, default: false },
+    active: { type: Boolean, default: true },
 
     images: [String], // image URLs
     gradeLots: [

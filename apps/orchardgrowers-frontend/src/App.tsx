@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode, type RefObject } from "react";
-import { Link, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   FaCamera,
   FaCheck,
@@ -27,6 +27,14 @@ import API, { FILE_BASE_URL } from "./services/api";
 import InstallAppPrompt, { openOrchardInstallPrompt } from "./components/InstallAppPrompt";
 import { withDemoProducts } from "./demoProducts";
 import type { Product } from "./types";
+import {
+  getOrchardWidgetId,
+  getOrchardTokenAuth,
+  normalizeIndianMobile,
+  retryMsg91WidgetOtp,
+  sendMsg91WidgetOtp,
+  verifyMsg91WidgetOtp,
+} from "./utils/msg91OtpWidget";
 
 type Auction = {
   _id: string;
@@ -68,6 +76,30 @@ type FeedItem = {
   text: string;
   imageUrl: string;
   timeLabel: string;
+};
+
+const stripApiSuffix = (value = "") => value.trim().replace(/\/+$/, "").replace(/\/api$/i, "");
+const getOrchardOAuthUrl = (provider: "google" | "facebook") => {
+  const configured =
+    provider === "google"
+      ? import.meta.env.VITE_GOOGLE_AUTH_URL
+      : import.meta.env.VITE_FACEBOOK_AUTH_URL;
+  if (configured) return configured;
+
+  const apiOrigin = stripApiSuffix(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "");
+  if (!apiOrigin) return "";
+
+  return `${apiOrigin}/api/auth/${provider}?platform=orchardgrowers`;
+};
+const readOAuthUser = (encodedUser: string | null): UserProfile | null => {
+  if (!encodedUser) return null;
+  try {
+    const normalized = encodedUser.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
 };
 
 type HighestDeal = {
@@ -296,6 +328,7 @@ function Home() {
   const leftSidebarRef = useBottomPinnedColumn(desktopGridRef);
   const rightSidebarRef = useBottomPinnedColumn(desktopGridRef);
   const user = getStoredUser();
+  const isSignedIn = hasSignedInUser();
 
   useEffect(() => {
     const load = async () => {
@@ -362,7 +395,7 @@ function Home() {
         className="hidden w-full gap-5 md:grid md:grid-cols-[218px_minmax(0,1fr)] lg:grid-cols-[218px_minmax(0,1fr)_314px] xl:grid-cols-[240px_minmax(0,1fr)_340px]"
       >
         <aside ref={leftSidebarRef} className="self-start space-y-2.5 will-change-transform">
-          <ProfileCard user={user} onOpen={() => navigate("/dashboard")} />
+          <ProfileCard user={user} isSignedIn={isSignedIn} onOpen={() => navigate(isSignedIn ? "/dashboard" : "/login")} />
           <StatsCard />
           <CompanyCard />
           <SidebarContactCard />
@@ -1373,7 +1406,7 @@ function RatingPopup({ product, onClose }: { product: Product | null; onClose: (
             <p className="mt-1 line-clamp-1 text-sm text-slate-600">{product.title || "Orchard Growers product"}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-full px-2 py-1 text-sm font-semibold text-slate-500 hover:bg-slate-100">
-            X
+            ×
           </button>
         </div>
         <div className="mt-4 flex items-center gap-2">
@@ -1469,7 +1502,7 @@ function ImagePreviewModal({
           className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-lg font-bold text-slate-900 shadow hover:bg-green-50"
           aria-label="Close fullscreen image"
         >
-          X
+          ×
         </button>
       </div>
       {preview.images.length > 1 && (
@@ -1509,7 +1542,23 @@ function ImagePreviewModal({
   );
 }
 
-function ProfileCard({ user, onOpen }: { user: UserProfile; onOpen: () => void }) {
+function ProfileCard({ user, isSignedIn, onOpen }: { user: UserProfile; isSignedIn: boolean; onOpen: () => void }) {
+  if (!isSignedIn) {
+    return (
+      <button onClick={onOpen} className="block w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-left transition hover:border-green-300">
+        <div className="h-20 bg-cover bg-center" style={{ backgroundImage: `url(${orchardCover})` }} />
+        <div className="px-4 pb-4">
+          <div className="-mt-10 flex h-20 w-20 items-center justify-center rounded-full border-2 border-white bg-slate-900 text-2xl font-bold text-white">
+            <FaUser aria-hidden="true" />
+          </div>
+          <h1 className="mt-3 text-xl font-semibold leading-tight text-slate-900">Sign in to view account</h1>
+          <p className="mt-1 text-xs text-slate-500">Your profile details will appear after login.</p>
+          <p className="mt-2 text-xs font-semibold text-green-700">Login or create an account</p>
+        </div>
+      </button>
+    );
+  }
+
   const displayName = user.orchardName || user.businessName || user.name || "Orchard Growers";
   return (
     <button onClick={onOpen} className="block w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-left transition hover:border-green-300">
@@ -1918,6 +1967,7 @@ function AddressEditor({
 function AuthPage() {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const navigate = useNavigate();
+  const location = useLocation();
   const [form, setForm] = useState({
     name: "",
     identifier: "",
@@ -1930,17 +1980,80 @@ function AuthPage() {
   const [otpSent, setOtpSent] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [mobileOtpReqId, setMobileOtpReqId] = useState("");
+  const [otpCooldown, setOtpCooldown] = useState(0);
 
   useEffect(() => {
-    if (hasSignedInUser()) navigate("/profile", { replace: true });
-  }, [navigate]);
+    if (otpCooldown <= 0) return;
+    const timer = window.setTimeout(() => setOtpCooldown((seconds) => Math.max(0, seconds - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [otpCooldown]);
+
+  useEffect(() => {
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const queryParams = new URLSearchParams(location.search);
+    const oauthError = queryParams.get("oauthError");
+
+    if (oauthError) {
+      setMessage(oauthError);
+      window.history.replaceState({}, document.title, location.pathname);
+      return;
+    }
+
+    if (hashParams.get("oauth") !== "success") return;
+
+    const accessToken = hashParams.get("accessToken");
+    const refreshToken = hashParams.get("refreshToken");
+    const user = readOAuthUser(hashParams.get("user"));
+
+    if (!accessToken || !refreshToken || !user) {
+      setMessage("Social login response was incomplete. Please try again.");
+      window.history.replaceState({}, document.title, location.pathname);
+      return;
+    }
+
+    localStorage.setItem("accessToken", accessToken);
+    localStorage.setItem("refreshToken", refreshToken);
+    localStorage.setItem("user", JSON.stringify(user));
+    window.dispatchEvent(new Event("orchard-auth-updated"));
+    window.history.replaceState({}, document.title, location.pathname);
+    navigate("/profile", { replace: true });
+  }, [location.pathname, location.search, navigate]);
 
   const updateForm = (field: keyof typeof form, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
+    if (field === "identifier") {
+      setOtpSent(false);
+      setMobileOtpReqId("");
+      setOtpCooldown(0);
+    }
+  };
+
+  const switchAuthMode = (nextMode: "login" | "signup") => {
+    setMode(nextMode);
+    setMessage("");
+    setOtpSent(false);
+    setMobileOtpReqId("");
+    setOtpCooldown(0);
+    setShowPassword(false);
+    setShowConfirmPassword(false);
+    setForm({
+      name: "",
+      identifier: "",
+      password: "",
+      confirmPassword: "",
+      otp: "",
+    });
   };
 
   const sendLoginOtp = async () => {
     setMessage("");
+    if (otpCooldown > 0) return;
+    if (mode === "signup" && !form.name.trim()) {
+      setMessage("Enter your full name before requesting OTP.");
+      return;
+    }
+
     if (!form.identifier) {
       setMessage("Enter your email address first.");
       return;
@@ -1948,13 +2061,29 @@ function AuthPage() {
 
     try {
       setLoading(true);
-      const res = await API.post<{ devOtp?: string; message?: string }>("/auth/send-otp", {
+      const mobile = normalizeIndianMobile(form.identifier);
+      if (mobile) {
+        const widgetId = getOrchardWidgetId();
+        const tokenAuth = getOrchardTokenAuth();
+        const result = otpSent
+          ? await retryMsg91WidgetOtp({ widgetId, tokenAuth, reqId: mobileOtpReqId })
+          : await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone: mobile });
+        setMobileOtpReqId(result.reqId || "");
+        setOtpSent(true);
+        setOtpCooldown(60);
+        setMessage(result.reqId ? "OTP sent to phone." : "OTP sent. Enter the OTP received.");
+        return;
+      }
+
+      const res = await API.post<{ message?: string }>("/auth/send-otp", {
         identifier: form.identifier,
+        platform: "orchardgrowers",
       });
       setOtpSent(true);
-      setMessage(res.data.devOtp ? `OTP sent. Test OTP: ${res.data.devOtp}` : res.data.message || "OTP sent.");
+      setOtpCooldown(60);
+      setMessage(res.data.message || "OTP sent.");
     } catch (err: any) {
-      setMessage(err?.response?.data?.msg || "Could not send OTP.");
+      setMessage(err?.response?.data?.msg || err?.message || "Could not send OTP.");
     } finally {
       setLoading(false);
     }
@@ -1969,14 +2098,40 @@ function AuthPage() {
       return;
     }
 
+    if (mode === "signup" && !form.name.trim()) {
+      setMessage("Full name is required.");
+      return;
+    }
+
     try {
       setLoading(true);
-      await API.post("/auth/verify-otp", { identifier: form.identifier, otp: form.otp });
+      const mobile = normalizeIndianMobile(form.identifier);
+      if (mobile) {
+        if (!otpSent) {
+          setMessage("Request phone OTP first.");
+          return;
+        }
+
+        const tokenAuth = getOrchardTokenAuth();
+        if (!tokenAuth) {
+          setMessage("Mobile OTP is not configured.");
+          return;
+        }
+        const result = await verifyMsg91WidgetOtp({ widgetId: getOrchardWidgetId(), tokenAuth, otp: form.otp, reqId: mobileOtpReqId });
+        await API.post("/auth/verify-mobile-widget-otp", {
+          identifier: form.identifier,
+          platform: "orchardgrowers",
+          reqId: result.reqId || mobileOtpReqId,
+          msg91: result.data,
+        });
+      } else {
+        await API.post("/auth/verify-otp", { identifier: form.identifier, otp: form.otp, platform: "orchardgrowers" });
+      }
       const endpoint = mode === "login" ? "/auth/login" : "/auth/register";
       const payload =
         mode === "login"
-          ? { identifier: form.identifier, password: form.password }
-          : { name: form.name, identifier: form.identifier, password: form.password };
+          ? { identifier: form.identifier, password: form.password, platform: "orchardgrowers" }
+          : { name: form.name, identifier: form.identifier, password: form.password, platform: "orchardgrowers" };
       const res = await API.post(endpoint, payload);
 
       if (res.data.accessToken) localStorage.setItem("accessToken", res.data.accessToken);
@@ -1986,163 +2141,181 @@ function AuthPage() {
 
       navigate("/profile");
     } catch (err: any) {
-      setMessage(err?.response?.data?.msg || "Authentication failed.");
+      setMessage(err?.response?.data?.msg || err?.message || "Authentication failed.");
     } finally {
       setLoading(false);
     }
   };
 
+  const startOAuth = (provider: "google" | "facebook") => {
+    const url = getOrchardOAuthUrl(provider);
+    if (!url) {
+      setMessage(`${provider === "google" ? "Google" : "Facebook"} login is not configured.`);
+      return;
+    }
+    window.location.href = url;
+  };
+
   return (
-    <section className="mx-3 overflow-hidden rounded-lg bg-green-800 shadow-xl md:mx-auto md:max-w-5xl">
-      <div className="grid min-h-[620px] md:grid-cols-[1fr_520px]">
-        <div className="hidden bg-green-800 p-10 text-white md:flex md:flex-col md:justify-between">
+    <section className="-mt-3 flex min-h-[calc(100vh-5.25rem)] w-full items-stretch justify-center bg-[#eef6f0] px-3 py-2 md:-mt-5 md:min-h-[calc(100vh-5.5rem)] md:px-6 md:py-3">
+      <div className="grid min-h-[calc(100vh-6.5rem)] w-full max-w-6xl overflow-hidden rounded-lg border border-green-100 bg-white shadow-xl md:grid-cols-[minmax(0,1fr)_440px] lg:grid-cols-[minmax(0,1fr)_480px]">
+        <div className="hidden bg-green-800 px-10 py-8 text-white md:flex md:flex-col md:justify-center lg:px-12">
           <Link to="/" className="inline-flex">
             <img src={logoUrl} alt="Orchard Growers" className="h-16 w-auto rounded bg-white/95 px-3 py-2 object-contain" />
           </Link>
-          <div>
+          <div className="mt-12 max-w-xl lg:mt-16">
             <p className="text-sm font-medium uppercase tracking-[0.28em] text-green-100">Orchard Growers</p>
-            <h2 className="mt-4 text-4xl font-semibold leading-tight">Plants, tools, services, and orchard care in one place.</h2>
-            <p className="mt-5 max-w-md text-base leading-7 text-green-50">
+            <h2 className="mt-5 text-4xl font-semibold leading-tight lg:text-5xl">Plants, tools, services, and orchard care in one place.</h2>
+            <p className="mt-4 max-w-md text-base leading-7 text-green-50">
               Sign in to manage your profile, cart, checkout, invoices, and courier order details.
             </p>
           </div>
-          <p className="text-sm text-green-100">Secure account access for Orchard Growers customers.</p>
+          <p className="mt-auto text-sm text-green-100">Secure account access for Orchard Growers customers.</p>
         </div>
 
-        <div className="bg-white px-7 py-10 sm:px-11">
-          <h1 className="text-center text-3xl font-semibold text-black">
-            {mode === "login" ? "Sign in to your account" : "Create your account"}
-          </h1>
+        <div className="flex min-h-0 items-center justify-center overflow-y-auto bg-white px-5 py-4 sm:px-8">
+          <div className="my-auto w-full max-w-[390px] py-1">
+            <div className="mb-3 grid grid-cols-2 rounded-lg bg-slate-100 p-1">
+              <button
+                type="button"
+                onClick={() => switchAuthMode("login")}
+                className={`h-9 rounded-md text-sm font-semibold transition ${
+                  mode === "login" ? "bg-white text-green-800 shadow-sm" : "text-slate-500 hover:text-slate-900"
+                }`}
+              >
+                Login
+              </button>
+              <button
+                type="button"
+                onClick={() => switchAuthMode("signup")}
+                className={`h-9 rounded-md text-sm font-semibold transition ${
+                  mode === "signup" ? "bg-white text-green-800 shadow-sm" : "text-slate-500 hover:text-slate-900"
+                }`}
+              >
+                Signup
+              </button>
+            </div>
 
-          {message && (
-            <p className="mt-6 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-800">{message}</p>
-          )}
+            <h1 className="text-center text-2xl font-semibold leading-tight text-black md:text-[28px]">
+              {mode === "login" ? "Sign in to your account" : "Create your account"}
+            </h1>
 
-          <form onSubmit={submitAuth} className="mt-8 space-y-4">
-            {mode === "signup" && (
-              <input
-                type="text"
-                placeholder="Full name"
-                value={form.name}
-                onChange={(event) => updateForm("name", event.target.value)}
-                className="h-12 w-full rounded-md border border-slate-300 bg-white px-4 text-sm text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
-              />
+            {message && (
+              <p className="mt-3 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-800">{message}</p>
             )}
-            <div className="flex gap-2">
-              <input
-                type="email"
-                placeholder="Enter Email/Phone No."
-                value={form.identifier}
-                onChange={(event) => updateForm("identifier", event.target.value)}
-                className="h-12 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-4 text-sm text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
-              />
-              <button
-                type="button"
-                onClick={sendLoginOtp}
-                disabled={loading}
-                className="rounded-md border border-green-700 px-4 text-sm font-medium text-green-800 hover:bg-green-50"
-              >
-                OTP
-              </button>
-            </div>
-            <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                placeholder="Password"
-                value={form.password}
-                onChange={(event) => updateForm("password", event.target.value)}
-                className="h-12 w-full rounded-md border border-slate-300 bg-white px-4 pr-12 text-sm text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((value) => !value)}
-                className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center justify-center text-lg text-slate-500 hover:text-green-800"
-                aria-label={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? <FaEyeSlash /> : <FaEye />}
-              </button>
-            </div>
-            {mode === "signup" && (
-              <div className="relative">
+
+            <form onSubmit={submitAuth} className="mt-3 space-y-2">
+              {mode === "signup" && (
                 <input
-                  type={showConfirmPassword ? "text" : "password"}
-                  placeholder="Confirm password"
-                  value={form.confirmPassword}
-                  onChange={(event) => updateForm("confirmPassword", event.target.value)}
-                  className="h-12 w-full rounded-md border border-slate-300 bg-white px-4 pr-12 text-sm text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
+                  type="text"
+                  placeholder="Full name"
+                  value={form.name}
+                  onChange={(event) => updateForm("name", event.target.value)}
+                  className="h-10 w-full rounded-md border border-slate-300 bg-white px-4 text-sm text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
+                />
+              )}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Enter Email/Phone No."
+                  value={form.identifier}
+                  onChange={(event) => updateForm("identifier", event.target.value)}
+                  className="h-10 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-4 text-sm text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
                 />
                 <button
                   type="button"
-                  onClick={() => setShowConfirmPassword((value) => !value)}
-                  className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center justify-center text-lg text-slate-500 hover:text-green-800"
-                  aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                  onClick={sendLoginOtp}
+                  disabled={loading || otpCooldown > 0}
+                  className="rounded-md border border-green-700 px-4 text-sm font-medium text-green-800 hover:bg-green-50"
                 >
-                  {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                  {otpCooldown > 0 ? `${otpCooldown}s` : "OTP"}
                 </button>
               </div>
-            )}
-            <input
-              type="text"
-              placeholder={otpSent ? "Enter OTP" : "Request OTP first"}
-              value={form.otp}
-              onChange={(event) => updateForm("otp", event.target.value)}
-              className="h-12 w-full rounded-md border border-slate-300 bg-white px-4 text-sm text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
-            />
-            <button
-              type="button"
-              className="text-sm font-medium text-green-800 hover:text-green-900"
-              onClick={() => setMessage("Password reset is not configured yet. Please use OTP login or contact support.")}
-            >
-              Forgot password?
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="h-12 w-full rounded-md bg-green-800 px-5 text-sm font-medium text-white transition hover:bg-green-900 disabled:opacity-60"
-            >
-              {loading ? "Please wait..." : mode === "login" ? "Sign in" : "Sign up"}
-            </button>
-          </form>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Password"
+                  value={form.password}
+                  onChange={(event) => updateForm("password", event.target.value)}
+                  className="h-10 w-full rounded-md border border-slate-300 bg-white px-4 pr-12 text-sm text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((value) => !value)}
+                  className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center justify-center text-lg text-slate-500 hover:text-green-800"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <FaEyeSlash /> : <FaEye />}
+                </button>
+              </div>
+              {mode === "signup" && (
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="Confirm password"
+                    value={form.confirmPassword}
+                    onChange={(event) => updateForm("confirmPassword", event.target.value)}
+                    className="h-10 w-full rounded-md border border-slate-300 bg-white px-4 pr-12 text-sm text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((value) => !value)}
+                    className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center justify-center text-lg text-slate-500 hover:text-green-800"
+                    aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                  >
+                    {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                  </button>
+                </div>
+              )}
+              <input
+                type="text"
+                placeholder={otpSent ? "Enter OTP" : "Request OTP first"}
+                value={form.otp}
+                onChange={(event) => updateForm("otp", event.target.value)}
+                className="h-10 w-full rounded-md border border-slate-300 bg-white px-4 text-sm text-slate-900 outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
+              />
+              {mode === "login" && (
+                <button
+                  type="button"
+                  className="text-sm font-medium text-green-800 hover:text-green-900"
+                  onClick={() => setMessage("Password reset is not configured yet. Please use OTP login or contact support.")}
+                >
+                  Forgot password?
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={loading}
+                className="h-10 w-full rounded-md bg-green-800 px-5 text-sm font-medium text-white transition hover:bg-green-900 disabled:opacity-60"
+              >
+                {loading ? "Please wait..." : mode === "login" ? "Sign in" : "Sign up"}
+              </button>
+            </form>
 
-          <div className="my-12 flex items-center gap-4 text-sm text-slate-500">
-            <div className="h-px flex-1 bg-slate-300" />
-            <span>Or continue with</span>
-            <div className="h-px flex-1 bg-slate-300" />
+            <div className="my-3 flex items-center gap-4 text-xs text-slate-500">
+              <div className="h-px flex-1 bg-slate-300" />
+              <span>Or continue with</span>
+              <div className="h-px flex-1 bg-slate-300" />
+            </div>
+
+            <div className="mx-auto grid max-w-[246px] grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => startOAuth("google")}
+                className="flex h-9 w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 hover:bg-slate-50"
+              >
+                <FaGoogle className="text-lg text-red-500" />
+                Google
+              </button>
+              <button
+                type="button"
+                onClick={() => startOAuth("facebook")}
+                className="h-9 w-full rounded-md bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                Facebook
+              </button>
+            </div>
           </div>
-
-          <div className="mx-auto max-w-[246px] space-y-3">
-            <button
-              type="button"
-              onClick={() => setMessage("Google sign-in is ready for connector setup. Use email and OTP for now.")}
-              className="flex h-12 w-full items-center justify-between rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-900 hover:bg-slate-50"
-            >
-              <span className="text-left">
-                Sign in with Google
-              </span>
-              <FaGoogle className="text-lg text-red-500" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setMessage("Facebook sign-in is ready for connector setup. Use email and OTP for now.")}
-              className="h-12 w-full rounded-md bg-blue-600 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              Sign in with Facebook
-            </button>
-          </div>
-
-          <p className="mt-9 text-center text-sm text-slate-900">
-            {mode === "login" ? "Don't have an account?" : "Already have an account?"}{" "}
-            <button
-              type="button"
-              onClick={() => {
-                setMode(mode === "login" ? "signup" : "login");
-                setMessage("");
-              }}
-              className="font-medium text-green-800 hover:text-green-900"
-            >
-              {mode === "login" ? "Sign up" : "Sign in"}
-            </button>
-          </p>
         </div>
       </div>
     </section>
@@ -2595,6 +2768,8 @@ function StatCard({ label, value }: { label: string; value: string }) {
 }
 
 function getStoredUser(): UserProfile {
+  if (!hasSignedInUser()) return {};
+
   try {
     return JSON.parse(localStorage.getItem("user") || "{}");
   } catch {

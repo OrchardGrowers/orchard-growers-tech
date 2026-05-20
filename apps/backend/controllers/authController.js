@@ -1,32 +1,27 @@
 import User from "../models/User.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { isSmtpConfigured, sendOtpEmail } from "../services/mailService.js";
+import crypto from "crypto";
+import axios from "axios";
+import { google } from "googleapis";
+import { isSmtpConfigured, normalizeMailPlatform, sendOtpEmail } from "../services/mailService.js";
 import { isMobileOtpConfigured, sendMobileOtp } from "../services/mobileOtpService.js";
 
 const otpStore = new Map();
+const truthyEnv = (value = "") => ["1", "true", "yes"].includes(String(value).trim().toLowerCase());
+const useLegacyMsg91Api = () => truthyEnv(process.env.USE_LEGACY_MSG91_API);
 const getOtpTtlMs = () => {
   const minutes = Number(process.env.OTP_EXPIRY_MINUTES || 5);
   return (Number.isFinite(minutes) && minutes > 0 ? minutes : 5) * 60 * 1000;
 };
-const truthyEnv = (value = "") => ["1", "true", "yes"].includes(String(value).trim().toLowerCase());
-const isProductionLike = () => {
-  const runtime = String(process.env.APP_ENV || process.env.NODE_ENV || "").trim().toLowerCase();
-  return runtime === "production" || runtime === "staging";
-};
-const getLocalTestOtp = () => {
-  const testOtp = String(process.env.TEST_OTP || "").trim();
-  if (!truthyEnv(process.env.ALLOW_TEST_OTP) || isProductionLike()) return "";
-  return /^\d{6}$/.test(testOtp) ? testOtp : "";
+const getOtpLength = () => {
+  const configuredLength = Number(process.env.MSG91_OTP_LENGTH || 6);
+  return Number.isFinite(configuredLength) && configuredLength >= 4 && configuredLength <= 8 ? configuredLength : 6;
 };
 const createOtp = () => {
-  const testOtp = getLocalTestOtp();
-  if (testOtp) return { otp: testOtp, isLocalTestOtp: true };
-
-  return {
-    otp: String(Math.floor(100000 + Math.random() * 900000)),
-    isLocalTestOtp: false,
-  };
+  const length = getOtpLength();
+  const max = 10 ** length;
+  return String(Math.floor(Math.random() * max)).padStart(length, "0");
 };
 const OTP_PURPOSES = new Set(["auth", "forgot-password"]);
 
@@ -88,27 +83,83 @@ const safeUserPayload = (user) => ({
 const findByParsedIdentifier = (parsed) =>
   User.findOne({ [parsed.type]: parsed.value });
 
+const createTokenPair = (user) => ({
+  accessToken: jwt.sign(
+    { id: user._id, role: user.role },
+    process.env.JWT_SECRET,
+    { expiresIn: "15m" }
+  ),
+  refreshToken: jwt.sign(
+    { id: user._id },
+    process.env.JWT_REFRESH_SECRET,
+    { expiresIn: "7d" }
+  ),
+});
+
 const getOtpPurpose = (purpose = "auth") => {
   const normalized = String(purpose || "auth").trim().toLowerCase();
   return OTP_PURPOSES.has(normalized) ? normalized : "auth";
 };
 
-const getOtpKey = (parsed, purpose = "auth") => `${getOtpPurpose(purpose)}:${parsed.type}:${parsed.value}`;
+const getRequestPlatform = (req) => {
+  const sourceApp = String(req.body.sourceApp || req.get("x-source-app") || "").trim().toLowerCase();
+  if (sourceApp === "admin-panel") return "orchardgrowers";
+  return normalizeMailPlatform(req.body.platform || req.get("x-platform") || req.get("x-app-platform") || "orchardgrowers");
+};
+const getOtpKey = (platform, parsed, purpose = "auth") => `${normalizeMailPlatform(platform)}:${getOtpPurpose(purpose)}:${parsed.type}:${parsed.value}`;
+const getProviderRequestId = (data = {}) =>
+  data?.reqId || data?.req_id || data?.requestId || data?.request_id || data?.RequestId || data?.id || "";
+const sanitizeMsg91Audit = (data = {}) => {
+  if (!data || typeof data !== "object") return {};
+  const blocked = new Set(["tokenauth", "token", "accesstoken", "access-token", "jwt", "authkey", "auth_key"]);
+  return Object.fromEntries(
+    Object.entries(data).map(([key, value]) => [
+      key,
+      blocked.has(String(key).toLowerCase()) ? "[redacted]" : value,
+    ])
+  );
+};
+const hasMsg91VerificationProof = (data = {}) => {
+  if (!data || typeof data !== "object") return false;
+  const status = String(data.type || data.status || data.Status || "").toLowerCase();
+  const message = String(data.message || data.Message || data.details || data.Details || "").toLowerCase();
+  return Boolean(
+    data.tokenAuth ||
+      data.token ||
+      data.accessToken ||
+      data["access-token"] ||
+      data.jwt ||
+      status === "success" ||
+      message.includes("verified")
+  );
+};
 const maskOtpKey = (key = "") => {
-  const [purpose, type, value = ""] = String(key).split(":");
+  const [platform, purpose, type, value = ""] = String(key).split(":");
   if (type === "email") {
     const [name = "", domain = ""] = value.split("@");
-    return `${purpose}:${type}:${name.slice(0, 2)}***@${domain}`;
+    return `${platform}:${purpose}:${type}:${name.slice(0, 2)}***@${domain}`;
   }
 
-  return `${purpose}:${type}:${value.slice(0, 3)}****${value.slice(-2)}`;
+  return `${platform}:${purpose}:${type}:${value.slice(0, 3)}****${value.slice(-2)}`;
 };
 
 const logOtpError = (message, err) => {
+  if (err?.code === "SMTP_SEND_FAILED") {
+    console.error(message, {
+      code: err.code,
+      smtpCode: err.smtpCode,
+      smtpDetails: err.smtpDetails,
+    });
+    return;
+  }
+
   if (err?.code === "MOBILE_OTP_PROVIDER_ERROR") {
     console.error(message, {
       code: err.code,
+      provider: err.provider,
+      platform: err.platform,
       providerStatus: err.providerStatus,
+      providerRequestId: err.providerRequestId,
       providerBody: err.providerBody,
     });
     return;
@@ -117,10 +168,11 @@ const logOtpError = (message, err) => {
   console.error(message, err?.message || err);
 };
 
-const storeOtp = ({ parsed, otp, purpose }) => {
-  const key = getOtpKey(parsed, purpose);
+const storeOtp = ({ platform, parsed, otp, purpose }) => {
+  const key = getOtpKey(platform, parsed, purpose);
   otpStore.set(key, {
     otp,
+    platform,
     purpose,
     expiresAt: Date.now() + getOtpTtlMs(),
     verified: false,
@@ -129,13 +181,30 @@ const storeOtp = ({ parsed, otp, purpose }) => {
   return key;
 };
 
-const deliverOtp = async ({ parsed, otp, purpose, isLocalTestOtp }) => {
-  if (parsed.type === "email") {
-    if (isLocalTestOtp && !isProductionLike() && !isSmtpConfigured()) {
-      return;
-    }
+const storeWidgetVerification = ({ platform, parsed, purpose, audit }) => {
+  const key = getOtpKey(platform, parsed, purpose);
+  otpStore.set(key, {
+    otp: "",
+    platform,
+    purpose,
+    provider: "MSG91_WIDGET",
+    providerAudit: audit,
+    expiresAt: Date.now() + getOtpTtlMs(),
+    verified: true,
+    used: true,
+  });
+  return key;
+};
 
+const deliverOtp = async ({ platform, parsed, otp, purpose }) => {
+  if (parsed.type === "email") {
+    if (!isSmtpConfigured(platform)) {
+      const error = new Error("SMTP is not configured");
+      error.code = "SMTP_NOT_CONFIGURED";
+      throw error;
+    }
     await sendOtpEmail({
+      platform,
       to: parsed.value,
       otp,
       purpose: purpose === "forgot-password" ? "password reset" : "account verification",
@@ -143,12 +212,20 @@ const deliverOtp = async ({ parsed, otp, purpose, isLocalTestOtp }) => {
     return;
   }
 
-  if (isLocalTestOtp && !isProductionLike() && !isMobileOtpConfigured()) {
-    return;
+  if (!useLegacyMsg91Api()) {
+    const error = new Error("Mobile OTP must be sent with MSG91 widget");
+    error.code = "MOBILE_OTP_WIDGET_REQUIRED";
+    throw error;
+  }
+
+  if (!isMobileOtpConfigured(platform)) {
+    const error = new Error("Mobile OTP service is not configured");
+    error.code = "MOBILE_OTP_NOT_CONFIGURED";
+    throw error;
   }
 
   try {
-    await sendMobileOtp({ phone: parsed.value, otp });
+    await sendMobileOtp({ phone: parsed.value, otp, platform });
   } catch (err) {
     if (err.code) throw err;
     const error = new Error("Mobile OTP delivery failed");
@@ -156,16 +233,11 @@ const deliverOtp = async ({ parsed, otp, purpose, isLocalTestOtp }) => {
     error.cause = err;
     throw error;
   }
-
-  if (isProductionLike() && isLocalTestOtp) {
-    const error = new Error("Phone OTP delivery is not configured");
-    error.code = "PHONE_OTP_NOT_CONFIGURED";
-    throw error;
-  }
 };
 
 const sendOtpForPurpose = async ({ req, res, purpose = "auth", requireExistingUser = false, genericResponse = false }) => {
   const parsed = parseIdentifier(req.body.identifier || req.body.email);
+  const platform = getRequestPlatform(req);
 
   if (!parsed) {
     return res.status(400).json({ msg: "Enter a valid email or phone number" });
@@ -180,49 +252,26 @@ const sendOtpForPurpose = async ({ req, res, purpose = "auth", requireExistingUs
     }
   }
 
-  const { otp, isLocalTestOtp } = createOtp();
+  const otp = createOtp();
   const normalizedPurpose = getOtpPurpose(purpose);
-  const key = storeOtp({ parsed, otp, purpose: normalizedPurpose });
+  const key = storeOtp({ platform, parsed, otp, purpose: normalizedPurpose });
 
   try {
-    await deliverOtp({ parsed, otp, purpose: normalizedPurpose, isLocalTestOtp });
+    await deliverOtp({ platform, parsed, otp, purpose: normalizedPurpose });
   } catch (err) {
     otpStore.delete(key);
     logOtpError("OTP delivery failed:", err);
 
-    if (err.code === "SMTP_NOT_CONFIGURED") {
-      return res.status(500).json({ msg: "Email service is not configured" });
-    }
-
-    if (err.code === "SMTP_SEND_FAILED") {
-      return res.status(502).json({ msg: "Could not send OTP email. Please try again." });
-    }
-
-    if (err.code === "PHONE_OTP_NOT_CONFIGURED") {
-      return res.status(500).json({ msg: "Phone OTP delivery is not configured" });
-    }
-
-    if (err.code === "MOBILE_OTP_NOT_CONFIGURED") {
-      return res.status(500).json({ msg: "Mobile OTP service is not configured" });
-    }
-
-    if (err.code === "MOBILE_OTP_PROVIDER_UNSUPPORTED") {
-      return res.status(500).json({ msg: "Mobile OTP provider is not supported" });
-    }
-
     return res.status(502).json({ msg: "Could not send OTP. Please try again." });
   }
 
-  if (!isProductionLike() && (isLocalTestOtp || parsed.type === "phone")) {
-    console.log(`${isLocalTestOtp ? "Local test OTP" : "Local OTP"} for ${maskOtpKey(key)}: ${otp}`);
-  } else if (!isProductionLike()) {
+  if (String(process.env.APP_ENV || process.env.NODE_ENV || "").trim().toLowerCase() === "development") {
     console.log(`OTP delivery accepted for ${maskOtpKey(key)}`);
   }
 
   return res.json({
     message: genericResponse ? "If the account exists, an OTP has been sent." : `OTP sent to ${parsed.type}`,
     channel: parsed.type,
-    devOtp: isLocalTestOtp ? otp : undefined,
   });
 };
 
@@ -264,12 +313,13 @@ export const verifyOtp = async (req, res) => {
     const parsed = parseIdentifier(req.body.identifier);
     const otp = String(req.body.otp || "").trim();
     const purpose = getOtpPurpose(req.body.purpose || "auth");
+    const platform = getRequestPlatform(req);
 
     if (!parsed || !otp) {
       return res.status(400).json({ msg: "Identifier and OTP are required" });
     }
 
-    const key = getOtpKey(parsed, purpose);
+    const key = getOtpKey(platform, parsed, purpose);
     const record = otpStore.get(key);
 
     if (!record) {
@@ -282,10 +332,7 @@ export const verifyOtp = async (req, res) => {
     }
 
     if (record.verified && record.used) {
-      return res.json({
-        message: "OTP already verified",
-        channel: parsed.type,
-      });
+      return res.status(400).json({ msg: "Invalid OTP" });
     }
 
     if (record.otp !== otp) {
@@ -303,8 +350,44 @@ export const verifyOtp = async (req, res) => {
   }
 };
 
-export const isOtpVerified = (parsed) => {
-  const key = getOtpKey(parsed, "auth");
+export const verifyMobileWidgetOtp = async (req, res) => {
+  try {
+    const parsed = parseIdentifier(req.body.identifier);
+    const purpose = getOtpPurpose(req.body.purpose || "auth");
+    const platform = getRequestPlatform(req);
+    const msg91 = req.body.msg91 || req.body.providerData || {};
+
+    if (!parsed || parsed.type !== "phone") {
+      return res.status(400).json({ msg: "Valid phone number is required" });
+    }
+
+    if (!hasMsg91VerificationProof(msg91)) {
+      return res.status(400).json({ msg: "OTP verification failed" });
+    }
+
+    const audit = sanitizeMsg91Audit({
+      ...msg91,
+      requestId: req.body.reqId || getProviderRequestId(msg91),
+      verifiedAt: new Date().toISOString(),
+    });
+    const key = storeWidgetVerification({ platform, parsed, purpose, audit });
+
+    if (String(process.env.APP_ENV || process.env.NODE_ENV || "").trim().toLowerCase() === "development") {
+      console.log(`MSG91 widget verification accepted for ${maskOtpKey(key)}`, {
+        provider: "MSG91_WIDGET",
+        requestId: audit.requestId || "",
+      });
+    }
+
+    return res.json({ message: "OTP verified", channel: "phone" });
+  } catch (err) {
+    console.error("MSG91 widget verification failed:", err?.message || err);
+    return res.status(500).json({ msg: "OTP verification failed" });
+  }
+};
+
+export const isOtpVerified = (parsed, platform = "orchardgrowers") => {
+  const key = getOtpKey(platform, parsed, "auth");
   const record = otpStore.get(key);
   if (!record) return false;
 
@@ -316,8 +399,8 @@ export const isOtpVerified = (parsed) => {
   return Boolean(record.verified && record.used);
 };
 
-export const consumeOtpVerification = (parsed) => {
-  otpStore.delete(getOtpKey(parsed, "auth"));
+export const consumeOtpVerification = (parsed, platform = "orchardgrowers") => {
+  otpStore.delete(getOtpKey(platform, parsed, "auth"));
 };
 
 export const resetPasswordWithOtp = async (req, res) => {
@@ -325,6 +408,7 @@ export const resetPasswordWithOtp = async (req, res) => {
     const parsed = parseIdentifier(req.body.identifier || req.body.email);
     const otp = String(req.body.otp || "").trim();
     const password = String(req.body.password || "");
+    const platform = getRequestPlatform(req);
 
     if (!parsed || !otp || !password) {
       return res.status(400).json({ msg: "Identifier, OTP, and new password are required" });
@@ -334,7 +418,7 @@ export const resetPasswordWithOtp = async (req, res) => {
       return res.status(400).json({ msg: "Password must be at least 8 characters and include a letter and a number" });
     }
 
-    const key = getOtpKey(parsed, "forgot-password");
+    const key = getOtpKey(platform, parsed, "forgot-password");
     const record = otpStore.get(key);
 
     if (!record) {
@@ -372,12 +456,13 @@ export const registerUser = async (req, res) => {
   try {
     const { name, identifier, password } = req.body;
     const parsed = parseIdentifier(identifier);
+    const platform = getRequestPlatform(req);
 
     if (!name || !parsed || !password) {
       return res.status(400).json({ msg: "Name, email/phone, and password are required" });
     }
 
-    if (!isOtpVerified(parsed)) {
+    if (!isOtpVerified(parsed, platform)) {
       return res.status(400).json({ msg: "Verify OTP before signup" });
     }
 
@@ -396,7 +481,7 @@ export const registerUser = async (req, res) => {
       role: null,
     });
 
-    otpStore.delete(getOtpKey(parsed, "auth"));
+    consumeOtpVerification(parsed, platform);
 
     res.json({
       message: "User registered successfully",
@@ -413,12 +498,13 @@ export const loginUser = async (req, res) => {
   try {
     const { identifier, password } = req.body;
     const parsed = parseIdentifier(identifier);
+    const platform = getRequestPlatform(req);
 
     if (!parsed || !password) {
       return res.status(400).json({ msg: "Email/phone and password required" });
     }
 
-    if (!isOtpVerified(parsed)) {
+    if (!isOtpVerified(parsed, platform)) {
       return res.status(400).json({ msg: "Verify OTP before login" });
     }
 
@@ -438,19 +524,9 @@ export const loginUser = async (req, res) => {
       return res.status(401).json({ msg: "Invalid password" });
     }
 
-    const accessToken = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "15m" }
-    );
+    const { accessToken, refreshToken } = createTokenPair(user);
 
-    const refreshToken = jwt.sign(
-      { id: user._id },
-      process.env.JWT_REFRESH_SECRET,
-      { expiresIn: "7d" }
-    );
-
-    otpStore.delete(getOtpKey(parsed, "auth"));
+    consumeOtpVerification(parsed, platform);
 
     res.json({
       message: "Login successful",
@@ -462,6 +538,259 @@ export const loginUser = async (req, res) => {
     console.error(err);
     res.status(500).json({ msg: err.message });
   }
+};
+
+const OAUTH_PLATFORMS = new Set(["orchardgrowers", "efruitmandi"]);
+const normalizeOAuthPlatform = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return OAUTH_PLATFORMS.has(normalized) ? normalized : "orchardgrowers";
+};
+const getRequestBaseUrl = (req) => `${req.protocol}://${req.get("host")}`;
+const getOAuthCallbackUrl = (req, provider) => {
+  const envKey = provider === "google" ? "GOOGLE_CALLBACK_URL" : "FACEBOOK_CALLBACK_URL";
+  return process.env[envKey] || `${getRequestBaseUrl(req)}/api/auth/${provider}/callback`;
+};
+const getFrontendUrl = (platform) => {
+  if (platform === "efruitmandi") {
+    return process.env.EFRUITMANDI_CLIENT_URL || process.env.EFRUITMANDI_URL || process.env.CLIENT_URL || "";
+  }
+
+  return process.env.ORCHARDGROWERS_CLIENT_URL || process.env.ORCHARD_URL || process.env.CLIENT_URL || "";
+};
+const getOAuthFallbackUrl = (platform) => {
+  const baseUrl = getFrontendUrl(platform);
+  if (!baseUrl) return "";
+  return `${baseUrl.replace(/\/+$/, "")}${platform === "efruitmandi" ? "/profile" : "/login"}`;
+};
+const redirectOAuthError = (res, platform, message) => {
+  const fallbackUrl = getOAuthFallbackUrl(platform);
+  if (!fallbackUrl) return res.status(400).json({ msg: message });
+
+  const separator = fallbackUrl.includes("?") ? "&" : "?";
+  return res.redirect(`${fallbackUrl}${separator}oauthError=${encodeURIComponent(message)}`);
+};
+const createOAuthState = ({ platform, provider }) =>
+  jwt.sign(
+    { platform: normalizeOAuthPlatform(platform), provider },
+    process.env.JWT_SECRET,
+    { expiresIn: "10m" }
+  );
+const readOAuthState = (state) => {
+  try {
+    return jwt.verify(state, process.env.JWT_SECRET);
+  } catch {
+    return {};
+  }
+};
+const redirectOAuthSuccess = (res, platform, payload) => {
+  const fallbackUrl = getOAuthFallbackUrl(platform);
+  if (!fallbackUrl) return res.json(payload);
+
+  const params = new URLSearchParams({
+    oauth: "success",
+    accessToken: payload.accessToken,
+    refreshToken: payload.refreshToken,
+    user: Buffer.from(JSON.stringify(payload.user), "utf8").toString("base64url"),
+  });
+  return res.redirect(`${fallbackUrl}#${params.toString()}`);
+};
+const createOAuthPassword = async () =>
+  bcrypt.hash(crypto.randomBytes(32).toString("hex"), 10);
+const upsertOAuthUser = async ({ provider, providerId, email, name, avatarUrl }) => {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  if (!providerId || !normalizedEmail) {
+    const error = new Error("OAuth account did not provide a verified email address.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  let user = await User.findOne({
+    $or: [
+      { email: normalizedEmail },
+      { provider, providerId },
+      { oauthProviders: { $elemMatch: { provider, providerId } } },
+    ],
+  });
+
+  if (!user) {
+    user = await User.create({
+      name: name || normalizedEmail.split("@")[0] || "User",
+      email: normalizedEmail,
+      password: await createOAuthPassword(),
+      avatarUrl: avatarUrl || "",
+      provider,
+      providerId,
+      oauthProviders: [{ provider, providerId }],
+      role: null,
+    });
+    return user;
+  }
+
+  if (user.accountStatus && user.accountStatus !== "ACTIVE") {
+    const error = new Error(`Account ${String(user.accountStatus).toLowerCase()}. Contact support.`);
+    error.statusCode = 403;
+    throw error;
+  }
+
+  user.email = user.email || normalizedEmail;
+  user.name = user.name && user.name !== "OrchardGrowers" ? user.name : name || user.name;
+  user.avatarUrl = user.avatarUrl || avatarUrl || "";
+  user.provider = provider;
+  user.providerId = providerId;
+
+  const alreadyLinked = user.oauthProviders?.some(
+    (item) => item.provider === provider && item.providerId === providerId
+  );
+  if (!alreadyLinked) {
+    user.oauthProviders = [...(user.oauthProviders || []), { provider, providerId }];
+  }
+
+  await user.save();
+  return user;
+};
+const completeOAuthLogin = async (res, platform, oauthProfile) => {
+  const user = await upsertOAuthUser(oauthProfile);
+  const tokens = createTokenPair(user);
+  return redirectOAuthSuccess(res, platform, {
+    message: "Login successful",
+    ...tokens,
+    user: safeUserPayload(user),
+  });
+};
+
+export const startGoogleOAuth = (req, res) => {
+  try {
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      return redirectOAuthError(res, normalizeOAuthPlatform(req.query.platform), "Google OAuth is not configured.");
+    }
+
+    const platform = normalizeOAuthPlatform(req.query.platform);
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      getOAuthCallbackUrl(req, "google")
+    );
+    const url = oauth2Client.generateAuthUrl({
+      access_type: "offline",
+      prompt: "select_account",
+      scope: ["openid", "email", "profile"],
+      state: createOAuthState({ platform, provider: "google" }),
+    });
+
+    return res.redirect(url);
+  } catch (err) {
+    console.error("Google OAuth start failed:", err.message || err);
+    return res.status(500).json({ msg: "Could not start Google login" });
+  }
+};
+
+export const handleGoogleOAuthCallback = async (req, res) => {
+  const state = readOAuthState(req.query.state);
+  const platform = normalizeOAuthPlatform(state.platform);
+
+  try {
+    if (!req.query.code) {
+      return redirectOAuthError(res, platform, "Google login was cancelled.");
+    }
+
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      getOAuthCallbackUrl(req, "google")
+    );
+    const { tokens } = await oauth2Client.getToken(String(req.query.code));
+    const ticket = await oauth2Client.verifyIdToken({
+      idToken: tokens.id_token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    const payload = ticket.getPayload() || {};
+
+    return completeOAuthLogin(res, platform, {
+      provider: "google",
+      providerId: payload.sub,
+      email: payload.email,
+      name: payload.name,
+      avatarUrl: payload.picture,
+    });
+  } catch (err) {
+    console.error("Google OAuth callback failed:", err.message || err);
+    return redirectOAuthError(res, platform, err.statusCode ? err.message : "Google login failed.");
+  }
+};
+
+export const startFacebookOAuth = (req, res) => {
+  try {
+    if (!process.env.FACEBOOK_APP_ID || !process.env.FACEBOOK_APP_SECRET) {
+      return redirectOAuthError(res, normalizeOAuthPlatform(req.query.platform), "Facebook OAuth is not configured.");
+    }
+
+    const platform = normalizeOAuthPlatform(req.query.platform);
+    const params = new URLSearchParams({
+      client_id: process.env.FACEBOOK_APP_ID,
+      redirect_uri: getOAuthCallbackUrl(req, "facebook"),
+      state: createOAuthState({ platform, provider: "facebook" }),
+      scope: "email,public_profile",
+      response_type: "code",
+    });
+
+    return res.redirect(`https://www.facebook.com/v19.0/dialog/oauth?${params.toString()}`);
+  } catch (err) {
+    console.error("Facebook OAuth start failed:", err.message || err);
+    return res.status(500).json({ msg: "Could not start Facebook login" });
+  }
+};
+
+export const handleFacebookOAuthCallback = async (req, res) => {
+  const state = readOAuthState(req.query.state);
+  const platform = normalizeOAuthPlatform(state.platform);
+
+  try {
+    if (!req.query.code) {
+      return redirectOAuthError(res, platform, "Facebook login was cancelled.");
+    }
+
+    const tokenRes = await axios.get("https://graph.facebook.com/v19.0/oauth/access_token", {
+      params: {
+        client_id: process.env.FACEBOOK_APP_ID,
+        client_secret: process.env.FACEBOOK_APP_SECRET,
+        redirect_uri: getOAuthCallbackUrl(req, "facebook"),
+        code: req.query.code,
+      },
+    });
+    const profileRes = await axios.get("https://graph.facebook.com/me", {
+      params: {
+        fields: "id,name,email,picture.type(large)",
+        access_token: tokenRes.data.access_token,
+      },
+    });
+    const profile = profileRes.data || {};
+
+    return completeOAuthLogin(res, platform, {
+      provider: "facebook",
+      providerId: profile.id,
+      email: profile.email,
+      name: profile.name,
+      avatarUrl: profile.picture?.data?.url,
+    });
+  } catch (err) {
+    console.error("Facebook OAuth callback failed:", err.response?.data || err.message || err);
+    return redirectOAuthError(res, platform, err.statusCode ? err.message : "Facebook login failed.");
+  }
+};
+
+export const getCurrentAuthUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ msg: "User not found" });
+    return res.json(safeUserPayload(user));
+  } catch (err) {
+    console.error("Auth profile failed:", err.message || err);
+    return res.status(500).json({ msg: "Could not load user" });
+  }
+};
+
+export const logoutUser = async (req, res) => {
+  return res.json({ message: "Logged out" });
 };
 
 // ================= REFRESH TOKEN =================
@@ -484,11 +813,7 @@ export const refreshToken = async (req, res) => {
       return res.status(401).json({ msg: "User not found" });
     }
 
-    const newAccessToken = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "15m" }
-    );
+    const { accessToken: newAccessToken } = createTokenPair(user);
 
     res.json({
       accessToken: newAccessToken,

@@ -293,7 +293,7 @@ function RatingPopup({ product, onClose }: { product: Product | null; onClose: (
             <p className="mt-1 line-clamp-1 text-sm text-slate-600">{product.title || "Orchard Growers product"}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-full px-2 py-1 text-sm font-semibold text-slate-500 hover:bg-slate-100">
-            X
+            ×
           </button>
         </div>
         <div className="mt-4 flex items-center gap-2">
@@ -389,7 +389,7 @@ function ImagePreviewModal({
           className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-lg font-bold text-slate-900 shadow hover:bg-green-50"
           aria-label="Close fullscreen image"
         >
-          X
+          ×
         </button>
       </div>
       {preview.images.length > 1 && (

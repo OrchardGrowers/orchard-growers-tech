@@ -16,8 +16,21 @@ const normalizeApiBase = (value: string) => {
 const API_BASE = normalizeApiBase(
   rawApiBase
 );
+if (!rawApiBase) {
+  console.warn('Missing VITE_API_BASE_URL for admin panel.');
+}
 const FILE_BASE = API_BASE.replace(/\/api\/?$/, '');
 const LOGO_URL = new URL('../logo.png', import.meta.url).href;
+const ADMIN_AUTH_SOURCE = {
+  platform: 'orchardgrowers',
+  sourceApp: 'admin-panel',
+} as const;
+const ADMIN_OTP_RESEND_SECONDS = 60;
+
+const withAdminAuthSource = <T extends Record<string, unknown>>(payload: T) => ({
+  ...payload,
+  ...ADMIN_AUTH_SOURCE,
+});
 
 const adminMemoryStorage = new Map<string, string>();
 
@@ -181,14 +194,17 @@ type FileMeta = {
 type AdminPlatform = 'main' | 'orchard' | 'efruitmandi' | 'userManagement' | 'notifications' | 'system' | 'download' | 'logout';
 type AdminTab =
   | 'dashboard'
+  | 'master'
   | 'inventory'
   | 'productAdmin'
   | 'purchase'
+  | 'billing'
   | 'sales'
   | 'unitsOutlets'
   | 'expenses'
   | 'financials'
   | 'reports'
+  | 'orchardSettings'
   | 'efruitDashboard'
   | 'users'
   | 'kyc'
@@ -208,13 +224,26 @@ type AdminTab =
   | 'notifications'
   | 'systemSettings'
   | 'downloadApp';
+type OrchardModulePages = Partial<Record<AdminTab, string>>;
 type ReviewAction = 'APPROVE' | 'REJECT' | 'HOLD' | 'SUSPEND' | 'TERMINATE';
 type UploadedFile = { label: string; path?: string; fileName?: string };
 type AdminProduct = {
   _id: string;
   title?: string;
+  slug?: string;
+  sku?: string;
+  hsnCode?: string;
+  cgst?: number;
+  sgst?: number;
   fruitName?: string;
   variety?: string;
+  productCategory?: string;
+  productType?: string;
+  unit?: string;
+  seoMetaTitle?: string;
+  seoMetaDescription?: string;
+  featured?: boolean;
+  active?: boolean;
   description?: string;
   quantity?: number;
   basePrice?: number;
@@ -240,8 +269,20 @@ type AdminUser = {
 };
 type ProductDraft = {
   title: string;
+  slug: string;
+  sku: string;
+  hsnCode: string;
+  cgst: string;
+  sgst: string;
   fruitName: string;
   variety: string;
+  productCategory: string;
+  productType: string;
+  unit: string;
+  seoMetaTitle: string;
+  seoMetaDescription: string;
+  featured: boolean;
+  active: boolean;
   description: string;
   quantity: string;
   basePrice: string;
@@ -249,6 +290,11 @@ type ProductDraft = {
   packingType: string;
   status: string;
   images: string;
+  image1: string;
+  image2: string;
+  image3: string;
+  image4: string;
+  image5: string;
 };
 type AdminAuthMode = 'login' | 'signup' | 'forgot' | 'reset';
 
@@ -272,8 +318,20 @@ const marketSnapshotCards = [
 
 const emptyProductDraft: ProductDraft = {
   title: '',
+  slug: '',
+  sku: '',
+  hsnCode: '',
+  cgst: '',
+  sgst: '',
   fruitName: '',
   variety: '',
+  productCategory: '',
+  productType: 'Plant',
+  unit: 'Plant',
+  seoMetaTitle: '',
+  seoMetaDescription: '',
+  featured: false,
+  active: true,
   description: '',
   quantity: '',
   basePrice: '',
@@ -281,10 +339,16 @@ const emptyProductDraft: ProductDraft = {
   packingType: 'Orchard Growers pack',
   status: 'AVAILABLE',
   images: '',
+  image1: '',
+  image2: '',
+  image3: '',
+  image4: '',
+  image5: '',
 };
 
 type AdminTabButton = { id: AdminTab; label: string; count?: number };
-type SidebarMenuItem = { label: string; icon: MenuIconName; tab?: AdminTab; action?: () => void; count?: number; children?: string[] };
+type SidebarSubItem = { label: string; tab?: AdminTab; action?: () => void; count?: number };
+type SidebarMenuItem = { label: string; icon: MenuIconName; tab?: AdminTab; action?: () => void; count?: number; children?: SidebarSubItem[] };
 type SidebarGroup = {
   platform: AdminPlatform;
   title: string;
@@ -300,16 +364,50 @@ type ModulePlan = {
   rules?: string[];
 };
 
+const orchardModuleChildRoutes: Partial<Record<AdminTab, Record<string, AdminTab>>> = {
+  master: {
+    'Add Product': 'productAdmin',
+    'Units / Outlets': 'unitsOutlets',
+  },
+  inventory: {
+    'Production Update': 'inventory',
+    'Purchase Entry': 'purchase',
+    'Current Stock': 'inventory',
+    'Stock Transfer': 'inventory',
+    'Damaged / Dead Stock': 'inventory',
+    'Low Stock Alert': 'inventory',
+  },
+  billing: {
+    'New Invoice': 'billing',
+    'Sales History': 'sales',
+  },
+  financials: {
+    Expenses: 'expenses',
+    Reports: 'reports',
+  },
+};
+
+const defaultOrchardModulePages: Partial<Record<AdminTab, string>> = {
+  master: 'Add Product',
+  inventory: 'Current Stock',
+  billing: 'New Invoice',
+  financials: 'Expenses',
+  orchardSettings: 'Invoice Series',
+};
+
 const adminRoutePaths: Record<AdminTab, string> = {
   dashboard: '/dashboard',
+  master: '/orchard/master',
   inventory: '/orchard/inventory',
   productAdmin: '/orchard/products',
   purchase: '/orchard/purchase',
+  billing: '/orchard/billing',
   sales: '/orchard/sales-invoice',
   unitsOutlets: '/orchard/units-outlets',
   expenses: '/orchard/expenses',
   financials: '/orchard/financials',
   reports: '/orchard/reports',
+  orchardSettings: '/orchard/settings',
   efruitDashboard: '/efruitmandi/dashboard',
   users: '/efruitmandi/users',
   kyc: '/efruitmandi/kyc-verification',
@@ -333,14 +431,17 @@ const adminRoutePaths: Record<AdminTab, string> = {
 
 const adminTabPlatforms: Record<AdminTab, AdminPlatform> = {
   dashboard: 'main',
+  master: 'orchard',
   inventory: 'orchard',
   productAdmin: 'orchard',
   purchase: 'orchard',
+  billing: 'orchard',
   sales: 'orchard',
   unitsOutlets: 'orchard',
   expenses: 'orchard',
   financials: 'orchard',
   reports: 'orchard',
+  orchardSettings: 'orchard',
   efruitDashboard: 'efruitmandi',
   users: 'efruitmandi',
   kyc: 'efruitmandi',
@@ -365,14 +466,11 @@ const adminTabPlatforms: Record<AdminTab, AdminPlatform> = {
 const platformTabs: Record<AdminPlatform, AdminTabButton[]> = {
   main: [{ id: 'dashboard', label: 'Dashboard' }],
   orchard: [
+    { id: 'master', label: 'Master' },
     { id: 'inventory', label: 'Inventory' },
-    { id: 'productAdmin', label: 'Products' },
-    { id: 'purchase', label: 'Purchase' },
-    { id: 'sales', label: 'Sales & Invoice' },
-    { id: 'unitsOutlets', label: 'Units / Outlets' },
-    { id: 'expenses', label: 'Expenses' },
+    { id: 'billing', label: 'Billing' },
     { id: 'financials', label: 'Financials' },
-    { id: 'reports', label: 'Reports' },
+    { id: 'orchardSettings', label: 'Settings' },
   ],
   efruitmandi: [
     { id: 'efruitDashboard', label: 'Dashboard' },
@@ -414,15 +512,32 @@ const adminRoleLabels: Record<AdminRole, string> = {
   VIEWER: 'Viewer',
   EMPLOYEE: 'Admin',
 };
+const classIAdminEmails = new Set([
+  'pawann@orchardgrowers.in',
+  'founder@orchardgrowers.in',
+  'adminho@orchardgrowers.in',
+  'komal@orchardgrowers.in',
+]);
+const classIIAdminEmails = new Set([
+  'testadminclassii@orchardgrowers.in',
+  'hr.ho@orchardgrowers.in',
+  'invest@orchardgrowers.in',
+  'careers@orchardgrowers.in',
+  'grievance@orchardgrowers.in',
+]);
+const classIIIAdminEmails = new Set([
+  'testadminclassiii@orchardgrowers.in',
+  'sales.ffccbb@orchardgrowers.in',
+]);
 const adminRolePermissions: Record<AdminRole, AdminTab[]> = {
   SUPER_ADMIN: allAdminTabs,
   ADMIN: allAdminTabs.filter((tab) => tab !== 'systemSettings'),
   EMPLOYEE: allAdminTabs.filter((tab) => tab !== 'systemSettings'),
-  UNIT_MANAGER: ['dashboard', 'inventory', 'productAdmin', 'sales', 'unitsOutlets', 'expenses', 'reports', 'notifications', 'downloadApp'],
-  INVENTORY_MANAGER: ['dashboard', 'inventory', 'productAdmin', 'reports', 'notifications', 'downloadApp'],
-  SALES_EXECUTIVE: ['dashboard', 'sales', 'customers', 'reports', 'notifications', 'downloadApp'],
-  PURCHASE_MANAGER: ['dashboard', 'inventory', 'purchase', 'reports', 'notifications', 'downloadApp'],
-  FINANCE_MANAGER: ['dashboard', 'expenses', 'financials', 'transactions', 'reports', 'analytics', 'notifications', 'downloadApp'],
+  UNIT_MANAGER: ['dashboard', 'master', 'inventory', 'productAdmin', 'billing', 'sales', 'unitsOutlets', 'expenses', 'reports', 'orchardSettings', 'notifications', 'downloadApp'],
+  INVENTORY_MANAGER: ['dashboard', 'master', 'inventory', 'productAdmin', 'purchase', 'reports', 'notifications', 'downloadApp'],
+  SALES_EXECUTIVE: ['dashboard', 'billing', 'sales', 'customers', 'reports', 'notifications', 'downloadApp'],
+  PURCHASE_MANAGER: ['dashboard', 'master', 'inventory', 'purchase', 'reports', 'notifications', 'downloadApp'],
+  FINANCE_MANAGER: ['dashboard', 'billing', 'expenses', 'financials', 'transactions', 'reports', 'analytics', 'notifications', 'downloadApp'],
   VERIFICATION_OFFICER: ['dashboard', 'efruitDashboard', 'users', 'kyc', 'produceLots', 'sellers', 'buyers', 'suspendedUsers', 'notifications', 'downloadApp'],
   SUPPORT_EXECUTIVE: ['dashboard', 'users', 'customers', 'sellers', 'buyers', 'supportDisputes', 'suspendedUsers', 'notifications', 'downloadApp'],
   VIEWER: ['dashboard', 'reports', 'efruitDashboard', 'analytics', 'notifications', 'downloadApp'],
@@ -438,6 +553,13 @@ const getAccessibleTabsForRole = (role: AdminRole) =>
   allAdminTabs.filter((tab) => canAccessAdminTab(role, tab));
 const getDefaultAdminTab = (role: AdminRole) =>
   (canAccessAdminTab(role, 'dashboard') ? 'dashboard' : getAccessibleTabsForRole(role)[0]) || 'dashboard';
+const getAdminDisplayRole = (admin: Admin) => {
+  const adminEmail = normalizeAdminEmail(admin.email || '');
+  if (classIAdminEmails.has(adminEmail)) return 'Class I || Admins';
+  if (classIIAdminEmails.has(adminEmail)) return 'Class II || Admins';
+  if (classIIIAdminEmails.has(adminEmail)) return 'Class III || Admins';
+  return admin.roleLabel || adminRoleLabels[normalizeAdminRole(admin.role)] || admin.role;
+};
 
 const modulePlans: Partial<Record<AdminTab, ModulePlan>> = {
   dashboard: {
@@ -449,47 +571,39 @@ const modulePlans: Partial<Record<AdminTab, ModulePlan>> = {
     title: 'Notifications',
     text: 'Review admin alerts, pending approvals, verification updates, and operational notices from one place.',
   },
+  master: {
+    title: 'Master',
+    text: 'Central Orchard Growers records for product catalog, outlets, vendors, parties, and categories used by inventory and billing.',
+    pages: ['Products', 'Units / Outlets', 'Vendors / Parties', 'Categories'],
+  },
   inventory: {
-    title: 'Orchard Growers Inventory',
-    text: 'Keep OrchardGrowers.in product inventory, stock movement, outlet stock, online visibility, and stock alerts separate from eFruitMandi marketplace lots.',
-    pages: ['Add Product', 'Product List', 'Categories', 'Current Stock', 'Stock In', 'Stock Out', 'Stock Transfer', 'Damaged / Dead Stock', 'Low Stock Alert'],
-    fields: ['Product Name', 'Category', 'SKU', 'Unit Type', 'Purchase Price', 'Selling Price', 'GST %', 'Opening Stock', 'Current Stock', 'Unit / Outlet', 'Online Visible', 'Status'],
+    title: 'Inventory',
+    text: 'Own manufacturing, nursery production, growing stock, and third-party procurement roll into aggregated live stock for orchardgrowers.in.',
+    pages: ['Production Update', 'Purchase Entry', 'Current Stock', 'Stock Transfer', 'Damaged / Dead Stock', 'Low Stock Alert'],
+    fields: ['Product', 'Aggregated Quantity', 'Unit Breakdown', 'Sale Rate', 'Discount', 'Online Status'],
+    rules: ['Increase stock from production or purchase entries.', 'Reduce stock from online and offline invoices.', 'Sync aggregated stock to orchardgrowers.in listings.'],
   },
   productAdmin: {
-    title: 'Orchard Growers Products',
-    text: 'Create and maintain Orchard Growers product records for the inventory and sales workflow.',
-    fields: ['Product Name', 'Category', 'SKU', 'Unit Type', 'Purchase Price', 'Selling Price', 'GST %', 'Opening Stock', 'Current Stock', 'Unit / Outlet', 'Online Visible', 'Status'],
+    title: 'Product Master',
+    text: 'Create and maintain Orchard Growers catalog records that feed inventory, billing, SEO, and storefront listing data.',
+    fields: ['Product Name', 'Slug', 'SKU', 'HSN Code', 'CGST', 'SGST', 'Category', 'Type', 'Unit', 'SEO', 'Featured', 'Active', 'Images 1-5'],
   },
   purchase: {
-    title: 'Purchase Management',
-    text: 'Manage own-unit purchases, stock transfers, and third-party vendor purchases. Third-party manufacturing is excluded for now.',
-    pages: [
-      'Within Own Unit',
-      'Add Unit',
-      'Unit Purchase Entry',
-      'Unit Stock Transfer',
-      'From Third Party Vendor',
-      'Add Vendor / Party',
-      'Purchase Entry',
-      'Purchase Bill Upload',
-      'Payment Status',
-      'Vendor Ledger',
-    ],
+    title: 'Purchase Entry',
+    text: 'Third-party procurement for Orchard Growers resale with vendor invoice, multi-product rows, GST, rates, transport cost, and stock update.',
+    pages: ['Vendor Selection', 'Invoice Details', 'Product Rows', 'Transport Cost', 'Notes', 'Stock Sync'],
+  },
+  billing: {
+    title: 'Billing',
+    text: 'Single invoice sequence for online and offline sales. Offline invoices reduce stock and online orders enter billing history automatically.',
+    pages: ['New Invoice', 'Sales History', 'Returns / Refunds'],
+    fields: ['Customer', 'Address', 'GST No.', 'Products', 'Quantity', 'Discount', 'Tax', 'Payment Method', 'Notes'],
+    rules: ['Invoice format: OG/2026/0000001', 'Online and offline sales share one sequence.', 'Save invoice reduces aggregated live stock.'],
   },
   sales: {
-    title: 'Sales & Invoice',
-    text: 'Manage Orchard Growers online orders, offline sales, invoices, payment collection, refunds, and delivery status with stock deduction.',
-    pages: [
-      'Online Orders',
-      'Offline Sales',
-      'Create Invoice',
-      'GST Invoice',
-      'Proforma Invoice',
-      'Payment Received',
-      'Pending Payment',
-      'Refund / Cancellation',
-      'Dispatch / Delivery Status',
-    ],
+    title: 'Sales History',
+    text: 'Review Orchard Growers online orders and offline invoice history with shared invoice numbering and stock deductions.',
+    pages: ['Online Orders', 'Offline Sales', 'GST Invoice', 'Payment Received', 'Refund / Cancellation', 'Dispatch / Delivery Status'],
     fields: ['Customer', 'Product', 'Quantity', 'Unit Price', 'Discount', 'GST / Tax', 'Total Amount', 'Payment Mode', 'Unit / Outlet', 'Stock Deduction', 'Invoice PDF'],
   },
   unitsOutlets: {
@@ -516,25 +630,18 @@ const modulePlans: Partial<Record<AdminTab, ModulePlan>> = {
   },
   financials: {
     title: 'Financials',
-    text: 'Track income, payments, ledgers, cashbook, bankbook, profit or loss, and GST / tax reporting.',
-    pages: [
-      'Income',
-      'Expenses',
-      'Purchase Payments',
-      'Customer Payments',
-      'Vendor Ledger',
-      'Customer Ledger',
-      'Cashbook',
-      'Bankbook',
-      'Daily Profit / Loss',
-      'Monthly Profit / Loss',
-      'GST / Tax Report',
-    ],
+    text: 'Financial controls for expenses, GST summary, stock valuation, unit-wise reporting, and operational reports.',
+    pages: ['Expenses', 'GST Summary', 'Sales Report', 'Purchase Report', 'Stock Valuation', 'Unit-wise Performance', 'Low Stock Report'],
   },
   reports: {
     title: 'Reports',
-    text: 'Consolidated Orchard Growers operational reports for inventory, purchase, sales, expense, and finance teams.',
-    pages: ['Inventory Report', 'Purchase Report', 'Sales Report', 'Expense Report', 'Financial Report', 'Unit-wise Report'],
+    text: 'Consolidated Orchard Growers reporting for sales, purchase, GST, stock valuation, unit performance, and low stock controls.',
+    pages: ['Sales Report', 'Purchase Report', 'GST Report', 'Stock Valuation', 'Unit-wise Performance', 'Low Stock Report'],
+  },
+  orchardSettings: {
+    title: 'Settings',
+    text: 'Orchard Growers ERP configuration for storefront stock sync, invoice sequence, tax defaults, and low stock thresholds.',
+    pages: ['Invoice Series', 'Stock Sync', 'GST Defaults', 'Low Stock Thresholds', 'Storefront Visibility'],
   },
   efruitDashboard: {
     title: 'eFruitMandi Dashboard',
@@ -658,6 +765,9 @@ function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [otp, setOtp] = useState('');
+  const [otpCooldown, setOtpCooldown] = useState(0);
+  const [otpVerifiedEmail, setOtpVerifiedEmail] = useState('');
   const [resetToken, setResetToken] = useState('');
   const [message, setMessage] = useState('');
   const [kycRequests, setKycRequests] = useState<KycUser[]>([]);
@@ -678,6 +788,7 @@ function App() {
   const [railResizeStart, setRailResizeStart] = useState<{ x: number; width: number } | null>(null);
   const [fullscreenTarget, setFullscreenTarget] = useState<'announcement' | 'action' | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [orchardModulePages, setOrchardModulePages] = useState<OrchardModulePages>(defaultOrchardModulePages);
   const announcementBarRef = useRef<HTMLElement | null>(null);
   const actionPanelRef = useRef<HTMLDivElement | null>(null);
   const routeTab = getTabFromPath(location.pathname);
@@ -685,6 +796,16 @@ function App() {
   const defaultAllowedTab = getDefaultAdminTab(adminRole);
   const activeTab = canAccessAdminTab(adminRole, routeTab) ? routeTab : defaultAllowedTab;
   const activePlatform = adminTabPlatforms[activeTab];
+
+  useEffect(() => {
+    if (otpCooldown <= 0) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setOtpCooldown((current) => Math.max(0, current - 1));
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [otpCooldown]);
 
   const authHeaders = useMemo(() => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -699,6 +820,9 @@ function App() {
     setMessage('');
     setPassword('');
     setConfirmPassword('');
+    setOtp('');
+    setOtpCooldown(0);
+    setOtpVerifiedEmail('');
     if (mode !== 'reset') setResetToken('');
   };
 
@@ -727,12 +851,87 @@ function App() {
     return true;
   };
 
+  const sendAdminOtp = async () => {
+    setMessage('');
+    if (otpCooldown > 0) return;
+
+    const otpEmail = validateAuthEmail();
+    if (!otpEmail) return;
+
+    if (!API_BASE) {
+      setMessage('Admin API URL is not configured. Set VITE_API_BASE_URL for the admin panel deployment.');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/admin/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(withAdminAuthSource({ email: otpEmail, mode: authMode === 'signup' ? 'signup' : 'login' })),
+      });
+      const data = await readResponseJson(res);
+
+      if (!res.ok) {
+        setMessage(data.msg || 'Could not send OTP.');
+        return;
+      }
+
+      setOtp('');
+      setOtpCooldown(ADMIN_OTP_RESEND_SECONDS);
+      setOtpVerifiedEmail('');
+      setMessage(data.message || 'OTP sent to admin email.');
+    } catch (err) {
+      setMessage(getNetworkErrorMessage(err));
+    }
+  };
+
+  const verifyAdminOtp = async () => {
+    setMessage('');
+    const otpEmail = validateAuthEmail();
+    if (!otpEmail) return;
+
+    if (!otp.trim()) {
+      setMessage('Enter OTP.');
+      return;
+    }
+
+    if (!API_BASE) {
+      setMessage('Admin API URL is not configured. Set VITE_API_BASE_URL for the admin panel deployment.');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/admin/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(withAdminAuthSource({ email: otpEmail, otp: otp.trim() })),
+      });
+      const data = await readResponseJson(res);
+
+      if (!res.ok) {
+        setOtpVerifiedEmail('');
+        setMessage(data.msg || 'OTP verification failed.');
+        return;
+      }
+
+      setOtpVerifiedEmail(otpEmail);
+      setMessage(data.message || 'OTP verified.');
+    } catch (err) {
+      setOtpVerifiedEmail('');
+      setMessage(getNetworkErrorMessage(err));
+    }
+  };
+
   const login = async (event: FormEvent) => {
     event.preventDefault();
     setMessage('');
 
     const loginEmail = validateAuthEmail();
     if (!loginEmail) return;
+    if (otpVerifiedEmail !== loginEmail) {
+      setMessage('Verify OTP before admin login.');
+      return;
+    }
 
     if (!API_BASE) {
       setMessage('Admin API URL is not configured. Set VITE_API_BASE_URL for the admin panel deployment.');
@@ -743,7 +942,7 @@ function App() {
       const res = await fetch(`${API_BASE}/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail, password }),
+        body: JSON.stringify(withAdminAuthSource({ email: loginEmail, password })),
       });
       const data = await readResponseJson(res);
 
@@ -761,6 +960,8 @@ function App() {
       setAdminStorageItem('adminUser', JSON.stringify(data.admin));
       setToken(data.token);
       setAdmin(data.admin);
+      setOtp('');
+      setOtpVerifiedEmail('');
 
       if (location.pathname === '/') {
         navigate(adminRoutePaths.dashboard, { replace: true });
@@ -776,6 +977,10 @@ function App() {
 
     const signupEmail = validateAuthEmail();
     if (!signupEmail || !validateNewPassword()) return;
+    if (otpVerifiedEmail !== signupEmail) {
+      setMessage('Verify OTP before admin signup.');
+      return;
+    }
 
     if (!API_BASE) {
       setMessage('Admin API URL is not configured. Set VITE_API_BASE_URL for the admin panel deployment.');
@@ -786,7 +991,7 @@ function App() {
       const res = await fetch(`${API_BASE}/admin/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email: signupEmail, password, confirmPassword }),
+        body: JSON.stringify(withAdminAuthSource({ name, email: signupEmail, password, confirmPassword })),
       });
       const data = await readResponseJson(res);
 
@@ -804,6 +1009,8 @@ function App() {
       setAdminStorageItem('adminUser', JSON.stringify(data.admin));
       setToken(data.token);
       setAdmin(data.admin);
+      setOtp('');
+      setOtpVerifiedEmail('');
       setPassword('');
       setConfirmPassword('');
 
@@ -831,7 +1038,7 @@ function App() {
       const res = await fetch(`${API_BASE}/admin/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: resetEmail }),
+        body: JSON.stringify(withAdminAuthSource({ email: resetEmail })),
       });
       const data = await readResponseJson(res);
 
@@ -876,12 +1083,12 @@ function App() {
       const res = await fetch(`${API_BASE}/admin/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: JSON.stringify(withAdminAuthSource({
           email: resetEmail,
           token: resetToken.trim(),
           password,
           confirmPassword,
-        }),
+        })),
       });
       const data = await readResponseJson(res);
 
@@ -1121,8 +1328,18 @@ function App() {
         ...productDraft,
         quantity: Number(productDraft.quantity || 0),
         basePrice: Number(productDraft.basePrice || 0),
-        images: productDraft.images
-          .split(/\r?\n|,/)
+        cgst: Number(productDraft.cgst || 0),
+        sgst: Number(productDraft.sgst || 0),
+        fruitName: productDraft.fruitName || productDraft.productCategory,
+        status: productDraft.active ? productDraft.status : 'SOLD',
+        images: [
+          ...productDraft.images.split(/\r?\n|,/),
+          productDraft.image1,
+          productDraft.image2,
+          productDraft.image3,
+          productDraft.image4,
+          productDraft.image5,
+        ]
           .map((image) => image.trim())
           .filter(Boolean),
       }),
@@ -1234,37 +1451,73 @@ function App() {
             : login;
 
     return (
-      <div className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100">
+      <div className={`admin-auth-page min-h-screen bg-slate-950 px-4 text-slate-100 ${authMode === 'signup' ? 'py-2 sm:py-3' : 'py-6 sm:py-10'}`}>
         <InstallAppPrompt />
         <form
           onSubmit={handleAuthSubmit}
-          className="mx-auto max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-xl"
+          autoComplete={authMode === 'login' ? 'off' : undefined}
+          className={`mx-auto max-w-md rounded-2xl border border-slate-800 bg-slate-900 shadow-xl ${authMode === 'signup' ? 'p-4' : 'p-6'}`}
         >
-          <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-400">
+          <p className={`${authMode === 'signup' ? 'text-xs' : 'text-sm'} font-bold uppercase tracking-[0.25em] text-emerald-400`}>
             Admin Panel
           </p>
-          <h1 className="mt-3 text-2xl font-bold text-white">{authFormTitle[authMode]}</h1>
-          {message && <p className="mt-4 rounded bg-red-950 px-3 py-2 text-sm">{message}</p>}
+          <h1 className={`${authMode === 'signup' ? 'mt-2 text-xl' : 'mt-3 text-2xl'} font-bold text-white`}>{authFormTitle[authMode]}</h1>
+          {message && <p className={`${authMode === 'signup' ? 'mt-2 px-3 py-1.5 text-xs' : 'mt-4 px-3 py-2 text-sm'} rounded bg-red-950`}>{message}</p>}
           {authMode === 'signup' && (
-            <label className="mt-5 block text-sm font-semibold">
+            <label className="mt-2 block text-sm font-semibold">
               Name
               <input
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 autoComplete="name"
-                className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-emerald-400"
+                className="mt-1.5 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-emerald-400"
               />
             </label>
           )}
-          <label className="mt-5 block text-sm font-semibold">
+          <label className={`${authMode === 'signup' ? 'mt-2' : 'mt-5'} block text-sm font-semibold`}>
             Email
             <input
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                setOtpVerifiedEmail('');
+                setOtpCooldown(0);
+              }}
               autoComplete="email"
-              className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-emerald-400"
+              className={`${authMode === 'signup' ? 'mt-1.5' : 'mt-2'} w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-emerald-400`}
             />
           </label>
+          {(authMode === 'login' || authMode === 'signup') && (
+            <label className={`${authMode === 'signup' ? 'mt-2' : 'mt-4'} block text-sm font-semibold`}>
+              Enter OTP
+              <div className={`${authMode === 'signup' ? 'mt-1.5' : 'mt-2'} flex gap-2`}>
+                <input
+                  value={otp}
+                  onChange={(event) => {
+                    setOtp(event.target.value);
+                    setOtpVerifiedEmail('');
+                  }}
+                  autoComplete="one-time-code"
+                  className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-emerald-400"
+                />
+                <button
+                  type="button"
+                  onClick={sendAdminOtp}
+                  disabled={otpCooldown > 0}
+                  className="rounded-lg border border-emerald-600 px-3 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-950 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {otpCooldown > 0 ? `${otpCooldown}s` : 'OTP'}
+                </button>
+                <button
+                  type="button"
+                  onClick={verifyAdminOtp}
+                  className="rounded-lg bg-slate-800 px-3 py-2 text-xs font-bold text-white hover:bg-slate-700"
+                >
+                  Verify
+                </button>
+              </div>
+            </label>
+          )}
           {authMode === 'reset' && (
             <label className="mt-4 block text-sm font-semibold">
               Reset Token
@@ -1277,33 +1530,33 @@ function App() {
             </label>
           )}
           {authMode !== 'forgot' && (
-            <label className="mt-4 block text-sm font-semibold">
+            <label className={`${authMode === 'signup' ? 'mt-2' : 'mt-4'} block text-sm font-semibold`}>
               Password
               <input
                 value={password}
                 type="password"
                 onChange={(event) => setPassword(event.target.value)}
-                autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
-                className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-emerald-400"
+                autoComplete={authMode === 'login' ? 'off' : 'new-password'}
+                className={`${authMode === 'signup' ? 'mt-1.5' : 'mt-2'} w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-emerald-400`}
               />
             </label>
           )}
           {(authMode === 'signup' || authMode === 'reset') && (
-            <label className="mt-4 block text-sm font-semibold">
+            <label className={`${authMode === 'signup' ? 'mt-2' : 'mt-4'} block text-sm font-semibold`}>
               Confirm Password
               <input
                 value={confirmPassword}
                 type="password"
                 onChange={(event) => setConfirmPassword(event.target.value)}
                 autoComplete="new-password"
-                className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-emerald-400"
+                className={`${authMode === 'signup' ? 'mt-1.5' : 'mt-2'} w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 outline-none focus:border-emerald-400`}
               />
             </label>
           )}
-          <button className="mt-6 w-full rounded-lg bg-emerald-600 py-3 text-sm font-bold text-white hover:bg-emerald-500">
+          <button className={`${authMode === 'signup' ? 'mt-3 py-2.5' : 'mt-6 py-3'} w-full rounded-lg bg-emerald-600 text-sm font-bold text-white hover:bg-emerald-500`}>
             {authButtonLabel[authMode]}
           </button>
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm font-semibold">
+          <div className={`${authMode === 'signup' ? 'mt-2 gap-y-1 text-xs' : 'mt-4 gap-y-2 text-sm'} flex flex-wrap items-center justify-center gap-x-4 font-semibold`}>
             {authMode !== 'login' && (
               <button type="button" onClick={() => switchAuthMode('login')} className="text-emerald-400 hover:text-emerald-300">
                 Login
@@ -1367,14 +1620,31 @@ function App() {
   const searchedProducts = filterProducts(products, adminSearch);
   const searchedUsers = filterUsers(users, adminSearch);
   const sidebarGroups = getSidebarGroups(countByTab, logout, adminRole);
-  const openTab = (tab: AdminTab) => {
-    if (!canAccessAdminTab(adminRole, tab)) {
+  const getOrchardModulePage = (moduleTab: AdminTab) =>
+    orchardModulePages[moduleTab] || defaultOrchardModulePages[moduleTab] || '';
+  const openTab = (
+    tab: AdminTab,
+    options?: { childLabel?: string; parentTab?: AdminTab }
+  ) => {
+    let nextTab = tab;
+
+    if (options?.childLabel && options.parentTab) {
+      setOrchardModulePages((current) => ({
+        ...current,
+        [options.parentTab as AdminTab]: options.childLabel as string,
+      }));
+    } else {
+      const lastChildLabel = getOrchardModulePage(tab);
+      nextTab = orchardModuleChildRoutes[tab]?.[lastChildLabel] || tab;
+    }
+
+    if (!canAccessAdminTab(adminRole, nextTab)) {
       setMessage('Access denied for your role.');
       navigate(adminRoutePaths[defaultAllowedTab], { replace: true });
       return;
     }
 
-    navigate(adminRoutePaths[tab]);
+    navigate(adminRoutePaths[nextTab]);
   };
   const renderPanel = (tab: AdminTab) => {
     if (tab === 'dashboard') {
@@ -1392,13 +1662,48 @@ function App() {
       );
     }
 
-    if (tab === 'inventory') return <InventoryPanel products={searchedProducts} onUpdateStock={updateProductStock} />;
+    if (tab === 'master') {
+      return (
+        <ModuleLandingPanel
+          plan={modulePlans.master}
+          actions={[
+            { label: 'Products', tab: 'productAdmin' },
+            { label: 'Units / Outlets', tab: 'unitsOutlets' },
+            { label: 'Vendors / Parties', note: 'Party master schema ready for backend expansion' },
+            { label: 'Categories', note: 'Category master schema ready for backend expansion' },
+          ]}
+          onOpenTab={openTab}
+        />
+      );
+    }
+
+    if (tab === 'inventory') {
+      return (
+        <InventoryPanel
+          products={searchedProducts}
+          onUpdateStock={updateProductStock}
+          onOpenTab={openTab}
+          activePage={getOrchardModulePage('inventory')}
+        />
+      );
+    }
     if (tab === 'productAdmin') {
       return (
         <section className="space-y-4">
           <ModulePlanPanel plan={modulePlans.productAdmin} />
           <ProductAdminPanel draft={productDraft} onChange={setProductDraft} onSubmit={saveOrchardProduct} />
         </section>
+      );
+    }
+    if (tab === 'billing') {
+      return (
+        <BillingPanel
+          plan={modulePlans.billing}
+          orders={orders}
+          products={searchedProducts}
+          onOpenTab={openTab}
+          activePage={getOrchardModulePage('billing')}
+        />
       );
     }
     if (tab === 'sales') {
@@ -1409,8 +1714,35 @@ function App() {
         </section>
       );
     }
-    if (['purchase', 'unitsOutlets', 'expenses', 'financials', 'reports'].includes(tab)) {
-      return <ModulePlanPanel plan={modulePlans[tab]} />;
+    if (tab === 'orchardSettings') {
+      return (
+        <ModuleLandingPanel
+          plan={modulePlans.orchardSettings}
+          actions={[
+            { label: 'Invoice Series', note: 'Configure shared OG invoice numbering' },
+            { label: 'Stock Sync', note: 'Storefront aggregated stock sync controls' },
+            { label: 'GST Defaults', note: 'Default CGST and SGST settings' },
+            { label: 'Low Stock Thresholds', note: 'Inventory alert limits by product type' },
+          ]}
+          onOpenTab={openTab}
+        />
+      );
+    }
+    if (tab === 'financials') {
+      return (
+        <ModuleLandingPanel
+          plan={modulePlans.financials}
+          actions={[
+            { label: 'Expenses', tab: 'expenses' },
+            { label: 'GST Summary', note: 'Tax summary workspace ready for backend expansion' },
+            { label: 'Reports', tab: 'reports' },
+          ]}
+          onOpenTab={openTab}
+        />
+      );
+    }
+    if (['purchase', 'unitsOutlets', 'expenses', 'reports'].includes(tab)) {
+      return <ModuleLandingPanel plan={modulePlans[tab]} actions={[]} onOpenTab={openTab} />;
     }
     if (tab === 'efruitDashboard') {
       return (
@@ -1546,7 +1878,7 @@ function App() {
           </label>
           <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-700 bg-slate-900/95 px-3 py-1.5 text-sm font-semibold shadow-sm shadow-black/20">
             <span className="text-emerald-300">{activeTitle}</span>
-            <span className="truncate text-slate-300">{admin.name} | {admin.roleLabel || admin.role}</span>
+            <span className="truncate text-slate-300">{admin.name} | {getAdminDisplayRole(admin)}</span>
             <div className="flex gap-2">
               <button
                 onClick={loadRequests}
@@ -1584,7 +1916,8 @@ function App() {
             groups={sidebarGroups}
             activePlatform={activePlatform}
             activeTab={activeTab}
-            onOpenTab={(tab) => openTab(tab)}
+            activePages={orchardModulePages}
+            onOpenTab={(tab, childLabel, parentTab) => openTab(tab, { childLabel, parentTab })}
             onOpenPlatform={(platform) => openTab(getDefaultTabForPlatform(platform, adminRole))}
             onClose={() => setMobileMenuOpen(false)}
           />
@@ -1597,12 +1930,13 @@ function App() {
           <PlatformRail
             activePlatform={activePlatform}
             activeTab={activeTab}
+            activePages={orchardModulePages}
             groups={sidebarGroups}
             onChange={(platform) => {
               openTab(getDefaultTabForPlatform(platform, adminRole));
             }}
-            onOpenTab={(platform, tab) => {
-              openTab(tab);
+            onOpenTab={(platform, tab, childLabel, parentTab) => {
+              openTab(tab, { childLabel, parentTab });
             }}
           />
 
@@ -1621,6 +1955,11 @@ function App() {
               onChange={openTab}
             />
             <main className="flex-1 min-h-0 overflow-y-auto border-x border-slate-700 bg-slate-950 p-4 text-slate-100">
+              <div className="mb-3 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-500">
+                <span>{activePlatform === 'orchard' ? 'Orchard Growers' : getAdminTabTitle(getDefaultTabForPlatform(activePlatform, adminRole), activePlatform)}</span>
+                <span>/</span>
+                <span className="text-emerald-300">{activeTitle}</span>
+              </div>
               {message && (
                 <p className="mb-4 rounded-lg border border-emerald-600 bg-emerald-950 px-4 py-3 text-sm font-bold text-emerald-100">
                   {message}
@@ -1717,16 +2056,63 @@ function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: (
     {
       platform: 'orchard',
       title: 'Orchard Growers',
-      subtitle: 'Inventory and products',
+      subtitle: 'ERP inventory and billing',
       items: [
-        { label: 'Inventory', icon: 'inventory', tab: 'inventory' },
-        { label: 'Products', icon: 'plus', tab: 'productAdmin' },
-        { label: 'Purchase', icon: 'purchase', tab: 'purchase' },
-        { label: 'Sales & Invoice', icon: 'sales', tab: 'sales' },
-        { label: 'Units / Outlets', icon: 'outlet', tab: 'unitsOutlets' },
-        { label: 'Expenses', icon: 'expense', tab: 'expenses' },
-        { label: 'Financials', icon: 'financials', tab: 'financials' },
-        { label: 'Reports', icon: 'report', tab: 'reports' },
+        {
+          label: 'Master',
+          icon: 'inventory',
+          tab: 'master',
+          children: [
+            { label: 'Add Product', tab: 'productAdmin' },
+            { label: 'Units / Outlets', tab: 'unitsOutlets' },
+            { label: 'Vendors / Parties' },
+            { label: 'Categories' },
+          ],
+        },
+        {
+          label: 'Inventory',
+          icon: 'inventory',
+          tab: 'inventory',
+          children: [
+            { label: 'Production Update', tab: 'inventory' },
+            { label: 'Purchase Entry', tab: 'purchase' },
+            { label: 'Current Stock', tab: 'inventory' },
+            { label: 'Stock Transfer', tab: 'inventory' },
+            { label: 'Damaged / Dead Stock', tab: 'inventory' },
+            { label: 'Low Stock Alert', tab: 'inventory' },
+          ],
+        },
+        {
+          label: 'Billing',
+          icon: 'sales',
+          tab: 'billing',
+          children: [
+            { label: 'New Invoice', tab: 'billing' },
+            { label: 'Sales History', tab: 'sales' },
+            { label: 'Returns / Refunds' },
+          ],
+        },
+        {
+          label: 'Financials',
+          icon: 'financials',
+          tab: 'financials',
+          children: [
+            { label: 'Expenses', tab: 'expenses' },
+            { label: 'GST Summary' },
+            { label: 'Reports', tab: 'reports' },
+          ],
+        },
+        {
+          label: 'Settings',
+          icon: 'settings',
+          tab: 'orchardSettings',
+          children: [
+            { label: 'Invoice Series' },
+            { label: 'Stock Sync' },
+            { label: 'GST Defaults' },
+            { label: 'Low Stock Thresholds' },
+          ],
+        },
       ],
     },
     {
@@ -1796,6 +2182,23 @@ function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: (
     .filter((group) => group.action || group.items.length > 0);
 }
 
+function isSidebarChildActive(
+  item: SidebarMenuItem,
+  child: SidebarSubItem,
+  activeTab: AdminTab,
+  activePages: OrchardModulePages
+) {
+  if (!child.tab) return false;
+  if (child.tab !== activeTab) return false;
+
+  if (item.tab && child.tab === item.tab) {
+    const activePage = activePages[item.tab] || defaultOrchardModulePages[item.tab];
+    return activePage === child.label;
+  }
+
+  return true;
+}
+
 type MenuIconName =
   | 'menu'
   | 'dashboard'
@@ -1825,15 +2228,17 @@ type MenuIconName =
 function PlatformRail({
   activePlatform,
   activeTab,
+  activePages,
   groups,
   onChange,
   onOpenTab,
 }: {
   activePlatform: AdminPlatform;
   activeTab: AdminTab;
+  activePages: OrchardModulePages;
   groups: SidebarGroup[];
   onChange: (platform: AdminPlatform) => void;
-  onOpenTab: (platform: AdminPlatform, tab: AdminTab) => void;
+  onOpenTab: (platform: AdminPlatform, tab: AdminTab, childLabel?: string, parentTab?: AdminTab) => void;
 }) {
   return (
     <aside className="admin-platform-scroll h-full overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/40 p-2">
@@ -1853,22 +2258,46 @@ function PlatformRail({
             </button>
             <div className="mt-3 space-y-1">
               {group.items.map((item) => {
-                const selected = item.tab && activePlatform === group.platform && activeTab === item.tab;
+                const childSelected = item.children?.some((child) => isSidebarChildActive(item, child, activeTab, activePages)) || false;
+                const selected = Boolean(item.tab && activePlatform === group.platform && (activeTab === item.tab || childSelected));
+                const expanded = selected && Boolean(item.children?.length);
                 return (
-                  <button
-                    key={item.label}
-                    type="button"
-                    onClick={() => (item.action ? item.action() : item.tab && onOpenTab(group.platform, item.tab))}
-                    className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold transition ${
-                      selected ? 'bg-emerald-600 text-white' : 'text-slate-200 hover:bg-slate-800 hover:text-white'
-                    }`}
-                  >
-                    <MenuIcon name={item.icon} />
-                    <span>
-                      {item.label}
-                      {typeof item.count === 'number' && ` (${item.count})`}
-                    </span>
-                  </button>
+                  <div key={item.label}>
+                    <button
+                      type="button"
+                      onClick={() => (item.action ? item.action() : item.tab && onOpenTab(group.platform, item.tab))}
+                      className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold transition ${
+                        selected ? 'bg-emerald-600 text-white' : 'text-slate-200 hover:bg-slate-800 hover:text-white'
+                      }`}
+                    >
+                      <MenuIcon name={item.icon} />
+                      <span>
+                        {item.label}
+                        {typeof item.count === 'number' && ` (${item.count})`}
+                      </span>
+                    </button>
+                    {expanded && (
+                      <div className="mt-1 space-y-1 pl-5">
+                        {item.children?.map((child) => {
+                          const childActive = isSidebarChildActive(item, child, activeTab, activePages);
+                          return (
+                            <button
+                              key={child.label}
+                              type="button"
+                              onClick={() => (child.action ? child.action() : child.tab && onOpenTab(group.platform, child.tab, child.label, item.tab))}
+                              disabled={!child.tab && !child.action}
+                              className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[11px] font-bold transition ${
+                                childActive ? 'bg-emerald-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white disabled:cursor-not-allowed disabled:text-slate-500'
+                              }`}
+                            >
+                              <span className="text-emerald-300">.</span>
+                              <span className="min-w-0 truncate">{child.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -1883,6 +2312,7 @@ function MobileAdminMenu({
   groups,
   activePlatform,
   activeTab,
+  activePages,
   onOpenTab,
   onOpenPlatform,
   onClose,
@@ -1890,7 +2320,8 @@ function MobileAdminMenu({
   groups: SidebarGroup[];
   activePlatform: AdminPlatform;
   activeTab: AdminTab;
-  onOpenTab: (tab: AdminTab) => void;
+  activePages: OrchardModulePages;
+  onOpenTab: (tab: AdminTab, childLabel?: string, parentTab?: AdminTab) => void;
   onOpenPlatform: (platform: AdminPlatform) => void;
   onClose: () => void;
 }) {
@@ -1935,22 +2366,49 @@ function MobileAdminMenu({
             </button>
             <div className="mt-2 grid grid-cols-2 gap-1">
               {group.items.map((item) => {
-                const selected = item.tab && activeTab === item.tab;
+                const childSelected = item.children?.some((child) => isSidebarChildActive(item, child, activeTab, activePages)) || false;
+                const selected = Boolean(item.tab && (activeTab === item.tab || childSelected));
+                const expanded = selected && Boolean(item.children?.length);
                 return (
-                  <button
-                    key={item.label}
-                    type="button"
-                    onClick={() => (item.action ? runAction(item.action) : item.tab && onOpenTab(item.tab))}
-                    className={`flex min-h-10 items-center gap-2 rounded-md px-2 py-2 text-left text-[11px] font-bold transition ${
-                      selected ? 'bg-emerald-600 text-white' : 'text-slate-200 hover:bg-slate-800 hover:text-white'
-                    }`}
-                  >
-                    <MenuIcon name={item.icon} />
-                    <span className="min-w-0 truncate">
-                      {item.label}
-                      {typeof item.count === 'number' && ` (${item.count})`}
-                    </span>
-                  </button>
+                  <div key={item.label} className={expanded ? 'col-span-2' : ''}>
+                    <button
+                      type="button"
+                      onClick={() => (item.action ? runAction(item.action) : item.tab && onOpenTab(item.tab))}
+                      className={`flex min-h-10 w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[11px] font-bold transition ${
+                        selected ? 'bg-emerald-600 text-white' : 'text-slate-200 hover:bg-slate-800 hover:text-white'
+                      }`}
+                    >
+                      <MenuIcon name={item.icon} />
+                      <span className="min-w-0 truncate">
+                        {item.label}
+                        {typeof item.count === 'number' && ` (${item.count})`}
+                      </span>
+                    </button>
+                    {expanded && (
+                      <div className="mt-1 grid grid-cols-2 gap-1 pl-4">
+                        {item.children?.map((child) => {
+                          const childActive = isSidebarChildActive(item, child, activeTab, activePages);
+                          return (
+                            <button
+                              key={child.label}
+                              type="button"
+                              onClick={() => {
+                                if (child.action) runAction(child.action);
+                                else if (child.tab) onOpenTab(child.tab, child.label, item.tab);
+                              }}
+                              disabled={!child.tab && !child.action}
+                              className={`flex min-h-8 items-center gap-1 rounded-md px-2 py-1.5 text-left text-[10px] font-bold transition ${
+                                childActive ? 'bg-emerald-700 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white disabled:cursor-not-allowed disabled:text-slate-500'
+                              }`}
+                            >
+                              <span className="text-emerald-300">.</span>
+                              <span className="min-w-0 truncate">{child.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -2218,14 +2676,17 @@ function FullscreenIcon({ active }: { active: boolean }) {
 
 function getAdminTabTitle(activeTab: AdminTab, activePlatform: AdminPlatform) {
   if (activeTab === 'dashboard') return 'Admin Dashboard';
-  if (activeTab === 'inventory') return 'Orchard Growers Inventory System';
-  if (activeTab === 'productAdmin') return 'Orchard Growers Products';
-  if (activeTab === 'purchase') return 'Orchard Growers Purchase';
-  if (activeTab === 'sales') return 'Orchard Growers Sales & Invoice';
+  if (activeTab === 'master') return 'Orchard Growers Master';
+  if (activeTab === 'inventory') return 'Orchard Growers Inventory';
+  if (activeTab === 'productAdmin') return 'Product Master';
+  if (activeTab === 'purchase') return 'Purchase Entry';
+  if (activeTab === 'billing') return 'Orchard Growers Billing';
+  if (activeTab === 'sales') return 'Sales History';
   if (activeTab === 'unitsOutlets') return 'Orchard Growers Units / Outlets';
   if (activeTab === 'expenses') return 'Orchard Growers Expenses';
   if (activeTab === 'financials') return 'Orchard Growers Financials';
   if (activeTab === 'reports') return 'Orchard Growers Reports';
+  if (activeTab === 'orchardSettings') return 'Orchard Growers Settings';
   if (activeTab === 'efruitDashboard') return 'eFruitMandi Dashboard';
   if (activeTab === 'users') return 'eFruitMandi Users';
   if (activeTab === 'notifications') return 'Admin Notifications';
@@ -2451,70 +2912,246 @@ function HomePanel({
   );
 }
 
+type ModuleAction = { label: string; tab?: AdminTab; note?: string };
+
+function ModuleLandingPanel({
+  plan,
+  actions,
+  onOpenTab,
+}: {
+  plan?: ModulePlan;
+  actions: ModuleAction[];
+  onOpenTab: (tab: AdminTab) => void;
+}) {
+  const safePlan = plan || { title: 'Module', text: 'Open module workspace' };
+  const visibleActions = actions.length ? actions : [{ label: safePlan.title, note: safePlan.text }];
+
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-lg font-bold text-white">Quick Actions</h2>
+        <span className="rounded-full bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-300">Compact ERP workflow</span>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {visibleActions.map((action) => (
+          <button
+            key={action.label}
+            type="button"
+            onClick={() => action.tab && onOpenTab(action.tab)}
+            className="rounded-xl border border-slate-800 bg-slate-950 p-4 text-left transition hover:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-70"
+            disabled={!action.tab}
+          >
+            <p className="text-sm font-black text-white">{action.label}</p>
+            <p className="mt-2 text-xs font-semibold leading-5 text-slate-400">{action.note || 'Open module workspace'}</p>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+const getAggregatedInventoryRows = (products: AdminProduct[]) => {
+  const rows = new Map<string, {
+    product: string;
+    quantity: number;
+    breakdown: Map<string, number>;
+    saleRate: number;
+    discount: number;
+    onlineStatus: string;
+  }>();
+
+  products.forEach((product) => {
+    const productName = product.title || product.fruitName || 'Untitled product';
+    const key = productName.trim().toLowerCase();
+    const unitName = product.location || 'Orchard Growers';
+    const quantity = Number(product.quantity || 0);
+    const existing = rows.get(key) || {
+      product: productName,
+      quantity: 0,
+      breakdown: new Map<string, number>(),
+      saleRate: Number(product.basePrice || 0),
+      discount: 0,
+      onlineStatus: product.status === 'AVAILABLE' && product.active !== false ? 'Active' : 'Inactive',
+    };
+
+    existing.quantity += quantity;
+    existing.breakdown.set(unitName, (existing.breakdown.get(unitName) || 0) + quantity);
+    existing.saleRate = Math.max(existing.saleRate, Number(product.basePrice || 0));
+    if (product.status !== 'AVAILABLE' || product.active === false) existing.onlineStatus = 'Inactive';
+    rows.set(key, existing);
+  });
+
+  return Array.from(rows.values()).map((row) => ({
+    ...row,
+    unitBreakdown: Array.from(row.breakdown.entries())
+      .map(([unit, quantity]) => `${unit}: ${quantity}`)
+      .join(', '),
+  }));
+};
+
 function InventoryPanel({
   products,
   onUpdateStock,
+  onOpenTab,
+  activePage,
 }: {
   products: AdminProduct[];
   onUpdateStock: (product: AdminProduct) => void;
+  onOpenTab: (tab: AdminTab) => void;
+  activePage: string;
 }) {
   const lowStock = products.filter((product) => Number(product.quantity || 0) <= 20).length;
+  const aggregatedRows = getAggregatedInventoryRows(products);
+  const totalLiveQuantity = aggregatedRows.reduce((sum, row) => sum + row.quantity, 0);
+  const onlineActiveListings = products.filter((product) => product.status === 'AVAILABLE' && product.active !== false).length;
+
+  if (activePage !== 'Current Stock') {
+    return (
+      <section className="space-y-4">
+        <ModuleLandingPanel
+          plan={{
+            title: activePage || 'Inventory',
+            text: modulePlans.inventory?.text || 'Inventory workflow controls.',
+          }}
+          actions={[
+            { label: activePage || 'Inventory', note: 'Detailed workflow form and backend persistence are ready for incremental expansion.' },
+          ]}
+          onOpenTab={onOpenTab}
+        />
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-4">
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-4">
         <MetricCard label="Total Orchard Products" value={products.length} />
+        <MetricCard label="Total Live Quantity" value={totalLiveQuantity} />
         <MetricCard label="Low Stock Watch" value={lowStock} />
-        <MetricCard label="Available Listings" value={products.filter((product) => product.status === 'AVAILABLE').length} />
+        <MetricCard label="Online Active Listings" value={onlineActiveListings} />
       </div>
-      <ModulePlanPanel plan={modulePlans.inventory} />
-      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-white">Orchard Growers Inventory</h2>
-          <span className="rounded-full bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-300">
-            Stock, price, status
-          </span>
+      <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
+        <div className="flex flex-col gap-2 border-b border-slate-800 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-lg font-bold text-white">Current Stock</h2>
+          <span className="text-xs font-bold text-slate-400">Aggregated across units and outlets</span>
         </div>
-        <div className="space-y-3">
-          {products.map((product) => {
-            const image = product.images?.[0] ? normalizeFileUrl(product.images[0]) : '';
-            return (
-              <article key={product._id} className="grid gap-3 rounded-xl border border-slate-800 bg-slate-950 p-3 md:grid-cols-[84px_minmax(0,1fr)_160px]">
-                <div className="flex h-20 items-center justify-center overflow-hidden rounded-lg bg-slate-900">
-                  {image ? (
-                    <img src={image} alt={product.title || 'Product'} className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="text-xs font-bold text-slate-500">No Image</span>
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <h3 className="truncate text-base font-bold text-white">{product.title || 'Untitled product'}</h3>
-                  <p className="mt-1 text-sm font-semibold text-emerald-300">
-                    {product.fruitName || 'Product'} | {product.variety || 'Orchard Growers'}
-                  </p>
-                  <p className="mt-2 line-clamp-2 text-sm text-slate-400">{product.description || 'No product description added yet.'}</p>
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold">
-                    <span className="rounded-full bg-slate-900 px-2 py-1 text-slate-300">Stock: {product.quantity ?? 0} units</span>
-                    <span className="rounded-full bg-slate-900 px-2 py-1 text-slate-300">Price: Rs. {product.basePrice ?? 0}</span>
-                    <span className="rounded-full bg-slate-900 px-2 py-1 text-slate-300">{product.location || 'Orchard Growers'}</span>
-                  </div>
-                </div>
-                <div className="flex flex-col justify-between gap-3">
-                  <span className="rounded-full bg-emerald-950 px-3 py-1 text-center text-xs font-bold text-emerald-300">
-                    {formatProductStatus(product.status || 'AVAILABLE')}
-                  </span>
-                  <button
-                    onClick={() => onUpdateStock(product)}
-                    className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-500"
-                  >
-                    Update Stock
-                  </button>
-                </div>
-              </article>
-            );
-          })}
-          {!products.length && <EmptyState label="No Orchard Growers products found." />}
+        <div className="overflow-x-auto">
+          <table className="min-w-[760px] w-full text-left text-sm">
+            <thead className="bg-slate-950 text-xs uppercase text-slate-400">
+              <tr>
+                <th className="px-4 py-3">Product</th>
+                <th className="px-4 py-3">Aggregated Quantity</th>
+                <th className="px-4 py-3">Unit Breakdown</th>
+                <th className="px-4 py-3">Sale Rate</th>
+                <th className="px-4 py-3">Discount</th>
+                <th className="px-4 py-3">Online Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800">
+              {aggregatedRows.map((row) => (
+                <tr key={row.product} className="text-slate-200">
+                  <td className="px-4 py-3 font-bold text-white">{row.product}</td>
+                  <td className="px-4 py-3">{row.quantity}</td>
+                  <td className="px-4 py-3 text-slate-400">{row.unitBreakdown || 'Orchard Growers: 0'}</td>
+                  <td className="px-4 py-3">Rs. {row.saleRate}</td>
+                  <td className="px-4 py-3">{row.discount}%</td>
+                  <td className="px-4 py-3">
+                    <span className={`rounded-full px-2 py-1 text-xs font-bold ${row.onlineStatus === 'Active' ? 'bg-emerald-950 text-emerald-300' : 'bg-slate-800 text-slate-400'}`}>
+                      {row.onlineStatus}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!aggregatedRows.length && <EmptyState label="No aggregated stock found." />}
         </div>
+      </div>
+    </section>
+  );
+}
+
+function BillingPanel({
+  plan,
+  orders,
+  products,
+  onOpenTab,
+  activePage,
+}: {
+  plan?: ModulePlan;
+  orders: AdminOrder[];
+  products: AdminProduct[];
+  onOpenTab: (tab: AdminTab) => void;
+  activePage: string;
+}) {
+  const invoicePreview = `OG/${new Date().getFullYear()}/0000001`;
+  const activeProducts = products.filter((product) => product.status === 'AVAILABLE' && product.active !== false);
+
+  if (activePage !== 'New Invoice') {
+    return (
+      <ModuleLandingPanel
+        plan={{ title: activePage || 'Billing', text: plan?.text || 'Billing workflow controls.' }}
+        actions={[
+          { label: activePage || 'Billing', note: 'Detailed billing workflow and backend persistence are ready for incremental expansion.' },
+        ]}
+        onOpenTab={onOpenTab}
+      />
+    );
+  }
+
+  return (
+    <section className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-4">
+        <MetricCard label="Sales History" value={orders.length} />
+        <MetricCard label="Invoice Series" value={1} />
+        <MetricCard label="Billable Products" value={activeProducts.length} />
+        <MetricCard label="Returns / Refunds" value={0} />
+      </div>
+      <div className="grid gap-4">
+        <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-white">New Invoice</h2>
+              <p className="mt-1 text-sm font-semibold text-slate-400">Offline billing scaffold with shared online/offline invoice sequence.</p>
+            </div>
+            <span className="rounded-full bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-300">{invoicePreview}</span>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <AdminInput label="Customer Name" value="" onChange={() => undefined} placeholder="Customer / Firm name" />
+            <AdminInput label="Contact Number" value="" onChange={() => undefined} placeholder="Phone number" />
+            <AdminInput label="GST No. optional" value="" onChange={() => undefined} placeholder="GSTIN" />
+            <AdminInput label="Payment Method" value="" onChange={() => undefined} placeholder="Cash / UPI / Card / Bank" />
+          </div>
+          <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800">
+            <table className="min-w-[640px] w-full text-left text-sm">
+              <thead className="bg-slate-950 text-xs uppercase text-slate-400">
+                <tr>
+                  <th className="px-3 py-3">Product</th>
+                  <th className="px-3 py-3">Qty</th>
+                  <th className="px-3 py-3">Discount</th>
+                  <th className="px-3 py-3">Tax</th>
+                  <th className="px-3 py-3">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="text-slate-400">
+                  <td className="px-3 py-3">Select product</td>
+                  <td className="px-3 py-3">0</td>
+                  <td className="px-3 py-3">0%</td>
+                  <td className="px-3 py-3">Auto</td>
+                  <td className="px-3 py-3">Rs. 0</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {['Save Invoice', 'Print', 'Generate PDF', 'SMS Summary', 'WhatsApp Share'].map((action) => (
+              <button key={action} type="button" className="rounded-lg bg-slate-800 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700">
+                {action}
+              </button>
+            ))}
+          </div>
+        </section>
       </div>
     </section>
   );
@@ -2529,19 +3166,72 @@ function ProductAdminPanel({
   onChange: (draft: ProductDraft) => void;
   onSubmit: (event: FormEvent) => void;
 }) {
-  const update = (field: keyof ProductDraft, value: string) => onChange({ ...draft, [field]: value });
+  const createSlug = (value: string) =>
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  const update = (field: keyof ProductDraft, value: string | boolean) => {
+    const nextDraft = { ...draft, [field]: value };
+    if (field === 'title' && !draft.slug) nextDraft.slug = createSlug(String(value));
+    onChange(nextDraft);
+  };
+  const imageUrls = [draft.image1, draft.image2, draft.image3, draft.image4, draft.image5]
+    .map((image) => image.trim())
+    .filter(Boolean);
 
   return (
     <form onSubmit={onSubmit} className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
       <div className="mb-4">
-        <h2 className="text-lg font-bold text-white">Add Orchard Growers Product</h2>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-lg font-bold text-white">Create Product</h2>
+          <span className="rounded-full bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-300">Product Master</span>
+        </div>
         <p className="mt-1 text-sm font-semibold text-slate-400">
-          Create own-brand products for plants, seeds, tools, organic inputs, services, and orchard supplies.
+          Create own-brand product records for inventory, SEO, storefront sync, and billing.
         </p>
       </div>
+      <div className="mb-4 flex flex-wrap gap-2">
+        {['Basic', 'Tax & Stock', 'SEO', 'Images'].map((tab) => (
+          <span key={tab} className="rounded-full bg-slate-950 px-3 py-1 text-xs font-bold text-slate-300">
+            {tab}
+          </span>
+        ))}
+      </div>
       <div className="grid gap-3 md:grid-cols-2">
-        <AdminInput label="Product name" value={draft.title} onChange={(value) => update('title', value)} placeholder="Winter Hardy Plants Pack" />
-        <AdminInput label="Product category" value={draft.fruitName} onChange={(value) => update('fruitName', value)} placeholder="Live Plants / Tools / Seeds" />
+        <AdminInput label="Product Name" value={draft.title} onChange={(value) => update('title', value)} placeholder="Avocado Plant" />
+        <AdminInput label="Slug" value={draft.slug} onChange={(value) => update('slug', value)} placeholder="avocado-plant" />
+        <AdminInput label="SKU" value={draft.sku} onChange={(value) => update('sku', value)} placeholder="OG-PLANT-001" />
+        <AdminInput label="HSN Code" value={draft.hsnCode} onChange={(value) => update('hsnCode', value)} placeholder="0602" />
+        <AdminInput label="CGST %" value={draft.cgst} onChange={(value) => update('cgst', value)} placeholder="6" type="number" />
+        <AdminInput label="SGST %" value={draft.sgst} onChange={(value) => update('sgst', value)} placeholder="6" type="number" />
+        <AdminInput label="Product Category" value={draft.productCategory} onChange={(value) => update('productCategory', value)} placeholder="Nursery Plants" />
+        <label className="block text-sm font-bold text-slate-300">
+          Product Type
+          <select
+            value={draft.productType}
+            onChange={(event) => update('productType', event.target.value)}
+            className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400"
+          >
+            {['Plant', 'Seeds', 'Tools', 'Fertilizer', 'Equipment', 'Other'].map((type) => (
+              <option key={type} value={type}>{type}</option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm font-bold text-slate-300">
+          Unit
+          <select
+            value={draft.unit}
+            onChange={(event) => update('unit', event.target.value)}
+            className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400"
+          >
+            {['Kg', 'Piece', 'Plant', 'Box', 'Litre'].map((unit) => (
+              <option key={unit} value={unit}>{unit}</option>
+            ))}
+          </select>
+        </label>
+        <AdminInput label="Product category legacy" value={draft.fruitName} onChange={(value) => update('fruitName', value)} placeholder="Live Plants / Tools / Seeds" />
         <AdminInput label="Variety / product line" value={draft.variety} onChange={(value) => update('variety', value)} placeholder="Orchard Growers Premium" />
         <AdminInput label="Location" value={draft.location} onChange={(value) => update('location', value)} placeholder="Orchard Growers" />
         <AdminInput label="Stock units" value={draft.quantity} onChange={(value) => update('quantity', value)} placeholder="100" type="number" />
@@ -2561,7 +3251,7 @@ function ProductAdminPanel({
         </label>
       </div>
       <label className="mt-3 block text-sm font-bold text-slate-300">
-        Product description
+        Product Description Blog
         <textarea
           value={draft.description}
           onChange={(event) => update('description', event.target.value)}
@@ -2570,16 +3260,47 @@ function ProductAdminPanel({
           placeholder="Demo product details for buyers and Orchard Growers showcase."
         />
       </label>
-      <label className="mt-3 block text-sm font-bold text-slate-300">
-        Image URLs
-        <textarea
-          value={draft.images}
-          onChange={(event) => update('images', event.target.value)}
-          rows={3}
-          className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-emerald-400"
-          placeholder="One image URL per line"
-        />
-      </label>
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        <AdminInput label="SEO Meta Title" value={draft.seoMetaTitle} onChange={(value) => update('seoMetaTitle', value)} placeholder="Buy Avocado Plant Online" />
+        <AdminInput label="SEO Meta Description" value={draft.seoMetaDescription} onChange={(value) => update('seoMetaDescription', value)} placeholder="Healthy grafted plants from Orchard Growers." />
+      </div>
+      <div className="mt-3 flex flex-wrap gap-3">
+        <label className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm font-bold text-slate-300">
+          <input type="checkbox" checked={draft.featured} onChange={(event) => update('featured', event.target.checked)} />
+          Featured Product
+        </label>
+        <label className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm font-bold text-slate-300">
+          <input type="checkbox" checked={draft.active} onChange={(event) => update('active', event.target.checked)} />
+          Active
+        </label>
+      </div>
+      <div className="mt-4 rounded-xl border border-dashed border-slate-700 bg-slate-950 p-4">
+        <p className="text-sm font-black text-white">Images</p>
+        <p className="mt-1 text-xs font-semibold text-slate-500">Paste image URLs now. Drag/drop upload storage can attach to these slots later.</p>
+        <div className="mt-3 grid gap-3 md:grid-cols-5">
+          {(['image1', 'image2', 'image3', 'image4', 'image5'] as const).map((field, index) => (
+            <label key={field} className="block text-xs font-bold text-slate-300">
+              image{index + 1}
+              <input
+                value={draft[field]}
+                onChange={(event) => update(field, event.target.value)}
+                placeholder="https://..."
+                className="mt-2 h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 text-white outline-none placeholder:text-slate-600 focus:border-emerald-400"
+              />
+            </label>
+          ))}
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 md:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, index) => {
+            const image = imageUrls[index];
+            return (
+              <div key={index} className="flex aspect-square items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
+                {image ? <img src={image} alt={`Product preview ${index + 1}`} className="h-full w-full object-cover" /> : <span className="text-xs font-bold text-slate-600">Preview</span>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
       <button className="mt-4 rounded-lg bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-500">
         Save Product to Inventory
       </button>

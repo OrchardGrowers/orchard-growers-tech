@@ -6,10 +6,18 @@ import {
   sendOtp,
   resendOtp,
   verifyOtp,
+  verifyMobileWidgetOtp,
   forgotPasswordOtp,
   resetPasswordWithOtp,
+  startGoogleOAuth,
+  handleGoogleOAuthCallback,
+  startFacebookOAuth,
+  handleFacebookOAuthCallback,
+  getCurrentAuthUser,
+  logoutUser,
 } from "../controllers/authController.js";
 import { createRateLimiter } from "../middleware/rateLimit.js";
+import protect from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
@@ -30,10 +38,17 @@ const otpVerifyLimiter = createRateLimiter({
 router.post("/send-otp", otpLimiter, sendOtp);
 router.post("/resend-otp", otpLimiter, resendOtp);
 router.post("/verify-otp", otpVerifyLimiter, verifyOtp);
+router.post("/verify-mobile-widget-otp", otpVerifyLimiter, verifyMobileWidgetOtp);
 router.post("/forgot-password", otpLimiter, forgotPasswordOtp);
 router.post("/reset-password", otpVerifyLimiter, resetPasswordWithOtp);
 router.post("/register", registerUser);
 router.post("/login", loginUser);
 router.post("/refresh", refreshToken);
+router.get("/google", startGoogleOAuth);
+router.get("/google/callback", handleGoogleOAuthCallback);
+router.get("/facebook", startFacebookOAuth);
+router.get("/facebook/callback", handleFacebookOAuthCallback);
+router.get("/me", protect, getCurrentAuthUser);
+router.post("/logout", logoutUser);
 
 export default router;

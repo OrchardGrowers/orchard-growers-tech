@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   FaCheck,
@@ -14,14 +14,48 @@ import {
   FaUser,
 } from "react-icons/fa";
 import API from "../services/api";
+import {
+  getEfruitMandiWidgetId,
+  getEfruitMandiTokenAuth,
+  normalizeIndianMobile,
+  retryMsg91WidgetOtp,
+  sendMsg91WidgetOtp,
+  verifyMsg91WidgetOtp,
+} from "../utils/msg91OtpWidget";
 
 const logoUrl = `${process.env.PUBLIC_URL || ""}/logo.png`;
+const stripApiSuffix = (value = "") => value.trim().replace(/\/+$/, "").replace(/\/api$/i, "");
+const getEfruitOAuthUrl = (provider) => {
+  const configured =
+    provider === "google"
+      ? process.env.VITE_GOOGLE_AUTH_URL || process.env.REACT_APP_GOOGLE_AUTH_URL
+      : process.env.VITE_FACEBOOK_AUTH_URL || process.env.REACT_APP_FACEBOOK_AUTH_URL;
+  if (configured) return configured;
+
+  const apiOrigin = stripApiSuffix(
+    process.env.VITE_API_BASE_URL ||
+      process.env.REACT_APP_API_BASE_URL ||
+      process.env.REACT_APP_API_URL ||
+      ""
+  );
+  return apiOrigin ? `${apiOrigin}/api/auth/${provider}?platform=efruitmandi` : "";
+};
+const readOAuthUser = (encodedUser) => {
+  if (!encodedUser) return null;
+  try {
+    const normalized = encodedUser.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+};
 
 const socialLinks = [
   {
     label: "Continue with Facebook",
     icon: <FaFacebookF />,
-    href: "https://www.facebook.com/login/",
+    provider: "facebook",
     className: "text-[#1877f2]",
   },
   {
@@ -33,7 +67,7 @@ const socialLinks = [
   {
     label: "Continue with Google",
     icon: <FaGoogle />,
-    href: "https://accounts.google.com/",
+    provider: "google",
     className: "text-[#ea4335]",
   },
 ];
@@ -68,8 +102,8 @@ const initialLogin = {
 };
 
 const initialSignup = {
-  name: "OrchardGrowers",
-  identifier: "+910987654321",
+  name: "",
+  identifier: "",
   otp: "",
   password: "",
 };
@@ -105,8 +139,31 @@ export default function Profile() {
     login: "",
     signup: "",
   });
+  const [mobileOtpReqId, setMobileOtpReqId] = useState({
+    login: "",
+    signup: "",
+  });
+  const [mobileOtpSent, setMobileOtpSent] = useState({
+    login: false,
+    signup: false,
+  });
+  const [otpCooldown, setOtpCooldown] = useState({
+    login: 0,
+    signup: 0,
+  });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
+
+  useEffect(() => {
+    if (!otpCooldown.login && !otpCooldown.signup) return undefined;
+    const timer = window.setTimeout(() => {
+      setOtpCooldown((current) => ({
+        login: Math.max(0, current.login - 1),
+        signup: Math.max(0, current.signup - 1),
+      }));
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [otpCooldown]);
 
   const strength = useMemo(
     () => getPasswordStrength(signupForm.password),
@@ -114,11 +171,15 @@ export default function Profile() {
   );
 
   const normalizeContact = (value) => value.trim().toLowerCase();
+  const isPhoneIdentifier = (value) => Boolean(normalizeIndianMobile(value));
 
   const updateIdentifier = (targetMode, value) => {
     const setForm = targetMode === "login" ? setLoginForm : setSignupForm;
     setForm((current) => ({ ...current, identifier: value, otp: "" }));
     setVerifiedContact((current) => ({ ...current, [targetMode]: "" }));
+    setMobileOtpReqId((current) => ({ ...current, [targetMode]: "" }));
+    setMobileOtpSent((current) => ({ ...current, [targetMode]: false }));
+    setOtpCooldown((current) => ({ ...current, [targetMode]: 0 }));
     setMessage({ type: "", text: "" });
   };
 
@@ -131,14 +192,57 @@ export default function Profile() {
   const showError = (text) => setMessage({ type: "error", text });
   const showSuccess = (text) => setMessage({ type: "success", text });
 
+  useEffect(() => {
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const queryParams = new URLSearchParams(location.search);
+    const oauthError = queryParams.get("oauthError");
+
+    if (oauthError) {
+      showError(oauthError);
+      window.history.replaceState({}, document.title, location.pathname);
+      return;
+    }
+
+    if (hashParams.get("oauth") !== "success") return;
+
+    const accessToken = hashParams.get("accessToken");
+    const refreshToken = hashParams.get("refreshToken");
+    const user = readOAuthUser(hashParams.get("user"));
+
+    if (!accessToken || !refreshToken || !user) {
+      showError("Social login response was incomplete. Please try again.");
+      window.history.replaceState({}, document.title, location.pathname);
+      return;
+    }
+
+    saveSession({ accessToken, refreshToken, user });
+    window.history.replaceState({}, document.title, location.pathname);
+    navigate("/profile-dashboard", { replace: true });
+  }, [location.pathname, location.search, navigate]);
+
   const changeMode = (nextMode) => {
     setMode(nextMode);
+    if (nextMode === "signup") {
+      setSignupForm(initialSignup);
+      setAcceptedTerms(false);
+    }
     setMessage({ type: "", text: "" });
+    setVerifiedContact((current) => ({ ...current, [nextMode]: "" }));
+    setMobileOtpReqId((current) => ({ ...current, [nextMode]: "" }));
+    setMobileOtpSent((current) => ({ ...current, [nextMode]: false }));
+    setOtpCooldown((current) => ({ ...current, [nextMode]: 0 }));
   };
 
   const handleSendOtp = async (targetMode) => {
     const form = targetMode === "login" ? loginForm : signupForm;
     const identifier = normalizeContact(form.identifier);
+
+    if (otpCooldown[targetMode] > 0) return;
+
+    if (targetMode === "signup" && !signupForm.name.trim()) {
+      showError("Enter full name before requesting OTP.");
+      return;
+    }
 
     if (!identifier) {
       showError("Enter email or phone number first.");
@@ -147,12 +251,27 @@ export default function Profile() {
 
     try {
       setLoading(true);
-      const res = await API.post("/auth/send-otp", { identifier });
-      const devOtp = res.data?.devOtp ? ` OTP: ${res.data.devOtp}` : "";
+      if (isPhoneIdentifier(identifier)) {
+        const widgetId = getEfruitMandiWidgetId();
+        const tokenAuth = getEfruitMandiTokenAuth();
+        const phone = normalizeIndianMobile(identifier);
+        const result = mobileOtpSent[targetMode]
+          ? await retryMsg91WidgetOtp({ widgetId, tokenAuth, reqId: mobileOtpReqId[targetMode] })
+          : await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone });
+        setMobileOtpReqId((current) => ({ ...current, [targetMode]: result.reqId || "" }));
+        setMobileOtpSent((current) => ({ ...current, [targetMode]: true }));
+        setOtpCooldown((current) => ({ ...current, [targetMode]: 60 }));
+        setVerifiedContact((current) => ({ ...current, [targetMode]: "" }));
+        showSuccess(result.reqId ? "OTP sent to phone." : "OTP sent. Enter the OTP received.");
+        return;
+      }
+
+      const res = await API.post("/auth/send-otp", { identifier, platform: "efruitmandi" });
       setVerifiedContact((current) => ({ ...current, [targetMode]: "" }));
-      showSuccess(`${res.data?.message || "OTP sent."}${devOtp}`);
+      setOtpCooldown((current) => ({ ...current, [targetMode]: 60 }));
+      showSuccess(res.data?.message || "OTP sent.");
     } catch (err) {
-      showError(err.response?.data?.msg || "Unable to send OTP.");
+      showError(err.response?.data?.msg || err.message || "Unable to send OTP.");
     } finally {
       setLoading(false);
     }
@@ -169,9 +288,34 @@ export default function Profile() {
 
     try {
       setLoading(true);
+      if (isPhoneIdentifier(identifier)) {
+        const widgetId = getEfruitMandiWidgetId();
+        const tokenAuth = getEfruitMandiTokenAuth();
+        const reqId = mobileOtpReqId[targetMode];
+        if (!widgetId || !tokenAuth || !mobileOtpSent[targetMode]) {
+          showError("Request phone OTP first.");
+          return;
+        }
+
+        const result = await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp: form.otp.trim(), reqId });
+        await API.post("/auth/verify-mobile-widget-otp", {
+          identifier,
+          platform: "efruitmandi",
+          reqId: result.reqId || reqId,
+          msg91: result.data,
+        });
+        setVerifiedContact((current) => ({
+          ...current,
+          [targetMode]: identifier,
+        }));
+        showSuccess("OTP verified.");
+        return;
+      }
+
       await API.post("/auth/verify-otp", {
         identifier,
         otp: form.otp.trim(),
+        platform: "efruitmandi",
       });
       setVerifiedContact((current) => ({
         ...current,
@@ -179,7 +323,7 @@ export default function Profile() {
       }));
       showSuccess("OTP verified.");
     } catch (err) {
-      showError(err.response?.data?.msg || "OTP verification failed.");
+      showError(err.response?.data?.msg || err.message || "OTP verification failed.");
     } finally {
       setLoading(false);
     }
@@ -206,6 +350,7 @@ export default function Profile() {
       const res = await API.post("/auth/login", {
         identifier,
         password: loginForm.password,
+        platform: "efruitmandi",
       });
 
       saveSession(res.data);
@@ -256,11 +401,13 @@ export default function Profile() {
         name: signupForm.name.trim(),
         identifier,
         password: signupForm.password,
+        platform: "efruitmandi",
       });
 
       const loginRes = await API.post("/auth/login", {
         identifier,
         password: signupForm.password,
+        platform: "efruitmandi",
       });
 
       saveSession(loginRes.data);
@@ -270,6 +417,15 @@ export default function Profile() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const startOAuth = (provider) => {
+    const url = getEfruitOAuthUrl(provider);
+    if (!url) {
+      showError(`${provider === "google" ? "Google" : "Facebook"} login is not configured.`);
+      return;
+    }
+    window.location.href = url;
   };
 
   const activeForm = mode === "login" ? loginForm : signupForm;
@@ -392,6 +548,7 @@ export default function Profile() {
                     onIdentifierChange={(value) => updateIdentifier("login", value)}
                     verified={activeVerified}
                     loading={loading}
+                    otpCooldown={otpCooldown.login}
                     onSendOtp={() => handleSendOtp("login")}
                     onVerifyOtp={() => handleVerifyOtp("login")}
                   />
@@ -438,6 +595,7 @@ export default function Profile() {
                     onIdentifierChange={(value) => updateIdentifier("signup", value)}
                     verified={activeVerified}
                     loading={loading}
+                    otpCooldown={otpCooldown.signup}
                     onSendOtp={() => handleSendOtp("signup")}
                     onVerifyOtp={() => handleVerifyOtp("signup")}
                   />
@@ -488,17 +646,16 @@ export default function Profile() {
 
               <div className="mt-2 flex justify-center gap-3 lg:mt-1.5">
                 {socialLinks.map((item) => (
-                  <a
+                  <button
                     key={item.label}
-                    href={item.href}
-                    target="_blank"
-                    rel="noreferrer"
+                    type="button"
+                    onClick={() => (item.provider ? startOAuth(item.provider) : window.open(item.href, "_blank", "noopener,noreferrer"))}
                     aria-label={item.label}
                     title={item.label}
                     className={`flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 text-lg ${item.className}`}
                   >
                     {item.icon}
-                  </a>
+                  </button>
                 ))}
               </div>
 
@@ -544,6 +701,7 @@ function ContactOtpFields({
   onIdentifierChange,
   verified,
   loading,
+  otpCooldown,
   onSendOtp,
   onVerifyOtp,
 }) {
@@ -583,11 +741,11 @@ function ContactOtpFields({
           />
           <button
             type="button"
-            disabled={loading}
+            disabled={loading || otpCooldown > 0}
             onClick={onSendOtp}
             className="rounded-md bg-green-50 px-3 py-1.5 text-xs font-bold text-green-700 disabled:opacity-50 lg:py-1"
           >
-            <FaPaperPlane className="inline-block" /> Send
+            <FaPaperPlane className="inline-block" /> {otpCooldown > 0 ? `${otpCooldown}s` : "Send"}
           </button>
           <button
             type="button"
