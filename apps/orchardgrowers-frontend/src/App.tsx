@@ -90,17 +90,30 @@ const withOAuthAppParam = (url: string, appName: string) => {
     return `${url}${separator}app=${encodeURIComponent(appName)}`;
   }
 };
-const getOrchardOAuthUrl = (provider: "google" | "facebook") => {
+const addOAuthParams = (url: string, mode: "login" | "signup", termsAccepted: boolean) => {
+  try {
+    const nextUrl = new URL(url);
+    nextUrl.searchParams.set("mode", mode);
+    if (termsAccepted) nextUrl.searchParams.set("termsAccepted", "true");
+    else nextUrl.searchParams.delete("termsAccepted");
+    return nextUrl.toString();
+  } catch {
+    const separator = url.includes("?") ? "&" : "?";
+    const termsParam = termsAccepted ? "&termsAccepted=true" : "";
+    return `${url}${separator}mode=${encodeURIComponent(mode)}${termsParam}`;
+  }
+};
+const getOrchardOAuthUrl = (provider: "google" | "facebook", mode: "login" | "signup", termsAccepted: boolean) => {
   const configured =
     provider === "google"
       ? import.meta.env.VITE_GOOGLE_AUTH_URL
       : import.meta.env.VITE_FACEBOOK_AUTH_URL;
-  if (configured) return withOAuthAppParam(configured, ORCHARD_APP_NAME);
+  if (configured) return addOAuthParams(withOAuthAppParam(configured, ORCHARD_APP_NAME), mode, termsAccepted);
 
   const apiOrigin = stripApiSuffix(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "");
   if (!apiOrigin) return "";
 
-  return `${apiOrigin}/api/auth/${provider}?app=${encodeURIComponent(ORCHARD_APP_NAME)}`;
+  return addOAuthParams(`${apiOrigin}/api/auth/${provider}?app=${encodeURIComponent(ORCHARD_APP_NAME)}`, mode, termsAccepted);
 };
 const readOAuthUser = (encodedUser: string | null): UserProfile | null => {
   if (!encodedUser) return null;
@@ -2744,6 +2757,7 @@ function AuthPage() {
   const [mobileOtpReqId, setMobileOtpReqId] = useState("");
   const [otpCooldown, setOtpCooldown] = useState(0);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [pendingSocialProvider, setPendingSocialProvider] = useState<"google" | "facebook" | null>(null);
 
   useEffect(() => {
     if (otpCooldown <= 0) return;
@@ -2755,9 +2769,14 @@ function AuthPage() {
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     const queryParams = new URLSearchParams(location.search);
     const oauthError = queryParams.get("oauthError");
+    const oauthSignup = queryParams.get("oauthSignup");
 
     if (oauthError) {
       setMessage(oauthError);
+      if (oauthSignup === "google" || oauthSignup === "facebook") {
+        setMode("signup");
+        setAcceptedTerms(false);
+      }
       window.history.replaceState({}, document.title, location.pathname);
       return;
     }
@@ -2865,7 +2884,7 @@ function AuthPage() {
       return;
     }
 
-    if (!acceptedTerms) {
+    if (mode === "signup" && !acceptedTerms) {
       setMessage("Accept Terms & Conditions before continuing.");
       return;
     }
@@ -2914,18 +2933,23 @@ function AuthPage() {
     }
   };
 
-  const startOAuth = (provider: "google" | "facebook") => {
-    if (!acceptedTerms) {
-      setMessage("Accept Terms & Conditions before continuing.");
-      return;
-    }
-
-    const url = getOrchardOAuthUrl(provider);
+  const launchOAuth = (provider: "google" | "facebook", termsAcceptedForSignup = false) => {
+    const url = getOrchardOAuthUrl(provider, mode, mode === "signup" && termsAcceptedForSignup);
     if (!url) {
       setMessage(`${provider === "google" ? "Google" : "Facebook"} login is not configured.`);
       return;
     }
+
     window.location.href = url;
+  };
+
+  const startOAuth = (provider: "google" | "facebook") => {
+    if (mode === "signup") {
+      setPendingSocialProvider(provider);
+      return;
+    }
+
+    launchOAuth(provider, acceptedTerms);
   };
 
   return (
@@ -3065,20 +3089,22 @@ function AuthPage() {
                   Forgot password?
                 </button>
               )}
-              <label className="flex items-start gap-2 rounded-md bg-slate-50 px-3 py-2 text-xs font-medium leading-5 text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={acceptedTerms}
-                  onChange={(event) => setAcceptedTerms(event.target.checked)}
-                  className="mt-1"
-                />
-                <span>
-                  I accept the{" "}
-                  <Link to="/support/termsandconditions" className="font-semibold text-green-800 underline">
-                    Terms & Conditions
-                  </Link>
-                </span>
-              </label>
+              {mode === "signup" && (
+                <label className="flex items-start gap-2 rounded-md bg-slate-50 px-3 py-2 text-xs font-medium leading-5 text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={acceptedTerms}
+                    onChange={(event) => setAcceptedTerms(event.target.checked)}
+                    className="mt-1"
+                  />
+                  <span>
+                    I accept the{" "}
+                    <Link to="/support/termsandconditions" className="font-semibold text-green-800 underline">
+                      Terms & Conditions
+                    </Link>
+                  </span>
+                </label>
+              )}
               <button
                 type="submit"
                 disabled={loading}
@@ -3114,7 +3140,43 @@ function AuthPage() {
           </div>
         </div>
       </div>
+      {pendingSocialProvider && (
+        <TermsSignupModal
+          termsPath="/support/termsandconditions"
+          onCancel={() => setPendingSocialProvider(null)}
+          onAccept={() => {
+            const provider = pendingSocialProvider;
+            setAcceptedTerms(true);
+            setPendingSocialProvider(null);
+            launchOAuth(provider, true);
+          }}
+        />
+      )}
     </section>
+  );
+}
+
+function TermsSignupModal({ termsPath, onCancel, onAccept }: { termsPath: string; onCancel: () => void; onAccept: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/45 px-4">
+      <div className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl">
+        <h2 className="text-lg font-semibold text-slate-950">Accept Terms & Conditions</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          Please accept the Terms & Conditions to create your account with social signup.
+        </p>
+        <Link to={termsPath} className="mt-3 inline-flex text-sm font-semibold text-green-800 underline">
+          Read Terms & Conditions
+        </Link>
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <button type="button" onClick={onCancel} className="rounded-md bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700">
+            Cancel
+          </button>
+          <button type="button" onClick={onAccept} className="rounded-md bg-green-800 px-4 py-2 text-sm font-semibold text-white">
+            Accept & Continue
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

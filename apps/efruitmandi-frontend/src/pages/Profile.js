@@ -36,7 +36,20 @@ const withOAuthAppParam = (url, appName) => {
     return `${url}${separator}app=${encodeURIComponent(appName)}`;
   }
 };
-const getEfruitOAuthUrl = (provider) => {
+const addOAuthParams = (url, mode, termsAccepted) => {
+  try {
+    const nextUrl = new URL(url);
+    nextUrl.searchParams.set("mode", mode);
+    if (termsAccepted) nextUrl.searchParams.set("termsAccepted", "true");
+    else nextUrl.searchParams.delete("termsAccepted");
+    return nextUrl.toString();
+  } catch {
+    const separator = url.includes("?") ? "&" : "?";
+    const termsParam = termsAccepted ? "&termsAccepted=true" : "";
+    return `${url}${separator}mode=${encodeURIComponent(mode)}${termsParam}`;
+  }
+};
+const getEfruitOAuthUrl = (provider, mode, termsAccepted) => {
   const apiOrigin = stripApiSuffix(
     process.env.VITE_API_URL ||
       process.env.VITE_API_BASE_URL ||
@@ -45,14 +58,14 @@ const getEfruitOAuthUrl = (provider) => {
       ""
   );
   if (apiOrigin) {
-    return `${apiOrigin}/api/auth/${provider}?app=${encodeURIComponent(EFRUIT_APP_NAME)}`;
+    return addOAuthParams(`${apiOrigin}/api/auth/${provider}?app=${encodeURIComponent(EFRUIT_APP_NAME)}`, mode, termsAccepted);
   }
 
   const configured =
     provider === "google"
       ? process.env.VITE_GOOGLE_AUTH_URL || process.env.REACT_APP_GOOGLE_AUTH_URL
       : process.env.VITE_FACEBOOK_AUTH_URL || process.env.REACT_APP_FACEBOOK_AUTH_URL;
-  return configured ? withOAuthAppParam(configured, EFRUIT_APP_NAME) : "";
+  return configured ? addOAuthParams(withOAuthAppParam(configured, EFRUIT_APP_NAME), mode, termsAccepted) : "";
 };
 const readOAuthUser = (encodedUser) => {
   if (!encodedUser) return null;
@@ -142,6 +155,7 @@ export default function Profile() {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [pendingSocialProvider, setPendingSocialProvider] = useState(null);
   const [verifiedContact, setVerifiedContact] = useState({
     login: "",
     signup: "",
@@ -203,9 +217,14 @@ export default function Profile() {
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     const queryParams = new URLSearchParams(location.search);
     const oauthError = queryParams.get("oauthError");
+    const oauthSignup = queryParams.get("oauthSignup");
 
     if (oauthError) {
       showError(oauthError);
+      if (oauthSignup === "google" || oauthSignup === "facebook") {
+        setMode("signup");
+        setAcceptedTerms(false);
+      }
       window.history.replaceState({}, document.title, location.pathname);
       return;
     }
@@ -351,11 +370,6 @@ export default function Profile() {
       return;
     }
 
-    if (!acceptedTerms) {
-      showError("Accept Terms & Conditions before continuing.");
-      return;
-    }
-
     try {
       setLoading(true);
       const res = await API.post("/auth/login", {
@@ -431,12 +445,12 @@ export default function Profile() {
   };
 
   const startOAuth = (provider) => {
-    if (!acceptedTerms) {
-      showError("Accept Terms & Conditions before continuing.");
+    if (mode === "signup") {
+      setPendingSocialProvider(provider);
       return;
     }
 
-    const url = getEfruitOAuthUrl(provider);
+    const url = getEfruitOAuthUrl(provider, mode, mode === "signup" && acceptedTerms);
     if (!url) {
       showError(`${provider === "google" ? "Google" : "Facebook"} login is not configured.`);
       return;
@@ -590,7 +604,6 @@ export default function Profile() {
                     Forgot password?
                   </button>
 
-                  <TermsAcceptance checked={acceptedTerms} onChange={setAcceptedTerms} />
                   <SubmitButton loading={loading} label="Login" loadingLabel="Signing in..." />
                 </form>
               ) : (
@@ -683,6 +696,22 @@ export default function Profile() {
         </main>
       </div>
 
+      {pendingSocialProvider && (
+        <TermsSignupModal
+          onCancel={() => setPendingSocialProvider(null)}
+          onAccept={() => {
+            const provider = pendingSocialProvider;
+            setAcceptedTerms(true);
+            setPendingSocialProvider(null);
+            const url = getEfruitOAuthUrl(provider, "signup", true);
+            if (!url) {
+              showError(`${provider === "google" ? "Google" : "Facebook"} signup is not configured.`);
+              return;
+            }
+            window.location.href = url;
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -822,6 +851,30 @@ function PasswordField({
         >
           {visible ? <FaEyeSlash /> : <FaEye />}
         </button>
+      </div>
+    </div>
+  );
+}
+
+function TermsSignupModal({ onCancel, onAccept }) {
+  return (
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/45 px-4">
+      <div className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl">
+        <h2 className="text-lg font-black text-gray-950">Accept Terms & Conditions</h2>
+        <p className="mt-2 text-sm leading-6 text-gray-600">
+          Please accept the Terms & Conditions to create your account with social signup.
+        </p>
+        <Link to="/terms-and-conditions" className="mt-3 inline-flex text-sm font-bold text-green-700 underline">
+          Read Terms & Conditions
+        </Link>
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <button type="button" onClick={onCancel} className="rounded-md bg-gray-100 px-4 py-2 text-sm font-bold text-gray-700">
+            Cancel
+          </button>
+          <button type="button" onClick={onAccept} className="rounded-md bg-green-700 px-4 py-2 text-sm font-bold text-white">
+            Accept & Continue
+          </button>
+        </div>
       </div>
     </div>
   );

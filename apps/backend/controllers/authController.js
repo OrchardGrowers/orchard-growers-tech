@@ -593,13 +593,14 @@ const getOAuthFallbackUrl = (platform) => {
   if (!baseUrl) return "";
   return `${baseUrl.replace(/\/+$/, "")}/login`;
 };
-const redirectOAuthError = (res, platform, message) => {
+const redirectOAuthError = (res, platform, message, extraParams = {}) => {
   const fallbackUrl = getOAuthFallbackUrl(platform);
   if (!fallbackUrl) return res.status(400).json({ msg: message });
 
   const separator = fallbackUrl.includes("?") ? "&" : "?";
   console.log("Redirecting to frontend:", fallbackUrl);
-  return res.redirect(`${fallbackUrl}${separator}oauthError=${encodeURIComponent(message)}`);
+  const params = new URLSearchParams({ oauthError: message, ...extraParams });
+  return res.redirect(`${fallbackUrl}${separator}${params.toString()}`);
 };
 const redirectFacebookMissingEmail = (res, platform) => {
   const fallbackUrl = getOAuthFallbackUrl(platform);
@@ -609,9 +610,13 @@ const redirectFacebookMissingEmail = (res, platform) => {
   console.log("Facebook redirect frontend:", fallbackUrl);
   return res.redirect(`${fallbackUrl}${separator}error=facebook_email_missing`);
 };
-const createOAuthState = ({ platform, provider }) =>
+const normalizeOAuthMode = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized === "signup" ? "signup" : "login";
+};
+const createOAuthState = ({ platform, provider, mode, termsAccepted = false }) =>
   jwt.sign(
-    { platform: normalizeOAuthPlatform(platform), provider },
+    { platform: normalizeOAuthPlatform(platform), provider, mode: normalizeOAuthMode(mode), termsAccepted: Boolean(termsAccepted) },
     process.env.JWT_SECRET,
     { expiresIn: "10m" }
   );
@@ -619,7 +624,7 @@ const readOAuthState = (state) => {
   try {
     return jwt.verify(state, process.env.JWT_SECRET);
   } catch {
-    return {};
+    return { platform: normalizeOAuthPlatform(state) };
   }
 };
 const redirectOAuthSuccess = (res, platform, payload) => {
@@ -638,10 +643,11 @@ const redirectOAuthSuccess = (res, platform, payload) => {
 const createOAuthPassword = async () =>
   bcrypt.hash(crypto.randomBytes(32).toString("hex"), 10);
 const DEFAULT_OAUTH_NAMES = new Set(["", "OrchardGrowers", "User"]);
-const upsertOAuthUser = async ({ provider, providerId, email, name, avatarUrl }) => {
+const upsertOAuthUser = async ({ provider, providerId, email, name, avatarUrl, mode = "login", termsAccepted = false }) => {
   const normalizedEmail = String(email || "").trim().toLowerCase();
   const nextName = String(name || "").trim();
   const nextAvatarUrl = String(avatarUrl || "").trim();
+  const oauthMode = normalizeOAuthMode(mode);
   if (!providerId || !normalizedEmail) {
     const error = new Error("OAuth account did not provide a verified email address.");
     error.statusCode = 400;
@@ -657,6 +663,18 @@ const upsertOAuthUser = async ({ provider, providerId, email, name, avatarUrl })
   });
 
   if (!user) {
+    if (oauthMode === "login") {
+      const error = new Error("Social account is not signed up yet. Please sign up first.");
+      error.statusCode = 404;
+      error.code = "OAUTH_SIGNUP_REQUIRED";
+      throw error;
+    }
+    if (!termsAccepted) {
+      const error = new Error("Accept Terms & Conditions before social signup.");
+      error.statusCode = 400;
+      throw error;
+    }
+
     user = await User.create({
       name: nextName || normalizedEmail.split("@")[0] || "User",
       email: normalizedEmail,
@@ -705,7 +723,17 @@ const upsertOAuthUser = async ({ provider, providerId, email, name, avatarUrl })
   return user;
 };
 const completeOAuthLogin = async (res, platform, oauthProfile) => {
-  const user = await upsertOAuthUser(oauthProfile);
+  let user;
+  try {
+    user = await upsertOAuthUser(oauthProfile);
+  } catch (err) {
+    if (err.code === "OAUTH_SIGNUP_REQUIRED") {
+      return redirectOAuthError(res, platform, err.message, {
+        oauthSignup: oauthProfile.provider,
+      });
+    }
+    throw err;
+  }
   const tokens = createTokenPair(user);
   if (oauthProfile.provider === "facebook") {
     console.log("Facebook redirect frontend:", getOAuthFallbackUrl(platform));
@@ -735,7 +763,12 @@ export const startGoogleOAuth = (req, res) => {
       access_type: "offline",
       prompt: "select_account",
       scope: ["openid", "email", "profile"],
-      state: platform,
+      state: createOAuthState({
+        platform,
+        provider: "google",
+        mode: req.query.mode,
+        termsAccepted: req.query.termsAccepted === "true",
+      }),
     });
 
     return res.redirect(url);
@@ -747,7 +780,8 @@ export const startGoogleOAuth = (req, res) => {
 
 export const handleGoogleOAuthCallback = async (req, res) => {
   console.log("OAuth callback state:", req.query.state);
-  const platform = normalizeOAuthPlatform(req.query.state);
+  const state = readOAuthState(req.query.state);
+  const platform = normalizeOAuthPlatform(state.platform);
   const googleConfig = getGoogleOAuthConfig(platform);
 
   try {
@@ -779,6 +813,8 @@ export const handleGoogleOAuthCallback = async (req, res) => {
       email: payload.email,
       name: payload.name,
       avatarUrl: payload.picture,
+      mode: state.mode,
+      termsAccepted: state.termsAccepted,
     });
   } catch (err) {
     console.error("Google OAuth callback failed:", err.message || err);
@@ -798,7 +834,12 @@ export const startFacebookOAuth = (req, res) => {
     const params = new URLSearchParams({
       client_id: facebookConfig.appId,
       redirect_uri: getOAuthCallbackUrl(req, "facebook"),
-      state: platform,
+      state: createOAuthState({
+        platform,
+        provider: "facebook",
+        mode: req.query.mode,
+        termsAccepted: req.query.termsAccepted === "true",
+      }),
       scope: "email,public_profile",
       response_type: "code",
     });
@@ -812,7 +853,8 @@ export const startFacebookOAuth = (req, res) => {
 
 export const handleFacebookOAuthCallback = async (req, res) => {
   console.log("Facebook OAuth callback state:", req.query.state);
-  const platform = normalizeOAuthPlatform(req.query.state);
+  const state = readOAuthState(req.query.state);
+  const platform = normalizeOAuthPlatform(state.platform);
   const facebookConfig = getFacebookOAuthConfig(platform);
 
   try {
@@ -848,6 +890,8 @@ export const handleFacebookOAuthCallback = async (req, res) => {
       email: profile.email,
       name: profile.name,
       avatarUrl: profile.picture?.data?.url,
+      mode: state.mode,
+      termsAccepted: state.termsAccepted,
     });
   } catch (err) {
     console.error("Facebook OAuth callback failed:", err.response?.data || err.message || err);
