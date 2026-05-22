@@ -69,10 +69,14 @@ const CLASS_III_ADMIN_EMAILS = [
   "testadminclassIII@orchardgrowers.in",
   "sales.ffccbb@orchardgrowers.in",
 ].map(normalizeEmail);
+const ADDITIONAL_ALLOWED_ADMIN_EMAILS = [
+  "Arpit.Aggarwal@anarock.com",
+].map(normalizeEmail);
 const ALLOWED_ADMIN_SIGNUP_EMAILS = new Set([
   ...CLASS_I_ADMIN_EMAILS,
   ...CLASS_II_ADMIN_EMAILS,
   ...CLASS_III_ADMIN_EMAILS,
+  ...ADDITIONAL_ALLOWED_ADMIN_EMAILS,
 ]);
 const ADMIN_SIGNUP_ROLE_BY_EMAIL = new Map(
   [
