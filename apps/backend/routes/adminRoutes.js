@@ -1,9 +1,11 @@
 import express from "express";
+import multer from "multer";
 import Admin from "../models/Admin.js";
 import {
   createAdmin,
   createProductByAdmin,
   deleteAdmin,
+  deleteProductByAdmin,
   deleteUserByAdmin,
   getAdminAnalytics,
   listAdmins,
@@ -25,6 +27,7 @@ import {
   updateProductByAdmin,
   updateUserByAdmin,
   updateVerificationRequestByAdmin,
+  uploadProductImagesByAdmin,
   verifyAdminOtp,
 } from "../controllers/adminController.js";
 import protect, { authorize } from "../middleware/authMiddleware.js";
@@ -84,6 +87,17 @@ const adminOnly = [
   authorize(...ADMIN_ACCESS_ROLES),
   wrapAsync(ensureActiveAdmin),
 ];
+const adminProductImageUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype?.startsWith("image/")) return cb(null, true);
+    return cb(new Error("Only product image uploads are allowed"));
+  },
+  limits: {
+    files: 10,
+    fileSize: 8 * 1024 * 1024,
+  },
+});
 
 router.post("/login", wrapAsync(loginAdmin));
 router.post("/signup", wrapAsync(signupAdmin));
@@ -106,8 +120,10 @@ router.patch("/users/:id/status", ...adminOnly, requireRoles(...USER_WRITE_ROLES
 router.delete("/users/:id", ...adminOnly, requireRoles("SUPER_ADMIN", "ADMIN"), wrapAsync(deleteUserByAdmin));
 
 router.get("/products", ...adminOnly, requireRoles(...PRODUCT_READ_ROLES), wrapAsync(listProductsByAdmin));
-router.post("/products", ...adminOnly, requireRoles(...PRODUCT_WRITE_ROLES), wrapAsync(createProductByAdmin));
+router.post("/product-images", ...adminOnly, requireRoles(...PRODUCT_WRITE_ROLES), adminProductImageUpload.array("images", 10), wrapAsync(uploadProductImagesByAdmin));
+router.post("/products", ...adminOnly, requireRoles(...PRODUCT_WRITE_ROLES), adminProductImageUpload.array("images", 10), wrapAsync(createProductByAdmin));
 router.patch("/products/:id", ...adminOnly, requireRoles(...PRODUCT_WRITE_ROLES), wrapAsync(updateProductByAdmin));
+router.delete("/products/:id", ...adminOnly, requireRoles(...PRODUCT_WRITE_ROLES), wrapAsync(deleteProductByAdmin));
 
 router.get("/verification-requests", ...adminOnly, requireRoles(...VERIFICATION_READ_ROLES), wrapAsync(listVerificationRequests));
 router.patch("/verification-requests/:id", ...adminOnly, requireRoles(...VERIFICATION_WRITE_ROLES), wrapAsync(updateVerificationRequestByAdmin));

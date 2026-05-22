@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   FaCheck,
   FaEnvelope,
@@ -10,7 +10,6 @@ import {
   FaLock,
   FaPaperPlane,
   FaPhoneAlt,
-  FaTwitter,
   FaUser,
 } from "react-icons/fa";
 import API from "../services/api";
@@ -25,20 +24,35 @@ import {
 
 const logoUrl = `${process.env.PUBLIC_URL || ""}/logo.png`;
 const stripApiSuffix = (value = "") => value.trim().replace(/\/+$/, "").replace(/\/api$/i, "");
+const EFRUIT_APP_NAME = process.env.VITE_APP_NAME || process.env.REACT_APP_NAME || "efruitmandi";
+const withOAuthAppParam = (url, appName) => {
+  try {
+    const nextUrl = new URL(url);
+    nextUrl.searchParams.set("app", appName);
+    nextUrl.searchParams.delete("platform");
+    return nextUrl.toString();
+  } catch {
+    const separator = url.includes("?") ? "&" : "?";
+    return `${url}${separator}app=${encodeURIComponent(appName)}`;
+  }
+};
 const getEfruitOAuthUrl = (provider) => {
-  const configured =
-    provider === "google"
-      ? process.env.VITE_GOOGLE_AUTH_URL || process.env.REACT_APP_GOOGLE_AUTH_URL
-      : process.env.VITE_FACEBOOK_AUTH_URL || process.env.REACT_APP_FACEBOOK_AUTH_URL;
-  if (configured) return configured;
-
   const apiOrigin = stripApiSuffix(
-    process.env.VITE_API_BASE_URL ||
+    process.env.VITE_API_URL ||
+      process.env.VITE_API_BASE_URL ||
       process.env.REACT_APP_API_BASE_URL ||
       process.env.REACT_APP_API_URL ||
       ""
   );
-  return apiOrigin ? `${apiOrigin}/api/auth/${provider}?platform=efruitmandi` : "";
+  if (apiOrigin) {
+    return `${apiOrigin}/api/auth/${provider}?app=${encodeURIComponent(EFRUIT_APP_NAME)}`;
+  }
+
+  const configured =
+    provider === "google"
+      ? process.env.VITE_GOOGLE_AUTH_URL || process.env.REACT_APP_GOOGLE_AUTH_URL
+      : process.env.VITE_FACEBOOK_AUTH_URL || process.env.REACT_APP_FACEBOOK_AUTH_URL;
+  return configured ? withOAuthAppParam(configured, EFRUIT_APP_NAME) : "";
 };
 const readOAuthUser = (encodedUser) => {
   if (!encodedUser) return null;
@@ -57,12 +71,6 @@ const socialLinks = [
     icon: <FaFacebookF />,
     provider: "facebook",
     className: "text-[#1877f2]",
-  },
-  {
-    label: "Continue with Twitter",
-    icon: <FaTwitter />,
-    href: "https://twitter.com/i/flow/login",
-    className: "text-[#1d9bf0]",
   },
   {
     label: "Continue with Google",
@@ -96,7 +104,7 @@ const trustBadges = [
 ];
 
 const initialLogin = {
-  identifier: "+910987654321",
+  identifier: "",
   otp: "",
   password: "",
 };
@@ -134,7 +142,6 @@ export default function Profile() {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [showTerms, setShowTerms] = useState(false);
   const [verifiedContact, setVerifiedContact] = useState({
     login: "",
     signup: "",
@@ -224,7 +231,6 @@ export default function Profile() {
     setMode(nextMode);
     if (nextMode === "signup") {
       setSignupForm(initialSignup);
-      setAcceptedTerms(false);
     }
     setMessage({ type: "", text: "" });
     setVerifiedContact((current) => ({ ...current, [nextMode]: "" }));
@@ -345,6 +351,11 @@ export default function Profile() {
       return;
     }
 
+    if (!acceptedTerms) {
+      showError("Accept Terms & Conditions before continuing.");
+      return;
+    }
+
     try {
       setLoading(true);
       const res = await API.post("/auth/login", {
@@ -390,7 +401,7 @@ export default function Profile() {
     }
 
     if (!acceptedTerms) {
-      showError("Accept Terms & Conditions.");
+      showError("Accept Terms & Conditions before continuing.");
       return;
     }
 
@@ -420,6 +431,11 @@ export default function Profile() {
   };
 
   const startOAuth = (provider) => {
+    if (!acceptedTerms) {
+      showError("Accept Terms & Conditions before continuing.");
+      return;
+    }
+
     const url = getEfruitOAuthUrl(provider);
     if (!url) {
       showError(`${provider === "google" ? "Google" : "Facebook"} login is not configured.`);
@@ -540,7 +556,7 @@ export default function Profile() {
 
             <div className="min-h-0 pt-3 lg:pt-2">
               {mode === "login" ? (
-                <form onSubmit={handleLogin}>
+                <form onSubmit={handleLogin} autoComplete="off">
                   <ContactOtpFields
                     mode="login"
                     form={loginForm}
@@ -551,6 +567,7 @@ export default function Profile() {
                     otpCooldown={otpCooldown.login}
                     onSendOtp={() => handleSendOtp("login")}
                     onVerifyOtp={() => handleVerifyOtp("login")}
+                    disableAutofill
                   />
 
                   <PasswordField
@@ -561,7 +578,8 @@ export default function Profile() {
                     }
                     visible={showLoginPassword}
                     onToggle={() => setShowLoginPassword((value) => !value)}
-                    autoComplete="current-password"
+                    autoComplete="new-password"
+                    name="efruitmandi-login-passcode"
                   />
 
                   <button
@@ -572,10 +590,11 @@ export default function Profile() {
                     Forgot password?
                   </button>
 
+                  <TermsAcceptance checked={acceptedTerms} onChange={setAcceptedTerms} />
                   <SubmitButton loading={loading} label="Login" loadingLabel="Signing in..." />
                 </form>
               ) : (
-                <form onSubmit={handleSignup}>
+                <form onSubmit={handleSignup} autoComplete="off">
                   <Field
                     icon={<FaUser />}
                     label="Full Name"
@@ -613,24 +632,7 @@ export default function Profile() {
 
                   <PasswordStrength strength={strength} />
 
-                  <label className="mb-2 flex items-start gap-2 rounded-md bg-gray-50 px-2 py-1.5 text-xs lg:py-1">
-                    <input
-                      type="checkbox"
-                      checked={acceptedTerms}
-                      onChange={(e) => setAcceptedTerms(e.target.checked)}
-                      className="mt-1"
-                    />
-                    <span>
-                      Accept{" "}
-                      <button
-                        type="button"
-                        onClick={() => setShowTerms(true)}
-                        className="font-semibold text-green-700 underline"
-                      >
-                        Terms & Conditions
-                      </button>
-                    </span>
-                  </label>
+                  <TermsAcceptance checked={acceptedTerms} onChange={setAcceptedTerms} />
 
                   <SubmitButton loading={loading} label="Signup" loadingLabel="Creating..." />
                 </form>
@@ -681,16 +683,26 @@ export default function Profile() {
         </main>
       </div>
 
-      {showTerms && (
-        <TermsModal
-          onClose={() => setShowTerms(false)}
-          onAccept={() => {
-            setAcceptedTerms(true);
-            setShowTerms(false);
-          }}
-        />
-      )}
     </div>
+  );
+}
+
+function TermsAcceptance({ checked, onChange }) {
+  return (
+    <label className="mb-2 flex items-start gap-2 rounded-md bg-gray-50 px-2 py-1.5 text-xs lg:py-1">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="mt-1"
+      />
+      <span>
+        I accept the{" "}
+        <Link to="/terms-and-conditions" className="font-semibold text-green-700 underline">
+          Terms & Conditions
+        </Link>
+      </span>
+    </label>
   );
 }
 
@@ -704,6 +716,7 @@ function ContactOtpFields({
   otpCooldown,
   onSendOtp,
   onVerifyOtp,
+  disableAutofill = false,
 }) {
   const contactType = /^\+?\d[\d\s-]{5,}$/.test(form.identifier.trim())
     ? "phone"
@@ -718,7 +731,8 @@ function ContactOtpFields({
           value: form.identifier,
           onChange: (e) => onIdentifierChange(e.target.value),
           placeholder: "Enter email or phone number",
-          autoComplete: mode === "login" ? "username" : "email",
+          autoComplete: disableAutofill ? "off" : mode === "login" ? "username" : "email",
+          name: disableAutofill ? "efruitmandi-login-contact" : `${mode}-identifier`,
         }}
       />
 
@@ -783,6 +797,7 @@ function PasswordField({
   visible,
   onToggle,
   autoComplete,
+  name,
 }) {
   return (
     <div className="mb-2 lg:mb-1.5">
@@ -795,6 +810,7 @@ function PasswordField({
           onChange={(e) => onChange(e.target.value)}
           placeholder="Type your password"
           autoComplete={autoComplete}
+          name={name || "password"}
           className="w-full bg-transparent text-sm outline-none placeholder:text-gray-400"
         />
         <button
@@ -841,36 +857,5 @@ function SubmitButton({ loading, label, loadingLabel }) {
     >
       {loading ? loadingLabel : label}
     </button>
-  );
-}
-
-function TermsModal({ onClose, onAccept }) {
-  return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/45 px-4">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
-        <h3 className="text-lg font-bold">Terms & Conditions</h3>
-        <div className="mt-3 space-y-2 text-sm leading-6 text-gray-600">
-          <p>Use accurate account, product, pricing, and delivery details.</p>
-          <p>Keep OTPs and passwords private. Payment and settlement actions should be done only by authorized users.</p>
-          <p>Marketplace disputes may require verification before settlement is released.</p>
-        </div>
-        <div className="mt-5 flex gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 rounded-full bg-gray-100 py-2 text-sm font-semibold text-gray-700"
-          >
-            Close
-          </button>
-          <button
-            type="button"
-            onClick={onAccept}
-            className="flex-1 rounded-full bg-green-700 py-2 text-sm font-semibold text-white"
-          >
-            <FaCheck className="inline-block" /> Accept
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }

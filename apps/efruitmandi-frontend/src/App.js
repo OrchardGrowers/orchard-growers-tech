@@ -23,6 +23,7 @@ import LotDetails from "./pages/LotDetails";
 import SearchResults from "./pages/SearchResults";
 import GetVerified from "./pages/GetVerified";
 import Kyc from "./pages/Kyc";
+import TermsAndConditions from "./pages/TermsAndConditions";
 
 function App() {
   return (
@@ -57,7 +58,8 @@ function App() {
 
           {/* 💳 Payment */}
           <Route path="payment/:orderId" element={<Payment />} />
-        
+          <Route path="login" element={<Profile />} />
+
             {/* 👤 Profile */}
             <Route path="profile" element={<Profile />} /> 
 
@@ -72,6 +74,7 @@ function App() {
             <Route path="/list-new-lot" element={<ListNewLot />} />
             <Route path="/get-verified" element={<GetVerified />} />
             <Route path="/kyc" element={<Kyc />} />
+            <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
             <Route path="/lots/:lotId" element={<LotDetails />} />
             <Route path="/search" element={<SearchResults />} />
 

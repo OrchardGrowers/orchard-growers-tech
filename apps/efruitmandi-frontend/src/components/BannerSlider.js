@@ -47,7 +47,7 @@ export default function BannerSlider() {
   return (
     <div className="relative overflow-hidden rounded-xl bg-black">
       <div
-        className="flex aspect-[1230/461] transition-transform duration-700"
+        className="flex aspect-[3.45/1] transition-transform duration-700"
         style={{ transform: `translateX(-${index * 100}%)` }}
       >
         {visibleBanners.map((banner, i) => (
@@ -58,7 +58,7 @@ export default function BannerSlider() {
             loading={i === 0 ? "eager" : "lazy"}
             decoding="async"
             onError={() => hideMissingBanner(banner.src)}
-            className="h-full w-full flex-shrink-0 object-contain"
+            className="h-full w-full flex-shrink-0 object-fill"
           />
         ))}
       </div>

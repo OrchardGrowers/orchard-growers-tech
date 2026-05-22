@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { FaChevronLeft, FaChevronRight, FaSearchMinus, FaSearchPlus, FaStar } from "react-icons/fa";
-import { withDemoProducts } from "../demoProducts";
 import { FILE_BASE_URL } from "../services/api";
 import { fetchProducts } from "../services/productService";
 import type { Product } from "../types";
@@ -55,9 +54,9 @@ export default function Products() {
     const load = async () => {
       try {
         const data = await fetchProducts();
-        setProducts(withDemoProducts(data));
+        setProducts(data);
       } catch (err) {
-        setProducts(withDemoProducts([]));
+        setProducts([]);
         setError(null);
       } finally {
         setLoading(false);
@@ -105,12 +104,10 @@ export default function Products() {
               <div className="grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_140px] sm:items-end">
                 <div className="min-w-0 text-sm text-black">
                   <h3 className="line-clamp-1 font-semibold">{product.title || "Product Name"}</h3>
+                  <ProductPriceLine product={product} />
                   <ProductStockLine product={product} />
                   <p className="mt-2 line-clamp-1 font-medium">{product.description || "Product Description"}</p>
-                  <ProductRatingSummary productId={product._id} />
-                  <p className="mt-2 text-xs font-medium leading-4 text-slate-600">
-                    "{getDemoReview(product._id)}"
-                  </p>
+                  <ProductRatingSummary />
                 </div>
                 <div className="grid gap-2 sm:col-start-2 sm:row-start-1 sm:self-end">
                   <button
@@ -128,13 +125,14 @@ export default function Products() {
                 </div>
                 <button
                   type="button"
+                  disabled={!isProductInStock(product)}
                   onClick={() => {
                     const stockIssue = addToCart(product);
                     if (stockIssue) setStockMessage(stockIssue);
                   }}
-                  className="rounded-md bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800 sm:col-start-2 sm:row-start-1 sm:self-end sm:translate-y-[48px]"
+                  className="rounded-md bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-slate-400 disabled:hover:bg-slate-400 sm:col-start-2 sm:row-start-1 sm:self-end sm:translate-y-[48px]"
                 >
-                  Add to Cart
+                  {isProductInStock(product) ? "Add to Cart" : "Currently unavailable"}
                 </button>
               </div>
             </article>
@@ -159,7 +157,7 @@ function ProductImageCarousel({
   const [activeImage, setActiveImage] = useState(0);
 
   if (!images.length) {
-    return <div className="flex h-56 items-center justify-center bg-slate-100 text-slate-400">No image</div>;
+    return <div className="flex min-h-56 items-center justify-center bg-slate-100 text-slate-400">No image</div>;
   }
 
   const activeAlt = `${product.title || "Product"} ${activeImage + 1}`;
@@ -167,14 +165,14 @@ function ProductImageCarousel({
   const showNext = () => setActiveImage((current) => (current + 1) % images.length);
 
   return (
-    <div className="relative h-56 overflow-hidden bg-green-50">
+    <div className="relative overflow-hidden bg-green-50">
       <button
         type="button"
         onClick={() => onOpenImage({ images, activeIndex: activeImage, title: product.title || "Product" })}
-        className="block h-full w-full"
+        className="block w-full"
         aria-label={`Open ${activeAlt} fullscreen`}
       >
-        <img src={images[activeImage]} alt={activeAlt} className="h-full w-full object-cover" />
+        <img src={images[activeImage]} alt={activeAlt} className="block h-auto w-full" />
       </button>
       {images.length > 1 && (
         <>
@@ -209,10 +207,19 @@ function ProductImageCarousel({
 function ProductDescriptionPreview({ product }: { product: Product }) {
   const [expanded, setExpanded] = useState(false);
   const description = product.description || `${product.title || product.fruitName || "This product"} from Orchard Growers.`;
+  const descriptionLines = getStructuredDescriptionLines(description);
 
   return (
     <div className="border-b border-slate-100 p-4 text-sm leading-5 text-slate-700">
-      <p className={expanded ? "" : "line-clamp-2"}>{description}</p>
+      {expanded ? (
+        <div className="space-y-1.5">
+          {descriptionLines.map((line, index) => (
+            <p key={`${line}-${index}`}>{line}</p>
+          ))}
+        </div>
+      ) : (
+        <p className="line-clamp-2">{descriptionLines.join(" ")}</p>
+      )}
       {description.length > 72 && (
         <button
           type="button"
@@ -226,28 +233,56 @@ function ProductDescriptionPreview({ product }: { product: Product }) {
   );
 }
 
+function getStructuredDescriptionLines(description: string) {
+  return description
+    .replace(/\*\*/g, "")
+    .replace(/^\s*#+\s*/, "")
+    .replace(/\s+---\s+/g, "\n")
+    .replace(/\s+-\s+/g, "\n")
+    .replace(/\s+(?=(?:What is|Key Features|Suitable for|Known for|At Orchard Growers|Premium Fruit Stores|Early Harvesting Variety)\b)/g, "\n")
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 function ProductStockLine({ product }: { product: Product }) {
   const stock = getProductStock(product);
   const inStock = isProductInStock(product);
 
   return (
     <p className={`mt-1 text-xs font-semibold ${inStock ? "text-green-700" : "text-rose-600"}`}>
-      {inStock ? `Stock: ${stock} unit${stock === 1 ? "" : "s"}` : "Out of stock"}
+      {inStock ? `Stock: ${stock} unit${stock === 1 ? "" : "s"}` : "Stock: 0 - Currently unavailable"}
     </p>
   );
 }
 
-function ProductRatingSummary({ productId }: { productId: string }) {
-  const rating = getDemoRating(productId);
+function ProductPriceLine({ product }: { product: Product }) {
+  const price = Number(product.basePrice || 0);
+  const discount = Math.max(0, Number(product.discountPercent || 0));
+  const discountedPrice = discount > 0 ? Math.max(0, price - (price * discount) / 100) : price;
 
   return (
+    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs font-bold">
+      {price > 0 && <span className="text-slate-900">Rs. {Math.round(discountedPrice)}</span>}
+      {discount > 0 && (
+        <>
+          <span className="text-slate-400 line-through">Rs. {Math.round(price)}</span>
+          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-700">{discount}% off</span>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ProductRatingSummary() {
+  return (
     <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
-      <span className="flex items-center gap-0.5 text-amber-400" aria-label={`${rating.toFixed(1)} out of 5 stars`}>
+      <span className="flex items-center gap-0.5 text-slate-300" aria-label="No rating yet">
         {Array.from({ length: 5 }, (_, index) => (
-          <FaStar key={index} className={index < Math.round(rating) ? "text-amber-400" : "text-slate-300"} aria-hidden="true" />
+          <FaStar key={index} aria-hidden="true" />
         ))}
       </span>
-      <span className="font-semibold text-slate-700">{rating.toFixed(1)} out of 5</span>
+      <span className="font-semibold text-slate-600">No rating yet</span>
     </div>
   );
 }
@@ -278,7 +313,7 @@ function RatingPopup({ product, onClose }: { product: Product | null; onClose: (
 
   useEffect(() => {
     if (!product) return;
-    setRating(Math.round(getDemoRating(product._id)));
+    setRating(5);
     setComment("");
   }, [product]);
 
@@ -427,26 +462,6 @@ function ImagePreviewModal({
       )}
     </div>
   );
-}
-
-function getDemoRating(productId: string) {
-  const ratings = [4.8, 4.7, 4.9, 4.6, 4.8];
-  return ratings[getStableDemoIndex(productId, ratings.length)];
-}
-
-function getDemoReview(productId: string) {
-  const reviews = [
-    "Healthy plants and neat packaging from Orchard Growers.",
-    "Good quality product, delivered fresh and ready to use.",
-    "Strong growth after planting. Very happy with the quality.",
-    "Clean packing, useful product, and reliable Orchard Growers support.",
-    "Looks premium and performed well in our garden setup.",
-  ];
-  return reviews[getStableDemoIndex(productId, reviews.length)];
-}
-
-function getStableDemoIndex(value: string, length: number) {
-  return Array.from(value || "orchard").reduce((sum, char) => sum + char.charCodeAt(0), 0) % length;
 }
 
 function getProductStock(product: Product) {

@@ -4,13 +4,16 @@ const productSchema = new mongoose.Schema(
   {
     title: String, // Apple, Mango
     slug: { type: String, index: true },
-    sku: { type: String, index: true },
+    sku: { type: String, trim: true },
     hsnCode: String,
+    hsnDescription: String,
+    gstRate: { type: Number, default: 0 },
     cgst: { type: Number, default: 0 },
     sgst: { type: Number, default: 0 },
     fruitName: String,
     variety: String,
     productCategory: String,
+    seasonalCategory: String,
     productType: String,
     unit: String,
     description: String,
@@ -20,6 +23,12 @@ const productSchema = new mongoose.Schema(
     active: { type: Boolean, default: true },
 
     images: [String], // image URLs
+    imagePublicIds: [String],
+    createdSource: {
+      type: String,
+      enum: ["grower", "admin-panel"],
+      default: "grower",
+    },
     gradeLots: [
       {
         grade: String,
@@ -36,6 +45,7 @@ const productSchema = new mongoose.Schema(
     packingWeightKg: Number,
     totalWeightKg: Number,
     basePrice: Number,
+    discountPercent: { type: Number, default: 0 },
     auctionStartTime: Date,
 
     location: String,
@@ -52,6 +62,14 @@ const productSchema = new mongoose.Schema(
     },
   },
   { timestamps: true }
+);
+
+productSchema.index(
+  { sku: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { sku: { $type: "string", $gt: "" } },
+  }
 );
 
 export default mongoose.model("Product", productSchema);

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { FaBell, FaSeedling } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import API from "../services/api";
+import { getEfruitMandiProducts } from "../utils/marketProducts";
 
 export default function Notifications() {
   const navigate = useNavigate();
@@ -12,7 +13,7 @@ export default function Notifications() {
     const loadLots = async () => {
       try {
         const res = await API.get("/products");
-        const latestLots = (res.data || [])
+        const latestLots = getEfruitMandiProducts(res.data)
           .slice()
           .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
           .slice(0, 12);

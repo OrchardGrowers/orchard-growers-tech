@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { FaEye, FaSearch, FaSeedling } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
+import { getEfruitMandiProducts } from "../utils/marketProducts";
 
 export default function SearchResults() {
   const navigate = useNavigate();
@@ -14,7 +15,7 @@ export default function SearchResults() {
     const loadProducts = async () => {
       try {
         const res = await API.get("/products");
-        setProducts(res.data || []);
+        setProducts(getEfruitMandiProducts(res.data));
       } catch (err) {
         console.error(err);
         setProducts([]);

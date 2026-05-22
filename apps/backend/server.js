@@ -15,11 +15,13 @@ import deliveryRoutes from "./routes/deliveryRoutes.js";
 import billdeskRoutes from "./routes/billdeskRoutes.js";
 import mandiRatesRoutes from "./routes/mandiRatesRoutes.js";
 import verificationRoutes from "./routes/verificationRoutes.js";
+import hsnRoutes from "./routes/hsnRoutes.js";
 
 import Auction from "./models/Auction.js";
 import Order from "./models/Order.js";
 import Product from "./models/Product.js";
 import User from "./models/User.js";
+import { seedHsnMaster } from "./models/HsnMaster.js";
 
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -34,6 +36,9 @@ app.set("trust proxy", 1);
 (async () => {
   try {
     dbConnected = await connectDB();
+    if (dbConnected) {
+      await seedHsnMaster();
+    }
     if (!dbConnected) {
       console.warn("⚠️  WARNING: Server running in offline mode without database connection.");
     }
@@ -165,6 +170,7 @@ app.use("/api/delivery", deliveryRoutes);
 app.use("/api/billdesk", billdeskRoutes);
 app.use("/api/mandi-rates", mandiRatesRoutes);
 app.use("/api/verification-requests", verificationRoutes);
+app.use("/api/hsn", hsnRoutes);
 
 app.get("/", (req, res) => {
   res.send("API Running...");

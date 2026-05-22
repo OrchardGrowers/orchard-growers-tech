@@ -22,10 +22,10 @@ import {
 export default function RegisterGrower() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
-    orchardName: "OrcahrdGrowers",
+    orchardName: "",
     designation: "",
     location: "",
-    contact: "+910987654321",
+    contact: "",
   });
   const [loading, setLoading] = useState(false);
   const [otp, setOtp] = useState("");

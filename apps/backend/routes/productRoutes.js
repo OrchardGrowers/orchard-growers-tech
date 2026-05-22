@@ -2,6 +2,7 @@ import express from "express";
 import {
   createProduct,
   deleteProduct,
+  generateSku,
   getProductById,
   getProducts,
 } from "../controllers/productController.js";
@@ -21,6 +22,7 @@ router.post(
 );
 
 router.get("/", optionalProtect, getProducts);
+router.get("/generate-sku", protect, generateSku);
 router.get("/:id", optionalProtect, getProductById);
 router.delete("/:id", protect, authorize("grower"), deleteProduct);
 

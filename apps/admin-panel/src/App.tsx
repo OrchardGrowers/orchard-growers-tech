@@ -72,6 +72,10 @@ const readAdminJson = <T,>(key: string): T | null => {
     return null;
   }
 };
+const readAdminThemeMode = (): AdminThemeMode => {
+  const stored = getAdminStorageItem(ADMIN_THEME_KEY);
+  return stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
+};
 
 const readResponseJson = async (res: Response) => {
   const text = await res.text();
@@ -192,6 +196,7 @@ type FileMeta = {
 };
 
 type AdminPlatform = 'main' | 'orchard' | 'efruitmandi' | 'userManagement' | 'notifications' | 'system' | 'download' | 'logout';
+type AdminThemeMode = 'light' | 'dark' | 'system';
 type AdminTab =
   | 'dashboard'
   | 'master'
@@ -233,11 +238,14 @@ type AdminProduct = {
   slug?: string;
   sku?: string;
   hsnCode?: string;
+  hsnDescription?: string;
+  gstRate?: number;
   cgst?: number;
   sgst?: number;
   fruitName?: string;
   variety?: string;
   productCategory?: string;
+  seasonalCategory?: string;
   productType?: string;
   unit?: string;
   seoMetaTitle?: string;
@@ -247,10 +255,12 @@ type AdminProduct = {
   description?: string;
   quantity?: number;
   basePrice?: number;
+  discountPercent?: number;
   location?: string;
   status?: string;
   packingType?: string;
   images?: string[];
+  imagePublicIds?: string[];
   createdAt?: string;
 };
 type AdminUser = {
@@ -272,11 +282,14 @@ type ProductDraft = {
   slug: string;
   sku: string;
   hsnCode: string;
+  hsnDescription: string;
+  gstRate: string;
   cgst: string;
   sgst: string;
   fruitName: string;
   variety: string;
   productCategory: string;
+  seasonalCategory: string;
   productType: string;
   unit: string;
   seoMetaTitle: string;
@@ -286,17 +299,25 @@ type ProductDraft = {
   description: string;
   quantity: string;
   basePrice: string;
+  discountPercent: string;
   location: string;
   packingType: string;
   status: string;
-  images: string;
-  image1: string;
-  image2: string;
-  image3: string;
-  image4: string;
-  image5: string;
+  uploadedImages: ProductImageUpload[];
+};
+type ProductImageUpload = {
+  url: string;
+  publicId: string;
 };
 type AdminAuthMode = 'login' | 'signup' | 'forgot' | 'reset';
+type HsnSuggestion = {
+  _id: string;
+  hsnCode: string;
+  description: string;
+  gstRate: number;
+  category: string;
+  needsVerification?: boolean;
+};
 
 const normalizeAdminEmail = (value: string) => value.trim().toLowerCase();
 const isValidAdminEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -321,11 +342,14 @@ const emptyProductDraft: ProductDraft = {
   slug: '',
   sku: '',
   hsnCode: '',
+  hsnDescription: '',
+  gstRate: '',
   cgst: '',
   sgst: '',
   fruitName: '',
   variety: '',
   productCategory: '',
+  seasonalCategory: '',
   productType: 'Plant',
   unit: 'Plant',
   seoMetaTitle: '',
@@ -335,16 +359,38 @@ const emptyProductDraft: ProductDraft = {
   description: '',
   quantity: '',
   basePrice: '',
+  discountPercent: '',
   location: 'Orchard Growers',
   packingType: 'Orchard Growers pack',
   status: 'AVAILABLE',
-  images: '',
-  image1: '',
-  image2: '',
-  image3: '',
-  image4: '',
-  image5: '',
+  uploadedImages: [],
 };
+
+const orchardProductCategories = [
+  'Live Plants',
+  'Fruit Plants',
+  'Seasonal Plants',
+  'All Season Plants',
+  'Ornamental Plants',
+  'Plant Seeds',
+  'Organic and Natural Products',
+  'Organic Manure',
+  'Fertilizers',
+  'Cocopeat',
+  'Gardening Tools',
+  'Tools & Equipments',
+  'Machineries',
+  'Nursery Pots',
+  'Planters & Pots',
+  'Shade Net',
+  'Irrigation Pipes / Items',
+  'Growth Tonic',
+  'Orchard Kit',
+  'Premium Combo',
+  'Other',
+];
+
+const orchardSeasonalCategories = ['Spring', 'Summer', 'Monsoon', 'Winter'];
 
 type AdminTabButton = { id: AdminTab; label: string; count?: number };
 type SidebarSubItem = { label: string; tab?: AdminTab; action?: () => void; count?: number };
@@ -512,6 +558,12 @@ const adminRoleLabels: Record<AdminRole, string> = {
   VIEWER: 'Viewer',
   EMPLOYEE: 'Admin',
 };
+const ADMIN_THEME_KEY = 'adminThemeMode';
+const adminThemeModes: { mode: AdminThemeMode; label: string }[] = [
+  { mode: 'light', label: 'Light' },
+  { mode: 'dark', label: 'Dark' },
+  { mode: 'system', label: 'System' },
+];
 const classIAdminEmails = new Set([
   'pawann@orchardgrowers.in',
   'founder@orchardgrowers.in',
@@ -779,6 +831,8 @@ function App() {
   const [viewingFile, setViewingFile] = useState<UploadedFile | null>(null);
   const [adminSearch, setAdminSearch] = useState('');
   const [productDraft, setProductDraft] = useState<ProductDraft>(emptyProductDraft);
+  const [editingProductId, setEditingProductId] = useState('');
+  const [productSaving, setProductSaving] = useState(false);
   const [platformRailWidth, setPlatformRailWidth] = useState(() => {
     const raw = getAdminStorageItem('adminPlatformRailWidth');
     const parsed = Number(raw);
@@ -789,6 +843,11 @@ function App() {
   const [fullscreenTarget, setFullscreenTarget] = useState<'announcement' | 'action' | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [orchardModulePages, setOrchardModulePages] = useState<OrchardModulePages>(defaultOrchardModulePages);
+  const [lastPlatformTabs, setLastPlatformTabs] = useState<Partial<Record<AdminPlatform, AdminTab>>>({});
+  const [themeMode, setThemeMode] = useState<AdminThemeMode>(readAdminThemeMode);
+  const [systemPrefersDark, setSystemPrefersDark] = useState(() =>
+    typeof window === 'undefined' ? true : window.matchMedia('(prefers-color-scheme: dark)').matches
+  );
   const announcementBarRef = useRef<HTMLElement | null>(null);
   const actionPanelRef = useRef<HTMLDivElement | null>(null);
   const routeTab = getTabFromPath(location.pathname);
@@ -796,6 +855,22 @@ function App() {
   const defaultAllowedTab = getDefaultAdminTab(adminRole);
   const activeTab = canAccessAdminTab(adminRole, routeTab) ? routeTab : defaultAllowedTab;
   const activePlatform = adminTabPlatforms[activeTab];
+  const effectiveTheme = themeMode === 'system' ? (systemPrefersDark ? 'dark' : 'light') : themeMode;
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const syncSystemTheme = () => setSystemPrefersDark(media.matches);
+    syncSystemTheme();
+    media.addEventListener('change', syncSystemTheme);
+    return () => media.removeEventListener('change', syncSystemTheme);
+  }, []);
+
+  useEffect(() => {
+    setAdminStorageItem(ADMIN_THEME_KEY, themeMode);
+    document.documentElement.dataset.adminThemeMode = themeMode;
+    document.documentElement.dataset.adminEffectiveTheme = effectiveTheme;
+    document.documentElement.style.colorScheme = effectiveTheme;
+  }, [themeMode, effectiveTheme]);
 
   useEffect(() => {
     if (otpCooldown <= 0) return undefined;
@@ -807,8 +882,22 @@ function App() {
     return () => window.clearTimeout(timer);
   }, [otpCooldown]);
 
+  useEffect(() => {
+    setLastPlatformTabs((current) => ({
+      ...current,
+      [activePlatform]: activeTab,
+    }));
+  }, [activePlatform, activeTab]);
+
   const authHeaders = useMemo(() => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    return headers;
+  }, [token]);
+  const uploadAuthHeaders = useMemo(() => {
+    const headers: Record<string, string> = {};
     if (token) {
       headers.Authorization = `Bearer ${token}`;
     }
@@ -1321,36 +1410,73 @@ function App() {
   const saveOrchardProduct = async (event: FormEvent) => {
     event.preventDefault();
     setMessage('');
-    const res = await fetch(`${API_BASE}/admin/products`, {
-      method: 'POST',
+    if (productDraft.uploadedImages.length < 5) {
+      setMessage('Upload at least 5 product images.');
+      return;
+    }
+
+    const payload = getProductPayload(productDraft);
+
+    try {
+      setProductSaving(true);
+      const res = editingProductId
+        ? await fetch(`${API_BASE}/admin/products/${editingProductId}`, {
+            method: 'PATCH',
+            headers: authHeaders,
+            body: JSON.stringify(payload),
+          })
+        : await fetch(`${API_BASE}/admin/products`, {
+            method: 'POST',
+            headers: uploadAuthHeaders,
+            body: getProductFormData(payload),
+          });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data.msg || (editingProductId ? 'Product update failed' : 'Product save failed'));
+        return;
+      }
+      setMessage(editingProductId ? 'Product updated.' : 'Product saved. It will display on orchardgrowers.in as currently unavailable until stock is added.');
+      setProductDraft(emptyProductDraft);
+      setEditingProductId('');
+      loadRequests();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : editingProductId ? 'Product update failed' : 'Product save failed');
+    } finally {
+      setProductSaving(false);
+    }
+  };
+
+  const editOrchardProduct = (product: AdminProduct) => {
+    setEditingProductId(product._id);
+    setProductDraft(getProductDraftFromProduct(product));
+    setMessage('Editing product. Update fields and click Update Product.');
+  };
+
+  const cancelProductEdit = () => {
+    setEditingProductId('');
+    setProductDraft(emptyProductDraft);
+    setMessage('');
+  };
+
+  const deleteOrchardProduct = async (product: AdminProduct) => {
+    const productName = product.title || product.fruitName || 'this product';
+    if (!confirmTwice(`delete ${productName}`)) return;
+
+    const res = await fetch(`${API_BASE}/admin/products/${product._id}`, {
+      method: 'DELETE',
       headers: authHeaders,
-      body: JSON.stringify({
-        ...productDraft,
-        quantity: Number(productDraft.quantity || 0),
-        basePrice: Number(productDraft.basePrice || 0),
-        cgst: Number(productDraft.cgst || 0),
-        sgst: Number(productDraft.sgst || 0),
-        fruitName: productDraft.fruitName || productDraft.productCategory,
-        status: productDraft.active ? productDraft.status : 'SOLD',
-        images: [
-          ...productDraft.images.split(/\r?\n|,/),
-          productDraft.image1,
-          productDraft.image2,
-          productDraft.image3,
-          productDraft.image4,
-          productDraft.image5,
-        ]
-          .map((image) => image.trim())
-          .filter(Boolean),
-      }),
     });
     const data = await res.json();
     if (!res.ok) {
-      setMessage(data.msg || 'Product save failed');
+      setMessage(data.msg || 'Product delete failed');
       return;
     }
-    setMessage('Orchard Growers product added to inventory.');
-    setProductDraft(emptyProductDraft);
+
+    if (editingProductId === product._id) {
+      setEditingProductId('');
+      setProductDraft(emptyProductDraft);
+    }
+    setMessage('Product deleted.');
     loadRequests();
   };
 
@@ -1622,6 +1748,11 @@ function App() {
   const sidebarGroups = getSidebarGroups(countByTab, logout, adminRole);
   const getOrchardModulePage = (moduleTab: AdminTab) =>
     orchardModulePages[moduleTab] || defaultOrchardModulePages[moduleTab] || '';
+  const getLastTabForPlatform = (platform: AdminPlatform) => {
+    const lastTab = lastPlatformTabs[platform];
+    if (lastTab && canAccessAdminTab(adminRole, lastTab)) return lastTab;
+    return getDefaultTabForPlatform(platform, adminRole);
+  };
   const openTab = (
     tab: AdminTab,
     options?: { childLabel?: string; parentTab?: AdminTab }
@@ -1663,18 +1794,7 @@ function App() {
     }
 
     if (tab === 'master') {
-      return (
-        <ModuleLandingPanel
-          plan={modulePlans.master}
-          actions={[
-            { label: 'Products', tab: 'productAdmin' },
-            { label: 'Units / Outlets', tab: 'unitsOutlets' },
-            { label: 'Vendors / Parties', note: 'Party master schema ready for backend expansion' },
-            { label: 'Categories', note: 'Category master schema ready for backend expansion' },
-          ]}
-          onOpenTab={openTab}
-        />
-      );
+      return null;
     }
 
     if (tab === 'inventory') {
@@ -1682,6 +1802,7 @@ function App() {
         <InventoryPanel
           products={searchedProducts}
           onUpdateStock={updateProductStock}
+          onDeleteProduct={deleteOrchardProduct}
           onOpenTab={openTab}
           activePage={getOrchardModulePage('inventory')}
         />
@@ -1690,8 +1811,16 @@ function App() {
     if (tab === 'productAdmin') {
       return (
         <section className="space-y-4">
-          <ModulePlanPanel plan={modulePlans.productAdmin} />
-          <ProductAdminPanel draft={productDraft} onChange={setProductDraft} onSubmit={saveOrchardProduct} />
+          <ProductAdminPanel
+            draft={productDraft}
+            onChange={setProductDraft}
+            onSubmit={saveOrchardProduct}
+            saving={productSaving}
+            uploadAuthHeaders={uploadAuthHeaders}
+            editing={Boolean(editingProductId)}
+            onCancelEdit={cancelProductEdit}
+          />
+          <OrchardProductsTable products={searchedProducts} onEdit={editOrchardProduct} onDelete={deleteOrchardProduct} />
         </section>
       );
     }
@@ -1715,34 +1844,13 @@ function App() {
       );
     }
     if (tab === 'orchardSettings') {
-      return (
-        <ModuleLandingPanel
-          plan={modulePlans.orchardSettings}
-          actions={[
-            { label: 'Invoice Series', note: 'Configure shared OG invoice numbering' },
-            { label: 'Stock Sync', note: 'Storefront aggregated stock sync controls' },
-            { label: 'GST Defaults', note: 'Default CGST and SGST settings' },
-            { label: 'Low Stock Thresholds', note: 'Inventory alert limits by product type' },
-          ]}
-          onOpenTab={openTab}
-        />
-      );
+      return null;
     }
     if (tab === 'financials') {
-      return (
-        <ModuleLandingPanel
-          plan={modulePlans.financials}
-          actions={[
-            { label: 'Expenses', tab: 'expenses' },
-            { label: 'GST Summary', note: 'Tax summary workspace ready for backend expansion' },
-            { label: 'Reports', tab: 'reports' },
-          ]}
-          onOpenTab={openTab}
-        />
-      );
+      return null;
     }
     if (['purchase', 'unitsOutlets', 'expenses', 'reports'].includes(tab)) {
-      return <ModuleLandingPanel plan={modulePlans[tab]} actions={[]} onOpenTab={openTab} />;
+      return null;
     }
     if (tab === 'efruitDashboard') {
       return (
@@ -1855,7 +1963,7 @@ function App() {
   };
 
   return (
-    <div className="h-full overflow-hidden bg-slate-950 p-2 text-slate-100">
+    <div className={`admin-theme-${effectiveTheme} h-full overflow-hidden bg-slate-950 p-2 text-slate-100`}>
       <InstallAppPrompt />
       <div className="mx-auto flex h-full min-h-0 max-w-[1360px] flex-col">
         <MarketSnapshotStrip
@@ -1879,7 +1987,8 @@ function App() {
           <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-700 bg-slate-900/95 px-3 py-1.5 text-sm font-semibold shadow-sm shadow-black/20">
             <span className="text-emerald-300">{activeTitle}</span>
             <span className="truncate text-slate-300">{admin.name} | {getAdminDisplayRole(admin)}</span>
-            <div className="flex gap-2">
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              <ThemeModeControl mode={themeMode} onChange={setThemeMode} />
               <button
                 onClick={loadRequests}
                 className="admin-refresh-button h-8 rounded-lg bg-white px-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-100"
@@ -1918,7 +2027,7 @@ function App() {
             activeTab={activeTab}
             activePages={orchardModulePages}
             onOpenTab={(tab, childLabel, parentTab) => openTab(tab, { childLabel, parentTab })}
-            onOpenPlatform={(platform) => openTab(getDefaultTabForPlatform(platform, adminRole))}
+            onOpenPlatform={(platform) => openTab(getLastTabForPlatform(platform))}
             onClose={() => setMobileMenuOpen(false)}
           />
         )}
@@ -1933,7 +2042,7 @@ function App() {
             activePages={orchardModulePages}
             groups={sidebarGroups}
             onChange={(platform) => {
-              openTab(getDefaultTabForPlatform(platform, adminRole));
+              openTab(getLastTabForPlatform(platform));
             }}
             onOpenTab={(platform, tab, childLabel, parentTab) => {
               openTab(tab, { childLabel, parentTab });
@@ -1998,6 +2107,63 @@ function App() {
   );
 }
 
+function ThemeModeControl({
+  mode,
+  onChange,
+}: {
+  mode: AdminThemeMode;
+  onChange: (mode: AdminThemeMode) => void;
+}) {
+  return (
+    <div className="admin-theme-control flex h-9 items-center gap-1 rounded-xl border border-slate-600 bg-slate-950 p-1 shadow-inner shadow-black/30" aria-label="Theme mode">
+      {adminThemeModes.map((item) => {
+        const selected = mode === item.mode;
+        return (
+          <button
+            key={item.mode}
+            type="button"
+            onClick={() => onChange(item.mode)}
+            aria-pressed={selected}
+            title={`${item.label} mode`}
+            className={`flex h-7 items-center gap-1.5 rounded-lg px-2 text-xs font-black leading-none transition ${
+              selected ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-950/40' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <ThemeModeIcon mode={item.mode} />
+            <span className="hidden sm:inline">{item.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ThemeModeIcon({ mode }: { mode: AdminThemeMode }) {
+  if (mode === 'light') {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+      </svg>
+    );
+  }
+
+  if (mode === 'dark') {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 12.8A8.5 8.5 0 1 1 11.2 3 6.5 6.5 0 0 0 21 12.8Z" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3a9 9 0 1 0 0 18V3Z" />
+      <path d="M12 3a9 9 0 0 1 0 18" />
+    </svg>
+  );
+}
+
 function MarketSnapshotStrip({
   announcementRef,
   isFullscreen,
@@ -2048,16 +2214,11 @@ function MarketSnapshotStrip({
 function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: () => void, role: AdminRole): SidebarGroup[] {
   const groups: SidebarGroup[] = [
     {
-      platform: 'main',
-      title: 'Dashboard',
-      subtitle: 'Admin overview',
-      items: [{ label: 'Dashboard', icon: 'dashboard', tab: 'dashboard' }],
-    },
-    {
       platform: 'orchard',
       title: 'Orchard Growers',
       subtitle: 'ERP inventory and billing',
       items: [
+        { label: 'Dashboard', icon: 'dashboard', tab: 'dashboard' },
         {
           label: 'Master',
           icon: 'inventory',
@@ -2912,46 +3073,9 @@ function HomePanel({
   );
 }
 
-type ModuleAction = { label: string; tab?: AdminTab; note?: string };
-
-function ModuleLandingPanel({
-  plan,
-  actions,
-  onOpenTab,
-}: {
-  plan?: ModulePlan;
-  actions: ModuleAction[];
-  onOpenTab: (tab: AdminTab) => void;
-}) {
-  const safePlan = plan || { title: 'Module', text: 'Open module workspace' };
-  const visibleActions = actions.length ? actions : [{ label: safePlan.title, note: safePlan.text }];
-
-  return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-lg font-bold text-white">Quick Actions</h2>
-        <span className="rounded-full bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-300">Compact ERP workflow</span>
-      </div>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {visibleActions.map((action) => (
-          <button
-            key={action.label}
-            type="button"
-            onClick={() => action.tab && onOpenTab(action.tab)}
-            className="rounded-xl border border-slate-800 bg-slate-950 p-4 text-left transition hover:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-70"
-            disabled={!action.tab}
-          >
-            <p className="text-sm font-black text-white">{action.label}</p>
-            <p className="mt-2 text-xs font-semibold leading-5 text-slate-400">{action.note || 'Open module workspace'}</p>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 const getAggregatedInventoryRows = (products: AdminProduct[]) => {
   const rows = new Map<string, {
+    productId: string;
     product: string;
     quantity: number;
     breakdown: Map<string, number>;
@@ -2966,17 +3090,19 @@ const getAggregatedInventoryRows = (products: AdminProduct[]) => {
     const unitName = product.location || 'Orchard Growers';
     const quantity = Number(product.quantity || 0);
     const existing = rows.get(key) || {
+      productId: product._id,
       product: productName,
       quantity: 0,
       breakdown: new Map<string, number>(),
       saleRate: Number(product.basePrice || 0),
-      discount: 0,
+      discount: Number(product.discountPercent || 0),
       onlineStatus: product.status === 'AVAILABLE' && product.active !== false ? 'Active' : 'Inactive',
     };
 
     existing.quantity += quantity;
     existing.breakdown.set(unitName, (existing.breakdown.get(unitName) || 0) + quantity);
     existing.saleRate = Math.max(existing.saleRate, Number(product.basePrice || 0));
+    existing.discount = Math.max(existing.discount, Number(product.discountPercent || 0));
     if (product.status !== 'AVAILABLE' || product.active === false) existing.onlineStatus = 'Inactive';
     rows.set(key, existing);
   });
@@ -2992,11 +3118,13 @@ const getAggregatedInventoryRows = (products: AdminProduct[]) => {
 function InventoryPanel({
   products,
   onUpdateStock,
+  onDeleteProduct,
   onOpenTab,
   activePage,
 }: {
   products: AdminProduct[];
   onUpdateStock: (product: AdminProduct) => void;
+  onDeleteProduct: (product: AdminProduct) => void;
   onOpenTab: (tab: AdminTab) => void;
   activePage: string;
 }) {
@@ -3006,20 +3134,7 @@ function InventoryPanel({
   const onlineActiveListings = products.filter((product) => product.status === 'AVAILABLE' && product.active !== false).length;
 
   if (activePage !== 'Current Stock') {
-    return (
-      <section className="space-y-4">
-        <ModuleLandingPanel
-          plan={{
-            title: activePage || 'Inventory',
-            text: modulePlans.inventory?.text || 'Inventory workflow controls.',
-          }}
-          actions={[
-            { label: activePage || 'Inventory', note: 'Detailed workflow form and backend persistence are ready for incremental expansion.' },
-          ]}
-          onOpenTab={onOpenTab}
-        />
-      </section>
-    );
+    return null;
   }
 
   return (
@@ -3036,7 +3151,7 @@ function InventoryPanel({
           <span className="text-xs font-bold text-slate-400">Aggregated across units and outlets</span>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-[760px] w-full text-left text-sm">
+          <table className="min-w-[860px] w-full text-left text-sm">
             <thead className="bg-slate-950 text-xs uppercase text-slate-400">
               <tr>
                 <th className="px-4 py-3">Product</th>
@@ -3045,10 +3160,13 @@ function InventoryPanel({
                 <th className="px-4 py-3">Sale Rate</th>
                 <th className="px-4 py-3">Discount</th>
                 <th className="px-4 py-3">Online Status</th>
+                <th className="px-4 py-3">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
-              {aggregatedRows.map((row) => (
+              {aggregatedRows.map((row) => {
+                const product = products.find((item) => item._id === row.productId);
+                return (
                 <tr key={row.product} className="text-slate-200">
                   <td className="px-4 py-3 font-bold text-white">{row.product}</td>
                   <td className="px-4 py-3">{row.quantity}</td>
@@ -3060,8 +3178,16 @@ function InventoryPanel({
                       {row.onlineStatus}
                     </span>
                   </td>
+                  <td className="px-4 py-3">
+                    {product && (
+                      <button type="button" onClick={() => onDeleteProduct(product)} className="rounded-lg bg-rose-700 px-3 py-2 text-xs font-bold text-white hover:bg-rose-600">
+                        Delete
+                      </button>
+                    )}
+                  </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
           {!aggregatedRows.length && <EmptyState label="No aggregated stock found." />}
@@ -3088,15 +3214,7 @@ function BillingPanel({
   const activeProducts = products.filter((product) => product.status === 'AVAILABLE' && product.active !== false);
 
   if (activePage !== 'New Invoice') {
-    return (
-      <ModuleLandingPanel
-        plan={{ title: activePage || 'Billing', text: plan?.text || 'Billing workflow controls.' }}
-        actions={[
-          { label: activePage || 'Billing', note: 'Detailed billing workflow and backend persistence are ready for incremental expansion.' },
-        ]}
-        onOpenTab={onOpenTab}
-      />
-    );
+    return null;
   }
 
   return (
@@ -3157,14 +3275,93 @@ function BillingPanel({
   );
 }
 
+function getProductPayload(draft: ProductDraft) {
+  return {
+    title: draft.title,
+    slug: draft.slug,
+    productCategory: draft.productCategory || draft.fruitName,
+    fruitName: draft.fruitName || draft.productCategory,
+    seasonalCategory: draft.seasonalCategory,
+    description: draft.description,
+    basePrice: Number(draft.basePrice || 0),
+    discountPercent: Number(draft.discountPercent || 0),
+    sku: draft.sku,
+    hsnCode: draft.hsnCode,
+    hsnDescription: draft.hsnDescription,
+    gstRate: Number(draft.gstRate || 0),
+    status: draft.active ? draft.status : 'SOLD',
+    active: draft.active,
+    quantity: Number(draft.quantity || 0),
+    location: draft.location || 'Orchard Growers',
+    variety: draft.variety || draft.productCategory || draft.fruitName,
+    productType: draft.productType,
+    unit: draft.unit,
+    packingType: draft.packingType,
+    seoMetaTitle: draft.seoMetaTitle,
+    seoMetaDescription: draft.seoMetaDescription,
+    featured: draft.featured,
+    images: draft.uploadedImages.map((image) => image.url),
+    imagePublicIds: draft.uploadedImages.map((image) => image.publicId),
+  };
+}
+
+function getProductFormData(payload: ReturnType<typeof getProductPayload>) {
+  const formData = new FormData();
+  Object.entries(payload).forEach(([key, value]) => {
+    formData.append(key, Array.isArray(value) ? JSON.stringify(value) : String(value));
+  });
+  return formData;
+}
+
+function getProductDraftFromProduct(product: AdminProduct): ProductDraft {
+  const images = Array.isArray(product.images) ? product.images : [];
+  const publicIds = Array.isArray(product.imagePublicIds) ? product.imagePublicIds : [];
+  return {
+    title: product.title || '',
+    slug: product.slug || '',
+    sku: product.sku || '',
+    hsnCode: product.hsnCode || '',
+    hsnDescription: product.hsnDescription || '',
+    gstRate: product.gstRate === undefined || product.gstRate === null ? '' : String(product.gstRate),
+    cgst: product.cgst === undefined || product.cgst === null ? '' : String(product.cgst),
+    sgst: product.sgst === undefined || product.sgst === null ? '' : String(product.sgst),
+    fruitName: product.fruitName || '',
+    variety: product.variety || '',
+    productCategory: product.productCategory || product.fruitName || '',
+    seasonalCategory: product.seasonalCategory || '',
+    productType: product.productType || 'Plant',
+    unit: product.unit || 'Plant',
+    seoMetaTitle: product.seoMetaTitle || '',
+    seoMetaDescription: product.seoMetaDescription || '',
+    featured: Boolean(product.featured),
+    active: product.active !== false && product.status !== 'SOLD',
+    description: product.description || '',
+    quantity: String(product.quantity ?? ''),
+    basePrice: String(product.basePrice ?? ''),
+    discountPercent: String(product.discountPercent ?? ''),
+    location: product.location || 'Orchard Growers',
+    packingType: product.packingType || 'Orchard Growers pack',
+    status: product.status === 'SOLD' ? 'SOLD' : 'AVAILABLE',
+    uploadedImages: images.map((url, index) => ({ url, publicId: publicIds[index] || '' })),
+  };
+}
+
 function ProductAdminPanel({
   draft,
   onChange,
   onSubmit,
+  saving,
+  uploadAuthHeaders,
+  editing,
+  onCancelEdit,
 }: {
   draft: ProductDraft;
   onChange: (draft: ProductDraft) => void;
   onSubmit: (event: FormEvent) => void;
+  saving: boolean;
+  uploadAuthHeaders: Record<string, string>;
+  editing: boolean;
+  onCancelEdit: () => void;
 }) {
   const createSlug = (value: string) =>
     value
@@ -3172,21 +3369,134 @@ function ProductAdminPanel({
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
-  const update = (field: keyof ProductDraft, value: string | boolean) => {
+  const update = (field: keyof ProductDraft, value: string | boolean | ProductImageUpload[]) => {
     const nextDraft = { ...draft, [field]: value };
     if (field === 'title' && !draft.slug) nextDraft.slug = createSlug(String(value));
     onChange(nextDraft);
   };
-  const imageUrls = [draft.image1, draft.image2, draft.image3, draft.image4, draft.image5]
-    .map((image) => image.trim())
-    .filter(Boolean);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState('');
+  const [imageUploading, setImageUploading] = useState(false);
+  const [hsnQuery, setHsnQuery] = useState(draft.hsnCode);
+  const [hsnSuggestions, setHsnSuggestions] = useState<HsnSuggestion[]>([]);
+  const [hsnOpen, setHsnOpen] = useState(false);
+  const [skuGenerating, setSkuGenerating] = useState(false);
+
+  useEffect(() => {
+    if (!draft.uploadedImages.length) {
+      setImagePreviewUrl('');
+      return undefined;
+    }
+
+    setImagePreviewUrl(draft.uploadedImages[0].url);
+    return undefined;
+  }, [draft.uploadedImages]);
+
+  useEffect(() => {
+    setHsnQuery(draft.hsnCode);
+  }, [draft.hsnCode]);
+
+  useEffect(() => {
+    const query = (hsnQuery || draft.title || draft.productCategory).trim();
+    if (!query) {
+      setHsnSuggestions([]);
+      return undefined;
+    }
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/hsn/search?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        setHsnSuggestions(Array.isArray(data) ? data : []);
+      } catch {
+        setHsnSuggestions([]);
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [draft.productCategory, draft.title, hsnQuery]);
+
+  const generateSku = async () => {
+    if (!draft.title.trim() || !(draft.productCategory || draft.fruitName).trim() || !draft.unit.trim()) return;
+
+    try {
+      setSkuGenerating(true);
+      const params = new URLSearchParams({
+        productName: draft.title.trim(),
+        category: (draft.productCategory || draft.fruitName).trim(),
+        unitId: draft.unit.trim(),
+      });
+      const res = await fetch(`${API_BASE}/products/generate-sku?${params.toString()}`, {
+        headers: uploadAuthHeaders,
+      });
+      const data = await res.json();
+      if (res.ok && data.sku) update('sku', data.sku);
+    } catch {
+      undefined;
+    } finally {
+      setSkuGenerating(false);
+    }
+  };
+
+  useEffect(() => {
+    if (draft.sku || !draft.title.trim() || !(draft.productCategory || draft.fruitName).trim() || !draft.unit.trim()) return;
+    generateSku();
+  }, [draft.title, draft.productCategory, draft.fruitName, draft.unit, draft.sku]);
+
+  const selectHsn = (item: HsnSuggestion) => {
+    onChange({
+      ...draft,
+      hsnCode: item.hsnCode,
+      hsnDescription: item.description,
+      gstRate: String(item.gstRate),
+      cgst: String(Number(item.gstRate) / 2),
+      sgst: String(Number(item.gstRate) / 2),
+    });
+    setHsnQuery(item.hsnCode);
+    setHsnOpen(false);
+  };
+
+  const uploadImages = async (files: File[]) => {
+    if (!files.length) return;
+
+    const remainingSlots = Math.max(0, 10 - draft.uploadedImages.length);
+    const nextFiles = files.slice(0, remainingSlots);
+    if (!nextFiles.length) return;
+
+    const formData = new FormData();
+    nextFiles.forEach((file) => formData.append('images', file));
+
+    try {
+      setImageUploading(true);
+      const res = await fetch(`${API_BASE}/admin/product-images`, {
+        method: 'POST',
+        headers: uploadAuthHeaders,
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) return;
+      const uploaded = Array.isArray(data.images) ? data.images : [];
+      onChange({
+        ...draft,
+        uploadedImages: [...draft.uploadedImages, ...uploaded].slice(0, 10),
+      });
+    } finally {
+      setImageUploading(false);
+    }
+  };
+
+  const removeImage = (index: number) => {
+    onChange({
+      ...draft,
+      uploadedImages: draft.uploadedImages.filter((_, imageIndex) => imageIndex !== index),
+    });
+  };
 
   return (
     <form onSubmit={onSubmit} className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
       <div className="mb-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-lg font-bold text-white">Create Product</h2>
-          <span className="rounded-full bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-300">Product Master</span>
+          <h2 className="text-lg font-bold text-white">{editing ? 'Edit Product' : 'Create Product'}</h2>
+          <span className="rounded-full bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-300">{editing ? 'Edit Mode' : 'Product Master'}</span>
         </div>
         <p className="mt-1 text-sm font-semibold text-slate-400">
           Create own-brand product records for inventory, SEO, storefront sync, and billing.
@@ -3199,14 +3509,87 @@ function ProductAdminPanel({
           </span>
         ))}
       </div>
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <AdminInput label="Product Name" value={draft.title} onChange={(value) => update('title', value)} placeholder="Avocado Plant" />
         <AdminInput label="Slug" value={draft.slug} onChange={(value) => update('slug', value)} placeholder="avocado-plant" />
-        <AdminInput label="SKU" value={draft.sku} onChange={(value) => update('sku', value)} placeholder="OG-PLANT-001" />
-        <AdminInput label="HSN Code" value={draft.hsnCode} onChange={(value) => update('hsnCode', value)} placeholder="0602" />
-        <AdminInput label="CGST %" value={draft.cgst} onChange={(value) => update('cgst', value)} placeholder="6" type="number" />
-        <AdminInput label="SGST %" value={draft.sgst} onChange={(value) => update('sgst', value)} placeholder="6" type="number" />
-        <AdminInput label="Product Category" value={draft.productCategory} onChange={(value) => update('productCategory', value)} placeholder="Nursery Plants" />
+        <label className="block text-sm font-bold text-slate-300">
+          SKU
+          <div className="mt-2 flex gap-2">
+            <input
+              value={draft.sku}
+              onChange={(event) => update('sku', event.target.value.toUpperCase())}
+              placeholder="OG-PLT-APPLE-U1-0001"
+              className="h-11 min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none placeholder:text-slate-600 focus:border-emerald-400"
+            />
+            <button
+              type="button"
+              onClick={generateSku}
+              disabled={skuGenerating}
+              className="rounded-lg bg-slate-800 px-3 text-xs font-bold text-white hover:bg-slate-700 disabled:opacity-60"
+            >
+              {skuGenerating ? '...' : 'Regenerate SKU'}
+            </button>
+          </div>
+        </label>
+        <label className="relative block text-sm font-bold text-slate-300">
+          HSN Code
+          <input
+            value={hsnQuery}
+            onFocus={() => setHsnOpen(true)}
+            onChange={(event) => {
+              const value = event.target.value;
+              setHsnQuery(value);
+              if (/^\d*$/.test(value.trim())) update('hsnCode', value.trim());
+              setHsnOpen(true);
+            }}
+            placeholder="Search HSN / product / category"
+            className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none placeholder:text-slate-600 focus:border-emerald-400"
+          />
+          {hsnOpen && hsnSuggestions.length > 0 && (
+            <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-slate-700 bg-slate-950 shadow-xl">
+              {hsnSuggestions.map((item) => (
+                <button
+                  key={item._id}
+                  type="button"
+                  onClick={() => selectHsn(item)}
+                  className="block w-full px-3 py-2 text-left text-xs text-slate-200 hover:bg-slate-800"
+                >
+                  <span className="font-black text-white">{item.hsnCode}</span>
+                  <span className="ml-2 font-bold text-emerald-300">{item.gstRate}% GST</span>
+                  <span className="mt-1 block text-slate-400">{item.category} - {item.description}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </label>
+        <AdminInput label="GST %" value={draft.gstRate} onChange={(value) => update('gstRate', value)} placeholder="5" type="number" />
+        <AdminInput label="HSN Description" value={draft.hsnDescription} onChange={(value) => update('hsnDescription', value)} placeholder="HSN item description" />
+        <label className="block text-sm font-bold text-slate-300">
+          Product Category
+          <select
+            value={draft.productCategory}
+            onChange={(event) => update('productCategory', event.target.value)}
+            className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400"
+          >
+            <option value="">Select category</option>
+            {orchardProductCategories.map((category) => (
+              <option key={category} value={category}>{category}</option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm font-bold text-slate-300">
+          Seasonal Plant Category
+          <select
+            value={draft.seasonalCategory}
+            onChange={(event) => update('seasonalCategory', event.target.value)}
+            className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400"
+          >
+            <option value="">Not seasonal</option>
+            {orchardSeasonalCategories.map((season) => (
+              <option key={season} value={season}>{season}</option>
+            ))}
+          </select>
+        </label>
         <label className="block text-sm font-bold text-slate-300">
           Product Type
           <select
@@ -3231,12 +3614,24 @@ function ProductAdminPanel({
             ))}
           </select>
         </label>
-        <AdminInput label="Product category legacy" value={draft.fruitName} onChange={(value) => update('fruitName', value)} placeholder="Live Plants / Tools / Seeds" />
+        <label className="block text-sm font-bold text-slate-300">
+          Product category legacy
+          <select
+            value={draft.fruitName}
+            onChange={(event) => update('fruitName', event.target.value)}
+            className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400"
+          >
+            <option value="">Select legacy category</option>
+            {orchardProductCategories.map((category) => (
+              <option key={category} value={category}>{category}</option>
+            ))}
+          </select>
+        </label>
         <AdminInput label="Variety / product line" value={draft.variety} onChange={(value) => update('variety', value)} placeholder="Orchard Growers Premium" />
         <AdminInput label="Location" value={draft.location} onChange={(value) => update('location', value)} placeholder="Orchard Growers" />
-        <AdminInput label="Stock units" value={draft.quantity} onChange={(value) => update('quantity', value)} placeholder="100" type="number" />
         <AdminInput label="Price" value={draft.basePrice} onChange={(value) => update('basePrice', value)} placeholder="999" type="number" />
-        <AdminInput label="Packing type" value={draft.packingType} onChange={(value) => update('packingType', value)} placeholder="Plant pack" />
+        <AdminInput label="Discount %" value={draft.discountPercent} onChange={(value) => update('discountPercent', value)} placeholder="0" type="number" />
+        <AdminInput label="Pack size" value={draft.packingType} onChange={(value) => update('packingType', value)} placeholder="Plant pack" />
         <label className="block text-sm font-bold text-slate-300">
           Product status
           <select
@@ -3245,7 +3640,6 @@ function ProductAdminPanel({
             className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400"
           >
             <option value="AVAILABLE">Active</option>
-            <option value="IN_AUCTION">Quote Enabled</option>
             <option value="SOLD">Inactive</option>
           </select>
         </label>
@@ -3275,36 +3669,126 @@ function ProductAdminPanel({
         </label>
       </div>
       <div className="mt-4 rounded-xl border border-dashed border-slate-700 bg-slate-950 p-4">
-        <p className="text-sm font-black text-white">Images</p>
-        <p className="mt-1 text-xs font-semibold text-slate-500">Paste image URLs now. Drag/drop upload storage can attach to these slots later.</p>
-        <div className="mt-3 grid gap-3 md:grid-cols-5">
-          {(['image1', 'image2', 'image3', 'image4', 'image5'] as const).map((field, index) => (
-            <label key={field} className="block text-xs font-bold text-slate-300">
-              image{index + 1}
-              <input
-                value={draft[field]}
-                onChange={(event) => update(field, event.target.value)}
-                placeholder="https://..."
-                className="mt-2 h-10 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 text-white outline-none placeholder:text-slate-600 focus:border-emerald-400"
-              />
-            </label>
-          ))}
+        <p className="text-sm font-black text-white">Product Images</p>
+        <p className="mt-1 text-xs font-semibold text-slate-500">Select at least 5 images from this device. They will upload securely to Cloudinary.</p>
+        <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_140px] md:items-end">
+          <label className="block text-xs font-bold text-slate-300">
+            Upload images
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(event) => {
+                uploadImages(Array.from(event.target.files || []));
+                event.currentTarget.value = '';
+              }}
+              className="mt-2 block w-full text-sm text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-600 file:px-3 file:py-2 file:text-sm file:font-bold file:text-white hover:file:bg-emerald-500"
+            />
+            <span className="mt-2 block text-xs text-slate-500">
+              {imageUploading ? 'Uploading' : `${draft.uploadedImages.length} uploaded / minimum 5`}
+            </span>
+          </label>
+          <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
+            {imagePreviewUrl ? <img src={imagePreviewUrl} alt="Product preview" className="h-full w-full object-cover" /> : <span className="text-xs font-bold text-slate-600">Preview</span>}
+          </div>
         </div>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 md:grid-cols-5">
-          {Array.from({ length: 5 }).map((_, index) => {
-            const image = imageUrls[index];
-            return (
-              <div key={index} className="flex aspect-square items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
-                {image ? <img src={image} alt={`Product preview ${index + 1}`} className="h-full w-full object-cover" /> : <span className="text-xs font-bold text-slate-600">Preview</span>}
+        {draft.uploadedImages.length > 0 && (
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 md:grid-cols-5">
+            {draft.uploadedImages.map((image, index) => (
+              <div key={image.publicId || image.url} className="overflow-hidden rounded-lg border border-slate-800 bg-slate-900">
+                <a href={image.url} target="_blank" rel="noreferrer" className="block aspect-square">
+                  <img src={image.url} alt={`Cloudinary product ${index + 1}`} className="h-full w-full object-cover" />
+                </a>
+                <button
+                  type="button"
+                  onClick={() => removeImage(index)}
+                  className="block w-full bg-slate-800 px-2 py-1 text-xs font-bold text-slate-200 hover:bg-slate-700"
+                >
+                  Remove
+                </button>
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
-      <button className="mt-4 rounded-lg bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-500">
-        Save Product to Inventory
-      </button>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button disabled={saving} className="rounded-lg bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-500 disabled:opacity-60">
+          {saving ? 'Saving...' : editing ? 'Update Product' : 'Save Product'}
+        </button>
+        {editing && (
+          <button type="button" onClick={onCancelEdit} className="rounded-lg bg-slate-800 px-5 py-3 text-sm font-bold text-white hover:bg-slate-700">
+            Cancel Edit
+          </button>
+        )}
+      </div>
     </form>
+  );
+}
+
+function OrchardProductsTable({
+  products,
+  onEdit,
+  onDelete,
+}: {
+  products: AdminProduct[];
+  onEdit: (product: AdminProduct) => void;
+  onDelete: (product: AdminProduct) => void;
+}) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
+      <div className="flex flex-col gap-2 border-b border-slate-800 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-lg font-bold text-white">Orchard Growers Products</h2>
+        <span className="text-xs font-bold text-slate-400">{products.length} records</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-[1100px] w-full text-left text-sm">
+          <thead className="bg-slate-950 text-xs uppercase text-slate-400">
+            <tr>
+              <th className="px-4 py-3">Product</th>
+              <th className="px-4 py-3">Category</th>
+              <th className="px-4 py-3">Season</th>
+              <th className="px-4 py-3">SKU</th>
+              <th className="px-4 py-3">HSN / GST</th>
+              <th className="px-4 py-3">Price</th>
+              <th className="px-4 py-3">Discount</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Images</th>
+              <th className="px-4 py-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800">
+            {products.map((product) => (
+              <tr key={product._id} className="text-slate-200">
+                <td className="px-4 py-3 font-bold text-white">{product.title || 'Untitled product'}</td>
+                <td className="px-4 py-3 text-slate-400">{product.productCategory || product.fruitName || '-'}</td>
+                <td className="px-4 py-3 text-slate-400">{product.seasonalCategory || '-'}</td>
+                <td className="px-4 py-3 text-slate-300">{product.sku || '-'}</td>
+                <td className="px-4 py-3 text-slate-400">{product.hsnCode || '-'} / {product.gstRate ?? 0}%</td>
+                <td className="px-4 py-3">Rs. {product.basePrice || 0}</td>
+                <td className="px-4 py-3">{product.discountPercent || 0}%</td>
+                <td className="px-4 py-3">
+                  <span className={`rounded-full px-2 py-1 text-xs font-bold ${product.status === 'AVAILABLE' && product.active !== false ? 'bg-emerald-950 text-emerald-300' : 'bg-slate-800 text-slate-400'}`}>
+                    {formatProductStatus(product.status || 'SOLD')}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-slate-400">{product.images?.length || 0}</td>
+                <td className="px-4 py-3">
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => onEdit(product)} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500">
+                      Edit
+                    </button>
+                    <button type="button" onClick={() => onDelete(product)} className="rounded-lg bg-rose-700 px-3 py-2 text-xs font-bold text-white hover:bg-rose-600">
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!products.length && <EmptyState label="No Orchard Growers products found." />}
+      </div>
+    </section>
   );
 }
 

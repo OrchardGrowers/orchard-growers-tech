@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   FaCamera,
@@ -25,7 +25,6 @@ import {
 import Products from "./pages/Products";
 import API, { FILE_BASE_URL } from "./services/api";
 import InstallAppPrompt, { openOrchardInstallPrompt } from "./components/InstallAppPrompt";
-import { withDemoProducts } from "./demoProducts";
 import type { Product } from "./types";
 import {
   getOrchardWidgetId,
@@ -79,17 +78,29 @@ type FeedItem = {
 };
 
 const stripApiSuffix = (value = "") => value.trim().replace(/\/+$/, "").replace(/\/api$/i, "");
+const ORCHARD_APP_NAME = import.meta.env.VITE_APP_NAME || "orchardgrowers";
+const withOAuthAppParam = (url: string, appName: string) => {
+  try {
+    const nextUrl = new URL(url);
+    nextUrl.searchParams.set("app", appName);
+    nextUrl.searchParams.delete("platform");
+    return nextUrl.toString();
+  } catch {
+    const separator = url.includes("?") ? "&" : "?";
+    return `${url}${separator}app=${encodeURIComponent(appName)}`;
+  }
+};
 const getOrchardOAuthUrl = (provider: "google" | "facebook") => {
   const configured =
     provider === "google"
       ? import.meta.env.VITE_GOOGLE_AUTH_URL
       : import.meta.env.VITE_FACEBOOK_AUTH_URL;
-  if (configured) return configured;
+  if (configured) return withOAuthAppParam(configured, ORCHARD_APP_NAME);
 
   const apiOrigin = stripApiSuffix(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "");
   if (!apiOrigin) return "";
 
-  return `${apiOrigin}/api/auth/${provider}?platform=orchardgrowers`;
+  return `${apiOrigin}/api/auth/${provider}?app=${encodeURIComponent(ORCHARD_APP_NAME)}`;
 };
 const readOAuthUser = (encodedUser: string | null): UserProfile | null => {
   if (!encodedUser) return null;
@@ -224,7 +235,6 @@ const desktopSections = [
   { key: "season:spring", label: "Season: Spring" },
   { key: "season:summer", label: "Season: Summer" },
   { key: "season:monsoon", label: "Season: Monsoon" },
-  { key: "season:autumn", label: "Season: Autumn" },
   { key: "season:winter", label: "Season: Winter" },
 ];
 
@@ -245,7 +255,6 @@ const desktopSectionFilters: Record<string, string[]> = {
   "season:spring": ["spring"],
   "season:summer": ["summer"],
   "season:monsoon": ["monsoon", "rainy"],
-  "season:autumn": ["autumn", "fall"],
   "season:winter": ["winter"],
 };
 
@@ -256,24 +265,40 @@ const mobileTabs = [
   { key: "earth", label: "Save Our Earth" },
 ];
 
-const productDropdownItems = desktopSections.map((section) => section.label);
+const productDropdownItems = desktopSections
+  .filter((section) => section.key !== "products" && !section.key.startsWith("price:"));
 
 const serviceDropdownItems = [
-  "FFCCBB (Fruit Farm Cultivation Contract Based Business)",
-  "Nursery Plants Prices",
-  "Nursery Services",
-  "Gardening Services",
-  "Services",
-  "Landscaping",
-  "Orchard Services",
-  "Soil Test",
-  "Expert Advice (Free) and Plot Visit",
-  "Download Orchard Growers App",
-  "Download efruitmandi.live App",
+  { label: "FFCCBB (Fruit Farm Cultivation Contract Based Business)", to: "/services/ffccbb" },
+  { label: "Nursery Plants Prices", to: "/ourservices/nurseryplantprices" },
+  { label: "Nursery Services", to: "/ourservices/nurseryservices" },
+  { label: "Gardening Services", to: "/ourservices/gardning" },
+  { label: "Services", to: "/ourservices/services" },
+  { label: "Landscaping", to: "/ourservices/landscaping" },
+  { label: "Orchard Services", to: "/ourservices/orchardservices" },
+  { label: "Soil Test", to: "/ourservices/soiltest" },
+  { label: "Expert Advice (Free) and Plot Visit", to: "/ourservices/expertadvice" },
+  { label: "Download Orchard Growers App", to: "/download/orchard-growers-app" },
+  { label: "Download efruitmandi.live App", to: "/download/efruitmandi-app" },
 ];
 
-const educationDropdownItems = ["Learn"];
-const earthDropdownItems = ["Blogs", "Donate"];
+type NavLinkItem = { label: string; to: string };
+
+const educationDropdownItems: NavLinkItem[] = [
+  { label: "Learn", to: "/education/learn" },
+  { label: "Plant Care Tips", to: "/education/plant-care-tips" },
+  { label: "Orchard Planning", to: "/education/orchard-planning" },
+];
+const earthDropdownItems: NavLinkItem[] = [
+  { label: "Blogs", to: "/save-our-earth/blogs" },
+  { label: "Donate", to: "/save-our-earth/donate" },
+];
+const footerServiceLinks: NavLinkItem[] = [
+  ...serviceDropdownItems,
+  { label: "Education and Tips", to: "/education/learn" },
+  { label: "Save Our Earth", to: "/save-our-earth/blogs" },
+  { label: "Ask Bulk Order Quotation", to: "/bulk-order-enquiry" },
+];
 
 const publicAssetUrl = (path: string) => `${import.meta.env.BASE_URL}${path.replace(/^\/+/, "")}`;
 const logoUrl = publicAssetUrl("/logo.png");
@@ -288,11 +313,33 @@ const newsItems = [
   "Education and Tips for plants, tools, and orchard care",
   "Save Our Earth plantation campaigns from Orchard Growers",
 ];
-const aboutLinks = ["Blogs", "Our Story", "Our Philosophy", "Career", "Press Release", "Science Behind Us"];
-const partnerLinks = ["Invest with Us", "Work with Us", "Bulk Order Enquiry"];
-const supportLinks = ["Your Account", "Shipping Policy", "Terms & Conditions", "Privacy Policy", "FAQs", "Return Policy", "Help"];
+const aboutLinks: NavLinkItem[] = [
+  { label: "Blogs", to: "/aboutus/blogs" },
+  { label: "Our Story", to: "/aboutus/ourstory" },
+  { label: "Our Philosophy", to: "/aboutus/ourphilosophy" },
+  { label: "Career", to: "/aboutus/career" },
+  { label: "Press Release", to: "/aboutus/pressrelease" },
+  { label: "Science Behind Us", to: "/aboutus/sciencebehindus" },
+];
+const partnerLinks: NavLinkItem[] = [
+  { label: "Invest with Us", to: "/partnersprogramme/investwithus" },
+  { label: "Sell with Us", to: "/partnersprogramme/workwithus" },
+  { label: "Affiliate Nursery With Us", to: "/partnersprogramme/affiliatenurserywithus" },
+];
+const supportLinks: NavLinkItem[] = [
+  { label: "Your Account", to: "/profile" },
+  { label: "Shipping Policy", to: "/support/shippingpolicy" },
+  { label: "Terms & Conditions", to: "/support/termsandconditions" },
+  { label: "Privacy Policy", to: "/support/privacypolicy" },
+  { label: "FAQs", to: "/support/faqs" },
+  { label: "Return Policy", to: "/support/returnpolicy" },
+  { label: "Help", to: "/support/help" },
+];
 
 function App() {
+  const location = useLocation();
+  const showFooter = location.pathname !== "/";
+
   return (
     <div className="min-h-screen bg-[#eef6f0] text-slate-950">
       <TopNav />
@@ -300,6 +347,38 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/products" element={<Products />} />
+          <Route path="/services/ffccbb" element={<FFCCBBPage />} />
+          <Route path="/ourservices/nurseryplantprices" element={<NurseryPlantPricesPage />} />
+          <Route path="/ourservices/nurseryservices" element={<StandardServicePage service={servicePages.nurseryServices} />} />
+          <Route path="/ourservices/gardning" element={<StandardServicePage service={servicePages.gardening} />} />
+          <Route path="/ourservices/services" element={<StandardServicePage service={servicePages.services} />} />
+          <Route path="/ourservices/landscaping" element={<StandardServicePage service={servicePages.landscaping} />} />
+          <Route path="/ourservices/orchardservices" element={<StandardServicePage service={servicePages.orchardServices} />} />
+          <Route path="/ourservices/soiltest" element={<StandardServicePage service={servicePages.soilTest} />} />
+          <Route path="/ourservices/expertadvice" element={<ExpertAdvicePage />} />
+          <Route path="/download/orchard-growers-app" element={<DownloadPage appName="Orchard Growers App" appType="orchard" />} />
+          <Route path="/download/efruitmandi-app" element={<DownloadPage appName="efruitmandi.live App" appType="efruitmandi" />} />
+          <Route path="/bulk-order-enquiry" element={<BulkOrderPage />} />
+          <Route path="/aboutus/blogs" element={<StaticInfoPage page={staticPages.blogs} />} />
+          <Route path="/aboutus/ourstory" element={<StaticInfoPage page={staticPages.ourStory} />} />
+          <Route path="/aboutus/ourphilosophy" element={<StaticInfoPage page={staticPages.ourPhilosophy} />} />
+          <Route path="/aboutus/career" element={<StaticInfoPage page={staticPages.career} />} />
+          <Route path="/aboutus/pressrelease" element={<StaticInfoPage page={staticPages.pressRelease} />} />
+          <Route path="/aboutus/sciencebehindus" element={<StaticInfoPage page={staticPages.scienceBehindUs} />} />
+          <Route path="/partnersprogramme/investwithus" element={<StaticInfoPage page={staticPages.investWithUs} />} />
+          <Route path="/partnersprogramme/workwithus" element={<StaticInfoPage page={staticPages.workWithUs} />} />
+          <Route path="/partnersprogramme/affiliatenurserywithus" element={<StaticInfoPage page={staticPages.affiliateNursery} />} />
+          <Route path="/support/shippingpolicy" element={<StaticInfoPage page={staticPages.shippingPolicy} />} />
+          <Route path="/support/termsandconditions" element={<PolicyPage content={termsPolicyContent} />} />
+          <Route path="/support/privacypolicy" element={<PolicyPage content={privacyPolicyContent} />} />
+          <Route path="/support/faqs" element={<StaticInfoPage page={staticPages.faqs} />} />
+          <Route path="/support/returnpolicy" element={<StaticInfoPage page={staticPages.returnPolicy} />} />
+          <Route path="/support/help" element={<StaticInfoPage page={staticPages.help} />} />
+          <Route path="/education/learn" element={<StaticInfoPage page={staticPages.learn} />} />
+          <Route path="/education/plant-care-tips" element={<StaticInfoPage page={staticPages.plantCareTips} />} />
+          <Route path="/education/orchard-planning" element={<StaticInfoPage page={staticPages.orchardPlanning} />} />
+          <Route path="/save-our-earth/blogs" element={<StaticInfoPage page={staticPages.earthBlogs} />} />
+          <Route path="/save-our-earth/donate" element={<StaticInfoPage page={staticPages.donate} />} />
           <Route path="/login" element={<AuthPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/cart" element={<CartPage />} />
@@ -308,6 +387,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
         </Routes>
       </main>
+      {showFooter ? <FooterLinkSection /> : <FooterCopyrightStrip />}
       <InstallAppPrompt />
       <StickyWhatsapp />
     </div>
@@ -316,6 +396,7 @@ function App() {
 
 function Home() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [products, setProducts] = useState<Product[]>([]);
   const [auctions, setAuctions] = useState<Auction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -324,9 +405,6 @@ function Home() {
   const [ratingProduct, setRatingProduct] = useState<Product | null>(null);
   const [imagePreview, setImagePreview] = useState<ProductImagePreview | null>(null);
   const [stockMessage, setStockMessage] = useState("");
-  const desktopGridRef = useRef<HTMLDivElement | null>(null);
-  const leftSidebarRef = useBottomPinnedColumn(desktopGridRef);
-  const rightSidebarRef = useBottomPinnedColumn(desktopGridRef);
   const user = getStoredUser();
   const isSignedIn = hasSignedInUser();
 
@@ -337,7 +415,7 @@ function Home() {
           API.get<Product[]>("/products").catch(() => ({ data: [] as Product[] })),
           API.get<Auction[]>("/auctions").catch(() => ({ data: [] as Auction[] })),
         ]);
-        setProducts(withDemoProducts(productRes.data || []));
+        setProducts(productRes.data || []);
         setAuctions(auctionRes.data || []);
       } finally {
         setLoading(false);
@@ -346,6 +424,13 @@ function Home() {
 
     load();
   }, []);
+
+  useEffect(() => {
+    const section = new URLSearchParams(location.search).get("section") || "products";
+    if (desktopSections.some((item) => item.key === section)) {
+      setDesktopSelections([section]);
+    }
+  }, [location.search]);
 
   const visibleListings = products;
   const sortedListings = useMemo(() => getListingsForDesktopSections(products, desktopSelections), [products, desktopSelections]);
@@ -390,11 +475,8 @@ function Home() {
         </div>
       </div>
 
-      <div
-        ref={desktopGridRef}
-        className="hidden w-full gap-5 md:grid md:grid-cols-[218px_minmax(0,1fr)] lg:grid-cols-[218px_minmax(0,1fr)_314px] xl:grid-cols-[240px_minmax(0,1fr)_340px]"
-      >
-        <aside ref={leftSidebarRef} className="self-start space-y-2.5 will-change-transform">
+      <div className="hidden w-full gap-5 md:grid md:grid-cols-[218px_minmax(0,1fr)] lg:grid-cols-[218px_minmax(0,1fr)_314px] xl:grid-cols-[240px_minmax(0,1fr)_340px]">
+        <aside className="auto-hide-column-scroll sticky top-16 max-h-[calc(100vh-5rem)] self-start space-y-2.5 overflow-y-auto pr-1">
           <ProfileCard user={user} isSignedIn={isSignedIn} onOpen={() => navigate(isSignedIn ? "/dashboard" : "/login")} />
           <StatsCard />
           <CompanyCard />
@@ -424,7 +506,7 @@ function Home() {
           )}
         </section>
 
-        <aside ref={rightSidebarRef} className="hidden self-start space-y-2.5 will-change-transform lg:block">
+        <aside className="auto-hide-column-scroll sticky top-16 hidden max-h-[calc(100vh-5rem)] self-start space-y-2.5 overflow-y-auto pr-1 lg:block">
           <NewsCard />
           <AdCard onListLot={() => navigate("/products")} />
           <SidebarLinkCard title="About Us" links={aboutLinks} />
@@ -436,6 +518,628 @@ function Home() {
       <ImagePreviewModal preview={imagePreview} onClose={() => setImagePreview(null)} />
       <StockNoticePopup message={stockMessage} onClose={() => setStockMessage("")} />
     </>
+  );
+}
+
+const ffccbbPlantPrices = [
+  ["Mango (Grafted)", "Kesar/Alphonso", "Rs. 120", "Rs. 250-Rs. 400", "3-4 Years"],
+  ["Guava (Hybrid)", "Taiwan Red", "Rs. 100", "Rs. 200-Rs. 350", "2 Years"],
+  ["Lemon", "Kagzi", "Rs. 70", "Rs. 180-Rs. 300", "2 Years"],
+  ["Papaya", "Red Lady", "Rs. 35", "Rs. 250-Rs. 450", "1 Year"],
+  ["Dragon Fruit", "Vietnamese Red", "Rs. 150", "Rs. 500-Rs. 1000", "2 Years"],
+  ["Coconut", "Dwarf Green/Tall", "Rs. 90", "Rs. 300-Rs. 500", "4-5 Years"],
+  ["Banana", "Grand Naine", "Rs. 25", "Rs. 150-Rs. 300", "1 Year"],
+  ["Pomegranate", "Bhagwa", "Rs. 80", "Rs. 200-Rs. 400", "2 Years"],
+  ["Sapota", "Cricket Ball", "Rs. 110", "Rs. 250-Rs. 400", "3-4 Years"],
+  ["Custard Apple", "Balangar", "Rs. 95", "Rs. 200-Rs. 350", "2-3 Years"],
+  ["Jamun", "Narendra Jamun", "Rs. 130", "Rs. 300-Rs. 500", "5-6 Years"],
+  ["Amla", "NA-7", "Rs. 85", "Rs. 150-Rs. 300", "3 Years"],
+  ["Fig", "Poona", "Rs. 120", "Rs. 300-Rs. 500", "2 Years"],
+  ["Ber", "Gola", "Rs. 65", "Rs. 150-Rs. 300", "2 Years"],
+  ["Chikoo", "PKM-1", "Rs. 110", "Rs. 250-Rs. 400", "3-4 Years"],
+  ["Mousambi", "Sathgudi", "Rs. 95", "Rs. 200-Rs. 350", "3 Years"],
+  ["Orange", "Nagpur", "Rs. 105", "Rs. 250-Rs. 450", "3-4 Years"],
+  ["Kiwi", "Hayward", "Rs. 180", "Rs. 400-Rs. 700", "3 Years"],
+  ["Avocado", "Hass", "Rs. 220", "Rs. 500-Rs. 900", "3-4 Years"],
+  ["Litchi", "Shahi", "Rs. 160", "Rs. 350-Rs. 600", "4-5 Years"],
+];
+
+const ffccbbIncluded = [
+  "Certified fruit plants",
+  "Organic sprays and disease management",
+  "Expert visits and regular inspections",
+  "SOP documentation and orchard file",
+  "Plant replacement guarantee",
+  "Pest and weed control using natural methods",
+  "Guidance on water management and layout",
+];
+
+const ffccbbNotIncluded = [
+  "Raw cow dung or compost, arranged by the farmer",
+  "Fencing or protection from wild animals",
+  "Water supply, which must be available and reliable",
+];
+
+function FFCCBBPage() {
+  const [bookingSent, setBookingSent] = useState(false);
+
+  const handleBooking = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setBookingSent(true);
+  };
+
+  return (
+    <section className="mx-auto max-w-6xl space-y-5 px-3 pb-12 md:px-0">
+      <div className="overflow-hidden rounded-lg bg-green-950 text-white shadow-sm">
+        <div className="grid gap-6 p-6 md:grid-cols-[minmax(0,1fr)_360px] md:p-8">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-300">Contract-Based Orchard Service</p>
+            <h1 className="mt-3 max-w-3xl text-3xl font-black leading-tight md:text-5xl">
+              FFCCBB
+            </h1>
+            <p className="mt-2 text-xl font-bold text-green-100">Fruit Farm Cultivation Contract-Based Business</p>
+            <p className="mt-5 max-w-2xl text-lg font-semibold text-white">You provide the land, we grow the orchard.</p>
+            <p className="mt-4 max-w-3xl text-sm leading-6 text-green-50">
+              Orchard Growers Private Limited helps landowners and farmers establish fruit farms without worrying about technical knowledge, workforce, or organic practices. We develop and maintain the orchard on your land for 1 to 5 years at a minimum annual service cost of Rs. 200 to Rs. 400 per plant, depending on plant variety and location.
+            </p>
+          </div>
+          <form onSubmit={handleBooking} className="rounded-lg bg-white p-4 text-slate-950 shadow-lg">
+            <h2 className="text-lg font-black">Book Your FFCCBB Slot Now</h2>
+            <div className="mt-4 grid gap-3">
+              <FFCCBBInput label="Full Name" name="name" required />
+              <FFCCBBInput label="Email Address" name="email" type="email" required />
+              <FFCCBBInput label="Phone Number" name="phone" type="tel" required />
+              <label className="text-sm font-bold text-slate-700">
+                Select Plant Type
+                <select name="plantType" required className="mt-1 h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-green-700">
+                  <option value="">-- Select Fruit Type --</option>
+                  {ffccbbPlantPrices.map(([fruit, variety]) => (
+                    <option key={fruit} value={fruit}>{fruit} - {variety}</option>
+                  ))}
+                </select>
+              </label>
+              <FFCCBBInput label="No. of Plants" name="plants" type="number" min="1" required />
+            </div>
+            <button className="mt-4 w-full rounded-md bg-green-700 px-4 py-3 text-sm font-black text-white hover:bg-green-800">
+              Submit Booking Request
+            </button>
+            {bookingSent && <p className="mt-3 rounded-md bg-green-50 px-3 py-2 text-xs font-bold text-green-800">Booking request noted. Our team will contact you shortly.</p>}
+          </form>
+        </div>
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-5">
+          <FFCCBBSection title="What is FFCCBB?">
+            <p>FFCCBB is a farmer-friendly service model designed to convert unused or under-managed land into a professionally planned fruit orchard. Farmers sign a 1 to 5-year product/service contract with Orchard Growers. We provide and plant certified fruit plants and manage the orchard with organic and natural methods.</p>
+          </FFCCBBSection>
+          <FFCCBBSection title="How It Works">
+            <p>Our team supports soil preparation guidance, plantation, natural disease control, expert visits, orchard documentation, and plant replacement under agreed terms. From layout to orchard file maintenance, the process is handled in a structured and transparent way.</p>
+          </FFCCBBSection>
+        </div>
+        <aside className="rounded-lg border border-green-200 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-black text-green-900">Why Farmers Choose It</h2>
+          <ul className="mt-3 space-y-2 text-sm font-semibold text-slate-700">
+            {[
+              "No farming knowledge required",
+              "Useful for busy or migrant landowners",
+              "Low annual service cost",
+              "Organic, soil-safe management",
+              "Structured orchard documentation",
+              "Improves long-term land value",
+            ].map((item) => (
+              <li key={item} className="flex gap-2"><FaCheck className="mt-0.5 shrink-0 text-green-700" />{item}</li>
+            ))}
+          </ul>
+        </aside>
+      </div>
+
+      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 p-5">
+          <h2 className="text-xl font-black text-slate-950">Price Per Plant List (2025-26)</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-[820px] w-full text-left text-sm">
+            <thead className="bg-green-900 text-xs uppercase text-white">
+              <tr>
+                {["Fruit Type", "Variety", "Plant Price", "Expected ROI/Year", "First Yield Year"].map((head) => (
+                  <th key={head} className="px-4 py-3">{head}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {ffccbbPlantPrices.map((row) => (
+                <tr key={`${row[0]}-${row[1]}`} className="hover:bg-green-50">
+                  {row.map((cell) => (
+                    <td key={cell} className="px-4 py-3 font-semibold text-slate-700">{cell}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <FFCCBBList title="What's Included" items={ffccbbIncluded} tone="green" />
+        <FFCCBBList title="What's Not Included" items={ffccbbNotIncluded} tone="amber" />
+      </div>
+
+      <FFCCBBSection title="Contract Terms and Payments">
+        <p>The service period is one to five years. The total project cost is divided into annual instalments. If the company fails to meet the contract terms, it will refund twice the total paid amount.</p>
+      </FFCCBBSection>
+
+      <FFCCBBSection title="A Real Opportunity for Farmers">
+        <p>Whether you are a full-time farmer, a landowner with no time, or someone who wants to grow fruit trees for future income, FFCCBB converts unused land into a productive orchard with expert handling, legal agreement, and low input cost.</p>
+        <p className="mt-3 font-black text-green-800">Orchard Growers empowers rural communities with a simple vision: You provide the land, we grow the orchard.</p>
+      </FFCCBBSection>
+    </section>
+  );
+}
+
+function FFCCBBInput({ label, ...props }: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <label className="text-sm font-bold text-slate-700">
+      {label}
+      <input {...props} className="mt-1 h-11 w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:border-green-700" />
+    </label>
+  );
+}
+
+function FFCCBBSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 className="text-xl font-black text-slate-950">{title}</h2>
+      <div className="mt-3 text-sm font-medium leading-6 text-slate-700">{children}</div>
+    </section>
+  );
+}
+
+function FFCCBBList({ title, items, tone }: { title: string; items: string[]; tone: "green" | "amber" }) {
+  const classes = tone === "green" ? "border-green-200 bg-green-50 text-green-900" : "border-amber-200 bg-amber-50 text-amber-900";
+  return (
+    <section className={`rounded-lg border p-5 shadow-sm ${classes}`}>
+      <h2 className="text-xl font-black">{title}</h2>
+      <ul className="mt-3 space-y-2 text-sm font-semibold">
+        {items.map((item) => (
+          <li key={item} className="flex gap-2"><FaCheck className="mt-0.5 shrink-0" />{item}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+const nurseryPriceRows = [
+  ["Mango (Alphonso, Grafted)", "Fruit", "12-18 in Grafted", "249"],
+  ["Apple (Low-chill, Grafted)", "Fruit", "12-18 in Grafted", "299"],
+  ["Lemon (Kagzi)", "Citrus", "10-12 in Seedling", "149"],
+  ["Sweet Orange (Mosambi, Budded)", "Citrus", "12-18 in Budded", "189"],
+  ["Guava (Allahabad Safeda, Grafted)", "Fruit", "12-18 in Grafted", "179"],
+  ["Pomegranate (Bhagwa)", "Fruit", "12-18 in Layered", "169"],
+  ["Rose (Hybrid Tea)", "Ornamental", "8-10 in Grafted", "129"],
+  ["Areca Palm", "Indoor", "6 in Pot", "299"],
+  ["Aloe Vera", "Succulent", "4 in Pot", "99"],
+  ["Hibiscus (Red)", "Ornamental", "8-10 in Cutting", "119"],
+  ["Sapota (Chikoo)", "Fruit", "12-18 in Grafted", "199"],
+  ["Jamun (Black Plum)", "Fruit", "12-18 in Seedling", "159"],
+];
+
+const servicePages = {
+  nurseryServices: {
+    kicker: "Full-Time or Part-Time by Orchard Growers",
+    title: "Nursery Management Services",
+    intro: "Professional nursery management services for small nurseries and large commercial setups, available on a full-time or part-time basis.",
+    servicesTitle: "Our experienced team handles",
+    items: [
+      ["Grafting & Propagation", "Skilled grafting for high-quality plant varieties."],
+      ["Daily Caretaking", "Watering, weeding, repotting, and plant health monitoring."],
+      ["Tools & Products", "Supply of organic inputs, pots, and nursery tools."],
+      ["SOPs & Documentation", "Inventory, plant records, and growth tracking."],
+      ["Expert Visits", "Scheduled checkups by horticulture professionals."],
+      ["Professional Advice", "On-demand guidance for sales, layout, and plant selection."],
+    ],
+    closing: "We also support new nursery setup, staff training, and marketing of plants through our platform.",
+    cta: "Let your nursery bloom with expert care.",
+  },
+  gardening: {
+    kicker: "For Homes, Farms & Institutions",
+    title: "Professional Gardening Services",
+    intro: "Expert gardening services for homes, farms, resorts, schools, and business spaces with flexible full-time and part-time packages.",
+    servicesTitle: "Our gardening experts provide",
+    items: [
+      ["Planting & Landscaping", "Garden layout, seasonal plant selection, and plantation."],
+      ["Pruning & Trimming", "Regular shaping and health management of plants."],
+      ["Caretaking", "Watering, weeding, pest control, and soil care."],
+      ["Flower Beds & Kitchen Gardens", "Setup and maintenance for personal use or sale."],
+      ["Tools & Organic Products", "Supply of gardening kits, compost, and natural sprays."],
+      ["Expert Advice", "Guidance on plant health, design, and sustainability."],
+      ["Monthly Expert Visits", "Timely checkups and progress reports."],
+    ],
+    closing: "We help residential and commercial gardens stay lush, clean, and vibrant throughout the year.",
+    cta: "Book your Gardening Service today with Orchard Growers.",
+  },
+  services: {
+    kicker: "Plants, Products & Field Support",
+    title: "Orchard Growers Services",
+    intro: "A practical service desk for plant purchase, orchard setup, garden care, bulk requirements, and post-purchase advisory.",
+    servicesTitle: "Available service support",
+    items: [
+      ["Plant Selection", "Choose suitable fruit, forest, ornamental, seasonal, and all-season plants."],
+      ["Bulk Procurement", "Plan large plant orders with category, season, and delivery guidance."],
+      ["Garden Inputs", "Get support for manure, cocopeat, pots, tools, and natural inputs."],
+      ["Farm Planning", "Understand spacing, layout, water availability, and basic SOP needs."],
+      ["After-Sales Guidance", "Care tips for newly planted saplings and seasonal maintenance."],
+      ["Service Booking", "Request nursery, gardening, landscaping, soil test, or expert visit services."],
+    ],
+    closing: "This page keeps the complete Orchard Growers service menu in one place for customers and farmers.",
+    cta: "Select the required service or contact us for a guided recommendation.",
+  },
+  landscaping: {
+    kicker: "Beautify Your Space Naturally",
+    title: "Professional Landscaping Services",
+    intro: "Landscape design and development for farmhouses, resorts, schools, commercial properties, and public areas using natural and organic methods.",
+    servicesTitle: "Our expert landscaping team offers",
+    items: [
+      ["Landscape Design", "Site analysis, layout planning, and 3D visualization."],
+      ["Theme Gardens", "Herbal, ornamental, rock gardens, and fruit garden corners."],
+      ["Earthwork & Plantation", "Mound shaping, pathways, turf laying, and tree plantation."],
+      ["Decorative Plants & Lawn Setup", "Selection and arrangement of indoor and outdoor plants."],
+      ["Seasonal Maintenance", "Weeding, mulching, trimming, watering, and health care."],
+      ["Tools & Organic Inputs", "Natural compost, sprays, and landscaping equipment."],
+      ["Expert Supervision", "Periodic site visits and performance reports."],
+    ],
+    closing: "We balance aesthetic appeal with ecological sustainability, creating green spaces that add value to your property.",
+    cta: "Choose Orchard Growers for eco-smart and artistic landscaping.",
+  },
+  orchardServices: {
+    kicker: "Fruit Farm Development",
+    title: "Orchard Services",
+    intro: "End-to-end orchard development and maintenance support for farmers, landowners, institutions, and commercial growers.",
+    servicesTitle: "Orchard services include",
+    items: [
+      ["Site Assessment", "Basic review of soil, water, slope, access, and local climate suitability."],
+      ["Planting Layout", "Spacing and variety planning for mango, guava, citrus, apple, pomegranate, and other fruit crops."],
+      ["Organic Care Plan", "Natural disease control, manure scheduling, mulching, and weed management guidance."],
+      ["Inspection Visits", "Planned visits for plant health, replacement suggestions, and growth monitoring."],
+      ["Documentation", "Orchard file, plant list, service record, and field observations."],
+      ["Harvest Readiness", "Guidance as the orchard moves toward fruiting and market linkage."],
+    ],
+    closing: "Our orchard services focus on long-term plant survival, structured management, and practical farmer support.",
+    cta: "Share your land details to begin an orchard service plan.",
+  },
+  soilTest: {
+    kicker: "Know Your Land First",
+    title: "Soil Test",
+    intro: "Soil testing support for better plant selection, nutrient planning, pH correction, and orchard preparation.",
+    servicesTitle: "Soil test support covers",
+    items: [
+      ["Sample Guidance", "Simple instructions for collecting representative soil samples from the plot."],
+      ["Lab Coordination", "Support for soil testing through reliable local or regional laboratories."],
+      ["Report Reading", "Easy explanation of pH, EC, organic carbon, NPK, and micronutrient indicators."],
+      ["Crop Suitability", "Fruit and plant recommendations based on soil type and climate context."],
+      ["Correction Plan", "Organic amendments, compost, gypsum, lime, or drainage suggestions where applicable."],
+      ["Pre-Planting Checklist", "Action list before plantation begins so avoidable failures are reduced."],
+    ],
+    closing: "Testing before planting helps prevent wrong crop selection and unnecessary input cost.",
+    cta: "Book soil test guidance before orchard development.",
+  },
+};
+
+function NurseryPlantPricesPage() {
+  return (
+    <section className="mx-auto max-w-6xl space-y-5 px-3 pb-12 md:px-0">
+      <ServiceHero eyebrow="Updated: Aug 2025 - Demo price list" title="Nursery Plants Price for 2025-26" subtitle="Transparent, farmer-friendly pricing for fruit plants, citrus, ornamentals, and grafted saplings." chips={["Pan-India delivery", "Bulk discounts", "Expert orchard guidance"]} />
+      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 p-5">
+          <h2 className="text-xl font-black text-slate-950">Price List (Retail) - 2025-26</h2>
+          <p className="mt-2 text-sm font-semibold text-slate-600">Prices include nursery handling. Shipping and taxes are calculated at checkout.</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-[760px] w-full text-left text-sm">
+            <thead className="bg-green-900 text-xs uppercase text-white">
+              <tr>{["Plant", "Category", "Size / Grade", "Retail Price", "Buy"].map((head) => <th key={head} className="px-4 py-3">{head}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {nurseryPriceRows.map(([plant, category, size, price]) => (
+                <tr key={plant} className="hover:bg-green-50">
+                  <td className="px-4 py-3 font-black text-slate-900">{plant}</td>
+                  <td className="px-4 py-3 font-semibold text-slate-700">{category}</td>
+                  <td className="px-4 py-3 font-semibold text-slate-700">{size}</td>
+                  <td className="px-4 py-3 font-black text-green-800">Rs. {price}</td>
+                  <td className="px-4 py-3"><Link to="/products" className="rounded-md bg-green-700 px-3 py-2 text-xs font-black text-white hover:bg-green-800">Add to Cart</Link></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <div className="grid gap-5 md:grid-cols-2">
+        <ServiceCard title="Bulk / Wholesale"><p>50-99 plants: 8% off. 100-249 plants: 12% off. 250+ plants: 18% off.</p></ServiceCard>
+        <ServiceCard title="How We Price"><p>Prices factor in rootstock quality, survival rate, plant age, hardening, and seasonality while maintaining certified nursery standards.</p></ServiceCard>
+      </div>
+      <FAQBlock />
+    </section>
+  );
+}
+
+function StandardServicePage({ service }: { service: typeof servicePages.nurseryServices }) {
+  return (
+    <section className="mx-auto max-w-6xl space-y-5 px-3 pb-12 md:px-0">
+      <ServiceHero eyebrow={service.kicker} title={service.title} subtitle={service.intro} chips={["Full-time support", "Part-time packages", "Organic methods"]} />
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="text-xl font-black text-slate-950">{service.servicesTitle}</h2>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {service.items.map(([title, text]) => <div key={title} className="rounded-lg border border-green-100 bg-green-50 p-4"><h3 className="font-black text-green-950">{title}</h3><p className="mt-2 text-sm font-semibold leading-6 text-slate-700">{text}</p></div>)}
+        </div>
+      </section>
+      <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_320px]">
+        <ServiceCard title="Service Promise"><p>{service.closing}</p><p className="mt-3 font-black text-green-800">{service.cta}</p></ServiceCard>
+        <ContactCard />
+      </div>
+    </section>
+  );
+}
+
+function ExpertAdvicePage() {
+  const [sent, setSent] = useState(false);
+  return (
+    <section className="mx-auto max-w-6xl space-y-5 px-3 pb-12 md:px-0">
+      <ServiceHero eyebrow="by Orchard Growers" title="Free Expert Advice on Call & On-Site Plot Visit" subtitle="Talk with horticulture advisors for soil planning, plant selection, layout design, water management, disease control, and orchard planning." chips={["Free phone consultation", "Paid expert visit if needed", "WhatsApp and call support"]} />
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <ServiceCard title="How Our Experts Help"><p>Our experts can visit selected areas to assess plots and suggest practical solutions tailored to climate, terrain, and budget.</p><ul className="mt-4 space-y-2 text-sm font-semibold text-slate-700">{["Personalized orchard plan", "Plant and layout recommendations", "Water and disease management guidance", "Support for beginners and experienced farmers"].map((item) => <li key={item} className="flex gap-2"><FaCheck className="mt-0.5 shrink-0 text-green-700" />{item}</li>)}</ul></ServiceCard>
+        <form onSubmit={(event) => { event.preventDefault(); setSent(true); }} className="rounded-lg border border-green-200 bg-white p-5 shadow-sm">
+          <h2 className="text-xl font-black text-slate-950">Request Free Expert Advice</h2>
+          <div className="mt-4 grid gap-3">
+            <FFCCBBInput label="Full Name" name="name" required />
+            <FFCCBBInput label="Phone Number" name="phone" type="tel" required />
+            <FFCCBBInput label="Your Plot Location" name="location" required />
+            <FFCCBBInput label="Preferred Time to Call" name="time" />
+            <label className="text-sm font-bold text-slate-700">Need Expert Visit?<select name="visit" className="mt-1 h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm outline-none focus:border-green-700"><option>No</option><option>Yes</option></select></label>
+            <label className="text-sm font-bold text-slate-700">Describe Your Query (Optional)<textarea name="query" rows={4} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-green-700" /></label>
+          </div>
+          <button className="mt-4 w-full rounded-md bg-green-700 px-4 py-3 text-sm font-black text-white hover:bg-green-800">Request Call</button>
+          {sent && <p className="mt-3 rounded-md bg-green-50 px-3 py-2 text-xs font-bold text-green-800">Request received. Our team will contact you shortly.</p>}
+        </form>
+      </div>
+      <ContactCard />
+    </section>
+  );
+}
+
+function ServiceHero({ eyebrow, title, subtitle, chips }: { eyebrow: string; title: string; subtitle: string; chips: string[] }) {
+  return <section className="overflow-hidden rounded-lg bg-green-950 p-6 text-white shadow-sm md:p-8"><p className="text-xs font-black uppercase tracking-[0.18em] text-amber-300">{eyebrow}</p><h1 className="mt-3 max-w-4xl text-3xl font-black leading-tight md:text-5xl">{title}</h1><p className="mt-4 max-w-3xl text-sm font-semibold leading-6 text-green-50 md:text-base">{subtitle}</p><div className="mt-5 flex flex-wrap gap-2">{chips.map((chip) => <span key={chip} className="rounded-full bg-white/10 px-3 py-1 text-xs font-black text-green-50">{chip}</span>)}</div></section>;
+}
+
+function ServiceCard({ title, children }: { title: string; children: ReactNode }) {
+  return <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"><h2 className="text-xl font-black text-slate-950">{title}</h2><div className="mt-3 text-sm font-medium leading-6 text-slate-700">{children}</div></section>;
+}
+
+function ContactCard() {
+  return <section className="rounded-lg border border-green-200 bg-green-50 p-5 shadow-sm"><h2 className="text-xl font-black text-green-950">Contact Orchard Growers</h2><div className="mt-3 space-y-2 text-sm font-bold text-green-900"><p>WhatsApp: +91 7018108900</p><p>Call: +91 7018108900</p><p>Email: care@orchardgrowers.in</p></div></section>;
+}
+
+function FAQBlock() {
+  const faqs = [["What is the average nursery plant price in India?", "Ornamentals commonly range from Rs. 99-Rs. 199, while fruit saplings vary by variety, rootstock, and size."], ["Do you offer pan-India delivery?", "Yes. Protective packaging is used and charges depend on weight and destination PIN code."], ["Are wholesale rates available?", "Yes. Slab-wise discounts start at 50+ plants, and custom quotes are available for institutions and nurseries."], ["How do I choose the right plant?", "Check climate zone, chill hours, soil pH, irrigation availability, and your expected yield timeline."]];
+  return <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"><h2 className="text-xl font-black text-slate-950">Frequently Asked Questions</h2><div className="mt-4 grid gap-3 md:grid-cols-2">{faqs.map(([question, answer]) => <div key={question} className="rounded-lg bg-slate-50 p-4"><h3 className="font-black text-slate-950">{question}</h3><p className="mt-2 text-sm font-semibold leading-6 text-slate-700">{answer}</p></div>)}</div></section>;
+}
+
+type StaticPage = {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  chips: string[];
+  sections: { title: string; body: string; items?: string[] }[];
+};
+
+const staticPages: Record<string, StaticPage> = {
+  blogs: page("About Us", "Blogs", "Updates, guides, and field learning from Orchard Growers.", ["Plant care", "Orchard ideas"], [["Latest Updates", "Read practical notes on fruit plants, nursery care, seasonal planning, and sustainable orchard practices."], ["Featured Topics", "Our blog area is prepared for upcoming articles and farmer education content.", ["Fruit plant care", "Organic inputs", "Garden planning", "Save Our Earth"]]]),
+  ourStory: page("About Us", "Our Story", "Orchard Growers was built to make quality plants, orchard services, and practical guidance easier to access.", ["Plants", "Farmers", "Services"], [["Who We Are", "We connect growers, gardeners, nurseries, and landowners with plants, services, and support that help green spaces become productive."], ["What We Do", "Our work covers nursery plants, orchard development, gardening, landscaping, expert advice, and service-based farm support."]]),
+  ourPhilosophy: page("About Us", "Our Philosophy", "Healthy plants, transparent service, and nature-first practices are the core of Orchard Growers.", ["Organic focus", "Farmer-first"], [["Our Belief", "Good orchards begin with the right plant, right place, and right care plan."], ["Working Method", "We prefer practical guidance, natural inputs where possible, clear documentation, and long-term customer support."]]),
+  career: page("About Us", "Career", "Work with Orchard Growers across nursery, field service, operations, sales, and digital support.", ["Field roles", "Growth"], [["Open Interest", "Candidates with nursery, horticulture, landscaping, customer support, delivery, or digital operations experience can connect with us."], ["How To Apply", "Send your profile and area of interest to care@orchardgrowers.in or contact us on WhatsApp."]]),
+  pressRelease: page("About Us", "Press Release", "Official updates and announcements from Orchard Growers.", ["Company news", "Media"], [["Media Desk", "This page will carry Orchard Growers updates, service launches, campaign information, and public notices."], ["Contact", "For media or partnership enquiries, contact care@orchardgrowers.in."]]),
+  scienceBehindUs: page("About Us", "Science Behind Us", "Our recommendations use plant biology, soil health, climate suitability, and practical field experience.", ["Soil", "Climate", "Care"], [["Plant Science", "Plant survival depends on root health, seasonal timing, water availability, disease prevention, and correct variety selection."], ["Field Practice", "We combine horticulture guidance with local observations so customers receive useful and realistic advice."]]),
+  investWithUs: page("Become Partner", "Invest with Us", "Partner with Orchard Growers in plant supply, green services, farm development, and rural growth opportunities.", ["Partnership", "Green business"], [["Opportunity", "The nursery and orchard sector needs reliable plants, logistics, advisory, and service execution at scale."], ["Next Step", "Share your investment interest and preferred region so our team can discuss fit and operating model."]]),
+  workWithUs: page("Become Partner", "Work with Us", "Collaborate with Orchard Growers as a nursery, field expert, service provider, delivery partner, or local coordinator.", ["Partner network", "Local execution"], [["Who Can Join", "Nurseries, horticulture graduates, gardeners, landscapers, agri-input suppliers, and local entrepreneurs can apply."], ["Partner Promise", "We prefer transparent work, verified service quality, and customer-first communication."]]),
+  affiliateNursery: page("Become Partner", "Affiliate Nursery With Us", "List your nursery supply capability with Orchard Growers and grow through a wider customer network.", ["Nursery network", "Plant supply"], [["Affiliate Model", "Verified nursery partners can support demand for fruit plants, ornamental plants, seasonal plants, pots, and inputs."], ["Quality Standards", "Plants should be healthy, labeled clearly, packed safely, and supplied with honest variety information."]]),
+  shippingPolicy: page("Support", "Shipping Policy", "Shipping depends on product type, plant size, destination PIN code, weather, and carrier availability.", ["Plant-safe packing", "PIN based"], [["Dispatch", "Orders are packed carefully and dispatched when the plant or product can travel safely."], ["Delivery", "Delivery timelines may vary by location, plant condition, and logistics constraints."]]),
+  terms: page("Support", "Terms & Conditions", "Use of Orchard Growers services and products is subject to fair usage, accurate order details, and lawful conduct.", ["Orders", "Services"], [["Customer Responsibility", "Customers should provide correct address, phone, plant requirements, and site information for services."], ["Service Terms", "Service bookings, visits, plant survival, replacements, and refunds depend on the specific service terms shared at booking."]]),
+  privacy: page("Support", "Privacy Policy", "We collect only required information for account, order, delivery, service, payment, and support purposes.", ["Data care", "Secure use"], [["Information Use", "Customer details are used to process orders, provide support, and improve service communication."], ["Protection", "Sensitive credentials are not stored in frontend code and payment or login flows should use secure providers."]]),
+  faqs: page("Support", "FAQs", "Common questions about plants, orders, services, delivery, and support.", ["Quick answers", "Help"], [["Ordering", "Browse products, choose available items, and complete checkout. Unavailable products remain disabled until stock exists."], ["Services", "Nursery, gardening, landscaping, expert advice, FFCCBB, and soil test services can be requested through the service pages."], ["Support", "For urgent help, contact Orchard Growers on WhatsApp or email care@orchardgrowers.in."]]),
+  returnPolicy: page("Support", "Return Policy", "Return and replacement support depends on product type, delivery condition, and evidence shared soon after delivery.", ["Plant condition", "Support"], [["Plants", "Because plants are living products, return handling is reviewed case by case with photos and delivery timing."], ["Non-Plant Items", "Tools, pots, and packed products can be reviewed under standard condition and packaging checks."]]),
+  help: page("Support", "Help", "Get help with orders, account, plant care, service booking, bulk enquiry, or app installation.", ["WhatsApp", "Email"], [["Contact", "WhatsApp or call +91 7018108900 for customer support."], ["Email", "Write to care@orchardgrowers.in with order details, phone number, and photos if relevant."]]),
+  learn: page("Education and Tips", "Learn", "Simple plant and orchard education for customers, gardeners, and farmers.", ["Beginners", "Field-ready"], [["Start Here", "Learn about plant selection, watering, sunlight, potting mix, pruning, and seasonal care."], ["For Farmers", "Use orchard planning notes before buying large quantities of plants."]]),
+  plantCareTips: page("Education and Tips", "Plant Care Tips", "Care notes for healthy plants after delivery and plantation.", ["Water", "Sunlight", "Soil"], [["Daily Care", "Check moisture before watering, avoid heat shock after delivery, and keep plants in suitable light."], ["Seasonal Care", "Mulch in summer, improve drainage in monsoon, and protect sensitive plants in winter."]]),
+  orchardPlanning: page("Education and Tips", "Orchard Planning", "Plan crop, spacing, irrigation, soil preparation, and maintenance before planting.", ["Layout", "ROI"], [["Planning Basics", "Choose fruit types by climate, soil, water, market demand, and expected yield year."], ["Before Buying", "Confirm plant count, variety, spacing, water source, fencing, and labour availability."]]),
+  earthBlogs: page("Save Our Earth", "Save Our Earth Blogs", "Awareness and action notes for plantation, soil care, water saving, and natural farming.", ["Plantation", "Soil health"], [["Green Action", "Small actions like planting native trees, composting, and reducing chemical dependency help restore local ecosystems."], ["Community", "Orchard Growers supports practical campaigns that connect people with plants and responsible land use."]]),
+  donate: page("Save Our Earth", "Donate", "Support plantation and environment-focused work through Orchard Growers campaigns.", ["Trees", "Community"], [["How Donation Helps", "Funds can support plants, protection material, logistics, awareness, and local plantation activity."], ["Contact First", "For campaign details and official contribution routes, contact the Orchard Growers team before making any payment."]]),
+};
+
+function page(eyebrow: string, title: string, subtitle: string, chips: string[], sections: [string, string, string[]?][]): StaticPage {
+  return { eyebrow, title, subtitle, chips, sections: sections.map(([sectionTitle, body, items]) => ({ title: sectionTitle, body, items })) };
+}
+
+type PolicySection = {
+  title?: string;
+  body?: string[];
+  items?: string[];
+};
+
+type PolicyContent = {
+  title: string;
+  effectiveDate: string;
+  intro: string[];
+  sections: PolicySection[];
+  closing?: string[];
+};
+
+const companyOverviewItems = [
+  "High-quality, site-specific fruit plants",
+  "Organic and natural orchard management",
+  "Pruning, grafting, and planting services",
+  "Orchard landscaping and site analysis",
+  "Educational tools and remote consultation",
+  "Future-ready cold storage and tech-driven transportation infrastructure",
+];
+
+const privacyPolicyContent: PolicyContent = {
+  title: "Privacy Policy - Orchard Growers",
+  effectiveDate: "June 17, 2025",
+  intro: [
+    "At Orchard Growers Private Limited ('Orchard Growers,' 'we,' 'our,' or 'us'), we deeply value your trust. As a digital-first, service-based platform rooted in India's heartland, we are committed to protecting the personal and sensitive information of our users, customers, partners, and visitors.",
+    "This Privacy Policy outlines how we collect, use, share, and protect your personal data when you interact with our website, PWA (progressive web app), mobile interfaces, and offline services. We also explain your rights in relation to your data and how you can exercise them.",
+  ],
+  sections: [
+    {
+      title: "Who We Are",
+      body: [
+        "Orchard Growers Private Limited",
+        "Head Office: Musrani, Gohar, Mandi, Himachal Pradesh - 175029",
+        "Website: www.orchardgrowers.in",
+        "Email: care@orchardgrowers.in",
+        "We provide budget-friendly and expert-backed plant-related services including:",
+      ],
+      items: companyOverviewItems,
+    },
+    { title: "Scope of This Privacy Policy", body: ["This policy applies to:"], items: ["Visitors to our website and app", "Customers who purchase plants or book services", "Individuals who register or subscribe to our services", "Field service users and clients interacting offline"] },
+    { title: "What Information We Collect", body: ["We collect the following types of data:"] },
+    { title: "1. Personal Identifiable Information (PII)", items: ["Full name", "Phone number", "Email address", "Shipping address", "Billing address (if different)", "Identity verification (in case of large orders or partnerships)"] },
+    { title: "2. Payment Information", items: ["UPI ID, Razorpay or Stripe transaction IDs", "Payment status (we do not store card or banking credentials directly)"] },
+    { title: "3. Location & Site Information", items: ["Site GPS coordinates for pruning/grafting/site analysis", "Site photos and documentation"] },
+    { title: "4. Technical & Usage Data", items: ["IP address", "Device information", "Browser type and version", "Clickstream data (pages visited, time spent, referral source)"] },
+    { title: "5. Service Interaction Data", items: ["Messages, chats, and feedback", "Service request history", "Order tracking and logistics records"] },
+    { title: "6. Cookies and Tracking Technologies", body: ["We use cookies to:"], items: ["Understand usage behaviour", "Save login preferences", "Personalize experience and recommendations"] },
+    { title: "Why We Collect Your Data", body: ["We collect and process your data for the following purposes:"], items: ["To process orders and deliver products/services", "To communicate order status and service updates", "To schedule, confirm, or verify site-based services", "To enhance our offerings through analytics and feedback", "To send promotions, newsletters, or seasonal tips (only with your consent)", "To maintain platform security and integrity", "To comply with legal and tax regulations"] },
+    { title: "How We Share Your Data", body: ["We value your privacy. We do not sell your personal data. We may, however, share your information with trusted third parties such as:"], items: ["Logistics & shipping providers (e.g., Shiprocket)", "Payment processors (e.g., Razorpay, Stripe)", "Field service agents for on-site delivery or consultations", "IT & security partners to maintain platform integrity", "Legal or regulatory bodies if required by law", "We ensure that all third parties are contractually obligated to protect your data and use it only for the purposes intended."] },
+    { title: "Data Security Measures", body: ["We take multiple precautions to keep your data safe:"], items: ["HTTPS secure connections across all platforms", "Encrypted storage of sensitive identifiers", "OTP verification and login protection", "Secure server hosting and backups", "Periodic audits and access controls", "However, while we use industry-standard measures, no method of data transmission over the internet is 100% secure."] },
+    { title: "Data Retention Policy", body: ["We retain your data only for as long as necessary to:"], items: ["Fulfill the purpose it was collected for", "Meet legal, accounting, or tax requirements", "Improve service quality and personalization", "Inactive accounts and dormant records are periodically anonymized or deleted."] },
+    { title: "Your Rights", body: ["As an Orchard Growers user, you have the following rights:"], items: ["Right to Access - Request a copy of your stored data", "Right to Correction - Update or amend inaccurate data", "Right to Deletion - Request deletion of data no longer needed", "Right to Withdraw Consent - Opt out of marketing or data use", "Right to Object - Refuse processing for specific uses (e.g., profiling)", "To exercise these rights, email us at care@orchardgrowers.in with the subject line 'Privacy Request.'"] },
+    { title: "International Users", body: ["Though we primarily serve Indian customers, international visitors should be aware that your data will be processed and stored in India under Indian laws."] },
+    { title: "Children's Privacy", body: ["Our platform is not intended for children under 13. We do not knowingly collect data from minors. If you believe your child has provided us data without consent, please contact us immediately."] },
+    { title: "Communication Preferences", body: ["You can choose how you'd like to hear from us:"], items: ["Transactional messages (e.g., order updates) are mandatory", "Promotional emails/SMS are sent only after consent and can be opted out at any time"] },
+    { title: "Third-Party Links", body: ["Our website/app may contain links to external sites (e.g., payment gateways, blogs, government horticulture resources). We are not responsible for the privacy practices of these sites."] },
+    { title: "Changes to This Policy", body: ["We may update this policy from time to time. The revised version will be posted on this page with a new effective date. Continued use of our services after updates implies acceptance."] },
+    { title: "Contact Us", body: ["For privacy-related queries, please contact:", "Orchard Growers Private Limited", "Musrani, Gohar, Mandi, Himachal Pradesh - 175029", "Email: care@orchardgrowers.in", "Web: www.orchardgrowers.in"] },
+  ],
+  closing: ["Thank you for trusting Orchard Growers. Your growth and your privacy are both deeply important to us.", "Orchard Growers - Rooted in Trust. Growing with Responsibility."],
+};
+
+const termsPolicyContent: PolicyContent = {
+  title: "Terms & Conditions - Orchard Growers",
+  effectiveDate: "June 17, 2025",
+  intro: [
+    "Welcome to Orchard Growers Private Limited ('Orchard Growers,' 'we,' 'our,' or 'us'). These Terms and Conditions ('Terms') govern your use of our website, progressive web app (PWA), products, and all services related to orchard consultation, fruit plant delivery, and other agricultural solutions.",
+    "By accessing or using our platform or services, you agree to be legally bound by these Terms. If you do not agree, you must not use our platform or services.",
+  ],
+  sections: [
+    { title: "Company Overview", body: ["Orchard Growers Private Limited", "Head Office: Musrani, Gohar, Mandi, Himachal Pradesh - 175029", "Website: www.orchardgrowers.in", "Email: care@orchardgrowers.in", "We offer affordable, research-backed solutions for farmers, orchardists, and landowners including:"], items: companyOverviewItems },
+    { title: "1. Eligibility", body: ["To use our services, you must:"], items: ["Be 18 years or older", "Provide accurate registration and delivery details", "Use the platform legally and ethically", "Minors must use the services under the supervision of a legal guardian."] },
+    { title: "2. User Accounts", body: ["Creating an account may be required to place orders, track services, or schedule consultations.", "You are responsible for protecting your login credentials. Activity under your account is your responsibility.", "We reserve the right to terminate accounts involved in fraud, misuse, or policy violations."] },
+    { title: "3. Orders and Payments", body: ["Order Placement", "Orders may be placed via website, PWA, or customer care. All orders are subject to availability and feasibility.", "Payments", "We accept:"], items: ["UPI, credit/debit cards, Razorpay", "Stripe (international), net banking", "Cash on delivery (select areas)", "Prices are inclusive of applicable taxes unless otherwise mentioned."] },
+    { title: "4. Delivery and Fulfillment", body: ["Delivery timelines vary by region, product, and weather. Shipping partners may change without notice.", "Customers must be present at the scheduled time for deliveries, especially those involving live plants or on-site consultation. For details, refer to our Shipping Policy."] },
+    { title: "5. Returns and Refunds", body: ["Damaged or incorrect products must be reported within 48 hours of delivery.", "Perishable items (e.g., plants) may not be returnable. Cancellations of services should be made at least 48 hours in advance.", "Full policy available on our Refund Policy page."] },
+    { title: "6. Site Analysis and Recommendations", body: ["We provide:"], items: ["Research-driven fruit plant suggestions based on location and terrain", "Optional field visits or remote consultation", "These are recommendations, not guarantees. Orchard success depends on:", "Local climate, soil, and user involvement", "Long-term care and timely follow-ups", "We are not liable for yield outcomes or plant survivability beyond the delivery phase."] },
+    { title: "7. Intellectual Property", body: ["All content on orchardgrowers.in (text, visuals, logos, service formats, designs) belongs to Orchard Growers.", "You may not:"], items: ["Reuse our branding or digital material without consent", "Copy, sell, or redistribute our web or mobile content", "Reverse-engineer or tamper with our backend technologies"] },
+    { title: "8. Data Privacy", body: ["We are committed to your data security. For details on:"], items: ["What information we collect", "How we use it", "Your rights", "Please read our full Privacy Policy."] },
+    { title: "9. User Obligations", body: ["You agree to:"], items: ["Provide truthful and up-to-date information", "Not interfere with website operations or misuse tools", "Not submit offensive, false, or defamatory content", "Respect the rights of other users, our employees, and field staff", "We reserve the right to refuse service or legal action for violations."] },
+    { title: "10. Future Infrastructure", body: ["We are actively planning to build:"], items: ["High-efficiency cold storage warehouses in multiple zones", "Custom cold chain transportation systems for sensitive plants", "A scalable delivery system for remote farmers and cooperatives", "These expansions will enhance the reliability and quality of our delivery and nursery ecosystems."] },
+    { title: "11. Customer Support", body: ["For all order, service, or technical queries:"], items: ["Email: care@orchardgrowers.in", "Use our Contact Us or Support page", "Call numbers as available on the website", "Expect a response within 24-48 business hours."] },
+    { title: "12. Legal and Jurisdiction", body: ["All disputes are subject to:"], items: ["Indian laws and regulations", "Jurisdiction of courts in Mandi, Himachal Pradesh", "Arbitration or mediation may be sought first in case of non-critical disputes."] },
+    { title: "13. Policy Updates", body: ["We may revise these Terms due to law, business updates, or platform changes.", "Updated versions will be posted here with a new effective date. Continued use implies your acceptance of revised terms."] },
+    { title: "14. Feedback and Communication", body: ["By providing reviews or feedback:"], items: ["You permit us to publish them (anonymously or otherwise) on our platform", "You confirm that your review is truthful and does not infringe any third-party rights"] },
+    { title: "15. Contact Information", body: ["Orchard Growers Private Limited", "H.O. Musrani, Gohar, Mandi, Himachal Pradesh - 175029", "Email: care@orchardgrowers.in", "Website: www.orchardgrowers.in"] },
+  ],
+  closing: ["Thank you for trusting Orchard Growers. Let's cultivate success-organically, economically, and together."],
+};
+
+function PolicyPage({ content }: { content: PolicyContent }) {
+  return (
+    <article className="mx-auto max-w-5xl px-3 pb-12 md:px-0">
+      <div className="rounded-lg border border-green-100 bg-white p-5 shadow-sm md:p-8">
+        <p className="text-sm font-black text-green-700">Effective Date: {content.effectiveDate}</p>
+        <h1 className="mt-2 text-3xl font-black leading-tight text-slate-950 md:text-4xl">{content.title}</h1>
+        <div className="mt-5 space-y-4 text-sm font-medium leading-7 text-slate-700 md:text-base">
+          {content.intro.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+        </div>
+        <div className="mt-8 space-y-7">
+          {content.sections.map((section, index) => (
+            <section key={`${section.title || "section"}-${index}`} className="border-t border-slate-100 pt-5">
+              {section.title && <h2 className="text-xl font-black text-green-900">{section.title}</h2>}
+              {section.body && <div className="mt-3 space-y-2 text-sm font-medium leading-7 text-slate-700 md:text-base">{section.body.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}</div>}
+              {section.items && <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm font-medium leading-7 text-slate-700 md:text-base">{section.items.map((item) => <li key={item}>{item}</li>)}</ul>}
+            </section>
+          ))}
+        </div>
+        {content.closing && <div className="mt-8 rounded-lg bg-green-50 p-5 text-sm font-bold leading-7 text-green-900 md:text-base">{content.closing.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}</div>}
+      </div>
+    </article>
+  );
+}
+
+function StaticInfoPage({ page }: { page: StaticPage }) {
+  return (
+    <section className="mx-auto max-w-6xl space-y-5 px-3 pb-12 md:px-0">
+      <ServiceHero eyebrow={page.eyebrow} title={page.title} subtitle={page.subtitle} chips={page.chips} />
+      <div className="grid gap-4 md:grid-cols-2">
+        {page.sections.map((section) => (
+          <ServiceCard key={section.title} title={section.title}>
+            <p>{section.body}</p>
+            {section.items && <ul className="mt-3 space-y-2 text-sm font-semibold text-slate-700">{section.items.map((item) => <li key={item} className="flex gap-2"><FaCheck className="mt-0.5 shrink-0 text-green-700" />{item}</li>)}</ul>}
+          </ServiceCard>
+        ))}
+      </div>
+      <ContactCard />
+    </section>
+  );
+}
+
+function BulkOrderPage() {
+  const [sent, setSent] = useState(false);
+  return (
+    <section className="mx-auto max-w-6xl space-y-5 px-3 pb-12 md:px-0">
+      <ServiceHero eyebrow="Bulk Order Enquiry" title="Ask Bulk Order Quotation" subtitle="Request pricing and availability for plants, tools, pots, manure, growth inputs, and orchard service packages." chips={["Plants", "Inputs", "Services"]} />
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <ServiceCard title="For Nurseries, Farmers and Institutions">
+          <p>Share your product list, quantity, destination, and delivery timeline. Our team will respond with availability, packing, logistics, and quotation details.</p>
+          <ul className="mt-4 space-y-2 text-sm font-semibold text-slate-700">{["Fruit plants and seasonal plants", "Tools, planters, manure and growth inputs", "Large orchard and landscaping requirements"].map((item) => <li key={item} className="flex gap-2"><FaCheck className="mt-0.5 shrink-0 text-green-700" />{item}</li>)}</ul>
+        </ServiceCard>
+        <form onSubmit={(event) => { event.preventDefault(); setSent(true); }} className="rounded-lg border border-green-200 bg-white p-5 shadow-sm">
+          <h2 className="text-xl font-black text-slate-950">Request Quotation</h2>
+          <div className="mt-4 grid gap-3">
+            <FFCCBBInput label="Full Name" name="name" required />
+            <FFCCBBInput label="Phone Number" name="phone" type="tel" required />
+            <FFCCBBInput label="Email Address" name="email" type="email" />
+            <FFCCBBInput label="Delivery Location" name="location" required />
+            <label className="text-sm font-bold text-slate-700">Requirement<textarea name="requirement" rows={5} required className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-green-700" /></label>
+          </div>
+          <button className="mt-4 w-full rounded-md bg-green-700 px-4 py-3 text-sm font-black text-white hover:bg-green-800">Submit Enquiry</button>
+          {sent && <p className="mt-3 rounded-md bg-green-50 px-3 py-2 text-xs font-bold text-green-800">Enquiry received. Our team will contact you shortly.</p>}
+        </form>
+      </div>
+    </section>
+  );
+}
+
+function DownloadPage({ appName, appType }: { appName: string; appType: "orchard" | "efruitmandi" }) {
+  const isOrchard = appType === "orchard";
+  return (
+    <section className="mx-auto max-w-6xl space-y-5 px-3 pb-12 md:px-0">
+      <ServiceHero eyebrow="Download App" title={appName} subtitle={isOrchard ? "Install the Orchard Growers app for products, plants, services, profile, cart, and customer support." : "Install the efruitmandi.live app for fruit mandi access, buyer-seller discovery, and marketplace activity."} chips={["Mobile friendly", "Fast access", "Installable"]} />
+      <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_320px]">
+        <ServiceCard title="Install Steps">
+          <ul className="space-y-2 text-sm font-semibold text-slate-700">
+            <li className="flex gap-2"><FaCheck className="mt-0.5 shrink-0 text-green-700" />Open the site in Chrome or your mobile browser.</li>
+            <li className="flex gap-2"><FaCheck className="mt-0.5 shrink-0 text-green-700" />Use the install prompt or browser menu to add it to your home screen.</li>
+            <li className="flex gap-2"><FaCheck className="mt-0.5 shrink-0 text-green-700" />Login to keep your profile, cart, and activity connected.</li>
+          </ul>
+          {isOrchard ? (
+            <button type="button" onClick={openOrchardInstallPrompt} className="mt-5 rounded-md bg-green-700 px-4 py-3 text-sm font-black text-white hover:bg-green-800">Install Orchard Growers App</button>
+          ) : (
+            <a href="https://efruitmandi.live" className="mt-5 inline-block rounded-md bg-green-700 px-4 py-3 text-sm font-black text-white hover:bg-green-800">Open efruitmandi.live</a>
+          )}
+        </ServiceCard>
+        <ContactCard />
+      </div>
+    </section>
   );
 }
 
@@ -467,9 +1171,9 @@ function TopNav() {
         <div className="bg-green-700 px-3 py-1.5 text-center text-xs font-semibold text-white">
           Free Shipping on Orders Over Rs. 499 | New Arrivals Just In!
         </div>
-        <div className="flex h-16 w-full items-center gap-3 px-3">
+        <div className="flex h-[74px] w-full items-center gap-3 px-3 md:h-20">
         <Link to="/" className="flex shrink-0 items-center gap-2 rounded px-1.5 py-1">
-          <img src={logoUrl} alt="Orchard Growers" className="h-14 w-auto object-contain" />
+          <img src={logoUrl} alt="Orchard Growers" className="h-[62px] w-auto object-contain md:h-[68px]" />
         </Link>
         <nav className="hidden h-10 min-w-0 flex-1 rounded-md bg-green-700 px-1 md:block" aria-label="Primary navigation">
           <div className="flex h-full items-stretch text-sm font-semibold text-white">
@@ -483,69 +1187,69 @@ function TopNav() {
               <div className="invisible absolute left-0 top-full z-50 max-h-[270px] w-64 overflow-y-auto rounded-b-md bg-white py-1 text-[16px] font-semibold text-slate-950 opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
                 {productDropdownItems.map((item) => (
                   <Link
-                    key={item}
-                    to="/"
+                    key={item.key}
+                    to={`/?section=${encodeURIComponent(item.key)}`}
                     className="block px-4 py-2 leading-snug hover:bg-green-50 hover:text-green-800 focus:bg-green-50 focus:text-green-800 focus:outline-none"
                   >
-                    {item}
+                    {item.label}
                   </Link>
                 ))}
               </div>
             </div>
             <div className="group relative flex h-full items-center">
-              <Link to="/products" className="flex h-full items-center whitespace-nowrap border-b-2 border-transparent px-3 hover:border-orange-400 hover:text-orange-400 hover:underline hover:decoration-orange-400 hover:decoration-2 hover:underline-offset-2 group-hover:border-orange-400 group-hover:text-orange-400 group-hover:underline group-hover:decoration-orange-400 group-hover:decoration-2 group-hover:underline-offset-2">
+              <Link to="/ourservices/services" className="flex h-full items-center whitespace-nowrap border-b-2 border-transparent px-3 hover:border-orange-400 hover:text-orange-400 hover:underline hover:decoration-orange-400 hover:decoration-2 hover:underline-offset-2 group-hover:border-orange-400 group-hover:text-orange-400 group-hover:underline group-hover:decoration-orange-400 group-hover:decoration-2 group-hover:underline-offset-2">
                 Our Services
               </Link>
               <div className="invisible absolute left-0 top-full z-50 max-h-[270px] w-48 overflow-y-auto rounded-b-md bg-white py-1 text-[16px] font-semibold text-slate-950 opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
                 {serviceDropdownItems.map((item) => (
                   <Link
-                    key={item}
-                    to="/products"
+                    key={item.label}
+                    to={item.to}
                     className="block px-4 py-2 leading-snug hover:bg-green-50 hover:text-green-800 focus:bg-green-50 focus:text-green-800 focus:outline-none"
                   >
-                    {item}
+                    {item.label}
                   </Link>
                 ))}
               </div>
             </div>
             <div className="group relative flex h-full items-center">
-              <Link to="/products" className="flex h-full items-center whitespace-nowrap border-b-2 border-transparent px-3 hover:border-orange-400 hover:text-orange-400 hover:underline hover:decoration-orange-400 hover:decoration-2 hover:underline-offset-2 group-hover:border-orange-400 group-hover:text-orange-400 group-hover:underline group-hover:decoration-orange-400 group-hover:decoration-2 group-hover:underline-offset-2">
+              <Link to="/education/learn" className="flex h-full items-center whitespace-nowrap border-b-2 border-transparent px-3 hover:border-orange-400 hover:text-orange-400 hover:underline hover:decoration-orange-400 hover:decoration-2 hover:underline-offset-2 group-hover:border-orange-400 group-hover:text-orange-400 group-hover:underline group-hover:decoration-orange-400 group-hover:decoration-2 group-hover:underline-offset-2">
                 Education and Tips
               </Link>
               <div className="invisible absolute left-0 top-full z-50 w-48 rounded-b-md bg-white py-1 text-[16px] font-semibold text-slate-950 opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
                 {educationDropdownItems.map((item) => (
                   <Link
-                    key={item}
-                    to="/products"
+                    key={item.label}
+                    to={item.to}
                     className="block px-4 py-2 leading-snug hover:bg-green-50 hover:text-green-800 focus:bg-green-50 focus:text-green-800 focus:outline-none"
                   >
-                    {item}
+                    {item.label}
                   </Link>
                 ))}
               </div>
             </div>
             <div className="group relative flex h-full items-center">
-              <Link to="/products" className="flex h-full items-center whitespace-nowrap border-b-2 border-transparent px-3 hover:border-orange-400 hover:text-orange-400 hover:underline hover:decoration-orange-400 hover:decoration-2 hover:underline-offset-2 group-hover:border-orange-400 group-hover:text-orange-400 group-hover:underline group-hover:decoration-orange-400 group-hover:decoration-2 group-hover:underline-offset-2">
+              <Link to="/save-our-earth/blogs" className="flex h-full items-center whitespace-nowrap border-b-2 border-transparent px-3 hover:border-orange-400 hover:text-orange-400 hover:underline hover:decoration-orange-400 hover:decoration-2 hover:underline-offset-2 group-hover:border-orange-400 group-hover:text-orange-400 group-hover:underline group-hover:decoration-orange-400 group-hover:decoration-2 group-hover:underline-offset-2">
                 Save Our Earth
               </Link>
               <div className="invisible absolute left-0 top-full z-50 w-48 rounded-b-md bg-white py-1 text-[16px] font-semibold text-slate-950 opacity-0 shadow-lg transition group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
                 {earthDropdownItems.map((item) => (
                   <Link
-                    key={item}
-                    to="/products"
+                    key={item.label}
+                    to={item.to}
                     className="block px-4 py-2 leading-snug hover:bg-green-50 hover:text-green-800 focus:bg-green-50 focus:text-green-800 focus:outline-none"
                   >
-                    {item}
+                    {item.label}
                   </Link>
                 ))}
               </div>
             </div>
-            <Link to="/products" className="flex h-full items-center whitespace-nowrap border-b-2 border-transparent px-3 hover:border-orange-400 hover:text-orange-400 hover:underline hover:decoration-orange-400 hover:decoration-2 hover:underline-offset-2">
+            <Link to="/bulk-order-enquiry" className="flex h-full items-center whitespace-nowrap border-b-2 border-transparent px-3 hover:border-orange-400 hover:text-orange-400 hover:underline hover:decoration-orange-400 hover:decoration-2 hover:underline-offset-2">
               Ask Bulk Order Quotation
             </Link>
           </div>
         </nav>
-        <div className="ml-auto flex w-full min-w-0 items-center rounded-full border border-green-200 bg-green-50 px-3 md:w-[300px] md:shrink-0">
+        <div className="ml-auto flex min-w-0 flex-1 items-center rounded-full border border-green-200 bg-green-50 px-3 md:w-[300px] md:flex-none md:shrink-0">
           <input
             placeholder="Search for plants, tools, and more..."
             className="h-9 min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none placeholder:text-slate-500"
@@ -555,6 +1259,25 @@ function TopNav() {
           </button>
           <button className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-700 text-white hover:bg-green-800" aria-label="Search">
             <FaSearch />
+          </button>
+        </div>
+        <div className="flex shrink-0 items-center gap-2 text-xl text-green-700 md:hidden">
+          <Link to={accountPath} aria-label="Account" title="Account" className="flex h-9 w-9 items-center justify-center rounded-full bg-green-50 hover:text-green-900">
+            <FaUser />
+          </Link>
+          <button
+            type="button"
+            onClick={() => setCartOpen(true)}
+            aria-label="Cart"
+            title="Cart"
+            className="relative flex h-9 w-9 items-center justify-center rounded-full bg-green-50 hover:text-green-900"
+          >
+            <FaShoppingCart />
+            {cartCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-semibold text-white">
+                {cartCount}
+              </span>
+            )}
           </button>
         </div>
         <div className="hidden shrink-0 items-center gap-5 text-2xl text-green-700 md:flex">
@@ -588,73 +1311,6 @@ function TopNav() {
       <ShoppingCartPopup open={cartOpen} items={cartItems} onClose={() => setCartOpen(false)} />
     </>
   );
-}
-
-function getElementDocumentTop(element: HTMLElement) {
-  let top = 0;
-  let current: HTMLElement | null = element;
-
-  while (current) {
-    top += current.offsetTop;
-    current = current.offsetParent as HTMLElement | null;
-  }
-
-  return top;
-}
-
-function useBottomPinnedColumn(containerRef: RefObject<HTMLElement | null>) {
-  const ref = useRef<HTMLElement | null>(null);
-  const lastTranslateY = useRef(-1);
-
-  useEffect(() => {
-    let frame = 0;
-
-    const updatePosition = () => {
-      frame = 0;
-      const node = ref.current;
-      const container = containerRef.current;
-      if (!node || !container) return;
-
-      const viewportHeight = window.innerHeight || 0;
-      const columnHeight = node.offsetHeight;
-      const bottomGap = 16;
-      const documentTop = getElementDocumentTop(node);
-      const containerBottom = getElementDocumentTop(container) + container.offsetHeight;
-      const normalTop = documentTop - window.scrollY;
-      const bottomPinnedTop = viewportHeight - columnHeight - bottomGap;
-      const maxTranslateY = Math.max(0, containerBottom - documentTop - columnHeight);
-      const translateY = Math.round(Math.min(Math.max(0, bottomPinnedTop - normalTop), maxTranslateY));
-
-      if (translateY !== lastTranslateY.current) {
-        lastTranslateY.current = translateY;
-        node.style.transform = `translate3d(0, ${translateY}px, 0)`;
-      }
-    };
-
-    const scheduleUpdate = () => {
-      if (frame) return;
-      frame = window.requestAnimationFrame(updatePosition);
-    };
-
-    scheduleUpdate();
-    window.addEventListener("scroll", scheduleUpdate, { passive: true });
-    window.addEventListener("resize", scheduleUpdate);
-
-    const observer = typeof window.ResizeObserver === "function" ? new ResizeObserver(scheduleUpdate) : null;
-    if (observer) {
-      if (ref.current) observer.observe(ref.current);
-      if (containerRef.current) observer.observe(containerRef.current);
-    }
-
-    return () => {
-      if (frame) window.cancelAnimationFrame(frame);
-      window.removeEventListener("scroll", scheduleUpdate);
-      window.removeEventListener("resize", scheduleUpdate);
-      observer?.disconnect();
-    };
-  }, [containerRef]);
-
-  return ref;
 }
 
 function ShoppingCartPopup({
@@ -884,9 +1540,11 @@ function BannerSlider() {
   }, []);
 
   return (
-    <section className="overflow-hidden rounded-lg bg-white shadow-sm">
-      <img src={bannerImages[active]} alt="Orchard Growers banner" className="h-40 w-full object-cover md:h-36" />
-      <div className="flex -translate-y-6 justify-center gap-2">
+    <section className="relative overflow-hidden rounded-lg bg-black shadow-sm">
+      <div className="flex aspect-[3.45/1] items-center justify-center">
+        <img src={bannerImages[active]} alt="Orchard Growers banner" className="h-full w-full object-fill" />
+      </div>
+      <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-2">
         {bannerImages.slice(0, 6).map((image, index) => (
           <button
             key={image}
@@ -1081,8 +1739,8 @@ function LegacyDesktopLotPost({ items, onOpen }: { items: Product[]; onOpen: () 
   const imageUrl = getProductImage(product);
   return (
     <button onClick={onOpen} className="flex w-full overflow-hidden rounded-md border border-slate-200 bg-white text-left hover:border-green-400">
-      <div className="h-36 w-44 shrink-0 bg-green-50">
-        {imageUrl ? <img src={imageUrl} alt={product.title} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-2xl text-green-700">🌱</div>}
+      <div className="w-44 shrink-0 bg-green-50">
+        {imageUrl ? <img src={imageUrl} alt={product.title} className="block h-auto w-full" /> : <div className="flex h-full items-center justify-center text-2xl text-green-700">🌱</div>}
       </div>
       <div className="min-w-0 flex-1 p-4">
         <h3 className="line-clamp-1 text-base font-semibold text-black">{product.title || "Plant"}</h3>
@@ -1112,18 +1770,16 @@ function DesktopLotPost({
           <ProductDescriptionPreview product={product} />
           <ProductImageCarousel
             product={product}
-            containerClassName="h-36"
+            containerClassName=""
             onOpenImage={onOpenImage}
           />
           <div className="grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_170px] sm:items-end">
             <div className="min-w-0 text-sm text-black">
               <h3 className="line-clamp-1 font-semibold">{product.title || "Product Name"}</h3>
+              <ProductPriceLine product={product} />
               <ProductStockLine product={product} />
               <p className="mt-2 line-clamp-1 font-medium">{product.description || "Product Description"}</p>
-              <ProductRatingSummary productId={product._id} />
-              <p className="mt-2 max-w-[220px] text-xs font-medium leading-4 text-slate-600">
-                "{getDemoReview(product._id)}"
-              </p>
+              <ProductRatingSummary />
             </div>
             <div className="grid gap-2">
               <button
@@ -1135,13 +1791,14 @@ function DesktopLotPost({
               </button>
               <button
                 type="button"
+                disabled={!isProductInStock(product)}
                 onClick={() => {
                   const stockIssue = addProductToCart(product);
                   if (stockIssue) onStockIssue(stockIssue);
                 }}
-                className="rounded-md bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800"
+                className="rounded-md bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-slate-400 disabled:hover:bg-slate-400"
               >
-                Add to Cart
+                {isProductInStock(product) ? "Add to Cart" : "Currently unavailable"}
               </button>
             </div>
           </div>
@@ -1167,7 +1824,7 @@ function ProductImageCarousel({
 
   if (!images.length) {
     return (
-      <div className={`${compact ? "mb-2 rounded-md" : ""} flex ${containerClassName} items-center justify-center bg-green-50 text-sm font-semibold text-green-700`}>
+      <div className={`${compact ? "mb-2 rounded-md" : ""} flex min-h-32 ${containerClassName} items-center justify-center bg-green-50 text-sm font-semibold text-green-700`}>
         Plant
       </div>
     );
@@ -1182,10 +1839,10 @@ function ProductImageCarousel({
       <button
         type="button"
         onClick={() => onOpenImage?.({ images, activeIndex: activeImage, title: product.title || "Product" })}
-        className="block h-full w-full"
+        className="block w-full"
         aria-label={`Open ${activeAlt} fullscreen`}
       >
-        <img src={images[activeImage]} alt={activeAlt} className="h-full w-full object-cover" />
+        <img src={images[activeImage]} alt={activeAlt} className="block h-auto w-full" />
       </button>
       {images.length > 1 && (
         <>
@@ -1221,8 +1878,8 @@ function LegacyMarketCard({ item, onView }: { item: Product; onView: () => void 
   const imageUrl = getProductImage(item);
   return (
     <article className="min-w-[165px] rounded-md border border-slate-200 bg-white p-2">
-      <div className="mb-2 aspect-[4/3] overflow-hidden rounded-md bg-green-100">
-        {imageUrl ? <img src={imageUrl} alt={item.title} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-2xl text-green-700">🌱</div>}
+      <div className="mb-2 overflow-hidden rounded-md bg-green-100">
+        {imageUrl ? <img src={imageUrl} alt={item.title} className="block h-auto w-full" /> : <div className="flex min-h-32 items-center justify-center text-2xl text-green-700">🌱</div>}
       </div>
       <h3 className="line-clamp-1 text-xs font-semibold text-black">{item.title || "Plant"}</h3>
       <p className="truncate text-[10px] font-medium text-slate-600">Orchard Growers</p>
@@ -1249,29 +1906,30 @@ function MarketCard({
       <ProductDescriptionPreview product={item} compact />
       <ProductImageCarousel
         product={item}
-        containerClassName="h-32"
+        containerClassName=""
         compact
         onOpenImage={onOpenImage}
       />
       <div className="text-xs text-black">
         <h3 className="line-clamp-1 font-semibold">{item.title || "Product Name"}</h3>
+        <ProductPriceLine product={item} compact />
         <ProductStockLine product={item} compact />
         <p className="mt-1 line-clamp-1 font-medium">{item.description || "Product Description"}</p>
-        <ProductRatingSummary productId={item._id} compact />
-        <p className="mt-1 text-[10px] font-medium leading-4 text-slate-600">"{getDemoReview(item._id)}"</p>
+        <ProductRatingSummary compact />
       </div>
       <div className="mt-2 grid gap-1.5">
         <button onClick={() => onRate(item)} className="rounded-md bg-green-700 px-3 py-1.5 text-[10px] font-semibold text-white hover:bg-green-800">
           Rate Product
         </button>
         <button
+          disabled={!isProductInStock(item)}
           onClick={() => {
             const stockIssue = addProductToCart(item);
             if (stockIssue) onStockIssue(stockIssue);
           }}
-          className="rounded-md bg-green-700 px-3 py-1.5 text-[10px] font-semibold text-white hover:bg-green-800"
+          className="rounded-md bg-green-700 px-3 py-1.5 text-[10px] font-semibold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-slate-400 disabled:hover:bg-slate-400"
         >
-          Add to Cart
+          {isProductInStock(item) ? "Add to Cart" : "Currently unavailable"}
         </button>
       </div>
     </article>
@@ -1322,10 +1980,19 @@ function DesktopEmptyState({ text }: { text: string }) {
 function ProductDescriptionPreview({ product, compact = false }: { product: Product; compact?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const description = product.description || `${product.title || product.fruitName || "This product"} from Orchard Growers.`;
+  const descriptionLines = getStructuredDescriptionLines(description);
 
   return (
     <div className={compact ? "mb-2 text-[10px] leading-4 text-slate-700" : "border-b border-slate-100 p-3 text-sm leading-5 text-slate-700"}>
-      <p className={expanded ? "" : compact ? "line-clamp-2" : "line-clamp-2"}>{description}</p>
+      {expanded ? (
+        <div className="space-y-1.5">
+          {descriptionLines.map((line, index) => (
+            <p key={`${line}-${index}`}>{line}</p>
+          ))}
+        </div>
+      ) : (
+        <p className={compact ? "line-clamp-2" : "line-clamp-2"}>{descriptionLines.join(" ")}</p>
+      )}
       {description.length > 72 && (
         <button
           type="button"
@@ -1339,28 +2006,56 @@ function ProductDescriptionPreview({ product, compact = false }: { product: Prod
   );
 }
 
+function getStructuredDescriptionLines(description: string) {
+  return description
+    .replace(/\*\*/g, "")
+    .replace(/^\s*#+\s*/, "")
+    .replace(/\s+---\s+/g, "\n")
+    .replace(/\s+-\s+/g, "\n")
+    .replace(/\s+(?=(?:What is|Key Features|Suitable for|Known for|At Orchard Growers|Premium Fruit Stores|Early Harvesting Variety)\b)/g, "\n")
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 function ProductStockLine({ product, compact = false }: { product: Product; compact?: boolean }) {
   const stock = getProductStock(product);
   const inStock = isProductInStock(product);
 
   return (
     <p className={`${compact ? "mt-1 text-[10px]" : "mt-1 text-xs"} font-semibold ${inStock ? "text-green-700" : "text-rose-600"}`}>
-      {inStock ? `Stock: ${stock} unit${stock === 1 ? "" : "s"}` : "Out of stock"}
+      {inStock ? `Stock: ${stock} unit${stock === 1 ? "" : "s"}` : "Stock: 0 - Currently unavailable"}
     </p>
   );
 }
 
-function ProductRatingSummary({ productId, compact = false }: { productId: string; compact?: boolean }) {
-  const rating = getDemoRating(productId);
+function ProductPriceLine({ product, compact = false }: { product: Product; compact?: boolean }) {
+  const price = Number(product.basePrice || 0);
+  const discount = Math.max(0, Number(product.discountPercent || 0));
+  const discountedPrice = discount > 0 ? Math.max(0, price - (price * discount) / 100) : price;
 
   return (
+    <div className={`${compact ? "mt-1 text-[10px]" : "mt-1 text-xs"} flex flex-wrap items-center gap-1.5 font-bold`}>
+      {price > 0 && <span className="text-slate-900">Rs. {Math.round(discountedPrice)}</span>}
+      {discount > 0 && (
+        <>
+          <span className="text-slate-400 line-through">Rs. {Math.round(price)}</span>
+          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-700">{discount}% off</span>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ProductRatingSummary({ compact = false }: { compact?: boolean }) {
+  return (
     <div className={`${compact ? "mt-1 text-[10px]" : "mt-2 text-xs"} flex flex-wrap items-center gap-1.5`}>
-      <span className="flex items-center gap-0.5 text-amber-400" aria-label={`${rating.toFixed(1)} out of 5 stars`}>
+      <span className="flex items-center gap-0.5 text-slate-300" aria-label="No rating yet">
         {Array.from({ length: 5 }, (_, index) => (
-          <FaStar key={index} className={index < Math.round(rating) ? "text-amber-400" : "text-slate-300"} aria-hidden="true" />
+          <FaStar key={index} aria-hidden="true" />
         ))}
       </span>
-      <span className="font-semibold text-slate-700">{rating.toFixed(1)} out of 5</span>
+      <span className="font-semibold text-slate-600">No rating yet</span>
     </div>
   );
 }
@@ -1391,7 +2086,7 @@ function RatingPopup({ product, onClose }: { product: Product | null; onClose: (
 
   useEffect(() => {
     if (!product) return;
-    setRating(Math.round(getDemoRating(product._id)));
+    setRating(5);
     setComment("");
   }, [product]);
 
@@ -1622,14 +2317,70 @@ function SidebarContactCard() {
   );
 }
 
-function SidebarLinkCard({ title, links }: { title: string; links: string[] }) {
+function SidebarLinkCard({ title, links }: { title: string; links: NavLinkItem[] }) {
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-6 text-green-900">
       <h2 className="text-lg font-semibold text-green-800">{title}</h2>
       <div className="mt-4 space-y-4 text-sm">
         {links.map((link) => (
-          <Link key={link} to="/products" className="block hover:text-green-700">
-            {link}
+          <Link key={link.label} to={link.to} className="block hover:text-green-700">
+            {link.label}
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function FooterLinkSection() {
+  return (
+    <footer className="border-t border-green-900 bg-white px-7 py-10 text-green-900">
+      <div className="mx-auto max-w-7xl">
+        <div className="grid gap-10 lg:grid-cols-[240px_minmax(0,1fr)]">
+          <section>
+            <img src={logoUrl} alt="Orchard Growers" className="h-16 w-auto object-contain" />
+            <div className="mt-6 space-y-3 text-sm font-medium">
+              <p>WhatsApp: +917018108900</p>
+              <p>Call: +917018108900</p>
+              <p>Email: care@orchardgrowers.in</p>
+            </div>
+            <div className="mt-6 flex items-center gap-5 text-2xl">
+              <a href="https://www.facebook.com/" target="_blank" rel="noreferrer" aria-label="Facebook" className="hover:text-orange-500"><FaFacebookF /></a>
+              <a href="https://www.instagram.com/" target="_blank" rel="noreferrer" aria-label="Instagram" className="hover:text-orange-500"><FaInstagram /></a>
+              <a href="https://www.youtube.com/results?search_query=Orchard+Growers" target="_blank" rel="noreferrer" aria-label="YouTube" className="hover:text-orange-500"><FaYoutube /></a>
+              <a href="https://www.linkedin.com/" target="_blank" rel="noreferrer" aria-label="LinkedIn" className="hover:text-orange-500"><FaLinkedinIn /></a>
+            </div>
+          </section>
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            <FooterColumn title="About Us" links={aboutLinks} />
+            <FooterColumn title="Become Partner" links={partnerLinks} />
+            <FooterColumn title="Support" links={supportLinks} />
+          </div>
+        </div>
+        <div className="mt-10 border-t border-green-900/70 pt-7 text-center text-sm font-medium">
+          &copy; 2026 Orchard Growers. All rights reserved.
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+function FooterCopyrightStrip() {
+  return (
+    <footer className="border-t border-green-900 bg-white px-3 py-4 text-center text-sm font-medium text-green-900">
+      &copy; 2026 Orchard Growers. All rights reserved.
+    </footer>
+  );
+}
+
+function FooterColumn({ title, links }: { title: string; links: NavLinkItem[] }) {
+  return (
+    <section>
+      <h2 className="text-lg font-bold text-green-800">{title}</h2>
+      <div className="mt-5 space-y-4 text-sm font-medium">
+        {links.map((link) => (
+          <Link key={link.label} to={link.to} className="block hover:text-orange-500 hover:underline">
+            {link.label}
           </Link>
         ))}
       </div>
@@ -1704,6 +2455,7 @@ function EmptyFeed({ onAdd }: { onAdd: () => void }) {
 }
 
 function ProfilePage() {
+  const navigate = useNavigate();
   const [user, setUser] = useState<UserProfile>(() => getStoredUser());
   const userName = user.name || user.orchardName || user.businessName || "Orchard Growers Customer";
   const [addresses, setAddresses] = useState<SavedAddresses>(() => getSavedAddresses(user));
@@ -1782,6 +2534,12 @@ function ProfilePage() {
       event.target.value = "";
     }
   };
+
+  const logout = () => {
+    clearOrchardSession();
+    setUser({});
+    navigate("/", { replace: true });
+  };
   
   return (
     <section className="w-full rounded-lg border border-green-200 bg-gradient-to-b from-green-50 to-green-100 p-6">
@@ -1811,15 +2569,18 @@ function ProfilePage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <Link to="/products" className="rounded-full bg-green-700 px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-green-800">
+          <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
+            <Link to="/products" className="inline-flex min-h-11 items-center justify-center rounded-full bg-green-700 px-4 py-2 text-center text-sm font-semibold text-white transition-all hover:bg-green-800 sm:px-6 sm:py-3">
               Browse Products
             </Link>
-            <Link to="/cart" className="rounded-full border-2 border-green-700 px-6 py-3 text-sm font-semibold text-green-700 transition-all hover:bg-green-50">
+            <Link to="/cart" className="inline-flex min-h-11 items-center justify-center rounded-full border-2 border-green-700 px-4 py-2 text-center text-sm font-semibold text-green-700 transition-all hover:bg-green-50 sm:px-6 sm:py-3">
               View Cart
             </Link>
-            <button type="button" onClick={openOrchardInstallPrompt} className="rounded-full border-2 border-green-700 px-6 py-3 text-sm font-semibold text-green-700 transition-all hover:bg-green-50">
+            <button type="button" onClick={openOrchardInstallPrompt} className="inline-flex min-h-11 items-center justify-center rounded-full border-2 border-green-700 px-4 py-2 text-center text-sm font-semibold text-green-700 transition-all hover:bg-green-50 sm:px-6 sm:py-3">
               Download App
+            </button>
+            <button type="button" onClick={logout} className="inline-flex min-h-11 items-center justify-center rounded-full border-2 border-red-600 px-4 py-2 text-center text-sm font-semibold text-red-700 transition-all hover:bg-red-50 sm:px-6 sm:py-3">
+              Logout
             </button>
           </div>
         </div>
@@ -1982,6 +2743,7 @@ function AuthPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [mobileOtpReqId, setMobileOtpReqId] = useState("");
   const [otpCooldown, setOtpCooldown] = useState(0);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   useEffect(() => {
     if (otpCooldown <= 0) return;
@@ -2103,6 +2865,11 @@ function AuthPage() {
       return;
     }
 
+    if (!acceptedTerms) {
+      setMessage("Accept Terms & Conditions before continuing.");
+      return;
+    }
+
     try {
       setLoading(true);
       const mobile = normalizeIndianMobile(form.identifier);
@@ -2148,6 +2915,11 @@ function AuthPage() {
   };
 
   const startOAuth = (provider: "google" | "facebook") => {
+    if (!acceptedTerms) {
+      setMessage("Accept Terms & Conditions before continuing.");
+      return;
+    }
+
     const url = getOrchardOAuthUrl(provider);
     if (!url) {
       setMessage(`${provider === "google" ? "Google" : "Facebook"} login is not configured.`);
@@ -2204,10 +2976,12 @@ function AuthPage() {
               <p className="mt-3 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-800">{message}</p>
             )}
 
-            <form onSubmit={submitAuth} className="mt-3 space-y-2">
+            <form onSubmit={submitAuth} className="mt-3 space-y-2" autoComplete="off">
               {mode === "signup" && (
                 <input
                   type="text"
+                  name="orchard-signup-name"
+                  autoComplete="off"
                   placeholder="Full name"
                   value={form.name}
                   onChange={(event) => updateForm("name", event.target.value)}
@@ -2217,6 +2991,8 @@ function AuthPage() {
               <div className="flex gap-2">
                 <input
                   type="text"
+                  name="orchard-login-identifier"
+                  autoComplete="new-password"
                   placeholder="Enter Email/Phone No."
                   value={form.identifier}
                   onChange={(event) => updateForm("identifier", event.target.value)}
@@ -2234,6 +3010,8 @@ function AuthPage() {
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
+                  name="orchard-login-passcode"
+                  autoComplete="new-password"
                   placeholder="Password"
                   value={form.password}
                   onChange={(event) => updateForm("password", event.target.value)}
@@ -2252,6 +3030,8 @@ function AuthPage() {
                 <div className="relative">
                   <input
                     type={showConfirmPassword ? "text" : "password"}
+                    name="orchard-confirm-passcode"
+                    autoComplete="new-password"
                     placeholder="Confirm password"
                     value={form.confirmPassword}
                     onChange={(event) => updateForm("confirmPassword", event.target.value)}
@@ -2269,6 +3049,8 @@ function AuthPage() {
               )}
               <input
                 type="text"
+                name="orchard-login-otp"
+                autoComplete="one-time-code"
                 placeholder={otpSent ? "Enter OTP" : "Request OTP first"}
                 value={form.otp}
                 onChange={(event) => updateForm("otp", event.target.value)}
@@ -2283,6 +3065,20 @@ function AuthPage() {
                   Forgot password?
                 </button>
               )}
+              <label className="flex items-start gap-2 rounded-md bg-slate-50 px-3 py-2 text-xs font-medium leading-5 text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={(event) => setAcceptedTerms(event.target.checked)}
+                  className="mt-1"
+                />
+                <span>
+                  I accept the{" "}
+                  <Link to="/support/termsandconditions" className="font-semibold text-green-800 underline">
+                    Terms & Conditions
+                  </Link>
+                </span>
+              </label>
               <button
                 type="submit"
                 disabled={loading}
@@ -2786,6 +3582,16 @@ function hasSignedInUser() {
   }
 }
 
+function clearOrchardSession() {
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("refreshToken");
+  localStorage.removeItem("user");
+  sessionStorage.removeItem("accessToken");
+  sessionStorage.removeItem("refreshToken");
+  sessionStorage.removeItem("user");
+  window.dispatchEvent(new Event("orchard-auth-updated"));
+}
+
 function getAccountPath() {
   return hasSignedInUser() ? "/profile" : "/login";
 }
@@ -2920,26 +3726,6 @@ function getStockIssue(product: Product, cartItems: CartItem[]) {
   return "";
 }
 
-function getDemoRating(productId: string) {
-  const ratings = [4.8, 4.7, 4.9, 4.6, 4.8];
-  return ratings[getStableDemoIndex(productId, ratings.length)];
-}
-
-function getDemoReview(productId: string) {
-  const reviews = [
-    "Healthy plants and neat packaging from Orchard Growers.",
-    "Good quality product, delivered fresh and ready to use.",
-    "Strong growth after planting. Very happy with the quality.",
-    "Clean packing, useful product, and reliable Orchard Growers support.",
-    "Looks premium and performed well in our garden setup.",
-  ];
-  return reviews[getStableDemoIndex(productId, reviews.length)];
-}
-
-function getStableDemoIndex(value: string, length: number) {
-  return Array.from(value || "orchard").reduce((sum, char) => sum + char.charCodeAt(0), 0) % length;
-}
-
 async function lookupIndianPinCode(pinCode: string) {
   const res = await fetch(`https://api.postalpincode.in/pincode/${pinCode}`);
   if (!res.ok) throw new Error("PIN code lookup failed.");
@@ -3037,6 +3823,8 @@ function getProductTimestamp(product: Product) {
 function getProductSearchText(product: Product) {
   return [
     product.title,
+    product.productCategory,
+    product.seasonalCategory,
     product.fruitName,
     product.variety,
     product.description,

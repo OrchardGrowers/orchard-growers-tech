@@ -18,6 +18,7 @@ import {
   FaYoutube,
 } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
+import { getEfruitMandiProducts } from "../utils/marketProducts";
 import { saveUserToStorage, sanitizeUserForStorage } from "../utils/userStorage";
 import {
   getEfruitMandiWidgetId,
@@ -252,7 +253,7 @@ export default function ProfileDashboard() {
         ]);
 
         setProfile(profileRes.data || storedUser);
-        setProducts(productRes.data || []);
+        setProducts(getEfruitMandiProducts(productRes.data));
         setAuctions(auctionRes.data || []);
         setOrders(orderRes.data || []);
         setMandiRateData(mandiRateRes.data?.records || mandiRates);
@@ -338,7 +339,7 @@ export default function ProfileDashboard() {
   const socialLinks = user.socialLinks || {};
   const needsContactUpdate = !profileContactNo;
   const needsEmailUpdate = !profileEmail;
-  const needsSocialUpdate = !socialLinks.google && !socialLinks.facebook && !socialLinks.twitter;
+  const needsSocialUpdate = !socialLinks.google && !socialLinks.facebook;
   const accountCompletionMessages = [
     needsEmailUpdate ? "Add verified email" : "",
     needsContactUpdate ? "Add verified contact number" : "",
@@ -1277,7 +1278,7 @@ export default function ProfileDashboard() {
             <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
               <p className="text-xs font-extrabold text-gray-800">Social media accounts</p>
               <p className="mt-1 text-xs font-semibold leading-5 text-gray-600">
-                Add Google, Facebook, and Twitter/X profile links so your account is easier to verify and recover.
+                Add Google and Facebook profile links so your account is easier to verify and recover.
               </p>
               <div className="mt-3 grid gap-3">
                 <AddressInput
@@ -1294,14 +1295,6 @@ export default function ProfileDashboard() {
                   placeholder="https://facebook.com/..."
                   onChange={(value) =>
                     setSocialDraft((current) => ({ ...current, facebook: value }))
-                  }
-                />
-                <AddressInput
-                  label="Twitter / X profile"
-                  value={socialDraft.twitter}
-                  placeholder="https://x.com/..."
-                  onChange={(value) =>
-                    setSocialDraft((current) => ({ ...current, twitter: value }))
                   }
                 />
               </div>
@@ -2003,7 +1996,6 @@ function createSocialDraft(user = {}) {
   return {
     google: user.socialLinks?.google || "",
     facebook: user.socialLinks?.facebook || "",
-    twitter: user.socialLinks?.twitter || "",
   };
 }
 

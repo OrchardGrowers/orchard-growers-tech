@@ -6,6 +6,7 @@ import VerificationRequest from "../models/VerificationRequest.js";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
+import { v2 as cloudinary } from "cloudinary";
 import { sendEmail, sendOtpEmail } from "../services/mailService.js";
 
 const ADMIN_SELECT = "-password -__v";
@@ -743,11 +744,14 @@ const PRODUCT_ADMIN_FIELDS = [
   "slug",
   "sku",
   "hsnCode",
+  "hsnDescription",
+  "gstRate",
   "cgst",
   "sgst",
   "fruitName",
   "variety",
   "productCategory",
+  "seasonalCategory",
   "productType",
   "unit",
   "description",
@@ -757,13 +761,63 @@ const PRODUCT_ADMIN_FIELDS = [
   "active",
   "quantity",
   "basePrice",
+  "discountPercent",
   "location",
   "status",
   "packingType",
   "packingWeightKg",
   "totalWeightKg",
   "images",
+  "imagePublicIds",
 ];
+const parseBooleanInput = (value) => {
+  if (typeof value === "boolean") return value;
+  const normalized = String(value || "").trim().toLowerCase();
+  return ["1", "true", "yes", "on"].includes(normalized);
+};
+const GST_ALLOWED_VALUES = new Set([0, 5, 12, 18, 28]);
+
+const isCloudinaryConfigured = () =>
+  Boolean(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
+
+const configureCloudinary = () => {
+  if (!isCloudinaryConfigured()) {
+    const error = new Error("Cloudinary is not configured");
+    error.statusCode = 500;
+    throw error;
+  }
+
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+    secure: true,
+  });
+};
+
+const uploadAdminProductImage = (file) =>
+  new Promise((resolve, reject) => {
+    if (!file) return resolve(null);
+    configureCloudinary();
+
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: process.env.CLOUDINARY_PRODUCT_FOLDER || "orchard-growers/products",
+        resource_type: "image",
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        return resolve(result);
+      }
+    );
+
+    stream.end(file.buffer);
+  });
+
+const uploadAdminProductImages = async (files = []) => {
+  const uploadedImages = await Promise.all(files.map((file) => uploadAdminProductImage(file)));
+  return uploadedImages.filter(Boolean);
+};
 
 const normalizeProductAdminPayload = (body = {}) => {
   const payload = {};
@@ -774,7 +828,7 @@ const normalizeProductAdminPayload = (body = {}) => {
     }
   });
 
-  ["quantity", "basePrice", "packingWeightKg", "totalWeightKg", "cgst", "sgst"].forEach((field) => {
+  ["quantity", "basePrice", "discountPercent", "packingWeightKg", "totalWeightKg", "cgst", "sgst", "gstRate"].forEach((field) => {
     if (Object.prototype.hasOwnProperty.call(payload, field)) {
       const value = Number(payload[field]);
       payload[field] = Number.isFinite(value) ? value : 0;
@@ -783,17 +837,40 @@ const normalizeProductAdminPayload = (body = {}) => {
 
   ["featured", "active"].forEach((field) => {
     if (Object.prototype.hasOwnProperty.call(payload, field)) {
-      payload[field] = Boolean(payload[field]);
+      payload[field] = parseBooleanInput(payload[field]);
     }
   });
 
   if (Object.prototype.hasOwnProperty.call(payload, "images")) {
-    payload.images = Array.isArray(payload.images)
-      ? payload.images.filter(Boolean)
-      : String(payload.images || "")
+    if (Array.isArray(payload.images)) {
+      payload.images = payload.images.filter(Boolean);
+    } else {
+      try {
+        const parsedImages = JSON.parse(String(payload.images || "[]"));
+        payload.images = Array.isArray(parsedImages) ? parsedImages.filter(Boolean) : [];
+      } catch {
+        payload.images = String(payload.images || "")
+            .split(/\r?\n|,/)
+            .map((image) => image.trim())
+            .filter(Boolean);
+      }
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, "imagePublicIds")) {
+    if (Array.isArray(payload.imagePublicIds)) {
+      payload.imagePublicIds = payload.imagePublicIds.filter(Boolean);
+    } else {
+      try {
+        const parsedIds = JSON.parse(String(payload.imagePublicIds || "[]"));
+        payload.imagePublicIds = Array.isArray(parsedIds) ? parsedIds.filter(Boolean) : [];
+      } catch {
+        payload.imagePublicIds = String(payload.imagePublicIds || "")
           .split(/\r?\n|,/)
-          .map((image) => image.trim())
+          .map((id) => id.trim())
           .filter(Boolean);
+      }
+    }
   }
 
   return payload;
@@ -808,31 +885,94 @@ export const listProductsByAdmin = async (req, res) => {
   res.json(products);
 };
 
+export const uploadProductImagesByAdmin = async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const imageFiles = Array.isArray(req.files) ? req.files : [];
+  if (!imageFiles.length) {
+    return res.status(400).json({ msg: "Select at least one product image" });
+  }
+
+  const uploadedImages = await uploadAdminProductImages(imageFiles);
+  res.status(201).json({
+    images: uploadedImages.map((image) => ({
+      url: image.secure_url,
+      publicId: image.public_id,
+    })),
+  });
+};
+
 export const createProductByAdmin = async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const payload = normalizeProductAdminPayload(req.body);
-  if (!payload.title || !payload.fruitName || !payload.variety || !payload.location) {
-    return res.status(400).json({ msg: "Product name, category, variety, and location are required" });
+  const category = String(payload.productCategory || payload.fruitName || "").trim();
+  const price = Number(payload.basePrice || 0);
+  const discountPercent = Number(payload.discountPercent || 0);
+
+  if (!payload.title || !category || !payload.description) {
+    return res.status(400).json({ msg: "Product name, category, and description are required" });
   }
 
-  if (!Number.isFinite(payload.quantity) || payload.quantity < 0) {
-    return res.status(400).json({ msg: "Stock quantity must be zero or more" });
+  payload.sku = String(payload.sku || "").trim().toUpperCase();
+  if (!payload.sku) {
+    return res.status(400).json({ msg: "SKU is required" });
   }
 
-  if (!Number.isFinite(payload.basePrice) || payload.basePrice < 0) {
-    return res.status(400).json({ msg: "Price must be zero or more" });
+  const skuExists = await Product.exists({ sku: payload.sku });
+  if (skuExists) {
+    return res.status(409).json({ msg: "SKU already exists. Please generate a new SKU or edit manually." });
   }
 
-  if (payload.status && !["AVAILABLE", "IN_AUCTION", "SOLD"].includes(payload.status)) {
+  if (!Number.isFinite(price) || price <= 0) {
+    return res.status(400).json({ msg: "Price must be greater than zero" });
+  }
+
+  if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+    return res.status(400).json({ msg: "Discount must be between 0 and 100" });
+  }
+
+  payload.hsnCode = String(payload.hsnCode || "").trim();
+  if (!/^\d+$/.test(payload.hsnCode)) {
+    return res.status(400).json({ msg: "HSN code is required and must be numeric" });
+  }
+
+  if (!GST_ALLOWED_VALUES.has(Number(payload.gstRate))) {
+    return res.status(400).json({ msg: "GST rate must be one of 0, 5, 12, 18, or 28" });
+  }
+
+  const imageFiles = Array.isArray(req.files) ? req.files : [];
+  const existingImageUrls = Array.isArray(payload.images) ? payload.images : [];
+  const existingPublicIds = Array.isArray(payload.imagePublicIds) ? payload.imagePublicIds : [];
+  if (imageFiles.length + existingImageUrls.length < 5) {
+    return res.status(400).json({ msg: "At least 5 product images are required" });
+  }
+
+  if (payload.status && !["AVAILABLE", "SOLD"].includes(payload.status)) {
     return res.status(400).json({ msg: "Invalid product status" });
   }
 
+  const uploadedImages = await uploadAdminProductImages(imageFiles);
+  const uploadedUrls = uploadedImages.map((image) => image.secure_url);
+  const uploadedPublicIds = uploadedImages.map((image) => image.public_id);
+
   const product = await Product.create({
     ...payload,
+    fruitName: category,
+    productCategory: category,
+    variety: payload.variety || category,
+    basePrice: price,
+    discountPercent,
+    gstRate: Number(payload.gstRate),
+    cgst: Number(payload.gstRate) / 2,
+    sgst: Number(payload.gstRate) / 2,
+    quantity: 0,
+    images: [...existingImageUrls, ...uploadedUrls],
+    imagePublicIds: [...existingPublicIds, ...uploadedPublicIds],
     status: payload.status || "AVAILABLE",
     packingType: payload.packingType || "Orchard Growers pack",
     location: payload.location || "Orchard Growers",
+    createdSource: "admin-panel",
   });
 
   res.status(201).json(product);
@@ -843,15 +983,49 @@ export const updateProductByAdmin = async (req, res) => {
 
   const payload = normalizeProductAdminPayload(req.body);
   if (Object.prototype.hasOwnProperty.call(payload, "status")) {
-    if (!["AVAILABLE", "IN_AUCTION", "SOLD"].includes(payload.status)) {
+    if (!["AVAILABLE", "SOLD"].includes(payload.status)) {
       return res.status(400).json({ msg: "Invalid product status" });
     }
+  }
+
+  if (payload.sku) {
+    const duplicate = await Product.exists({ _id: { $ne: req.params.id }, sku: String(payload.sku).trim().toUpperCase() });
+    if (duplicate) {
+      return res.status(409).json({ msg: "SKU already exists. Please generate a new SKU or edit manually." });
+    }
+    payload.sku = String(payload.sku).trim().toUpperCase();
+  }
+
+  if (payload.hsnCode && !/^\d+$/.test(String(payload.hsnCode).trim())) {
+    return res.status(400).json({ msg: "HSN code must be numeric" });
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, "gstRate") && !GST_ALLOWED_VALUES.has(Number(payload.gstRate))) {
+    return res.status(400).json({ msg: "GST rate must be one of 0, 5, 12, 18, or 28" });
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, "discountPercent")) {
+    const discountPercent = Number(payload.discountPercent || 0);
+    if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+      return res.status(400).json({ msg: "Discount must be between 0 and 100" });
+    }
+    payload.discountPercent = discountPercent;
   }
 
   const product = await Product.findByIdAndUpdate(req.params.id, payload, { new: true });
   if (!product) return res.status(404).json({ msg: "Product not found" });
 
   res.json(product);
+};
+
+export const deleteProductByAdmin = async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const product = await Product.findById(req.params.id);
+  if (!product) return res.status(404).json({ msg: "Product not found" });
+
+  await product.deleteOne();
+  res.json({ msg: "Product deleted successfully" });
 };
 
 export const listVerificationRequests = async (req, res) => {

@@ -545,29 +545,69 @@ const normalizeOAuthPlatform = (value = "") => {
   const normalized = String(value || "").trim().toLowerCase();
   return OAUTH_PLATFORMS.has(normalized) ? normalized : "orchardgrowers";
 };
+const getOAuthAppFromRequest = (req) => normalizeOAuthPlatform(req.query.app || req.query.platform);
 const getRequestBaseUrl = (req) => `${req.protocol}://${req.get("host")}`;
 const getOAuthCallbackUrl = (req, provider) => {
   const envKey = provider === "google" ? "GOOGLE_CALLBACK_URL" : "FACEBOOK_CALLBACK_URL";
   return process.env[envKey] || `${getRequestBaseUrl(req)}/api/auth/${provider}/callback`;
 };
+const getGoogleOAuthConfig = (platform) => {
+  const normalizedPlatform = normalizeOAuthPlatform(platform);
+  const clientId =
+    normalizedPlatform === "efruitmandi"
+      ? process.env.GOOGLE_CLIENT_ID_EFRUITMANDI || process.env.GOOGLE_CLIENT_ID
+      : process.env.GOOGLE_CLIENT_ID_ORCHARD || process.env.GOOGLE_CLIENT_ID;
+  const clientSecret =
+    normalizedPlatform === "efruitmandi"
+      ? process.env.GOOGLE_CLIENT_SECRET_EFRUITMANDI || process.env.GOOGLE_CLIENT_SECRET
+      : process.env.GOOGLE_CLIENT_SECRET_ORCHARD || process.env.GOOGLE_CLIENT_SECRET;
+
+  return { clientId, clientSecret };
+};
+const getFacebookOAuthConfig = (platform) => {
+  const normalizedPlatform = normalizeOAuthPlatform(platform);
+  const appId =
+    normalizedPlatform === "efruitmandi"
+      ? process.env.FACEBOOK_APP_ID_EFRUITMANDI || process.env.FACEBOOK_APP_ID
+      : process.env.FACEBOOK_APP_ID_ORCHARD || process.env.FACEBOOK_APP_ID;
+  const appSecret =
+    normalizedPlatform === "efruitmandi"
+      ? process.env.FACEBOOK_APP_SECRET_EFRUITMANDI || process.env.FACEBOOK_APP_SECRET
+      : process.env.FACEBOOK_APP_SECRET_ORCHARD || process.env.FACEBOOK_APP_SECRET;
+
+  return { appId, appSecret };
+};
 const getFrontendUrl = (platform) => {
   if (platform === "efruitmandi") {
-    return process.env.EFRUITMANDI_CLIENT_URL || process.env.EFRUITMANDI_URL || process.env.CLIENT_URL || "";
+    return process.env.EFRUITMANDI_CLIENT_URL || process.env.EFRUITMANDI_URL || (!isProductionLikeOAuth() ? "http://localhost:3000" : "");
   }
 
-  return process.env.ORCHARDGROWERS_CLIENT_URL || process.env.ORCHARD_URL || process.env.CLIENT_URL || "";
+  return process.env.CLIENT_URL || process.env.ORCHARDGROWERS_CLIENT_URL || process.env.ORCHARD_URL || (!isProductionLikeOAuth() ? "http://localhost:3001" : "");
+};
+const isProductionLikeOAuth = () => {
+  const runtime = String(process.env.APP_ENV || process.env.NODE_ENV || "").trim().toLowerCase();
+  return runtime === "production" || runtime === "staging";
 };
 const getOAuthFallbackUrl = (platform) => {
   const baseUrl = getFrontendUrl(platform);
   if (!baseUrl) return "";
-  return `${baseUrl.replace(/\/+$/, "")}${platform === "efruitmandi" ? "/profile" : "/login"}`;
+  return `${baseUrl.replace(/\/+$/, "")}/login`;
 };
 const redirectOAuthError = (res, platform, message) => {
   const fallbackUrl = getOAuthFallbackUrl(platform);
   if (!fallbackUrl) return res.status(400).json({ msg: message });
 
   const separator = fallbackUrl.includes("?") ? "&" : "?";
+  console.log("Redirecting to frontend:", fallbackUrl);
   return res.redirect(`${fallbackUrl}${separator}oauthError=${encodeURIComponent(message)}`);
+};
+const redirectFacebookMissingEmail = (res, platform) => {
+  const fallbackUrl = getOAuthFallbackUrl(platform);
+  if (!fallbackUrl) return res.status(400).json({ msg: "facebook_email_missing" });
+
+  const separator = fallbackUrl.includes("?") ? "&" : "?";
+  console.log("Facebook redirect frontend:", fallbackUrl);
+  return res.redirect(`${fallbackUrl}${separator}error=facebook_email_missing`);
 };
 const createOAuthState = ({ platform, provider }) =>
   jwt.sign(
@@ -592,12 +632,16 @@ const redirectOAuthSuccess = (res, platform, payload) => {
     refreshToken: payload.refreshToken,
     user: Buffer.from(JSON.stringify(payload.user), "utf8").toString("base64url"),
   });
+  console.log("Redirecting to frontend:", fallbackUrl);
   return res.redirect(`${fallbackUrl}#${params.toString()}`);
 };
 const createOAuthPassword = async () =>
   bcrypt.hash(crypto.randomBytes(32).toString("hex"), 10);
+const DEFAULT_OAUTH_NAMES = new Set(["", "OrchardGrowers", "User"]);
 const upsertOAuthUser = async ({ provider, providerId, email, name, avatarUrl }) => {
   const normalizedEmail = String(email || "").trim().toLowerCase();
+  const nextName = String(name || "").trim();
+  const nextAvatarUrl = String(avatarUrl || "").trim();
   if (!providerId || !normalizedEmail) {
     const error = new Error("OAuth account did not provide a verified email address.");
     error.statusCode = 400;
@@ -614,10 +658,10 @@ const upsertOAuthUser = async ({ provider, providerId, email, name, avatarUrl })
 
   if (!user) {
     user = await User.create({
-      name: name || normalizedEmail.split("@")[0] || "User",
+      name: nextName || normalizedEmail.split("@")[0] || "User",
       email: normalizedEmail,
       password: await createOAuthPassword(),
-      avatarUrl: avatarUrl || "",
+      avatarUrl: nextAvatarUrl,
       provider,
       providerId,
       oauthProviders: [{ provider, providerId }],
@@ -633,8 +677,20 @@ const upsertOAuthUser = async ({ provider, providerId, email, name, avatarUrl })
   }
 
   user.email = user.email || normalizedEmail;
-  user.name = user.name && user.name !== "OrchardGrowers" ? user.name : name || user.name;
-  user.avatarUrl = user.avatarUrl || avatarUrl || "";
+  const wasSameOAuthProvider = user.provider === provider;
+  const isSwitchingOAuthProvider =
+    user.provider && user.provider !== "local" && user.provider !== provider;
+  if (
+    nextName &&
+    (DEFAULT_OAUTH_NAMES.has(String(user.name || "").trim()) ||
+      wasSameOAuthProvider ||
+      isSwitchingOAuthProvider)
+  ) {
+    user.name = nextName;
+  }
+  if (nextAvatarUrl && (!user.avatarUrl || wasSameOAuthProvider || isSwitchingOAuthProvider)) {
+    user.avatarUrl = nextAvatarUrl;
+  }
   user.provider = provider;
   user.providerId = providerId;
 
@@ -651,6 +707,9 @@ const upsertOAuthUser = async ({ provider, providerId, email, name, avatarUrl })
 const completeOAuthLogin = async (res, platform, oauthProfile) => {
   const user = await upsertOAuthUser(oauthProfile);
   const tokens = createTokenPair(user);
+  if (oauthProfile.provider === "facebook") {
+    console.log("Facebook redirect frontend:", getOAuthFallbackUrl(platform));
+  }
   return redirectOAuthSuccess(res, platform, {
     message: "Login successful",
     ...tokens,
@@ -660,21 +719,23 @@ const completeOAuthLogin = async (res, platform, oauthProfile) => {
 
 export const startGoogleOAuth = (req, res) => {
   try {
-    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-      return redirectOAuthError(res, normalizeOAuthPlatform(req.query.platform), "Google OAuth is not configured.");
+    console.log("OAuth start query app:", req.query.app);
+    const platform = getOAuthAppFromRequest(req);
+    const googleConfig = getGoogleOAuthConfig(platform);
+    if (!googleConfig.clientId || !googleConfig.clientSecret) {
+      return redirectOAuthError(res, platform, "Google OAuth is not configured.");
     }
 
-    const platform = normalizeOAuthPlatform(req.query.platform);
     const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
+      googleConfig.clientId,
+      googleConfig.clientSecret,
       getOAuthCallbackUrl(req, "google")
     );
     const url = oauth2Client.generateAuthUrl({
       access_type: "offline",
       prompt: "select_account",
       scope: ["openid", "email", "profile"],
-      state: createOAuthState({ platform, provider: "google" }),
+      state: platform,
     });
 
     return res.redirect(url);
@@ -685,25 +746,32 @@ export const startGoogleOAuth = (req, res) => {
 };
 
 export const handleGoogleOAuthCallback = async (req, res) => {
-  const state = readOAuthState(req.query.state);
-  const platform = normalizeOAuthPlatform(state.platform);
+  console.log("OAuth callback state:", req.query.state);
+  const platform = normalizeOAuthPlatform(req.query.state);
+  const googleConfig = getGoogleOAuthConfig(platform);
 
   try {
     if (!req.query.code) {
       return redirectOAuthError(res, platform, "Google login was cancelled.");
     }
+    if (!googleConfig.clientId || !googleConfig.clientSecret) {
+      return redirectOAuthError(res, platform, "Google OAuth is not configured.");
+    }
 
     const oauth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
+      googleConfig.clientId,
+      googleConfig.clientSecret,
       getOAuthCallbackUrl(req, "google")
     );
     const { tokens } = await oauth2Client.getToken(String(req.query.code));
     const ticket = await oauth2Client.verifyIdToken({
       idToken: tokens.id_token,
-      audience: process.env.GOOGLE_CLIENT_ID,
+      audience: googleConfig.clientId,
     });
     const payload = ticket.getPayload() || {};
+    if (!payload.email_verified) {
+      return redirectOAuthError(res, platform, "Google email is not verified.");
+    }
 
     return completeOAuthLogin(res, platform, {
       provider: "google",
@@ -720,15 +788,17 @@ export const handleGoogleOAuthCallback = async (req, res) => {
 
 export const startFacebookOAuth = (req, res) => {
   try {
-    if (!process.env.FACEBOOK_APP_ID || !process.env.FACEBOOK_APP_SECRET) {
-      return redirectOAuthError(res, normalizeOAuthPlatform(req.query.platform), "Facebook OAuth is not configured.");
+    const platform = getOAuthAppFromRequest(req);
+    console.log("Facebook OAuth start app:", platform);
+    const facebookConfig = getFacebookOAuthConfig(platform);
+    if (!facebookConfig.appId || !facebookConfig.appSecret) {
+      return redirectOAuthError(res, platform, "Facebook OAuth is not configured.");
     }
 
-    const platform = normalizeOAuthPlatform(req.query.platform);
     const params = new URLSearchParams({
-      client_id: process.env.FACEBOOK_APP_ID,
+      client_id: facebookConfig.appId,
       redirect_uri: getOAuthCallbackUrl(req, "facebook"),
-      state: createOAuthState({ platform, provider: "facebook" }),
+      state: platform,
       scope: "email,public_profile",
       response_type: "code",
     });
@@ -741,18 +811,22 @@ export const startFacebookOAuth = (req, res) => {
 };
 
 export const handleFacebookOAuthCallback = async (req, res) => {
-  const state = readOAuthState(req.query.state);
-  const platform = normalizeOAuthPlatform(state.platform);
+  console.log("Facebook OAuth callback state:", req.query.state);
+  const platform = normalizeOAuthPlatform(req.query.state);
+  const facebookConfig = getFacebookOAuthConfig(platform);
 
   try {
     if (!req.query.code) {
       return redirectOAuthError(res, platform, "Facebook login was cancelled.");
     }
+    if (!facebookConfig.appId || !facebookConfig.appSecret) {
+      return redirectOAuthError(res, platform, "Facebook OAuth is not configured.");
+    }
 
     const tokenRes = await axios.get("https://graph.facebook.com/v19.0/oauth/access_token", {
       params: {
-        client_id: process.env.FACEBOOK_APP_ID,
-        client_secret: process.env.FACEBOOK_APP_SECRET,
+        client_id: facebookConfig.appId,
+        client_secret: facebookConfig.appSecret,
         redirect_uri: getOAuthCallbackUrl(req, "facebook"),
         code: req.query.code,
       },
@@ -764,6 +838,9 @@ export const handleFacebookOAuthCallback = async (req, res) => {
       },
     });
     const profile = profileRes.data || {};
+    if (!profile.email) {
+      return redirectFacebookMissingEmail(res, platform);
+    }
 
     return completeOAuthLogin(res, platform, {
       provider: "facebook",

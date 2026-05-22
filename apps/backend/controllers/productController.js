@@ -13,7 +13,7 @@ const canSeeBasePrice = (product, user) =>
 const serializeProduct = (product, user) => {
   const data = product.toObject ? product.toObject() : { ...product };
 
-  if (!canSeeBasePrice(data, user)) {
+  if (!canSeeBasePrice(data, user) && data.createdSource !== "admin-panel") {
     delete data.basePrice;
   }
 
@@ -58,6 +58,91 @@ const getUploadedFiles = (req, fieldName) => {
   }
 
   return req.files?.[fieldName] || [];
+};
+
+const SKU_CATEGORY_CODES = {
+  plant: "PLT",
+  plants: "PLT",
+  "live plants": "PLT",
+  "fruit plants": "PLT",
+  seed: "SED",
+  seeds: "SED",
+  tool: "TOOL",
+  tools: "TOOL",
+  "gardening tools": "TOOL",
+  fertilizer: "FRT",
+  fertilizers: "FRT",
+  manure: "MAN",
+  "organic manure": "MAN",
+  cocopeat: "COCO",
+  pot: "POT",
+  pots: "POT",
+  "nursery pots": "POT",
+  "shade net": "NET",
+  irrigation: "IRR",
+};
+const SKU_UNIT_CODES = {
+  kg: "U1",
+  piece: "U2",
+  plant: "U1",
+  box: "U3",
+  litre: "U4",
+  liter: "U4",
+};
+const toSkuPart = (value = "", maxLength = 8) => {
+  const cleaned = String(value || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "");
+  return (cleaned || "ITEM").slice(0, maxLength);
+};
+const getCategoryCode = (category = "") => {
+  const normalized = String(category || "").trim().toLowerCase();
+  return SKU_CATEGORY_CODES[normalized] || toSkuPart(normalized, 4);
+};
+const getUnitCode = (unitId = "") => {
+  const normalized = String(unitId || "").trim().toLowerCase();
+  if (/^u\d+$/i.test(normalized)) return normalized.toUpperCase();
+  return SKU_UNIT_CODES[normalized] || toSkuPart(normalized || "U1", 3);
+};
+
+export const generateSku = async (req, res) => {
+  try {
+    const category = String(req.query.category || "").trim();
+    const productName = String(req.query.productName || "").trim();
+    const unitId = String(req.query.unitId || "").trim();
+
+    if (!category || !productName || !unitId) {
+      return res.status(400).json({ msg: "Category, product name, and unit are required" });
+    }
+
+    const categoryCode = getCategoryCode(category);
+    const productShort = toSkuPart(productName.split(/\s+/)[0] || productName, 8);
+    const unitCode = getUnitCode(unitId);
+    const familyPattern = new RegExp(`^OG-${categoryCode}-[A-Z0-9]+-${unitCode}-(\\d{4})$`);
+    const existing = await Product.find({ sku: familyPattern }).select("sku").lean();
+    const maxSerial = existing.reduce((max, product) => {
+      const match = String(product.sku || "").match(familyPattern);
+      return match ? Math.max(max, Number(match[1] || 0)) : max;
+    }, 0);
+
+    let serial = maxSerial + 1;
+    let sku = "";
+    while (serial < 10000) {
+      sku = `OG-${categoryCode}-${productShort}-${unitCode}-${String(serial).padStart(4, "0")}`;
+      const duplicate = await Product.exists({ sku });
+      if (!duplicate) break;
+      serial += 1;
+    }
+
+    if (!sku || serial >= 10000) {
+      return res.status(500).json({ msg: "Could not generate SKU" });
+    }
+
+    res.json({ sku });
+  } catch (err) {
+    console.error("SKU generation failed:", err.message || err);
+    res.status(500).json({ msg: "Could not generate SKU" });
+  }
 };
 
 // CREATE PRODUCT WITH IMAGE
@@ -173,10 +258,9 @@ export const createProduct = async (req, res) => {
 // GET PRODUCTS
 export const getProducts = async (req, res) => {
   try {
-    const products = await Product.find().populate(
-      "createdBy",
-      "name orchardName businessName role"
-    );
+    const products = await Product.find({ active: { $ne: false } })
+      .populate("createdBy", "name orchardName businessName role")
+      .sort({ createdAt: -1 });
     res.json(products.map((product) => serializeProduct(product, req.user)));
   } catch (err) {
     res.status(500).json({ msg: err.message });

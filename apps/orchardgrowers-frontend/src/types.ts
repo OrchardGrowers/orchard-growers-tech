@@ -3,6 +3,8 @@ export interface Product {
   title: string;
   fruitName: string;
   variety: string;
+  productCategory?: string;
+  seasonalCategory?: string;
   description: string;
   location: string;
   quantity: number;
@@ -11,6 +13,7 @@ export interface Product {
   packingWeightKg?: number;
   totalWeightKg?: number;
   basePrice: number;
+  discountPercent?: number;
   images?: string[];
   status?: string;
   createdAt?: string;
