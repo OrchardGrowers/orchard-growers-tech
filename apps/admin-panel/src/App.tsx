@@ -3,9 +3,9 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 import InstallAppPrompt, { openAdminInstallPrompt } from './components/InstallAppPrompt';
 
 const rawApiBase =
-  ((import.meta as ImportMeta & { env?: { VITE_API_BASE_URL?: string; VITE_API_URL?: string } }).env?.VITE_API_BASE_URL) ||
-  ((import.meta as ImportMeta & { env?: { VITE_API_BASE_URL?: string; VITE_API_URL?: string } }).env?.VITE_API_URL) ||
-  '';
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.VITE_API_URL ||
+  'https://orchard-growers-backend.onrender.com';
 
 const normalizeApiBase = (value: string) => {
   const trimmed = value.trim().replace(/\/+$/, '');
@@ -16,7 +16,7 @@ const normalizeApiBase = (value: string) => {
 const API_BASE = normalizeApiBase(
   rawApiBase
 );
-if (!rawApiBase) {
+if (!import.meta.env.VITE_API_BASE_URL) {
   console.warn('Missing VITE_API_BASE_URL for admin panel.');
 }
 const FILE_BASE = API_BASE.replace(/\/api\/?$/, '');

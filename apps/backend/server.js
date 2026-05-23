@@ -88,24 +88,32 @@ const localDevelopmentOrigins = [
   "http://127.0.0.1:5174",
   "http://127.0.0.1:5175",
 ];
+const adminProductionOrigins = [
+  "https://admins.orchardgrowers.in",
+  "https://orchard-growers-tech-admin-panel.vercel.app",
+];
 const isProductionLike = () => {
   const runtime = String(process.env.APP_ENV || process.env.NODE_ENV || "").trim().toLowerCase();
   return runtime === "production" || runtime === "staging";
 };
 const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || "";
+const corsOriginEnv = process.env.CORS_ORIGIN || "";
 const corsOriginsEnv = process.env.CORS_ORIGINS || "";
 const normalizeOrigin = (origin = "") => origin.trim().replace(/\/+$/, "");
 const configuredOrigins = [
   process.env.CLIENT_URL,
   process.env.ADMIN_URL,
+  process.env.ADMIN_FRONTEND_URL,
   process.env.EFRUITMANDI_URL,
   process.env.EFRUITMANDI_CLIENT_URL,
   process.env.ORCHARD_URL,
   process.env.ORCHARDGROWERS_CLIENT_URL,
   ...allowedOriginsEnv.split(","),
+  ...corsOriginEnv.split(","),
   ...corsOriginsEnv.split(","),
 ];
 const allowedOrigins = [
+  ...adminProductionOrigins,
   ...configuredOrigins,
   ...(!isProductionLike() ? localDevelopmentOrigins : []),
 ]
