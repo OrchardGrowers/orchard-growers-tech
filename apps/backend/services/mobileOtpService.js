@@ -133,13 +133,26 @@ const sendMsg91Otp = async ({ mobile, otp, platform }) => {
     senderId,
   });
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      authkey: authKey,
-      "Content-Type": "application/json",
-    },
-  });
+  let response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        authkey: authKey,
+        "Content-Type": "application/json",
+      },
+    });
+  } catch (err) {
+    console.error("MSG91 OTP request failed", {
+      provider: "MSG91",
+      platform: platformKey,
+      phone: maskPhone(mobile),
+      templateId,
+      senderId: senderId || "",
+      message: err?.message || "Network request failed",
+    });
+    throw err;
+  }
   const data = await parseProviderResponse(response);
   logMsg91Event({
     message: "MSG91 OTP response",

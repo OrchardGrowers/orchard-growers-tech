@@ -26,14 +26,7 @@ import Products from "./pages/Products";
 import API, { FILE_BASE_URL } from "./services/api";
 import InstallAppPrompt, { openOrchardInstallPrompt } from "./components/InstallAppPrompt";
 import type { Product } from "./types";
-import {
-  getOrchardWidgetId,
-  getOrchardTokenAuth,
-  normalizeIndianMobile,
-  retryMsg91WidgetOtp,
-  sendMsg91WidgetOtp,
-  verifyMsg91WidgetOtp,
-} from "./utils/msg91OtpWidget";
+import { normalizeIndianMobile } from "./utils/msg91OtpWidget";
 
 type Auction = {
   _id: string;
@@ -2755,7 +2748,6 @@ function AuthPage() {
   const [otpSent, setOtpSent] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [mobileOtpReqId, setMobileOtpReqId] = useState("");
   const [otpCooldown, setOtpCooldown] = useState(0);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [pendingSocialProvider, setPendingSocialProvider] = useState<"google" | "facebook" | null>(null);
@@ -2806,7 +2798,6 @@ function AuthPage() {
     setForm((current) => ({ ...current, [field]: value }));
     if (field === "identifier") {
       setOtpSent(false);
-      setMobileOtpReqId("");
       setOtpCooldown(0);
     }
   };
@@ -2815,7 +2806,6 @@ function AuthPage() {
     setMode(nextMode);
     setMessage("");
     setOtpSent(false);
-    setMobileOtpReqId("");
     setOtpCooldown(0);
     setShowPassword(false);
     setShowConfirmPassword(false);
@@ -2844,21 +2834,8 @@ function AuthPage() {
     try {
       setLoading(true);
       const mobile = normalizeIndianMobile(form.identifier);
-      if (mobile) {
-        const widgetId = getOrchardWidgetId();
-        const tokenAuth = getOrchardTokenAuth();
-        const result = otpSent
-          ? await retryMsg91WidgetOtp({ widgetId, tokenAuth, reqId: mobileOtpReqId })
-          : await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone: mobile });
-        setMobileOtpReqId(result.reqId || "");
-        setOtpSent(true);
-        setOtpCooldown(60);
-        setMessage(result.reqId ? "OTP sent to phone." : "OTP sent. Enter the OTP received.");
-        return;
-      }
-
       const res = await API.post<{ message?: string }>("/auth/send-otp", {
-        identifier: form.identifier,
+        identifier: mobile || form.identifier,
         platform: "orchardgrowers",
         mode,
       });
@@ -2894,23 +2871,17 @@ function AuthPage() {
     try {
       setLoading(true);
       const mobile = normalizeIndianMobile(form.identifier);
+      const authIdentifier = mobile || form.identifier;
       if (mobile) {
         if (!otpSent) {
           setMessage("Request phone OTP first.");
           return;
         }
 
-        const tokenAuth = getOrchardTokenAuth();
-        if (!tokenAuth) {
-          setMessage("Mobile OTP is not configured.");
-          return;
-        }
-        const result = await verifyMsg91WidgetOtp({ widgetId: getOrchardWidgetId(), tokenAuth, otp: form.otp, reqId: mobileOtpReqId });
-        await API.post("/auth/verify-mobile-widget-otp", {
-          identifier: form.identifier,
+        await API.post("/auth/verify-otp", {
+          identifier: mobile,
+          otp: form.otp,
           platform: "orchardgrowers",
-          reqId: result.reqId || mobileOtpReqId,
-          msg91: result.data,
         });
       } else {
         await API.post("/auth/verify-otp", { identifier: form.identifier, otp: form.otp, platform: "orchardgrowers" });
@@ -2918,8 +2889,8 @@ function AuthPage() {
       const endpoint = mode === "login" ? "/auth/login" : "/auth/register";
       const payload =
         mode === "login"
-          ? { identifier: form.identifier, password: form.password, platform: "orchardgrowers" }
-          : { name: form.name, identifier: form.identifier, password: form.password, platform: "orchardgrowers" };
+          ? { identifier: authIdentifier, password: form.password, platform: "orchardgrowers" }
+          : { name: form.name, identifier: authIdentifier, password: form.password, platform: "orchardgrowers" };
       const res = await API.post(endpoint, payload);
 
       if (res.data.accessToken) localStorage.setItem("accessToken", res.data.accessToken);

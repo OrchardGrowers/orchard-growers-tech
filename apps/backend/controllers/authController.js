@@ -11,6 +11,7 @@ const otpStore = new Map();
 const ACCOUNT_EXISTS_SIGNIN_MESSAGE = "Account already exists. Please sign in.";
 const truthyEnv = (value = "") => ["1", "true", "yes"].includes(String(value).trim().toLowerCase());
 const useLegacyMsg91Api = () => truthyEnv(process.env.USE_LEGACY_MSG91_API);
+const shouldUseServerMobileOtp = (platform) => normalizeMailPlatform(platform) === "orchardgrowers" || useLegacyMsg91Api();
 const getOtpTtlMs = () => {
   const minutes = Number(process.env.OTP_EXPIRY_MINUTES || 5);
   return (Number.isFinite(minutes) && minutes > 0 ? minutes : 5) * 60 * 1000;
@@ -228,7 +229,7 @@ const deliverOtp = async ({ platform, parsed, otp, purpose }) => {
     return;
   }
 
-  if (!useLegacyMsg91Api()) {
+  if (!shouldUseServerMobileOtp(platform)) {
     const error = new Error("Mobile OTP must be sent with MSG91 widget");
     error.code = "MOBILE_OTP_WIDGET_REQUIRED";
     throw error;
