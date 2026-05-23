@@ -27,6 +27,13 @@ import API, { FILE_BASE_URL } from "./services/api";
 import InstallAppPrompt, { openOrchardInstallPrompt } from "./components/InstallAppPrompt";
 import type { Product } from "./types";
 import { normalizeIndianMobile } from "./utils/phone";
+import {
+  sendMsg91WidgetOtp,
+  verifyMsg91WidgetOtp,
+  getOrchardWidgetId,
+  getOrchardTokenAuth,
+  getMsg91SafeErrorMessage,
+} from "./utils/msg91OtpWidget";
 
 type Auction = {
   _id: string;
@@ -2750,6 +2757,7 @@ function AuthPage() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
+  const [otpProviderData, setOtpProviderData] = useState<Record<string, unknown> | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [otpCooldown, setOtpCooldown] = useState(0);
@@ -2841,15 +2849,31 @@ function AuthPage() {
     try {
       setLoading(true);
       const mobile = normalizeIndianMobile(form.identifier);
-      const res = await API.post<{ message?: string; requestId?: string; reqId?: string }>("/auth/send-otp", {
-        identifier: mobile || form.identifier,
-        platform: "orchardgrowers",
-        mode,
-      });
-      setOtpSent(true);
-      setOtpReqId(mobile ? res.data.requestId || res.data.reqId || "" : "");
-      setOtpCooldown(60);
-      setMessage(res.data.message || "OTP sent.");
+      if (mobile) {
+        // Use client-side MSG91 widget for Orchard mobile OTP (keeps UX unchanged)
+        try {
+          const widgetId = getOrchardWidgetId();
+          const tokenAuth = getOrchardTokenAuth();
+          const result = await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone: mobile });
+          setOtpSent(true);
+          setOtpReqId(result.reqId || (result.data as any)?.requestId || "");
+          setOtpProviderData((result.data as Record<string, unknown>) || null);
+          setOtpCooldown(60);
+          setMessage("OTP sent.");
+        } catch (err: any) {
+          setMessage(getMsg91SafeErrorMessage(err, err?.message || "Could not send OTP."));
+        }
+      } else {
+        const res = await API.post<{ message?: string; requestId?: string; reqId?: string }>("/auth/send-otp", {
+          identifier: mobile || form.identifier,
+          platform: "orchardgrowers",
+          mode,
+        });
+        setOtpSent(true);
+        setOtpReqId(mobile ? res.data.requestId || res.data.reqId || "" : "");
+        setOtpCooldown(60);
+        setMessage(res.data.message || "OTP sent.");
+      }
     } catch (err: any) {
       setMessage(err?.response?.data?.msg || err?.message || "Could not send OTP.");
     } finally {
@@ -2891,12 +2915,23 @@ function AuthPage() {
           return;
         }
 
-        await API.post("/auth/verify-mobile-widget-otp", {
-          identifier: mobile,
-          otp: form.otp,
-          reqId: otpReqId,
-          platform: "orchardgrowers",
-        });
+        // Try client-side widget verification first so we can send verified provider proof to backend
+        try {
+          const widgetId = getOrchardWidgetId();
+          const tokenAuth = getOrchardTokenAuth();
+          const verifyResult = await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp: form.otp, reqId: otpReqId });
+          // send provider proof to backend so server doesn't need to call MSG91 directly
+          await API.post("/auth/verify-mobile-widget-otp", {
+            identifier: mobile,
+            otp: form.otp,
+            reqId: otpReqId,
+            platform: "orchardgrowers",
+            providerData: verifyResult.data || {},
+          });
+        } catch (err) {
+          // fallback to server-side verification if client verify fails
+          await API.post("/auth/verify-mobile-widget-otp", { identifier: mobile, otp: form.otp, reqId: otpReqId, platform: "orchardgrowers" });
+        }
       } else {
         await API.post("/auth/verify-otp", { identifier: form.identifier, otp: form.otp, platform: "orchardgrowers" });
       }

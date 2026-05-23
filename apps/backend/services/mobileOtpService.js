@@ -534,10 +534,19 @@ export const sendMobileOtp = async ({ phone, otp, platform = "orchardgrowers" })
   let providerData = {};
   try {
     if (provider === "MSG91") {
-      providerData =
-        flow === "widget"
-          ? await sendMsg91WidgetOtp({ mobile, platform: platformKey })
-          : await sendMsg91Otp({ mobile, otp, platform: platformKey });
+      if (flow === "widget") {
+        // Prefer client-side MSG91 widget for OrchardGrowers; do not call widget/sendOtp from server
+        // unless explicitly forced via USE_LEGACY_MSG91_API=true
+        const useLegacy = truthyEnv(process.env.USE_LEGACY_MSG91_API);
+        if (platformKey === "orchardgrowers" && !useLegacy) {
+          // Signal that widget send should be done by client (frontend will handle it).
+          providerData = { message: "client_widget_required" };
+        } else {
+          providerData = await sendMsg91WidgetOtp({ mobile, platform: platformKey });
+        }
+      } else {
+        providerData = await sendMsg91Otp({ mobile, otp, platform: platformKey });
+      }
     } else if (provider === "2FACTOR" || provider === "TWO_FACTOR") {
       await sendTwoFactorOtp({ mobile, otp });
     } else {
