@@ -520,7 +520,7 @@ export const checkMsg91DeliveryStatus = async ({ requestId, platform = "orchardg
   };
 };
 
-export const sendMobileOtp = async ({ phone, otp, platform = "orchardgrowers" }) => {
+export const sendMobileOtp = async ({ phone, otp, platform = "orchardgrowers", forceLegacy = false }) => {
   const mobile = normalizeMobile(phone);
   if (!mobile) {
     const error = new Error("Valid mobile number is required");
@@ -536,8 +536,8 @@ export const sendMobileOtp = async ({ phone, otp, platform = "orchardgrowers" })
     if (provider === "MSG91") {
       if (flow === "widget") {
         // Prefer client-side MSG91 widget for OrchardGrowers; do not call widget/sendOtp from server
-        // unless explicitly forced via USE_LEGACY_MSG91_API=true
-        const useLegacy = truthyEnv(process.env.USE_LEGACY_MSG91_API);
+        // unless explicitly forced via USE_LEGACY_MSG91_API=true or caller passes forceLegacy.
+        const useLegacy = truthyEnv(process.env.USE_LEGACY_MSG91_API) || Boolean(forceLegacy);
         if (platformKey === "orchardgrowers" && !useLegacy) {
           // Signal that widget send should be done by client (frontend will handle it).
           providerData = { message: "client_widget_required" };

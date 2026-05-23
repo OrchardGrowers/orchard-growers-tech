@@ -104,11 +104,37 @@ const addOAuthParams = (url: string, mode: "login" | "signup", termsAccepted: bo
     return `${url}${separator}mode=${encodeURIComponent(mode)}${termsParam}`;
   }
 };
-const getLoginErrorMessage = (error: unknown) => {
-  const err = error as { response?: { status?: number; data?: { msg?: string; message?: string } }; message?: string };
-  if (err.response?.data?.msg || err.response?.data?.message) {
-    return err.response.data.msg || err.response.data.message || "Authentication failed.";
+const normalizeServerMessage = (payload: unknown): string | null => {
+  try {
+    if (!payload) return null;
+    // If payload is a string
+    if (typeof payload === "string") return payload;
+    // If payload is an array of strings
+    if (Array.isArray(payload)) return payload.map((p) => String(p)).join(" ");
+    // If payload is an object, try common fields
+    if (typeof payload === "object") {
+      const obj = payload as Record<string, unknown>;
+      if (typeof obj.msg === "string") return obj.msg;
+      if (Array.isArray(obj.msg)) return obj.msg.map((p) => String(p)).join(" ");
+      if (typeof obj.message === "string") return obj.message;
+      if (Array.isArray(obj.errors)) return obj.errors.map((e) => (typeof e === "string" ? e : JSON.stringify(e))).join(" ");
+      // sometimes validation libraries return { errors: [{ msg: '...' }, ...] }
+      if (Array.isArray(obj?.errors) && obj.errors.length && typeof obj.errors[0] === "object") {
+        return obj.errors.map((e: any) => e?.msg || JSON.stringify(e)).join(" ");
+      }
+      // fallback: stringify
+      return JSON.stringify(obj);
+    }
+    return String(payload);
+  } catch {
+    return null;
   }
+};
+
+const getLoginErrorMessage = (error: unknown) => {
+  const err = error as { response?: { status?: number; data?: unknown }; message?: string };
+  const serverMsg = normalizeServerMessage(err.response?.data);
+  if (serverMsg) return serverMsg;
   if (err.response?.status === 404) {
     return "Login API route was not found. Check VITE_API_BASE_URL and backend /api/auth/login deployment.";
   }
@@ -2861,7 +2887,22 @@ function AuthPage() {
           setOtpCooldown(60);
           setMessage("OTP sent.");
         } catch (err: any) {
+          // Report widget error to user, then attempt a server-side fallback that forces legacy send.
           setMessage(getMsg91SafeErrorMessage(err, err?.message || "Could not send OTP."));
+          try {
+            const res = await API.post<{ message?: string; requestId?: string; reqId?: string }>("/auth/send-otp", {
+              identifier: mobile,
+              platform: "orchardgrowers",
+              mode,
+              forceLegacy: true,
+            });
+            setOtpSent(true);
+            setOtpReqId(res.data.requestId || res.data.reqId || "");
+            setOtpCooldown(60);
+            setMessage(res.data.message || "OTP sent (server fallback).");
+          } catch (err2: any) {
+            setMessage(err2?.response?.data?.msg || err2?.message || "Could not send OTP.");
+          }
         }
       } else {
         const res = await API.post<{ message?: string; requestId?: string; reqId?: string }>("/auth/send-otp", {

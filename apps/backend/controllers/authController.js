@@ -202,22 +202,22 @@ const storeWidgetVerification = ({ platform, parsed, purpose, audit }) => {
   return key;
 };
 
-const deliverOtp = async ({ platform, parsed, otp, purpose }) => {
+const deliverOtp = async ({ platform, parsed, otp, purpose, forceLegacy = false }) => {
   logAuthDebug("deliver OTP selected", {
     platform: normalizeMailPlatform(platform),
     route: parsed.type === "email" ? "email_otp" : "mobile_otp",
     channel: parsed.type,
     purpose,
-  });
-
-  // Allow a developer/test mode where OTPs are not sent externally.
-  // Controlled via `ALLOW_TEST_OTP=true` and optional `TEST_OTP` value in env.
-  try {
-    const allowTest = truthyEnv(process.env.ALLOW_TEST_OTP);
-    if (allowTest) {
-      const testOtp = String(process.env.TEST_OTP || otp || "");
-      const requestId = `test:${Date.now()}`;
-      console.log("Test OTP mode active; not sending external OTP", { platform, channel: parsed.type, requestId, otp: testOtp ? "[configured]" : "[generated]" });
+    try {
+    const result = await sendMobileOtp({ phone: parsed.value, otp, platform, forceLegacy });
+    logAuthDebug("mobile OTP send success", {
+      platform: result.platform,
+      provider: result.provider,
+      flow: result.flow || "template",
+      requestId: result.requestId || "",
+    });
+    return result;
+  } catch (err) {
       return { message: `OTP sent (test)`, requestId };
     }
   } catch (e) {
@@ -318,7 +318,7 @@ const sendOtpForPurpose = async ({ req, res, purpose = "auth", requireExistingUs
   let delivery = {};
 
   try {
-    delivery = await deliverOtp({ platform, parsed, otp, purpose: normalizedPurpose });
+  delivery = await deliverOtp({ platform, parsed, otp, purpose: normalizedPurpose, forceLegacy: Boolean(req.body.forceLegacy) });
   } catch (err) {
     otpStore.delete(key);
     logOtpError("OTP delivery failed:", err);
