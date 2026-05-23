@@ -91,7 +91,7 @@ const logSmtpEvent = (level, event, mailConfig, details = {}) => {
 
 export const isSmtpConfigured = (platform = "orchardgrowers") => {
   const settings = getPlatformSettings(platform);
-  return Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_USER && process.env.SMTP_PASS && settings.from);
+  return Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT && settings.user && settings.pass && settings.from);
 };
 
 export const getMailTransport = ({ platform = "orchardgrowers", purpose = "general" } = {}) => {
@@ -114,8 +114,8 @@ export const getMailTransport = ({ platform = "orchardgrowers", purpose = "gener
       requireTLS: true,
       family: 4,
       auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
+        user: settings.user,
+        pass: settings.pass,
       },
       connectionTimeout: 30000,
       greetingTimeout: 30000,

@@ -136,6 +136,9 @@ const getAdminOtpMode = (mode = "login") => {
   const normalized = String(mode || "login").trim().toLowerCase();
   return normalized === "signup" ? "signup" : "login";
 };
+const logAdminOtpDebug = (message, details = {}) => {
+  console.log(`Admin OTP debug: ${message}`, details);
+};
 const isAdminOtpVerified = (email = "") => {
   const key = getAdminOtpKey(email);
   const record = adminOtpStore.get(key);
@@ -163,13 +166,44 @@ export const sendAdminOtp = async (req, res) => {
   const mode = getAdminOtpMode(req.body.mode);
   const response = { message: "If the admin email is eligible, an OTP has been sent." };
 
-  if (!email || !isValidEmail(email) || !ALLOWED_ADMIN_SIGNUP_EMAILS.has(email)) {
+  logAdminOtpDebug("route hit", {
+    mode,
+    normalizedEmail: email,
+  });
+
+  if (!email || !isValidEmail(email)) {
+    logAdminOtpDebug("sendMail skipped", {
+      normalizedEmail: email,
+      mode,
+      reason: "invalid_email",
+    });
     return res.json(response);
   }
 
-  const existingAdmin = await Admin.findOne({ email }).select("_id password status");
+  if (!ALLOWED_ADMIN_SIGNUP_EMAILS.has(email)) {
+    logAdminOtpDebug("sendMail skipped", {
+      normalizedEmail: email,
+      mode,
+      reason: "email_not_allowed",
+    });
+    return res.json(response);
+  }
+
+  const existingAdmin = await Admin.findOne({ email }).select("_id password status role");
+  logAdminOtpDebug("admin lookup", {
+    normalizedEmail: email,
+    found: Boolean(existingAdmin),
+    role: existingAdmin?.role || "",
+    status: existingAdmin?.status || "",
+    hasPassword: Boolean(existingAdmin?.password),
+  });
 
   if (mode === "signup" && existingAdmin?.password) {
+    logAdminOtpDebug("sendMail skipped", {
+      normalizedEmail: email,
+      mode,
+      reason: "account_exists",
+    });
     return res.status(409).json({ msg: "Account already exists. Please sign in." });
   }
 
@@ -179,10 +213,22 @@ export const sendAdminOtp = async (req, res) => {
       : (Boolean(existingAdmin) && existingAdmin.status !== "TERMINATED") || isMasterAdminEmail(email);
 
   if (!isEligible) {
+    logAdminOtpDebug("sendMail skipped", {
+      normalizedEmail: email,
+      mode,
+      reason: "not_eligible",
+      found: Boolean(existingAdmin),
+      status: existingAdmin?.status || "",
+    });
     return res.json(response);
   }
 
   const otp = createAdminOtp();
+  logAdminOtpDebug("otp generated", {
+    normalizedEmail: email,
+    mode,
+    expiresInMs: getAdminOtpTtlMs(),
+  });
   adminOtpStore.set(getAdminOtpKey(email), {
     otp,
     mode,
@@ -192,6 +238,12 @@ export const sendAdminOtp = async (req, res) => {
   });
 
   try {
+    logAdminOtpDebug("sendMail called", {
+      normalizedEmail: email,
+      mode,
+      platform: ADMIN_MAIL_PLATFORM,
+      purpose: mode === "signup" ? "admin signup verification" : "admin login verification",
+    });
     await sendOtpEmail({
       platform: ADMIN_MAIL_PLATFORM,
       to: email,
@@ -207,9 +259,19 @@ export const sendAdminOtp = async (req, res) => {
       smtpDetails: err?.smtpDetails,
       message: err?.message,
     });
+    logAdminOtpDebug("sendMail failed", {
+      normalizedEmail: email,
+      mode,
+      code: err?.code,
+      smtpCode: err?.smtpCode,
+    });
     return res.status(502).json({ msg: "Could not send OTP. Please try again." });
   }
 
+  logAdminOtpDebug("sendMail success", {
+    normalizedEmail: email,
+    mode,
+  });
   console.log(`Admin OTP delivery accepted for ${maskAdminEmail(email)}`);
   return res.json({ message: "OTP sent to admin email." });
 };
