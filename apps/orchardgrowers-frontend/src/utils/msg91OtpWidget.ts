@@ -209,10 +209,12 @@ const waitForMsg91Methods = () =>
   });
 
 export const getOrchardWidgetId = () =>
-  getEnvValue("VITE_MSG91_ORCHARD_WIDGET_ID");
+  // Prefer Vite env (import.meta.env) in the frontend runtime
+  import.meta.env.VITE_MSG91_ORCHARD_WIDGET_ID || getEnvValue("VITE_MSG91_ORCHARD_WIDGET_ID");
 
 export const getOrchardTokenAuth = () =>
-  "backend";
+  // Read tokenAuth from Vite env; do not hardcode in source.
+  import.meta.env.VITE_MSG91_ORCHARD_TOKEN_AUTH || getEnvValue("VITE_MSG91_ORCHARD_TOKEN_AUTH") || "";
 
 export const initMsg91Widget = async ({ widgetId, tokenAuth }: { widgetId: string; tokenAuth: string }) => {
   debugOtp("init", {
