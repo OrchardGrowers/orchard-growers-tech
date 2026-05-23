@@ -79,6 +79,7 @@ type FeedItem = {
 
 const stripApiSuffix = (value = "") => value.trim().replace(/\/+$/, "").replace(/\/api$/i, "");
 const ORCHARD_APP_NAME = import.meta.env.VITE_APP_NAME || "orchardgrowers";
+const DEFAULT_API_ORIGIN = "https://orchard-growers-backend.onrender.com";
 const withOAuthAppParam = (url: string, appName: string) => {
   try {
     const nextUrl = new URL(url);
@@ -110,7 +111,7 @@ const getOrchardOAuthUrl = (provider: "google" | "facebook", mode: "login" | "si
       : import.meta.env.VITE_FACEBOOK_AUTH_URL;
   if (configured) return addOAuthParams(withOAuthAppParam(configured, ORCHARD_APP_NAME), mode, termsAccepted);
 
-  const apiOrigin = stripApiSuffix(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "");
+  const apiOrigin = stripApiSuffix(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || DEFAULT_API_ORIGIN);
   if (!apiOrigin) return "";
 
   return addOAuthParams(`${apiOrigin}/api/auth/${provider}?app=${encodeURIComponent(ORCHARD_APP_NAME)}`, mode, termsAccepted);

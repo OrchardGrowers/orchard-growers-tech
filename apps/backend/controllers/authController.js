@@ -169,6 +169,10 @@ const logOtpError = (message, err) => {
   console.error(message, err?.message || err);
 };
 
+const logAuthDebug = (message, details = {}) => {
+  console.log(`Auth debug: ${message}`, details);
+};
+
 const storeOtp = ({ platform, parsed, otp, purpose }) => {
   const key = getOtpKey(platform, parsed, purpose);
   otpStore.set(key, {
@@ -198,6 +202,13 @@ const storeWidgetVerification = ({ platform, parsed, purpose, audit }) => {
 };
 
 const deliverOtp = async ({ platform, parsed, otp, purpose }) => {
+  logAuthDebug("deliver OTP selected", {
+    platform: normalizeMailPlatform(platform),
+    route: parsed.type === "email" ? "email_otp" : "mobile_otp",
+    channel: parsed.type,
+    purpose,
+  });
+
   if (parsed.type === "email") {
     if (!isSmtpConfigured(platform)) {
       const error = new Error("SMTP is not configured");
@@ -209,6 +220,10 @@ const deliverOtp = async ({ platform, parsed, otp, purpose }) => {
       to: parsed.value,
       otp,
       purpose: purpose === "forgot-password" ? "password reset" : "account verification",
+    });
+    logAuthDebug("email OTP send success", {
+      platform: normalizeMailPlatform(platform),
+      purpose,
     });
     return;
   }
@@ -226,7 +241,11 @@ const deliverOtp = async ({ platform, parsed, otp, purpose }) => {
   }
 
   try {
-    await sendMobileOtp({ phone: parsed.value, otp, platform });
+    const result = await sendMobileOtp({ phone: parsed.value, otp, platform });
+    logAuthDebug("mobile OTP send success", {
+      platform: result.platform,
+      provider: result.provider,
+    });
   } catch (err) {
     if (err.code) throw err;
     const error = new Error("Mobile OTP delivery failed");
@@ -240,6 +259,13 @@ const sendOtpForPurpose = async ({ req, res, purpose = "auth", requireExistingUs
   const parsed = parseIdentifier(req.body.identifier || req.body.email);
   const platform = getRequestPlatform(req);
   const mode = String(req.body.mode || "").trim().toLowerCase();
+  logAuthDebug("OTP route hit", {
+    route: req.originalUrl,
+    platform,
+    mode: mode || "default",
+    channel: parsed?.type || "invalid",
+    purpose,
+  });
 
   if (!parsed) {
     return res.status(400).json({ msg: "Enter a valid email or phone number" });
@@ -273,6 +299,13 @@ const sendOtpForPurpose = async ({ req, res, purpose = "auth", requireExistingUs
 
     return res.status(502).json({ msg: "Could not send OTP. Please try again." });
   }
+
+  logAuthDebug("OTP route success", {
+    route: req.originalUrl,
+    platform,
+    channel: parsed.type,
+    purpose: normalizedPurpose,
+  });
 
   if (String(process.env.APP_ENV || process.env.NODE_ENV || "").trim().toLowerCase() === "development") {
     console.log(`OTP delivery accepted for ${maskOtpKey(key)}`);
@@ -765,9 +798,15 @@ const completeOAuthLogin = async (res, platform, oauthProfile) => {
 
 export const startGoogleOAuth = (req, res) => {
   try {
-    console.log("OAuth start query app:", req.query.app);
     const platform = getOAuthAppFromRequest(req);
     const googleConfig = getGoogleOAuthConfig(platform);
+    logAuthDebug("OAuth start", {
+      provider: "google",
+      platform,
+      route: req.originalUrl,
+      envGroup: platform === "efruitmandi" ? "EFRUITMANDI/GOOGLE" : "ORCHARD/GOOGLE",
+      configured: Boolean(googleConfig.clientId && googleConfig.clientSecret),
+    });
     if (!googleConfig.clientId || !googleConfig.clientSecret) {
       return redirectOAuthError(res, platform, "Google OAuth is not configured.");
     }
@@ -797,10 +836,15 @@ export const startGoogleOAuth = (req, res) => {
 };
 
 export const handleGoogleOAuthCallback = async (req, res) => {
-  console.log("OAuth callback state:", req.query.state);
   const state = readOAuthState(req.query.state);
   const platform = normalizeOAuthPlatform(state.platform);
   const googleConfig = getGoogleOAuthConfig(platform);
+  logAuthDebug("OAuth callback", {
+    provider: "google",
+    platform,
+    envGroup: platform === "efruitmandi" ? "EFRUITMANDI/GOOGLE" : "ORCHARD/GOOGLE",
+    hasCode: Boolean(req.query.code),
+  });
 
   try {
     if (!req.query.code) {
@@ -843,8 +887,14 @@ export const handleGoogleOAuthCallback = async (req, res) => {
 export const startFacebookOAuth = (req, res) => {
   try {
     const platform = getOAuthAppFromRequest(req);
-    console.log("Facebook OAuth start app:", platform);
     const facebookConfig = getFacebookOAuthConfig(platform);
+    logAuthDebug("OAuth start", {
+      provider: "facebook",
+      platform,
+      route: req.originalUrl,
+      envGroup: platform === "efruitmandi" ? "EFRUITMANDI/FACEBOOK" : "ORCHARD/FACEBOOK",
+      configured: Boolean(facebookConfig.appId && facebookConfig.appSecret),
+    });
     if (!facebookConfig.appId || !facebookConfig.appSecret) {
       return redirectOAuthError(res, platform, "Facebook OAuth is not configured.");
     }
@@ -870,10 +920,15 @@ export const startFacebookOAuth = (req, res) => {
 };
 
 export const handleFacebookOAuthCallback = async (req, res) => {
-  console.log("Facebook OAuth callback state:", req.query.state);
   const state = readOAuthState(req.query.state);
   const platform = normalizeOAuthPlatform(state.platform);
   const facebookConfig = getFacebookOAuthConfig(platform);
+  logAuthDebug("OAuth callback", {
+    provider: "facebook",
+    platform,
+    envGroup: platform === "efruitmandi" ? "EFRUITMANDI/FACEBOOK" : "ORCHARD/FACEBOOK",
+    hasCode: Boolean(req.query.code),
+  });
 
   try {
     if (!req.query.code) {

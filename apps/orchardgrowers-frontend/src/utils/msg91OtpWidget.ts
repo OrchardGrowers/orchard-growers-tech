@@ -212,7 +212,7 @@ export const getOrchardWidgetId = () =>
   getEnvValue("VITE_MSG91_ORCHARD_WIDGET_ID", "REACT_APP_MSG91_ORCHARD_WIDGET_ID");
 
 export const getOrchardTokenAuth = () =>
-  import.meta.env.VITE_MSG91_ORCHARD_TOKEN_AUTH || "";
+  getEnvValue("VITE_MSG91_ORCHARD_TOKEN_AUTH", "REACT_APP_MSG91_ORCHARD_TOKEN_AUTH");
 
 export const initMsg91Widget = async ({ widgetId, tokenAuth }: { widgetId: string; tokenAuth: string }) => {
   debugOtp("init", {
