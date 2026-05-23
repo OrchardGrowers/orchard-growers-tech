@@ -77,8 +77,6 @@ const getPlatformSettings = (platform = "orchardgrowers") => {
   };
 };
 
-const getSmtpSecure = () => process.env.SMTP_SECURE === "true";
-
 const logSmtpEvent = (level, event, mailConfig, details = {}) => {
   const log = level === "error" ? console.error : console.log;
   log(event, {
@@ -93,7 +91,7 @@ const logSmtpEvent = (level, event, mailConfig, details = {}) => {
 
 export const isSmtpConfigured = (platform = "orchardgrowers") => {
   const settings = getPlatformSettings(platform);
-  return Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT && settings.user && settings.pass && settings.from);
+  return Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_USER && process.env.SMTP_PASS && settings.from);
 };
 
 export const getMailTransport = ({ platform = "orchardgrowers", purpose = "general" } = {}) => {
@@ -108,19 +106,26 @@ export const getMailTransport = ({ platform = "orchardgrowers", purpose = "gener
     from,
     host: process.env.SMTP_HOST,
     port,
-    secure: getSmtpSecure(),
+    secure: false,
     transporter: nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port,
-      secure: getSmtpSecure(),
+      secure: false,
+      requireTLS: true,
       family: 4,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
       connectionTimeout: 30000,
       greetingTimeout: 30000,
       socketTimeout: 60000,
-      auth: {
-        user: settings.user,
-        pass: settings.pass,
+      tls: {
+        rejectUnauthorized: false,
+        minVersion: "TLSv1.2",
       },
+      logger: true,
+      debug: true,
     }),
   };
 };
