@@ -1,5 +1,6 @@
 import express from "express";
 import dotenv from "dotenv";
+import dns from "dns";
 import cors from "cors";
 import jwt from "jsonwebtoken";
 import multer from "multer";
@@ -28,6 +29,16 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 
 dotenv.config();
+
+// Prefer IPv4 DNS resolution first to avoid environments with broken IPv6 routing
+try {
+  if (typeof dns.setDefaultResultOrder === "function") {
+    dns.setDefaultResultOrder("ipv4first");
+    console.log("Networking: set DNS result order to ipv4first");
+  }
+} catch (e) {
+  console.warn("Could not set DNS result order:", e?.message || e);
+}
 
 let dbConnected = false;
 const app = express();
