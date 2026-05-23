@@ -26,7 +26,15 @@ const getProcessEnv = () => {
   }
 };
 
-const getEnvValue = (viteKey, reactKey) => getProcessEnv()[viteKey] || getProcessEnv()[reactKey] || "";
+const getEnvValue = (viteKey) => getProcessEnv()[viteKey] || "";
+const normalizeBaseUrl = (value = "") => String(value || "").trim().replace(/\/+$/, "");
+const normalizeApiUrl = (value = "") => {
+  const normalized = normalizeBaseUrl(value);
+  if (!normalized) return "";
+  return /\/api$/i.test(normalized) ? normalized : `${normalized}/api`;
+};
+const API_BASE_URL = normalizeApiUrl(getEnvValue("VITE_API_BASE_URL") || "https://orchard-growers-backend.onrender.com");
+const efruitOtpPhonesByReqId = new Map();
 
 const isDevelopment = () => getProcessEnv().NODE_ENV === "development";
 
@@ -185,10 +193,10 @@ const waitForMsg91Methods = () =>
   });
 
 export const getEfruitMandiWidgetId = () =>
-  getEnvValue("VITE_MSG91_EFRUITMANDI_WIDGET_ID", "REACT_APP_MSG91_EFRUITMANDI_WIDGET_ID");
+  getEnvValue("VITE_MSG91_EFRUITMANDI_WIDGET_ID");
 
 export const getEfruitMandiTokenAuth = () =>
-  getEnvValue("VITE_MSG91_EFRUITMANDI_TOKEN_AUTH", "REACT_APP_MSG91_EFRUITMANDI_TOKEN_AUTH");
+  "backend";
 
 export const initMsg91Widget = async ({ widgetId, tokenAuth }) => {
   debugOtp("init", {
@@ -393,14 +401,24 @@ export const sendMsg91WidgetOtp = async ({ widgetId, tokenAuth, phone }) => {
   debugOtp("sendOtp start", {
     normalizedPhoneMasked: maskNormalizedPhone(phone),
     widgetIdPresent: yesNo(Boolean(widgetId)),
-    tokenAuthPresent: yesNo(Boolean(tokenAuth)),
-    scriptLoaded: yesNo(hasMsg91ScriptLoaded()),
+    tokenAuthPresent: "backend",
+    scriptLoaded: "backend",
   });
 
   try {
-    await initMsg91Widget({ widgetId, tokenAuth });
-    const result = await callWidget("sendOtp", (sendOtp, success, failure) => sendOtp(phone, success, failure));
-    return result;
+    const response = await fetch(`${API_BASE_URL}/auth/send-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        identifier: phone,
+        platform: "efruitmandi",
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw { response: { data } };
+    const reqId = data.reqId || data.requestId || "";
+    if (reqId) efruitOtpPhonesByReqId.set(reqId, phone);
+    return { data, reqId };
   } catch (error) {
     throw createMsg91Error(error, "MSG91 OTP request failed.");
   }
@@ -408,11 +426,9 @@ export const sendMsg91WidgetOtp = async ({ widgetId, tokenAuth, phone }) => {
 
 export const retryMsg91WidgetOtp = async ({ widgetId, tokenAuth, reqId }) => {
   try {
-    await initMsg91Widget({ widgetId, tokenAuth });
-    const result = await callWidget("retryOtp", (retryOtp, success, failure) => {
-      if (reqId) retryOtp("11", success, failure, reqId);
-      else retryOtp(null, success, failure);
-    });
+    const phone = efruitOtpPhonesByReqId.get(reqId);
+    if (!phone) throw new Error("Request phone OTP again.");
+    const result = await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone });
     return { ...result, reqId: result.reqId || reqId || "" };
   } catch (error) {
     throw createMsg91Error(error, "MSG91 OTP retry failed.");
@@ -421,11 +437,21 @@ export const retryMsg91WidgetOtp = async ({ widgetId, tokenAuth, reqId }) => {
 
 export const verifyMsg91WidgetOtp = async ({ widgetId, tokenAuth, otp, reqId }) => {
   try {
-    await initMsg91Widget({ widgetId, tokenAuth });
-    return await callWidget("verifyOtp", (verifyOtp, success, failure) => {
-      if (reqId) verifyOtp(otp, success, failure, reqId);
-      else verifyOtp(otp, success, failure);
+    const phone = efruitOtpPhonesByReqId.get(reqId);
+    if (!phone) throw new Error("Request phone OTP first.");
+    const response = await fetch(`${API_BASE_URL}/auth/verify-mobile-widget-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        identifier: phone,
+        otp,
+        reqId,
+        platform: "efruitmandi",
+      }),
     });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw { response: { data } };
+    return { data: { ...data, widgetVerified: true, type: "success" }, reqId };
   } catch (error) {
     throw createMsg91Error(error, "MSG91 OTP verification failed.");
   }

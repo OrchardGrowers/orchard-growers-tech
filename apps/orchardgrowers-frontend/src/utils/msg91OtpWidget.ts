@@ -39,8 +39,8 @@ export const normalizeIndianMobile = (value = "") => {
 const getProcessEnv = () =>
   (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env || {};
 
-const getEnvValue = (viteKey: string, reactKey: string) =>
-  import.meta.env[viteKey] || import.meta.env[reactKey] || getProcessEnv()[reactKey] || getProcessEnv()[viteKey] || "";
+const getEnvValue = (viteKey: string) =>
+  import.meta.env[viteKey] || getProcessEnv()[viteKey] || "";
 
 const isDevelopment = () =>
   Boolean(import.meta.env.DEV || import.meta.env.MODE === "development" || getProcessEnv().NODE_ENV === "development");
@@ -209,10 +209,10 @@ const waitForMsg91Methods = () =>
   });
 
 export const getOrchardWidgetId = () =>
-  getEnvValue("VITE_MSG91_ORCHARD_WIDGET_ID", "REACT_APP_MSG91_ORCHARD_WIDGET_ID");
+  getEnvValue("VITE_MSG91_ORCHARD_WIDGET_ID");
 
 export const getOrchardTokenAuth = () =>
-  getEnvValue("VITE_MSG91_ORCHARD_TOKEN_AUTH", "REACT_APP_MSG91_ORCHARD_TOKEN_AUTH");
+  "backend";
 
 export const initMsg91Widget = async ({ widgetId, tokenAuth }: { widgetId: string; tokenAuth: string }) => {
   debugOtp("init", {

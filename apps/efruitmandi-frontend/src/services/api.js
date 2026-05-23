@@ -11,18 +11,16 @@ const normalizeApiUrl = (value = "") => {
 
 export const API_ORIGIN = normalizeBaseUrl(
   process.env.VITE_API_BASE_URL ||
-    process.env.REACT_APP_API_BASE_URL ||
-    process.env.REACT_APP_SOCKET_URL ||
-    stripApiSuffix(process.env.REACT_APP_API_URL || "") ||
-    ""
+    stripApiSuffix(process.env.VITE_API_URL || "") ||
+    "https://orchard-growers-backend.onrender.com"
 );
 if (!API_ORIGIN) {
   console.warn("Missing VITE_API_BASE_URL for eFruitMandi frontend.");
 }
 
-export const API_BASE_URL = normalizeApiUrl(process.env.VITE_API_BASE_URL || process.env.REACT_APP_API_URL || API_ORIGIN);
-export const FILE_BASE_URL = normalizeBaseUrl(process.env.REACT_APP_FILE_BASE_URL || API_ORIGIN);
-export const SOCKET_URL = normalizeBaseUrl(process.env.REACT_APP_SOCKET_URL || API_ORIGIN);
+export const API_BASE_URL = normalizeApiUrl(process.env.VITE_API_BASE_URL || process.env.VITE_API_URL || API_ORIGIN);
+export const FILE_BASE_URL = normalizeBaseUrl(process.env.VITE_FILE_BASE_URL || API_ORIGIN);
+export const SOCKET_URL = normalizeBaseUrl(process.env.VITE_SOCKET_URL || API_ORIGIN);
 const EFRUITMANDI_PLATFORM = "efruitmandi";
 const PLATFORM_TAGGED_AUTH_PATHS = /^\/?auth\/(send-otp|resend-otp|verify-otp|forgot-password|reset-password|login|register)$/i;
 

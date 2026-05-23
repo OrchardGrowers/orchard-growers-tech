@@ -108,12 +108,6 @@ const getLoginErrorMessage = (error: unknown) => {
   return err.message || "Authentication failed.";
 };
 const getOrchardOAuthUrl = (provider: "google" | "facebook", mode: "login" | "signup", termsAccepted: boolean) => {
-  const configured =
-    provider === "google"
-      ? import.meta.env.VITE_GOOGLE_AUTH_URL
-      : import.meta.env.VITE_FACEBOOK_AUTH_URL;
-  if (configured) return addOAuthParams(withOAuthAppParam(configured, ORCHARD_APP_NAME), mode, termsAccepted);
-
   const apiOrigin = stripApiSuffix(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || DEFAULT_API_ORIGIN);
   if (!apiOrigin) return "";
 

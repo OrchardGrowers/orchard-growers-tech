@@ -71,10 +71,26 @@ const isProductionLike = () => {
   const runtime = String(process.env.APP_ENV || process.env.NODE_ENV || "").trim().toLowerCase();
   return runtime === "production" || runtime === "staging";
 };
-const allowedOrigins = (process.env.CORS_ORIGIN || "")
+const allowedOrigins = [
+  process.env.CORS_ORIGIN || "",
+  process.env.CLIENT_URL || "",
+  process.env.ORCHARDGROWERS_CLIENT_URL || "",
+  process.env.EFRUITMANDI_CLIENT_URL || "",
+  process.env.ADMIN_FRONTEND_URL || "",
+  "https://orchardgrowers.in",
+  "https://www.orchardgrowers.in",
+  "https://efruitmandi.live",
+  "https://www.efruitmandi.live",
+  "https://admins.orchardgrowers.in",
+  "https://orchard-growers-tech-admin-panel.vercel.app",
+  "http://localhost:5173",
+  "http://localhost:3000",
+]
+  .join(",")
   .split(",")
   .map((origin) => origin.trim())
-  .filter(Boolean);
+  .filter(Boolean)
+  .filter((origin, index, list) => list.indexOf(origin) === index);
 
 const corsOrigin = (origin, callback) => {
   // Allow health checks, server-to-server requests, Postman, and Render checks.

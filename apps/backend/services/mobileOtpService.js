@@ -64,7 +64,7 @@ const getMsg91Settings = (platform = "orchardgrowers") => {
 const getMsg91Flow = (platform = "orchardgrowers") => {
   const platformKey = normalizePlatform(platform);
   const platformEnv = platformKey === "orchardgrowers" ? process.env.ORCHARD_MSG91_FLOW : process.env.EFRUITMANDI_MSG91_FLOW;
-  const flow = String(platformEnv || process.env.MSG91_FLOW || (platformKey === "orchardgrowers" ? "widget" : "template"))
+  const flow = String(platformEnv || process.env.MSG91_FLOW || "widget")
     .trim()
     .toLowerCase();
   return flow === "widget" ? "widget" : "template";
@@ -156,7 +156,7 @@ const assertProviderResponse = ({ response, data, provider, action }) => {
   throw error;
 };
 
-const logMsg91Event = ({ message, platform, mobile, templateId, senderId, status, body, flow = "template", widgetId }) => {
+const logMsg91Event = ({ message, platform, mobile, templateId, senderId, status, body, flow = "template", widgetId, authKeyPresent = false }) => {
   const sanitizedBody = sanitizeProviderBody(body);
   const requestId = getProviderRequestId(sanitizedBody) || "";
   const providerMessage = getProviderMessage(sanitizedBody);
@@ -169,6 +169,12 @@ const logMsg91Event = ({ message, platform, mobile, templateId, senderId, status
     templateId,
     senderId: senderId || "",
     widgetIdPresent: widgetId ? "yes" : "no",
+    envPresent: {
+      authKey: Boolean(authKeyPresent),
+      templateId: templateId ? true : false,
+      senderId: senderId ? true : false,
+      widgetId: widgetId ? true : false,
+    },
     status,
     requestId,
     type: sanitizedBody?.type || sanitizedBody?.status || sanitizedBody?.Status || "",
@@ -204,6 +210,7 @@ const sendMsg91Otp = async ({ mobile, otp, platform }) => {
     mobile,
     templateId,
     senderId,
+    authKeyPresent: Boolean(authKey),
   });
 
   let response;
@@ -296,6 +303,7 @@ const sendMsg91WidgetOtp = async ({ mobile, platform }) => {
     platform: platformKey,
     mobile,
     widgetId,
+    authKeyPresent: Boolean(authKey),
   });
 
   let response;
@@ -360,6 +368,7 @@ const sendMsg91WidgetOtp = async ({ mobile, platform }) => {
     platform: platformKey,
     mobile,
     widgetId,
+    authKeyPresent: Boolean(authKey),
     status: response.status,
     body: data,
   });
@@ -413,6 +422,7 @@ export const verifyMsg91WidgetOtp = async ({ phone, otp, reqId, platform = "orch
     platform: platformKey,
     mobile,
     widgetId,
+    authKeyPresent: Boolean(authKey),
     status: response.status,
     body: { ...data, request_id: getProviderRequestId(data) || cleanReqId },
   });

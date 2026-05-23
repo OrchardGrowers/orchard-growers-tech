@@ -11,7 +11,7 @@ const otpStore = new Map();
 const ACCOUNT_EXISTS_SIGNIN_MESSAGE = "Account already exists. Please sign in.";
 const truthyEnv = (value = "") => ["1", "true", "yes"].includes(String(value).trim().toLowerCase());
 const useLegacyMsg91Api = () => truthyEnv(process.env.USE_LEGACY_MSG91_API);
-const shouldUseServerMobileOtp = (platform) => normalizeMailPlatform(platform) === "orchardgrowers" || useLegacyMsg91Api();
+const shouldUseServerMobileOtp = () => true;
 const getOtpTtlMs = () => {
   const minutes = Number(process.env.OTP_EXPIRY_MINUTES || 5);
   return (Number.isFinite(minutes) && minutes > 0 ? minutes : 5) * 60 * 1000;
@@ -237,6 +237,11 @@ const deliverOtp = async ({ platform, parsed, otp, purpose }) => {
   }
 
   if (!isMobileOtpConfigured(platform)) {
+    logAuthDebug("mobile OTP configuration missing", {
+      platform: normalizeMailPlatform(platform),
+      provider: "MSG91",
+      flow: "widget",
+    });
     const error = new Error("Mobile OTP service is not configured");
     error.code = "MOBILE_OTP_NOT_CONFIGURED";
     throw error;
@@ -620,7 +625,11 @@ const getOAuthAppFromRequest = (req) => normalizeOAuthPlatform(req.query.app || 
 const getRequestBaseUrl = (req) => `${req.protocol}://${req.get("host")}`;
 const getOAuthCallbackUrl = (req, provider) => {
   const envKey = provider === "google" ? "GOOGLE_CALLBACK_URL" : "FACEBOOK_CALLBACK_URL";
-  return process.env[envKey] || `${getRequestBaseUrl(req)}/api/auth/${provider}/callback`;
+  if (process.env[envKey]) return process.env[envKey];
+  if (isProductionLikeOAuth()) {
+    return `https://orchard-growers-backend.onrender.com/api/auth/${provider}/callback`;
+  }
+  return `${getRequestBaseUrl(req)}/api/auth/${provider}/callback`;
 };
 const getGoogleOAuthConfig = (platform) => {
   const normalizedPlatform = normalizeOAuthPlatform(platform);

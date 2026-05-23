@@ -24,7 +24,7 @@ import {
 
 const logoUrl = `${process.env.PUBLIC_URL || ""}/logo.png`;
 const stripApiSuffix = (value = "") => value.trim().replace(/\/+$/, "").replace(/\/api$/i, "");
-const EFRUIT_APP_NAME = process.env.VITE_APP_NAME || process.env.REACT_APP_NAME || "efruitmandi";
+const EFRUIT_APP_NAME = process.env.VITE_APP_NAME || "efruitmandi";
 const withOAuthAppParam = (url, appName) => {
   try {
     const nextUrl = new URL(url);
@@ -53,19 +53,13 @@ const getEfruitOAuthUrl = (provider, mode, termsAccepted) => {
   const apiOrigin = stripApiSuffix(
     process.env.VITE_API_URL ||
       process.env.VITE_API_BASE_URL ||
-      process.env.REACT_APP_API_BASE_URL ||
-      process.env.REACT_APP_API_URL ||
-      ""
+      "https://orchard-growers-backend.onrender.com"
   );
   if (apiOrigin) {
     return addOAuthParams(`${apiOrigin}/api/auth/${provider}?app=${encodeURIComponent(EFRUIT_APP_NAME)}`, mode, termsAccepted);
   }
 
-  const configured =
-    provider === "google"
-      ? process.env.VITE_GOOGLE_AUTH_URL || process.env.REACT_APP_GOOGLE_AUTH_URL
-      : process.env.VITE_FACEBOOK_AUTH_URL || process.env.REACT_APP_FACEBOOK_AUTH_URL;
-  return configured ? addOAuthParams(withOAuthAppParam(configured, EFRUIT_APP_NAME), mode, termsAccepted) : "";
+  return "";
 };
 const readOAuthUser = (encodedUser) => {
   if (!encodedUser) return null;
