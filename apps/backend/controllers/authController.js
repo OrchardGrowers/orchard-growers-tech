@@ -210,6 +210,21 @@ const deliverOtp = async ({ platform, parsed, otp, purpose }) => {
     purpose,
   });
 
+  // Allow a developer/test mode where OTPs are not sent externally.
+  // Controlled via `ALLOW_TEST_OTP=true` and optional `TEST_OTP` value in env.
+  try {
+    const allowTest = truthyEnv(process.env.ALLOW_TEST_OTP);
+    if (allowTest) {
+      const testOtp = String(process.env.TEST_OTP || otp || "");
+      const requestId = `test:${Date.now()}`;
+      console.log("Test OTP mode active; not sending external OTP", { platform, channel: parsed.type, requestId, otp: testOtp ? "[configured]" : "[generated]" });
+      return { message: `OTP sent (test)`, requestId };
+    }
+  } catch (e) {
+    // If env read fails for some reason, continue to normal flow.
+    console.warn("Could not evaluate ALLOW_TEST_OTP", e?.message || e);
+  }
+
   if (parsed.type === "email") {
     if (!isSmtpConfigured(platform)) {
       const error = new Error("SMTP is not configured");
