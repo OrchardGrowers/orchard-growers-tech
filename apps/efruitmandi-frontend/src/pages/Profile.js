@@ -291,7 +291,7 @@ export default function Profile() {
         return;
       }
 
-      const res = await API.post("/auth/send-otp", { identifier, platform: "efruitmandi" });
+      const res = await API.post("/auth/send-otp", { identifier, platform: "efruitmandi", mode: targetMode });
       setVerifiedContact((current) => ({ ...current, [targetMode]: "" }));
       setOtpCooldown((current) => ({ ...current, [targetMode]: 60 }));
       showSuccess(res.data?.message || "OTP sent.");

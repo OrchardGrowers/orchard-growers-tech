@@ -2859,6 +2859,7 @@ function AuthPage() {
       const res = await API.post<{ message?: string }>("/auth/send-otp", {
         identifier: form.identifier,
         platform: "orchardgrowers",
+        mode,
       });
       setOtpSent(true);
       setOtpCooldown(60);

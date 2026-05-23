@@ -8,6 +8,7 @@ import { isSmtpConfigured, normalizeMailPlatform, sendOtpEmail } from "../servic
 import { isMobileOtpConfigured, sendMobileOtp } from "../services/mobileOtpService.js";
 
 const otpStore = new Map();
+const ACCOUNT_EXISTS_SIGNIN_MESSAGE = "Account already exists. Please sign in.";
 const truthyEnv = (value = "") => ["1", "true", "yes"].includes(String(value).trim().toLowerCase());
 const useLegacyMsg91Api = () => truthyEnv(process.env.USE_LEGACY_MSG91_API);
 const getOtpTtlMs = () => {
@@ -238,9 +239,17 @@ const deliverOtp = async ({ platform, parsed, otp, purpose }) => {
 const sendOtpForPurpose = async ({ req, res, purpose = "auth", requireExistingUser = false, genericResponse = false }) => {
   const parsed = parseIdentifier(req.body.identifier || req.body.email);
   const platform = getRequestPlatform(req);
+  const mode = String(req.body.mode || "").trim().toLowerCase();
 
   if (!parsed) {
     return res.status(400).json({ msg: "Enter a valid email or phone number" });
+  }
+
+  if (mode === "signup") {
+    const user = await findByParsedIdentifier(parsed);
+    if (user) {
+      return res.status(409).json({ msg: ACCOUNT_EXISTS_SIGNIN_MESSAGE });
+    }
   }
 
   if (requireExistingUser) {
@@ -469,7 +478,7 @@ export const registerUser = async (req, res) => {
     const existingUser = await findByParsedIdentifier(parsed);
 
     if (existingUser) {
-      return res.status(400).json({ msg: "User already exists" });
+      return res.status(409).json({ msg: ACCOUNT_EXISTS_SIGNIN_MESSAGE });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -488,6 +497,9 @@ export const registerUser = async (req, res) => {
       user: safeUserPayload(user),
     });
   } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(409).json({ msg: ACCOUNT_EXISTS_SIGNIN_MESSAGE });
+    }
     console.error(err);
     res.status(500).json({ msg: err.message });
   }
@@ -686,6 +698,12 @@ const upsertOAuthUser = async ({ provider, providerId, email, name, avatarUrl, m
       role: null,
     });
     return user;
+  }
+
+  if (oauthMode === "signup") {
+    const error = new Error(ACCOUNT_EXISTS_SIGNIN_MESSAGE);
+    error.statusCode = 409;
+    throw error;
   }
 
   if (user.accountStatus && user.accountStatus !== "ACTIVE") {

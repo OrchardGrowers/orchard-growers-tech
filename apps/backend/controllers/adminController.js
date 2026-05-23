@@ -168,6 +168,11 @@ export const sendAdminOtp = async (req, res) => {
   }
 
   const existingAdmin = await Admin.findOne({ email }).select("_id password status");
+
+  if (mode === "signup" && existingAdmin?.password) {
+    return res.status(409).json({ msg: "Account already exists. Please sign in." });
+  }
+
   const isEligible =
     mode === "signup"
       ? !existingAdmin?.password && existingAdmin?.status !== "TERMINATED"
@@ -353,7 +358,7 @@ export const signupAdmin = async (req, res) => {
   }
 
   if (existingAdmin?.password) {
-    return res.status(409).json({ msg: "Admin already exists. Please login or reset password." });
+    return res.status(409).json({ msg: "Account already exists. Please sign in." });
   }
 
   const isNewAdmin = !existingAdmin;

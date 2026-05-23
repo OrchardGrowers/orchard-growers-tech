@@ -31,9 +31,17 @@ const getSafeSmtpErrorDetails = (err = {}) => ({
   code: err.code,
   command: err.command,
   responseCode: err.responseCode,
-  response: err.response,
   message: err.message,
 });
+
+const maskSmtpUser = (value = "") => {
+  const user = String(value || "").trim();
+  if (!user) return "";
+  const [name = "", domain = ""] = user.split("@");
+  if (!domain) return user.length <= 4 ? "****" : `${user.slice(0, 2)}****${user.slice(-2)}`;
+  const visibleName = name.length <= 2 ? `${name.slice(0, 1)}***` : `${name.slice(0, 2)}***${name.slice(-1)}`;
+  return `${visibleName}@${domain}`;
+};
 
 const escapeHtml = (value = "") =>
   String(value)
@@ -52,9 +60,9 @@ export const normalizeMailPlatform = (platform = "") => {
 const getPlatformSettings = (platform = "orchardgrowers") => {
   const platformKey = normalizeMailPlatform(platform);
   const config = PLATFORM_CONFIG[platformKey];
-  const user = process.env[config.userEnv] || (platformKey === "orchardgrowers" ? process.env.SMTP_USER : "");
-  const pass = process.env[config.passEnv] || (platformKey === "orchardgrowers" ? process.env.SMTP_PASS : "");
-  const from = process.env[config.fromEnv] || (platformKey === "orchardgrowers" ? process.env.SMTP_FROM : "") || user;
+  const user = process.env.SMTP_USER || process.env[config.userEnv] || "";
+  const pass = process.env.SMTP_PASS || process.env[config.passEnv] || "";
+  const from = process.env.SMTP_FROM || process.env[config.fromEnv] || user;
   const resetFrom = process.env[config.resetFromEnv] || from;
   const supportEmail = process.env[config.supportEnv] || "";
 
@@ -67,6 +75,20 @@ const getPlatformSettings = (platform = "orchardgrowers") => {
     resetFrom,
     supportEmail,
   };
+};
+
+const getSmtpSecure = () => process.env.SMTP_SECURE === "true";
+
+const logSmtpEvent = (level, event, mailConfig, details = {}) => {
+  const log = level === "error" ? console.error : console.log;
+  log(event, {
+    platform: mailConfig.platform,
+    host: mailConfig.host,
+    port: mailConfig.port,
+    secure: mailConfig.secure,
+    user: maskSmtpUser(mailConfig.user),
+    ...details,
+  });
 };
 
 export const isSmtpConfigured = (platform = "orchardgrowers") => {
@@ -86,10 +108,15 @@ export const getMailTransport = ({ platform = "orchardgrowers", purpose = "gener
     from,
     host: process.env.SMTP_HOST,
     port,
+    secure: getSmtpSecure(),
     transporter: nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port,
-      secure: truthyEnv(process.env.SMTP_SECURE) || port === 465,
+      secure: getSmtpSecure(),
+      family: 4,
+      connectionTimeout: 30000,
+      greetingTimeout: 30000,
+      socketTimeout: 60000,
       auth: {
         user: settings.user,
         pass: settings.pass,
@@ -112,8 +139,8 @@ const verifySmtpForDebug = (mailConfig) => {
         platform: mailConfig.platform,
         host: mailConfig.host,
         port: mailConfig.port,
-        user: mailConfig.user,
-        from: mailConfig.from,
+        secure: mailConfig.secure,
+        user: maskSmtpUser(mailConfig.user),
       });
     })
     .catch((err) => {
@@ -121,8 +148,8 @@ const verifySmtpForDebug = (mailConfig) => {
         platform: mailConfig.platform,
         host: mailConfig.host,
         port: mailConfig.port,
-        user: mailConfig.user,
-        from: mailConfig.from,
+        secure: mailConfig.secure,
+        user: maskSmtpUser(mailConfig.user),
         error: getSafeSmtpErrorDetails(err),
       });
     });
@@ -169,7 +196,8 @@ export const sendOtpEmail = async ({ to, otp, purpose = "verification", platform
   verifySmtpForDebug(mailConfig);
 
   try {
-    await mailConfig.transporter.sendMail({
+    logSmtpEvent("info", "SMTP OTP send start", mailConfig);
+    const info = await mailConfig.transporter.sendMail({
       from: mailConfig.from,
       to,
       subject: `Your ${mailConfig.brandName} OTP`,
@@ -181,7 +209,16 @@ export const sendOtpEmail = async ({ to, otp, purpose = "verification", platform
         supportEmail: mailConfig.supportEmail,
       }),
     });
+    logSmtpEvent("info", "SMTP OTP send success", mailConfig, {
+      code: info?.responseCode || info?.response || "SMTP_SEND_OK",
+    });
   } catch (err) {
+    logSmtpEvent("error", "SMTP OTP send failed", mailConfig, {
+      code: err?.code || err?.responseCode || "SMTP_SEND_FAILED",
+      command: err?.command,
+      responseCode: err?.responseCode,
+      message: err?.message,
+    });
     throw wrapSmtpError(err);
   }
 };
@@ -197,14 +234,24 @@ export const sendEmail = async ({ to, subject, text, html, platform = "orchardgr
   verifySmtpForDebug(mailConfig);
 
   try {
-    await mailConfig.transporter.sendMail({
+    logSmtpEvent("info", "SMTP email send start", mailConfig);
+    const info = await mailConfig.transporter.sendMail({
       from: mailConfig.from,
       to,
       subject,
       text,
       html,
     });
+    logSmtpEvent("info", "SMTP email send success", mailConfig, {
+      code: info?.responseCode || info?.response || "SMTP_SEND_OK",
+    });
   } catch (err) {
+    logSmtpEvent("error", "SMTP email send failed", mailConfig, {
+      code: err?.code || err?.responseCode || "SMTP_SEND_FAILED",
+      command: err?.command,
+      responseCode: err?.responseCode,
+      message: err?.message,
+    });
     throw wrapSmtpError(err);
   }
 };
