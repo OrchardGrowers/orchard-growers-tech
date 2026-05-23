@@ -8,11 +8,13 @@ const PLATFORM_MSG91_CONFIG = {
     authKeyEnv: "ORCHARD_MSG91_AUTH_KEY",
     templateIdEnv: "ORCHARD_MSG91_TEMPLATE_ID",
     senderIdEnv: "ORCHARD_MSG91_SENDER_ID",
+    widgetIdEnv: "ORCHARD_MSG91_WIDGET_ID",
   },
   efruitmandi: {
     authKeyEnv: "EFRUITMANDI_MSG91_AUTH_KEY",
     templateIdEnv: "EFRUITMANDI_MSG91_TEMPLATE_ID",
     senderIdEnv: "EFRUITMANDI_MSG91_SENDER_ID",
+    widgetIdEnv: "EFRUITMANDI_MSG91_WIDGET_ID",
   },
 };
 
@@ -31,7 +33,17 @@ const getMsg91Settings = (platform = "orchardgrowers") => {
     authKey: process.env[config.authKeyEnv] || (platformKey === "orchardgrowers" ? process.env.MSG91_AUTH_KEY : ""),
     templateId: process.env[config.templateIdEnv] || (platformKey === "orchardgrowers" ? process.env.MSG91_TEMPLATE_ID : ""),
     senderId: process.env[config.senderIdEnv] || (platformKey === "orchardgrowers" ? process.env.MSG91_SENDER_ID : ""),
+    widgetId: process.env[config.widgetIdEnv] || (platformKey === "orchardgrowers" ? process.env.MSG91_WIDGET_ID : ""),
   };
+};
+
+const getMsg91Flow = (platform = "orchardgrowers") => {
+  const platformKey = normalizePlatform(platform);
+  const platformEnv = platformKey === "orchardgrowers" ? process.env.ORCHARD_MSG91_FLOW : process.env.EFRUITMANDI_MSG91_FLOW;
+  const flow = String(platformEnv || process.env.MSG91_FLOW || (platformKey === "orchardgrowers" ? "widget" : "template"))
+    .trim()
+    .toLowerCase();
+  return flow === "widget" ? "widget" : "template";
 };
 
 const maskPhone = (phone = "") => {
@@ -112,17 +124,19 @@ const assertProviderResponse = ({ response, data, provider, action }) => {
   throw error;
 };
 
-const logMsg91Event = ({ message, platform, mobile, templateId, senderId, status, body }) => {
+const logMsg91Event = ({ message, platform, mobile, templateId, senderId, status, body, flow = "template", widgetId }) => {
   const sanitizedBody = sanitizeProviderBody(body);
   const requestId = getProviderRequestId(sanitizedBody) || "";
   const providerMessage = getProviderMessage(sanitizedBody);
   console.log(message, {
     provider: "MSG91",
+    flow,
     platform,
     phone: maskPhone(mobile),
     mobileFormat: String(mobile).startsWith("91") && String(mobile).length === 12 ? "91XXXXXXXXXX" : "invalid",
     templateId,
     senderId: senderId || "",
+    widgetIdPresent: widgetId ? "yes" : "no",
     status,
     requestId,
     type: sanitizedBody?.type || sanitizedBody?.status || sanitizedBody?.Status || "",
@@ -153,6 +167,7 @@ const sendMsg91Otp = async ({ mobile, otp, platform }) => {
 
   logMsg91Event({
     message: "MSG91 OTP request",
+    flow: "template",
     platform: platformKey,
     mobile,
     templateId,
@@ -174,6 +189,7 @@ const sendMsg91Otp = async ({ mobile, otp, platform }) => {
       attemptId,
       requestId: "",
       provider: "MSG91",
+      flow: "template",
       platform: platformKey,
       phone: maskPhone(mobile),
       mobileFormat: "91XXXXXXXXXX",
@@ -214,6 +230,7 @@ const sendMsg91Otp = async ({ mobile, otp, platform }) => {
   });
   logMsg91Event({
     message: "MSG91 OTP response",
+    flow: "template",
     platform: platformKey,
     mobile,
     templateId,
@@ -224,6 +241,155 @@ const sendMsg91Otp = async ({ mobile, otp, platform }) => {
   assertProviderResponse({ response, data, provider: "MSG91", action: `send ${platformKey} OTP` });
 
   return data;
+};
+
+const sendMsg91WidgetOtp = async ({ mobile, platform }) => {
+  const { authKey, widgetId, platform: platformKey } = getMsg91Settings(platform);
+
+  if (!authKey || !widgetId) {
+    const error = new Error(`MSG91 widget mobile OTP is not configured for ${platformKey}`);
+    error.code = "MOBILE_OTP_NOT_CONFIGURED";
+    error.provider = "MSG91";
+    error.platform = platformKey;
+    throw error;
+  }
+
+  const url = new URL(process.env.MSG91_WIDGET_SEND_URL || "https://api.msg91.com/api/v5/widget/sendOtp");
+  const attemptId = `${platformKey}:widget:${Date.now()}:${String(mobile).slice(-4)}`;
+
+  logMsg91Event({
+    message: "MSG91 OTP request",
+    flow: "widget",
+    platform: platformKey,
+    mobile,
+    widgetId,
+  });
+
+  let response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        authkey: authKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        widgetId,
+        identifier: mobile,
+      }),
+    });
+  } catch (err) {
+    rememberMsg91Attempt({
+      attemptId,
+      requestId: "",
+      provider: "MSG91",
+      flow: "widget",
+      platform: platformKey,
+      phone: maskPhone(mobile),
+      mobileFormat: "91XXXXXXXXXX",
+      widgetIdPresent: "yes",
+      status: "",
+      type: "network_error",
+      message: err?.message || "Network request failed",
+      error: err?.code || "",
+    });
+    console.error("MSG91 OTP request failed", {
+      provider: "MSG91",
+      flow: "widget",
+      platform: platformKey,
+      phone: maskPhone(mobile),
+      widgetIdPresent: "yes",
+      message: err?.message || "Network request failed",
+    });
+    throw err;
+  }
+
+  const data = await parseProviderResponse(response);
+  const requestId = getProviderRequestId(data) || "";
+  rememberMsg91Attempt({
+    attemptId,
+    requestId,
+    provider: "MSG91",
+    flow: "widget",
+    platform: platformKey,
+    phone: maskPhone(mobile),
+    mobileFormat: "91XXXXXXXXXX",
+    widgetIdPresent: "yes",
+    status: response.status,
+    type: data?.type || data?.status || data?.Status || "",
+    message: getProviderMessage(data),
+    error: data?.error || data?.Error || "",
+    body: sanitizeProviderBody(data),
+  });
+  logMsg91Event({
+    message: "MSG91 OTP response",
+    flow: "widget",
+    platform: platformKey,
+    mobile,
+    widgetId,
+    status: response.status,
+    body: data,
+  });
+  assertProviderResponse({ response, data, provider: "MSG91", action: `send ${platformKey} widget OTP` });
+
+  return data;
+};
+
+export const verifyMsg91WidgetOtp = async ({ phone, otp, reqId, platform = "orchardgrowers" }) => {
+  const mobile = normalizeMobile(phone);
+  const cleanOtp = String(otp || "").trim();
+  const cleanReqId = String(reqId || "").trim();
+  const { authKey, widgetId, platform: platformKey } = getMsg91Settings(platform);
+
+  if (!mobile) {
+    const error = new Error("Valid mobile number is required");
+    error.code = "INVALID_MOBILE";
+    throw error;
+  }
+  if (!cleanOtp || !cleanReqId) {
+    const error = new Error("OTP and MSG91 request_id are required");
+    error.code = "MSG91_WIDGET_VERIFY_REQUIRED";
+    throw error;
+  }
+  if (!authKey || !widgetId) {
+    const error = new Error(`MSG91 widget mobile OTP is not configured for ${platformKey}`);
+    error.code = "MOBILE_OTP_NOT_CONFIGURED";
+    error.provider = "MSG91";
+    error.platform = platformKey;
+    throw error;
+  }
+
+  const url = new URL(process.env.MSG91_WIDGET_VERIFY_URL || "https://api.msg91.com/api/v5/widget/verifyOtp");
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      authkey: authKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      widgetId,
+      reqId: cleanReqId,
+      otp: cleanOtp,
+    }),
+  });
+  const data = await parseProviderResponse(response);
+
+  logMsg91Event({
+    message: "MSG91 OTP verify response",
+    flow: "widget",
+    platform: platformKey,
+    mobile,
+    widgetId,
+    status: response.status,
+    body: { ...data, request_id: getProviderRequestId(data) || cleanReqId },
+  });
+  assertProviderResponse({ response, data: { ...data, request_id: getProviderRequestId(data) || cleanReqId }, provider: "MSG91", action: `verify ${platformKey} widget OTP` });
+
+  return {
+    ...data,
+    reqId: getProviderRequestId(data) || cleanReqId,
+    widgetVerified: true,
+  };
 };
 
 const sendTwoFactorOtp = async ({ mobile, otp }) => {
@@ -248,6 +414,7 @@ export const isMobileOtpConfigured = (platform = "orchardgrowers") => {
   const provider = getProvider();
   if (provider === "MSG91") {
     const settings = getMsg91Settings(platform);
+    if (getMsg91Flow(platform) === "widget") return Boolean(settings.authKey && settings.widgetId);
     return Boolean(settings.authKey && settings.templateId);
   }
   if (provider === "2FACTOR" || provider === "TWO_FACTOR") return Boolean(process.env.TWO_FACTOR_API_KEY || process.env.TWOFACTOR_API_KEY);
@@ -320,10 +487,14 @@ export const sendMobileOtp = async ({ phone, otp, platform = "orchardgrowers" })
 
   const provider = getProvider();
   const platformKey = normalizePlatform(platform);
+  const flow = provider === "MSG91" ? getMsg91Flow(platformKey) : "";
   let providerData = {};
   try {
     if (provider === "MSG91") {
-      providerData = await sendMsg91Otp({ mobile, otp, platform: platformKey });
+      providerData =
+        flow === "widget"
+          ? await sendMsg91WidgetOtp({ mobile, platform: platformKey })
+          : await sendMsg91Otp({ mobile, otp, platform: platformKey });
     } else if (provider === "2FACTOR" || provider === "TWO_FACTOR") {
       await sendTwoFactorOtp({ mobile, otp });
     } else {
@@ -345,5 +516,5 @@ export const sendMobileOtp = async ({ phone, otp, platform = "orchardgrowers" })
     console.log(`Mobile OTP sent via ${provider} for ${platformKey} to ${maskPhone(mobile)}`);
   }
 
-  return { provider, platform: platformKey, mobile, requestId: getProviderRequestId(providerData) || "" };
+  return { provider, flow: flow || undefined, platform: platformKey, mobile, requestId: getProviderRequestId(providerData) || "" };
 };

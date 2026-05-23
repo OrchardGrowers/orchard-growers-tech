@@ -5,7 +5,7 @@ import crypto from "crypto";
 import axios from "axios";
 import { google } from "googleapis";
 import { isSmtpConfigured, normalizeMailPlatform, sendOtpEmail } from "../services/mailService.js";
-import { isMobileOtpConfigured, sendMobileOtp } from "../services/mobileOtpService.js";
+import { isMobileOtpConfigured, sendMobileOtp, verifyMsg91WidgetOtp } from "../services/mobileOtpService.js";
 
 const otpStore = new Map();
 const ACCOUNT_EXISTS_SIGNIN_MESSAGE = "Account already exists. Please sign in.";
@@ -226,7 +226,7 @@ const deliverOtp = async ({ platform, parsed, otp, purpose }) => {
       platform: normalizeMailPlatform(platform),
       purpose,
     });
-    return;
+    return {};
   }
 
   if (!shouldUseServerMobileOtp(platform)) {
@@ -246,7 +246,10 @@ const deliverOtp = async ({ platform, parsed, otp, purpose }) => {
     logAuthDebug("mobile OTP send success", {
       platform: result.platform,
       provider: result.provider,
+      flow: result.flow || "template",
+      requestId: result.requestId || "",
     });
+    return result;
   } catch (err) {
     if (err.code) throw err;
     const error = new Error("Mobile OTP delivery failed");
@@ -291,9 +294,10 @@ const sendOtpForPurpose = async ({ req, res, purpose = "auth", requireExistingUs
   const otp = createOtp();
   const normalizedPurpose = getOtpPurpose(purpose);
   const key = storeOtp({ platform, parsed, otp, purpose: normalizedPurpose });
+  let delivery = {};
 
   try {
-    await deliverOtp({ platform, parsed, otp, purpose: normalizedPurpose });
+    delivery = await deliverOtp({ platform, parsed, otp, purpose: normalizedPurpose });
   } catch (err) {
     otpStore.delete(key);
     logOtpError("OTP delivery failed:", err);
@@ -315,6 +319,7 @@ const sendOtpForPurpose = async ({ req, res, purpose = "auth", requireExistingUs
   return res.json({
     message: genericResponse ? "If the account exists, an OTP has been sent." : `OTP sent to ${parsed.type}`,
     channel: parsed.type,
+    ...(parsed.type === "phone" && delivery?.requestId ? { requestId: delivery.requestId, reqId: delivery.requestId } : {}),
   });
 };
 
@@ -398,10 +403,21 @@ export const verifyMobileWidgetOtp = async (req, res) => {
     const parsed = parseIdentifier(req.body.identifier);
     const purpose = getOtpPurpose(req.body.purpose || "auth");
     const platform = getRequestPlatform(req);
-    const msg91 = req.body.msg91 || req.body.providerData || {};
+    let msg91 = req.body.msg91 || req.body.providerData || {};
+    const otp = String(req.body.otp || "").trim();
+    const reqId = String(req.body.reqId || req.body.requestId || getProviderRequestId(msg91) || "").trim();
 
     if (!parsed || parsed.type !== "phone") {
       return res.status(400).json({ msg: "Valid phone number is required" });
+    }
+
+    if (!hasMsg91VerificationProof(msg91) && otp && reqId) {
+      msg91 = await verifyMsg91WidgetOtp({
+        phone: parsed.value,
+        otp,
+        reqId,
+        platform,
+      });
     }
 
     if (!hasMsg91VerificationProof(msg91)) {
@@ -410,7 +426,7 @@ export const verifyMobileWidgetOtp = async (req, res) => {
 
     const audit = sanitizeMsg91Audit({
       ...msg91,
-      requestId: req.body.reqId || getProviderRequestId(msg91),
+      requestId: reqId || getProviderRequestId(msg91),
       verifiedAt: new Date().toISOString(),
     });
     const key = storeWidgetVerification({ platform, parsed, purpose, audit });
@@ -421,6 +437,14 @@ export const verifyMobileWidgetOtp = async (req, res) => {
         requestId: audit.requestId || "",
       });
     }
+
+    console.log("MSG91 widget verification accepted", {
+      provider: "MSG91",
+      flow: "widget",
+      platform,
+      requestId: audit.requestId || "",
+      status: "verified",
+    });
 
     return res.json({ message: "OTP verified", channel: "phone" });
   } catch (err) {

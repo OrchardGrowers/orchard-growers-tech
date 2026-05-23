@@ -26,7 +26,7 @@ import Products from "./pages/Products";
 import API, { FILE_BASE_URL } from "./services/api";
 import InstallAppPrompt, { openOrchardInstallPrompt } from "./components/InstallAppPrompt";
 import type { Product } from "./types";
-import { normalizeIndianMobile } from "./utils/msg91OtpWidget";
+import { normalizeIndianMobile } from "./utils/phone";
 
 type Auction = {
   _id: string;
@@ -2759,6 +2759,7 @@ function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [otpCooldown, setOtpCooldown] = useState(0);
+  const [otpReqId, setOtpReqId] = useState("");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [pendingSocialProvider, setPendingSocialProvider] = useState<"google" | "facebook" | null>(null);
 
@@ -2809,6 +2810,7 @@ function AuthPage() {
     if (field === "identifier") {
       setOtpSent(false);
       setOtpCooldown(0);
+      setOtpReqId("");
     }
   };
 
@@ -2817,6 +2819,7 @@ function AuthPage() {
     setMessage("");
     setOtpSent(false);
     setOtpCooldown(0);
+    setOtpReqId("");
     setShowPassword(false);
     setShowConfirmPassword(false);
     setForm({
@@ -2844,12 +2847,13 @@ function AuthPage() {
     try {
       setLoading(true);
       const mobile = normalizeIndianMobile(form.identifier);
-      const res = await API.post<{ message?: string }>("/auth/send-otp", {
+      const res = await API.post<{ message?: string; requestId?: string; reqId?: string }>("/auth/send-otp", {
         identifier: mobile || form.identifier,
         platform: "orchardgrowers",
         mode,
       });
       setOtpSent(true);
+      setOtpReqId(mobile ? res.data.requestId || res.data.reqId || "" : "");
       setOtpCooldown(60);
       setMessage(res.data.message || "OTP sent.");
     } catch (err: any) {
@@ -2888,9 +2892,15 @@ function AuthPage() {
           return;
         }
 
-        await API.post("/auth/verify-otp", {
+        if (!otpReqId) {
+          setMessage("Request phone OTP again.");
+          return;
+        }
+
+        await API.post("/auth/verify-mobile-widget-otp", {
           identifier: mobile,
           otp: form.otp,
+          reqId: otpReqId,
           platform: "orchardgrowers",
         });
       } else {
