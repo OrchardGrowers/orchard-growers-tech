@@ -66,82 +66,28 @@ const isDealOpen = (date = new Date()) => {
 };
 
 // ================= MIDDLEWARE =================
-const localDevelopmentOrigins = [
-  "http://localhost:3000",
-  "http://localhost:3001",
-  "http://localhost:3002",
-  "http://localhost:3004",
-  "http://localhost:3005",
-  "http://localhost:3010",
-  "http://localhost:4173",
-  "http://localhost:5173",
-  "http://localhost:5174",
-  "http://localhost:5175",
-  "http://127.0.0.1:3000",
-  "http://127.0.0.1:3001",
-  "http://127.0.0.1:3002",
-  "http://127.0.0.1:3004",
-  "http://127.0.0.1:3005",
-  "http://127.0.0.1:3010",
-  "http://127.0.0.1:4173",
-  "http://127.0.0.1:5173",
-  "http://127.0.0.1:5174",
-  "http://127.0.0.1:5175",
-];
-const adminProductionOrigins = [
-  "https://admins.orchardgrowers.in",
-  "https://orchard-growers-tech-admin-panel.vercel.app",
-];
 const isProductionLike = () => {
   const runtime = String(process.env.APP_ENV || process.env.NODE_ENV || "").trim().toLowerCase();
   return runtime === "production" || runtime === "staging";
 };
-const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || "";
-const corsOriginEnv = process.env.CORS_ORIGIN || "";
-const corsOriginsEnv = process.env.CORS_ORIGINS || "";
-const normalizeOrigin = (origin = "") => origin.trim().replace(/\/+$/, "");
-const configuredOrigins = [
-  process.env.CLIENT_URL,
-  process.env.ADMIN_URL,
-  process.env.ADMIN_FRONTEND_URL,
-  process.env.EFRUITMANDI_URL,
-  process.env.EFRUITMANDI_CLIENT_URL,
-  process.env.ORCHARD_URL,
-  process.env.ORCHARDGROWERS_CLIENT_URL,
-  ...allowedOriginsEnv.split(","),
-  ...corsOriginEnv.split(","),
-  ...corsOriginsEnv.split(","),
-];
-const allowedOrigins = [
-  ...adminProductionOrigins,
-  ...configuredOrigins,
-  ...(!isProductionLike() ? localDevelopmentOrigins : []),
-]
-  .map(normalizeOrigin)
-  .filter(Boolean)
-  .filter((origin) => !isProductionLike() || origin !== "*");
-const uniqueAllowedOrigins = [...new Set(allowedOrigins)];
-const originMatches = (origin, allowedOrigin) => {
-  if (allowedOrigin === "*") return !isProductionLike();
-  if (!allowedOrigin.includes("*")) return origin === allowedOrigin;
-
-  const pattern = allowedOrigin
-    .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
-    .replace(/\*/g, ".*");
-  return new RegExp(`^${pattern}$`).test(origin);
-};
-const isOriginAllowed = (origin) => {
-  const normalizedOrigin = normalizeOrigin(origin);
-  return uniqueAllowedOrigins.some((allowedOrigin) => originMatches(normalizedOrigin, allowedOrigin));
-};
+const allowedOrigins = (process.env.CORS_ORIGIN || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 const corsOrigin = (origin, callback) => {
-  // Allow non-browser requests (e.g., server-to-server) when origin is undefined.
+  // Allow health checks, server-to-server requests, Postman, and Render checks.
   if (!origin) return callback(null, true);
 
-  if (isOriginAllowed(origin)) {
+  if (
+    allowedOrigins.includes(origin) ||
+    origin.includes("vercel.app") ||
+    origin.includes("localhost")
+  ) {
     return callback(null, true);
   }
+
+  console.error("Blocked by CORS:", origin);
 
   return callback(new Error("Not allowed by CORS"));
 };
@@ -154,7 +100,7 @@ const corsOptions = {
 };
 
 if (!isProductionLike()) {
-  console.log("CORS allowed origins:", uniqueAllowedOrigins.join(", "));
+  console.log("CORS allowed origins:", allowedOrigins.join(", "));
 }
 
 app.use(cors(corsOptions));
