@@ -169,6 +169,7 @@ export const sendAdminOtp = async (req, res) => {
   logAdminOtpDebug("route hit", {
     mode,
     normalizedEmail: email,
+    platform: ADMIN_MAIL_PLATFORM,
   });
 
   if (!email || !isValidEmail(email)) {
@@ -271,6 +272,7 @@ export const sendAdminOtp = async (req, res) => {
   logAdminOtpDebug("sendMail success", {
     normalizedEmail: email,
     mode,
+    platform: ADMIN_MAIL_PLATFORM,
   });
   console.log(`Admin OTP delivery accepted for ${maskAdminEmail(email)}`);
   return res.json({ message: "OTP sent to admin email." });

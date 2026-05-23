@@ -60,9 +60,9 @@ export const normalizeMailPlatform = (platform = "") => {
 const getPlatformSettings = (platform = "orchardgrowers") => {
   const platformKey = normalizeMailPlatform(platform);
   const config = PLATFORM_CONFIG[platformKey];
-  const user = process.env.SMTP_USER || process.env[config.userEnv] || "";
-  const pass = process.env.SMTP_PASS || process.env[config.passEnv] || "";
-  const from = process.env.SMTP_FROM || process.env[config.fromEnv] || user;
+  const user = process.env[config.userEnv] || process.env.SMTP_USER || "";
+  const pass = process.env[config.passEnv] || process.env.SMTP_PASS || "";
+  const from = process.env[config.fromEnv] || process.env.SMTP_FROM || user;
   const resetFrom = process.env[config.resetFromEnv] || from;
   const supportEmail = process.env[config.supportEnv] || "";
 
@@ -91,27 +91,29 @@ const logSmtpEvent = (level, event, mailConfig, details = {}) => {
 
 export const isSmtpConfigured = (platform = "orchardgrowers") => {
   const settings = getPlatformSettings(platform);
-  return Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT && settings.user && settings.pass && settings.from);
+  return Boolean((process.env.SMTP_HOST || "smtp.hostinger.com") && settings.user && settings.pass && settings.from);
 };
 
 export const getMailTransport = ({ platform = "orchardgrowers", purpose = "general" } = {}) => {
   const settings = getPlatformSettings(platform);
   if (!isSmtpConfigured(settings.platform)) return null;
 
+  const host = process.env.SMTP_HOST || "smtp.hostinger.com";
   const port = Number(process.env.SMTP_PORT || 587);
+  const secure = truthyEnv(process.env.SMTP_SECURE);
   const from = purpose === "reset" ? settings.resetFrom : settings.from;
 
   return {
     ...settings,
     from,
-    host: process.env.SMTP_HOST,
+    host,
     port,
-    secure: false,
+    secure,
     transporter: nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
+      host,
       port,
-      secure: false,
-      requireTLS: true,
+      secure,
+      requireTLS: !secure,
       family: 4,
       auth: {
         user: settings.user,

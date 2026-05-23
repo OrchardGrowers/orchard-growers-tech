@@ -18,6 +18,9 @@ const PLATFORM_MSG91_CONFIG = {
   },
 };
 
+const firstConfigured = (...values) =>
+  values.map((value) => String(value || "").trim()).find(Boolean) || "";
+
 const normalizePlatform = (platform = "") => {
   const normalized = String(platform || "").trim().toLowerCase();
   if (["efruitmandi", "efruitmandi.live", "efm"].includes(normalized)) return "efruitmandi";
@@ -27,13 +30,34 @@ const normalizePlatform = (platform = "") => {
 const getMsg91Settings = (platform = "orchardgrowers") => {
   const platformKey = normalizePlatform(platform);
   const config = PLATFORM_MSG91_CONFIG[platformKey];
+  const isOrchard = platformKey === "orchardgrowers";
+  const efruitConfig = PLATFORM_MSG91_CONFIG.efruitmandi;
 
   return {
     platform: platformKey,
-    authKey: process.env[config.authKeyEnv] || (platformKey === "orchardgrowers" ? process.env.MSG91_AUTH_KEY : ""),
-    templateId: process.env[config.templateIdEnv] || (platformKey === "orchardgrowers" ? process.env.MSG91_TEMPLATE_ID : ""),
-    senderId: process.env[config.senderIdEnv] || (platformKey === "orchardgrowers" ? process.env.MSG91_SENDER_ID : ""),
-    widgetId: process.env[config.widgetIdEnv] || (platformKey === "orchardgrowers" ? process.env.MSG91_WIDGET_ID : ""),
+    authKey: firstConfigured(
+      process.env[config.authKeyEnv],
+      isOrchard ? process.env[efruitConfig.authKeyEnv] : "",
+      isOrchard ? process.env.MSG91_AUTH_KEY : ""
+    ),
+    templateId: firstConfigured(
+      process.env[config.templateIdEnv],
+      isOrchard ? process.env[efruitConfig.templateIdEnv] : "",
+      isOrchard ? process.env.MSG91_TEMPLATE_ID : ""
+    ),
+    senderId: firstConfigured(
+      process.env[config.senderIdEnv],
+      isOrchard ? process.env[efruitConfig.senderIdEnv] : "",
+      isOrchard ? process.env.MSG91_SENDER_ID : ""
+    ),
+    widgetId: firstConfigured(
+      process.env[config.widgetIdEnv],
+      process.env[config.templateIdEnv],
+      isOrchard ? process.env[efruitConfig.widgetIdEnv] : "",
+      isOrchard ? process.env[efruitConfig.templateIdEnv] : "",
+      isOrchard ? process.env.MSG91_WIDGET_ID : "",
+      isOrchard ? process.env.MSG91_TEMPLATE_ID : ""
+    ),
   };
 };
 
@@ -53,7 +77,15 @@ const maskPhone = (phone = "") => {
 };
 
 const getProviderRequestId = (data = {}) =>
-  data?.request_id || data?.requestId || data?.RequestId || data?.requestId || data?.message_id || data?.messageId || data?.id;
+  data?.reqId ||
+  data?.req_id ||
+  data?.request_id ||
+  data?.requestId ||
+  data?.RequestId ||
+  data?.requestId ||
+  data?.message_id ||
+  data?.messageId ||
+  data?.id;
 
 const getProviderMessage = (data = {}) =>
   data?.message || data?.Message || data?.msg || data?.error || data?.Error || data?.details || data?.Details || "";
@@ -217,6 +249,7 @@ const sendMsg91Otp = async ({ mobile, otp, platform }) => {
     attemptId,
     requestId,
     provider: "MSG91",
+    flow: "template",
     platform: platformKey,
     phone: maskPhone(mobile),
     mobileFormat: "91XXXXXXXXXX",

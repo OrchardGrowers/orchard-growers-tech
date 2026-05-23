@@ -224,6 +224,7 @@ const deliverOtp = async ({ platform, parsed, otp, purpose }) => {
     });
     logAuthDebug("email OTP send success", {
       platform: normalizeMailPlatform(platform),
+      route: "auth_email_otp",
       purpose,
     });
     return {};
