@@ -623,12 +623,31 @@ const getFacebookOAuthConfig = (platform) => {
 
   return { appId, appSecret };
 };
+const isBackendUrl = (value = "") => {
+  try {
+    const host = new URL(value).hostname.toLowerCase();
+    return host.includes("onrender.com") || host.includes("orchard-growers-backend");
+  } catch {
+    return false;
+  }
+};
+const firstFrontendUrl = (...values) =>
+  values.map((value) => String(value || "").trim()).find((value) => value && !isBackendUrl(value)) || "";
 const getFrontendUrl = (platform) => {
   if (platform === "efruitmandi") {
-    return process.env.EFRUITMANDI_CLIENT_URL || process.env.EFRUITMANDI_URL || (!isProductionLikeOAuth() ? "http://localhost:3000" : "");
+    return firstFrontendUrl(
+      process.env.EFRUITMANDI_CLIENT_URL,
+      process.env.EFRUITMANDI_URL,
+      !isProductionLikeOAuth() ? "http://localhost:3000" : ""
+    );
   }
 
-  return process.env.CLIENT_URL || process.env.ORCHARDGROWERS_CLIENT_URL || process.env.ORCHARD_URL || (!isProductionLikeOAuth() ? "http://localhost:3001" : "");
+  return firstFrontendUrl(
+    process.env.CLIENT_URL,
+    process.env.ORCHARDGROWERS_CLIENT_URL,
+    process.env.ORCHARD_URL,
+    isProductionLikeOAuth() ? "https://orchardgrowers.in" : "http://localhost:3001"
+  );
 };
 const isProductionLikeOAuth = () => {
   const runtime = String(process.env.APP_ENV || process.env.NODE_ENV || "").trim().toLowerCase();
@@ -637,6 +656,13 @@ const isProductionLikeOAuth = () => {
 const getOAuthFallbackUrl = (platform) => {
   const baseUrl = getFrontendUrl(platform);
   if (!baseUrl) return "";
+  if (isBackendUrl(baseUrl)) {
+    console.error("OAuth frontend URL points to backend; refusing /login redirect.", {
+      platform,
+      host: new URL(baseUrl).hostname,
+    });
+    return "";
+  }
   return `${baseUrl.replace(/\/+$/, "")}/login`;
 };
 const redirectOAuthError = (res, platform, message, extraParams = {}) => {

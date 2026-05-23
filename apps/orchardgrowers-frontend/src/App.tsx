@@ -97,6 +97,16 @@ const addOAuthParams = (url: string, mode: "login" | "signup", termsAccepted: bo
     return `${url}${separator}mode=${encodeURIComponent(mode)}${termsParam}`;
   }
 };
+const getLoginErrorMessage = (error: unknown) => {
+  const err = error as { response?: { status?: number; data?: { msg?: string; message?: string } }; message?: string };
+  if (err.response?.data?.msg || err.response?.data?.message) {
+    return err.response.data.msg || err.response.data.message || "Authentication failed.";
+  }
+  if (err.response?.status === 404) {
+    return "Login API route was not found. Check VITE_API_BASE_URL and backend /api/auth/login deployment.";
+  }
+  return err.message || "Authentication failed.";
+};
 const getOrchardOAuthUrl = (provider: "google" | "facebook", mode: "login" | "signup", termsAccepted: boolean) => {
   const configured =
     provider === "google"
@@ -2899,8 +2909,8 @@ function AuthPage() {
       window.dispatchEvent(new Event("orchard-auth-updated"));
 
       navigate("/profile");
-    } catch (err: any) {
-      setMessage(err?.response?.data?.msg || err?.message || "Authentication failed.");
+    } catch (err: unknown) {
+      setMessage(getLoginErrorMessage(err));
     } finally {
       setLoading(false);
     }
