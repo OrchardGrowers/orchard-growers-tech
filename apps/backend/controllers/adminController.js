@@ -208,11 +208,16 @@ export const sendAdminOtp = async (req, res) => {
     return res.status(409).json({ msg: "Account already exists. Please sign in." });
   }
 
-  // Admin OTP eligibility: only allow when admin record exists and is ACTIVE.
+  // Admin OTP eligibility: prefer an existing ACTIVE admin record.
   // For signup mode, the admin must exist and must not have a password set yet.
+  // For login mode, allow the MASTER_ADMIN_EMAIL (if configured) as a safe fallback
+  // so emergency master login can receive OTP even if a DB admin record is missing.
   let isEligible = Boolean(existingAdmin) && existingAdmin.status === "ACTIVE";
   if (mode === "signup") {
     isEligible = isEligible && !existingAdmin?.password;
+  } else {
+    // login mode: allow master admin email fallback
+    isEligible = isEligible || isMasterAdminEmail(email);
   }
 
   if (!isEligible) {
