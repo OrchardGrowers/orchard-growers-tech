@@ -24,6 +24,7 @@ import Order from "./models/Order.js";
 import Product from "./models/Product.js";
 import User from "./models/User.js";
 import { seedHsnMaster } from "./models/HsnMaster.js";
+import { seedAdminFromEnv } from "./services/adminSeedService.js";
 
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -50,6 +51,12 @@ app.set("trust proxy", 1);
     dbConnected = await connectDB();
     if (dbConnected) {
       await seedHsnMaster();
+      // Seed an initial admin from env vars if configured (safe: creates only if missing)
+      try {
+        await seedAdminFromEnv();
+      } catch (err) {
+        console.error("Error during admin seed:", err?.message || err);
+      }
     }
     if (!dbConnected) {
       console.warn("⚠️  WARNING: Server running in offline mode without database connection.");
