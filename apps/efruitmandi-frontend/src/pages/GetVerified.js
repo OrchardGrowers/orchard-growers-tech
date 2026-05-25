@@ -154,7 +154,7 @@ export default function GetVerified() {
         return;
       }
 
-      await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp, reqId: otpReqId });
+      await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp, reqId: otpReqId, phone: normalizeIndianMobile(identifier) || identifier, mode: "signup" });
       setPhoneVerified(true);
       setFeePaid(false);
       setOtpMessage({ type: "success", text: "Phone verified." });

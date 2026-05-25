@@ -36,6 +36,7 @@ const normalizeApiUrl = (value = "") => {
 const API_BASE_URL = normalizeApiUrl(getEnvValue("VITE_API_BASE_URL") || "https://orchard-growers-backend.onrender.com");
 const efruitOtpPhonesByReqId = new Map();
 const efruitOtpModesByReqId = new Map();
+const efruitOtpFlowsByReqId = new Map();
 
 const isDevelopment = () => getProcessEnv().NODE_ENV === "development";
 
@@ -422,6 +423,7 @@ export const sendMsg91WidgetOtp = async ({ widgetId, tokenAuth, phone, mode = "s
     if (reqId) {
       efruitOtpPhonesByReqId.set(reqId, phone);
       efruitOtpModesByReqId.set(reqId, mode);
+      efruitOtpFlowsByReqId.set(reqId, data.otpFlow || "");
     }
     return { data, reqId };
   } catch (error) {
@@ -441,18 +443,22 @@ export const retryMsg91WidgetOtp = async ({ widgetId, tokenAuth, reqId }) => {
   }
 };
 
-export const verifyMsg91WidgetOtp = async ({ widgetId, tokenAuth, otp, reqId }) => {
+export const verifyMsg91WidgetOtp = async ({ widgetId, tokenAuth, otp, reqId, phone, mode = "signup" }) => {
   try {
-    const phone = efruitOtpPhonesByReqId.get(reqId);
-    if (!phone) throw new Error("Request phone OTP first.");
-    const response = await fetch(`${API_BASE_URL}/auth/verify-mobile-widget-otp`, {
+    const verifiedPhone = efruitOtpPhonesByReqId.get(reqId) || phone;
+    if (!verifiedPhone) throw new Error("Request phone OTP first.");
+    const purpose = mode === "forgot" || mode === "forgot-password" || mode === "reset" ? "forgot-password" : "auth";
+    const otpFlow = efruitOtpFlowsByReqId.get(reqId) || "";
+    const endpoint = reqId && otpFlow !== "template" ? "verify-mobile-widget-otp" : "verify-otp";
+    const response = await fetch(`${API_BASE_URL}/auth/${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        identifier: phone,
+        identifier: verifiedPhone,
         otp,
         reqId,
         platform: "efruitmandi",
+        purpose,
       }),
     });
     const data = await response.json().catch(() => ({}));

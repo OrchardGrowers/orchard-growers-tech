@@ -438,7 +438,7 @@ export default function Profile() {
           return;
         }
 
-        const result = await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp: form.otp.trim(), reqId });
+        const result = await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp: form.otp.trim(), reqId, phone: identifier, mode: targetMode });
         if (!result.data?.otpVerificationToken) {
           throw new Error("OTP verification failed.");
         }

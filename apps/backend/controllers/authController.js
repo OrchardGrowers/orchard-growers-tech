@@ -485,6 +485,7 @@ const sendOtpForPurpose = async ({ req, res, purpose = "auth", requireExistingUs
     message: genericResponse ? "If the account exists, an OTP has been sent." : `OTP sent to ${parsed.type}`,
     channel: parsed.type,
     ...(parsed.type === "phone" && delivery?.requestId ? { requestId: delivery.requestId, reqId: delivery.requestId } : {}),
+    ...(parsed.type === "phone" && delivery?.flow ? { otpFlow: delivery.flow } : {}),
   });
 };
 

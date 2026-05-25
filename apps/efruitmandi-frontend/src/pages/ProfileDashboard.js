@@ -469,13 +469,7 @@ export default function ProfileDashboard() {
         setNotice("Request phone OTP first.");
         return;
       }
-      const result = await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp, reqId: contactDraft.otpReqId });
-      await API.post("/auth/verify-mobile-widget-otp", {
-        identifier: phone,
-        platform: "efruitmandi",
-        reqId: result.reqId || contactDraft.otpReqId,
-        msg91: result.data,
-      });
+      await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp, reqId: contactDraft.otpReqId, phone: normalizeIndianMobile(phone) || phone, mode: "signup" });
       setContactDraft((current) => ({
         ...current,
         verifiedPhone: phone,

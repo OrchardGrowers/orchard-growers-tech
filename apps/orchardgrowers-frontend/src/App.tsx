@@ -2907,11 +2907,16 @@ function AuthPage() {
       if (mobile) {
         // Use client-side MSG91 widget for Orchard mobile OTP (keeps UX unchanged)
         try {
+          const otpRecord = await API.post<{ message?: string; requestId?: string; reqId?: string }>("/auth/send-otp", {
+            identifier: mobile,
+            platform: "orchardgrowers",
+            mode,
+          });
           const widgetId = getOrchardWidgetId();
           const tokenAuth = getOrchardTokenAuth();
           const result = await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone: mobile });
           setOtpSent(true);
-          setOtpReqId(result.reqId || (result.data as any)?.requestId || "");
+          setOtpReqId(result.reqId || (result.data as any)?.requestId || otpRecord.data.requestId || otpRecord.data.reqId || "");
           setOtpProviderData((result.data as Record<string, unknown>) || null);
           setOtpCooldown(60);
           setMessage("OTP sent.");
@@ -3006,6 +3011,7 @@ function AuthPage() {
       setLoading(true);
       const mobile = normalizeIndianMobile(form.identifier);
       const authIdentifier = mobile || form.identifier;
+      let otpVerificationToken = "";
       if (mobile) {
         if (!otpSent) {
           setMessage("Request phone OTP first.");
@@ -3023,25 +3029,28 @@ function AuthPage() {
           const tokenAuth = getOrchardTokenAuth();
           const verifyResult = await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp: form.otp, reqId: otpReqId });
           // send provider proof to backend so server doesn't need to call MSG91 directly
-          await API.post("/auth/verify-mobile-widget-otp", {
+          const verified = await API.post<{ otpVerificationToken?: string }>("/auth/verify-mobile-widget-otp", {
             identifier: mobile,
             otp: form.otp,
             reqId: otpReqId,
             platform: "orchardgrowers",
             providerData: verifyResult.data || {},
           });
+          otpVerificationToken = verified.data.otpVerificationToken || "";
         } catch (err) {
           // fallback to server-side verification if client verify fails
-          await API.post("/auth/verify-mobile-widget-otp", { identifier: mobile, otp: form.otp, reqId: otpReqId, platform: "orchardgrowers" });
+          const verified = await API.post<{ otpVerificationToken?: string }>("/auth/verify-mobile-widget-otp", { identifier: mobile, otp: form.otp, reqId: otpReqId, platform: "orchardgrowers" });
+          otpVerificationToken = verified.data.otpVerificationToken || "";
         }
       } else {
-        await API.post("/auth/verify-otp", { identifier: form.identifier, otp: form.otp, platform: "orchardgrowers" });
+        const verified = await API.post<{ otpVerificationToken?: string }>("/auth/verify-otp", { identifier: form.identifier, otp: form.otp, platform: "orchardgrowers" });
+        otpVerificationToken = verified.data.otpVerificationToken || "";
       }
       const endpoint = mode === "login" ? "/auth/login" : "/auth/register";
       const payload =
         mode === "login"
-          ? { identifier: authIdentifier, password: form.password, platform: "orchardgrowers" }
-          : { name: form.name, identifier: authIdentifier, password: form.password, platform: "orchardgrowers" };
+          ? { identifier: authIdentifier, password: form.password, platform: "orchardgrowers", otpVerificationToken }
+          : { name: form.name, identifier: authIdentifier, password: form.password, platform: "orchardgrowers", otpVerificationToken };
       const res = await API.post(endpoint, payload);
 
       if (res.data.accessToken) localStorage.setItem("accessToken", res.data.accessToken);

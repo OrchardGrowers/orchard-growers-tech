@@ -107,7 +107,7 @@ export default function RegisterBuyer() {
         return;
       }
 
-      await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp: otp.trim(), reqId: otpReqId });
+      await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp: otp.trim(), reqId: otpReqId, phone: normalizeIndianMobile(contactValue) || contactValue, mode: "signup" });
       setVerifiedPhone(contactValue);
       setMessage("Contact number verified.");
     } catch (err) {
