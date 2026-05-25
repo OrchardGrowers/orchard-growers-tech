@@ -37,6 +37,10 @@ const adminSchema = new mongoose.Schema({
     ],
     default: "EMPLOYEE",
   },
+  adminClass: {
+    type: String,
+    enum: ["CLASS_I", "CLASS_II", "CLASS_III"],
+  },
   status: {
     type: String,
     enum: ["ACTIVE", "TERMINATED"],

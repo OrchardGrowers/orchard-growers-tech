@@ -50,9 +50,25 @@ const adminOtpVerifyLimiter = createRateLimiter({
 });
 
 const ensureActiveAdmin = async (req, res, next) => {
-  const admin = await Admin.findById(req.user.id).select("_id status role");
+  const admin = await Admin.findById(req.user.id).select("_id status role adminClass");
 
-  if (!admin || admin.status === "TERMINATED") {
+  const validClasses = new Set(["CLASS_I", "CLASS_II", "CLASS_III"]);
+  const roleClass = {
+    SUPER_ADMIN: "CLASS_I",
+    ADMIN: "CLASS_I",
+    UNIT_MANAGER: "CLASS_II",
+    INVENTORY_MANAGER: "CLASS_II",
+    SALES_EXECUTIVE: "CLASS_III",
+    PURCHASE_MANAGER: "CLASS_II",
+    FINANCE_MANAGER: "CLASS_II",
+    VERIFICATION_OFFICER: "CLASS_II",
+    SUPPORT_EXECUTIVE: "CLASS_III",
+    VIEWER: "CLASS_III",
+    EMPLOYEE: "CLASS_III",
+  };
+  const adminClass = admin?.adminClass || roleClass[admin?.role] || "";
+
+  if (!admin || admin.status !== "ACTIVE" || !ADMIN_ACCESS_ROLES.includes(admin.role) || !validClasses.has(adminClass)) {
     return res.status(403).json({ msg: "Admin account is not active" });
   }
 

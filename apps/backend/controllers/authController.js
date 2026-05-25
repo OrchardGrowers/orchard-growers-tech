@@ -258,7 +258,7 @@ const deliverOtp = async ({ platform, parsed, otp, purpose, forceLegacy = false 
     if (allowTest) {
       const testOtp = String(process.env.TEST_OTP || otp || "");
       const requestId = `test:${Date.now()}`;
-      console.log("Test OTP mode active; not sending external OTP", { platform, channel: parsed.type, requestId, otp: testOtp ? "[configured]" : "[generated]" });
+      console.log("Test OTP mode active; not sending external OTP", { platform, channel: parsed.type, requestId, testOtpConfigured: Boolean(testOtp) });
       return { message: `OTP sent (test)`, requestId };
     }
   } catch (e) {
@@ -331,6 +331,7 @@ const sendOtpForPurpose = async ({ req, res, purpose = "auth", requireExistingUs
     mode: mode || "default",
     channel: parsed?.type || "invalid",
     purpose,
+    identifier: parsed ? maskOtpKey(getOtpKey(platform, parsed, purpose)) : "invalid",
   });
 
   if (!parsed) {
@@ -367,7 +368,7 @@ const sendOtpForPurpose = async ({ req, res, purpose = "auth", requireExistingUs
         const existing = otpStore.get(key) || {};
         otpStore.set(key, { ...existing, otp: testOtp });
         const requestId = `test:${Date.now()}`;
-        console.log("Test OTP mode active; storing test OTP for verification", { platform, channel: parsed.type, requestId, otp: testOtp ? "[configured]" : "[generated]" });
+        console.log("Test OTP mode active; storing test OTP for verification", { platform, channel: parsed.type, requestId, testOtpConfigured: Boolean(testOtp) });
         delivery = { message: `OTP sent (test)`, requestId };
       } else {
         delivery = await deliverOtp({ platform, parsed, otp, purpose: normalizedPurpose, forceLegacy: Boolean(req.body.forceLegacy) });
@@ -387,6 +388,7 @@ const sendOtpForPurpose = async ({ req, res, purpose = "auth", requireExistingUs
     platform,
     channel: parsed.type,
     purpose: normalizedPurpose,
+    identifier: maskOtpKey(key),
   });
 
   if (String(process.env.APP_ENV || process.env.NODE_ENV || "").trim().toLowerCase() === "development") {

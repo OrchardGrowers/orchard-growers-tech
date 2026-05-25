@@ -52,6 +52,13 @@ const maskSmtpUser = (value = "") => {
   return `${visibleName}@${domain}`;
 };
 
+const maskEmailAddress = (value = "") => {
+  const email = String(value || "").trim().toLowerCase();
+  const [name = "", domain = ""] = email.split("@");
+  if (!domain) return email ? "****" : "";
+  return `${name.slice(0, 2)}***@${domain}`;
+};
+
 const escapeHtml = (value = "") =>
   String(value)
     .replace(/&/g, "&amp;")
@@ -84,7 +91,7 @@ const getPlatformSettings = (platform = "orchardgrowers") => {
   const from = readEnvValue(config.fromEnv, fallbackConfig?.fromEnv, "SMTP_FROM");
   const resetFrom = readEnvValue(config.resetFromEnv, fallbackConfig?.resetFromEnv);
   const supportEmail = readEnvValue(config.supportEnv, fallbackConfig?.supportEnv);
-  const selectedFrom = from.value || user.value;
+  const selectedFrom = from.value || "";
 
   return {
     platform: platformKey,
@@ -97,7 +104,7 @@ const getPlatformSettings = (platform = "orchardgrowers") => {
     configSources: {
       user: user.source,
       pass: pass.source,
-      from: from.source || (user.value ? user.source : ""),
+      from: from.source,
       resetFrom: resetFrom.source || from.source || (user.value ? user.source : ""),
       supportEmail: supportEmail.source,
     },
@@ -120,7 +127,7 @@ const logSmtpEvent = (level, event, mailConfig, details = {}) => {
 
 export const isSmtpConfigured = (platform = "orchardgrowers") => {
   const settings = getPlatformSettings(platform);
-  return Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT && settings.user && settings.pass && settings.from);
+  return Boolean(process.env.SMTP_HOST && settings.user && settings.pass && settings.from);
 };
 
 export const getMailTransport = ({ platform = "orchardgrowers", purpose = "general" } = {}) => {
@@ -128,8 +135,9 @@ export const getMailTransport = ({ platform = "orchardgrowers", purpose = "gener
   if (!isSmtpConfigured(settings.platform)) return null;
 
   const host = process.env.SMTP_HOST;
-  const port = Number(process.env.SMTP_PORT);
-  const secure = false;
+  const configuredPort = Number(process.env.SMTP_PORT || 587);
+  const port = Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : 587;
+  const secure = truthyEnv(process.env.SMTP_SECURE);
   const from = purpose === "reset" ? settings.resetFrom : settings.from;
   const transporter = nodemailer.createTransport({
     host,
@@ -148,8 +156,8 @@ export const getMailTransport = ({ platform = "orchardgrowers", purpose = "gener
       rejectUnauthorized: false,
       minVersion: "TLSv1.2",
     },
-    logger: true,
-    debug: true,
+    logger: false,
+    debug: false,
   });
 
   const mailConfig = {
@@ -163,6 +171,7 @@ export const getMailTransport = ({ platform = "orchardgrowers", purpose = "gener
 
   logSmtpEvent("info", "SMTP transporter initialized", mailConfig, {
     transporterSelected: true,
+    smtpConfigName: settings.configSources.user || "SMTP_USER",
   });
 
   return mailConfig;
@@ -239,7 +248,10 @@ export const sendOtpEmail = async ({ to, otp, purpose = "verification", platform
   verifySmtpForDebug(mailConfig);
 
   try {
-    logSmtpEvent("info", "SMTP OTP send start", mailConfig);
+    logSmtpEvent("info", "SMTP OTP send start", mailConfig, {
+      to: maskEmailAddress(to),
+      smtpConfigName: mailConfig.configSources.user || "SMTP_USER",
+    });
     const info = await mailConfig.transporter.sendMail({
       from: mailConfig.from,
       to,
@@ -253,10 +265,12 @@ export const sendOtpEmail = async ({ to, otp, purpose = "verification", platform
       }),
     });
     logSmtpEvent("info", "SMTP OTP send success", mailConfig, {
+      to: maskEmailAddress(to),
       code: info?.responseCode || info?.response || "SMTP_SEND_OK",
     });
   } catch (err) {
     logSmtpEvent("error", "SMTP OTP send failed", mailConfig, {
+      to: maskEmailAddress(to),
       code: err?.code || err?.responseCode || "SMTP_SEND_FAILED",
       command: err?.command,
       responseCode: err?.responseCode,
@@ -277,7 +291,10 @@ export const sendEmail = async ({ to, subject, text, html, platform = "orchardgr
   verifySmtpForDebug(mailConfig);
 
   try {
-    logSmtpEvent("info", "SMTP email send start", mailConfig);
+    logSmtpEvent("info", "SMTP email send start", mailConfig, {
+      to: maskEmailAddress(to),
+      smtpConfigName: mailConfig.configSources.user || "SMTP_USER",
+    });
     const info = await mailConfig.transporter.sendMail({
       from: mailConfig.from,
       to,
@@ -286,10 +303,12 @@ export const sendEmail = async ({ to, subject, text, html, platform = "orchardgr
       html,
     });
     logSmtpEvent("info", "SMTP email send success", mailConfig, {
+      to: maskEmailAddress(to),
       code: info?.responseCode || info?.response || "SMTP_SEND_OK",
     });
   } catch (err) {
     logSmtpEvent("error", "SMTP email send failed", mailConfig, {
+      to: maskEmailAddress(to),
       code: err?.code || err?.responseCode || "SMTP_SEND_FAILED",
       command: err?.command,
       responseCode: err?.responseCode,

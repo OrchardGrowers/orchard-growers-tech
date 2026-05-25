@@ -48,6 +48,20 @@ const ADMIN_CLASS_LABELS = {
   VERIFICATION_OFFICER: "CLASS2",
   EMPLOYEE: "CLASS2",
 };
+const INTERNAL_ADMIN_CLASSES = new Set(["CLASS_I", "CLASS_II", "CLASS_III"]);
+const ROLE_INTERNAL_CLASS = {
+  SUPER_ADMIN: "CLASS_I",
+  ADMIN: "CLASS_I",
+  UNIT_MANAGER: "CLASS_II",
+  INVENTORY_MANAGER: "CLASS_II",
+  SALES_EXECUTIVE: "CLASS_III",
+  PURCHASE_MANAGER: "CLASS_II",
+  FINANCE_MANAGER: "CLASS_II",
+  VERIFICATION_OFFICER: "CLASS_II",
+  SUPPORT_EXECUTIVE: "CLASS_III",
+  VIEWER: "CLASS_III",
+  EMPLOYEE: "CLASS_III",
+};
 
 const normalizeEmail = (email = "") => email.trim().toLowerCase();
 const PASSWORD_RULE_MESSAGE = "Password must be at least 8 characters and include a letter and a number";
@@ -116,10 +130,46 @@ const safeAdmin = (admin) => ({
   email: admin.email,
   role: admin.role,
   roleLabel: getAdminRoleLabel(admin),
+  adminClass: getInternalAdminClass(admin),
   status: admin.status,
 });
 
 const getAdminClass = (role) => ADMIN_CLASS_LABELS[role] || "CLASS2";
+const normalizeInternalAdminClass = (value = "") => {
+  const normalized = String(value || "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+  if (["CLASS_I", "CLASS1", "CLASS_1", "I", "SUPER"].includes(normalized)) return "CLASS_I";
+  if (["CLASS_II", "CLASS2", "CLASS_2", "II"].includes(normalized)) return "CLASS_II";
+  if (["CLASS_III", "CLASS3", "CLASS_3", "III"].includes(normalized)) return "CLASS_III";
+  return "";
+};
+const getInternalAdminClass = (admin = {}) => {
+  const storedClass = normalizeInternalAdminClass(admin.adminClass);
+  if (storedClass) return storedClass;
+
+  const email = normalizeEmail(admin.email);
+  if (CLASS_I_ADMIN_EMAILS.includes(email)) return "CLASS_I";
+  if (CLASS_II_ADMIN_EMAILS.includes(email)) return "CLASS_II";
+  if (CLASS_III_ADMIN_EMAILS.includes(email)) return "CLASS_III";
+  return ROLE_INTERNAL_CLASS[admin.role] || "";
+};
+const isEligibleInternalAdmin = (admin) =>
+  Boolean(
+    admin &&
+      admin.status === "ACTIVE" &&
+      ADMIN_ROLES.includes(admin.role) &&
+      INTERNAL_ADMIN_CLASSES.has(getInternalAdminClass(admin))
+  );
+const ensureAdminClassPersisted = async (admin) => {
+  const adminClass = getInternalAdminClass(admin);
+  if (!admin || admin.adminClass || !INTERNAL_ADMIN_CLASSES.has(adminClass)) return adminClass;
+  admin.adminClass = adminClass;
+  await admin.save();
+  return adminClass;
+};
+const getAdminOtpMaxAttempts = () => {
+  const attempts = Number(process.env.OTP_MAX_ATTEMPTS || 5);
+  return Number.isFinite(attempts) && attempts > 0 ? attempts : 5;
+};
 
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 const getAdminOtpTtlMs = () => {
@@ -134,7 +184,9 @@ const maskAdminEmail = (email = "") => {
 };
 const getAdminOtpMode = (mode = "login") => {
   const normalized = String(mode || "login").trim().toLowerCase();
-  return normalized === "signup" ? "signup" : "login";
+  if (normalized === "signup") return "signup";
+  if (normalized === "forgot" || normalized === "forgot-password" || normalized === "reset") return "forgot-password";
+  return "login";
 };
 const logAdminOtpDebug = (message, details = {}) => {
   console.log(`Admin OTP debug: ${message}`, details);
@@ -164,99 +216,93 @@ const validateAdminPassword = (password = "") => {
 export const sendAdminOtp = async (req, res) => {
   const email = normalizeEmail(req.body.email);
   const mode = getAdminOtpMode(req.body.mode);
-  const response = { message: "If the admin email is eligible, an OTP has been sent." };
+  const response = { message: "If eligible, OTP has been sent." };
 
   logAdminOtpDebug("route hit", {
     mode,
-    normalizedEmail: email,
+    email: maskAdminEmail(email),
     platform: ADMIN_MAIL_PLATFORM,
   });
 
   if (!email || !isValidEmail(email)) {
     logAdminOtpDebug("sendMail skipped", {
-      normalizedEmail: email,
+      email: maskAdminEmail(email),
       mode,
       reason: "invalid_email",
     });
     return res.json(response);
   }
 
-  if (!ALLOWED_ADMIN_SIGNUP_EMAILS.has(email)) {
-    logAdminOtpDebug("sendMail skipped", {
-      normalizedEmail: email,
-      mode,
-      reason: "email_not_allowed",
-    });
-    return res.json(response);
-  }
-
-  const existingAdmin = await Admin.findOne({ email }).select("_id password status role");
+  const existingAdmin = await Admin.findOne({ email }).select("_id password status role adminClass");
+  const adminClass = getInternalAdminClass(existingAdmin || { email, role: ADMIN_SIGNUP_ROLE_BY_EMAIL.get(email) });
   logAdminOtpDebug("admin lookup", {
-    normalizedEmail: email,
+    email: maskAdminEmail(email),
     found: Boolean(existingAdmin),
     role: existingAdmin?.role || "",
+    adminClass,
     status: existingAdmin?.status || "",
     hasPassword: Boolean(existingAdmin?.password),
   });
 
   if (mode === "signup" && existingAdmin?.password) {
     logAdminOtpDebug("sendMail skipped", {
-      normalizedEmail: email,
+      email: maskAdminEmail(email),
       mode,
       reason: "account_exists",
     });
     return res.status(409).json({ msg: "Account already exists. Please sign in." });
   }
 
-  // Admin OTP eligibility: prefer an existing ACTIVE admin record.
-  // For signup mode, the admin must exist and must not have a password set yet.
-  // For login mode, allow the MASTER_ADMIN_EMAIL (if configured) as a safe fallback
-  // so emergency master login can receive OTP even if a DB admin record is missing.
-  let isEligible = Boolean(existingAdmin) && existingAdmin.status === "ACTIVE";
+  let isEligible = isEligibleInternalAdmin(existingAdmin);
   if (mode === "signup") {
     isEligible = isEligible && !existingAdmin?.password;
-  } else {
-    // login mode: allow master admin email fallback
-    isEligible = isEligible || isMasterAdminEmail(email);
   }
 
   if (!isEligible) {
     logAdminOtpDebug("sendMail skipped", {
-      normalizedEmail: email,
+      email: maskAdminEmail(email),
       mode,
       reason: "not_eligible",
       found: Boolean(existingAdmin),
+      role: existingAdmin?.role || "",
+      adminClass,
       status: existingAdmin?.status || "",
     });
     return res.json(response);
   }
 
+  const persistedAdminClass = await ensureAdminClassPersisted(existingAdmin);
+
   const otp = createAdminOtp();
   logAdminOtpDebug("otp generated", {
-    normalizedEmail: email,
+    email: maskAdminEmail(email),
     mode,
+    adminClass: persistedAdminClass,
     expiresInMs: getAdminOtpTtlMs(),
   });
   adminOtpStore.set(getAdminOtpKey(email), {
     otp,
     mode,
     expiresAt: Date.now() + getAdminOtpTtlMs(),
+    attempts: 0,
+    maxAttempts: getAdminOtpMaxAttempts(),
     verified: false,
     used: false,
   });
 
   try {
     logAdminOtpDebug("sendMail called", {
-      normalizedEmail: email,
+      email: maskAdminEmail(email),
       mode,
       platform: ADMIN_MAIL_PLATFORM,
-      purpose: mode === "signup" ? "admin signup verification" : "admin login verification",
+      adminClass: persistedAdminClass,
+      purpose: mode === "forgot-password" ? "password reset" : mode === "signup" ? "admin signup verification" : "admin login verification",
     });
     await sendOtpEmail({
       platform: ADMIN_MAIL_PLATFORM,
       to: email,
       otp,
-      purpose: mode === "signup" ? "admin signup verification" : "admin login verification",
+      purpose: mode === "forgot-password" ? "password reset" : mode === "signup" ? "admin signup verification" : "admin login verification",
     });
   } catch (err) {
     adminOtpStore.delete(getAdminOtpKey(email));
@@ -268,7 +314,7 @@ export const sendAdminOtp = async (req, res) => {
       message: err?.message,
     });
     logAdminOtpDebug("sendMail failed", {
-      normalizedEmail: email,
+      email: maskAdminEmail(email),
       mode,
       code: err?.code,
       smtpCode: err?.smtpCode,
@@ -277,9 +323,10 @@ export const sendAdminOtp = async (req, res) => {
   }
 
   logAdminOtpDebug("sendMail success", {
-    normalizedEmail: email,
+    email: maskAdminEmail(email),
     mode,
     platform: ADMIN_MAIL_PLATFORM,
+    adminClass: persistedAdminClass,
   });
   console.log(`Admin OTP delivery accepted for ${maskAdminEmail(email)}`);
   return res.json({ message: "OTP sent to admin email." });
@@ -295,18 +342,58 @@ export const verifyAdminOtp = async (req, res) => {
 
   const key = getAdminOtpKey(email);
   const record = adminOtpStore.get(key);
-  if (!record) return res.status(400).json({ msg: "Invalid OTP" });
+  logAdminOtpDebug("verify route hit", {
+    email: maskAdminEmail(email),
+    mode: record?.mode || "",
+  });
+  if (!record) {
+    logAdminOtpDebug("verify failed", {
+      email: maskAdminEmail(email),
+      reason: "missing_request",
+    });
+    return res.status(400).json({ msg: "Invalid OTP" });
+  }
 
   if (record.expiresAt < Date.now()) {
     adminOtpStore.delete(key);
+    logAdminOtpDebug("verify failed", {
+      email: maskAdminEmail(email),
+      mode: record.mode,
+      reason: "expired",
+    });
     return res.status(400).json({ msg: "OTP expired. Request a new OTP." });
   }
 
-  if (record.used || record.verified || record.otp !== otp) {
+  if (record.used || record.verified) {
+    return res.status(400).json({ msg: "Invalid OTP" });
+  }
+
+  if (record.otp !== otp) {
+    const attempts = Number(record.attempts || 0) + 1;
+    if (attempts >= Number(record.maxAttempts || getAdminOtpMaxAttempts())) {
+      adminOtpStore.delete(key);
+      logAdminOtpDebug("verify failed", {
+        email: maskAdminEmail(email),
+        mode: record.mode,
+        reason: "max_attempts",
+      });
+      return res.status(429).json({ msg: "Too many invalid OTP attempts. Please request a new OTP." });
+    }
+
+    adminOtpStore.set(key, { ...record, attempts });
+    logAdminOtpDebug("verify failed", {
+      email: maskAdminEmail(email),
+      mode: record.mode,
+      reason: "invalid_otp",
+    });
     return res.status(400).json({ msg: "Invalid OTP" });
   }
 
   adminOtpStore.set(key, { ...record, otp: "", verified: true, used: true });
+  logAdminOtpDebug("verify success", {
+    email: maskAdminEmail(email),
+    mode: record.mode,
+  });
   return res.json({ message: "OTP verified" });
 };
 
@@ -424,8 +511,13 @@ export const signupAdmin = async (req, res) => {
     return res.status(400).json({ msg: "Valid admin email is required" });
   }
 
-  if (!ALLOWED_ADMIN_SIGNUP_EMAILS.has(email)) {
+  const existingAdminForEligibility = await Admin.findOne({ email }).select("_id status role adminClass password");
+  if (!existingAdminForEligibility && !ALLOWED_ADMIN_SIGNUP_EMAILS.has(email)) {
     return res.status(403).json({ msg: "This email is not allowed for admin signup" });
+  }
+
+  if (existingAdminForEligibility && !isEligibleInternalAdmin(existingAdminForEligibility)) {
+    return res.status(403).json({ msg: "Admin account is not eligible" });
   }
 
   const passwordError = validateAdminPassword(password);
@@ -454,6 +546,7 @@ export const signupAdmin = async (req, res) => {
   admin.email = email;
   admin.password = await bcrypt.hash(password, 10);
   admin.role = isNewAdmin ? getSignupRole(email) : admin.role || getSignupRole(email);
+  admin.adminClass = getInternalAdminClass(admin) || "CLASS_III";
   admin.status = "ACTIVE";
   admin.resetPasswordTokenHash = undefined;
   admin.resetPasswordExpiresAt = undefined;
@@ -490,6 +583,7 @@ export const loginAdmin = async (req, res) => {
         email,
         password: hashedPassword,
         role: "SUPER_ADMIN",
+        adminClass: "CLASS_I",
         status: "ACTIVE",
       },
       { new: true, upsert: true, setDefaultsOnInsert: true }
@@ -506,8 +600,8 @@ export const loginAdmin = async (req, res) => {
   const admin = await Admin.findOne({ email });
 
   if (!admin) return res.status(404).json({ msg: "Admin not found" });
-  if (admin.status === "TERMINATED") {
-    return res.status(403).json({ msg: "Admin account terminated" });
+  if (!isEligibleInternalAdmin(admin)) {
+    return res.status(403).json({ msg: "Admin account is not eligible" });
   }
 
   if (!admin.password) {
@@ -545,13 +639,15 @@ export const requestAdminPasswordReset = async (req, res) => {
   }
 
   const admin = await Admin.findOne({ email }).select("+resetPasswordTokenHash +resetPasswordExpiresAt");
-  if (!admin || admin.status === "TERMINATED") {
+  if (!admin || !isEligibleInternalAdmin(admin)) {
     console.log("Admin reset skipped", {
       platform: ADMIN_MAIL_PLATFORM,
       email: maskAdminEmail(email),
       adminFound: Boolean(admin),
       status: admin?.status || "",
-      reason: !admin ? "admin_not_found" : "admin_terminated",
+      role: admin?.role || "",
+      adminClass: getInternalAdminClass(admin || {}),
+      reason: !admin ? "admin_not_found" : "not_eligible",
     });
     return res.json(response);
   }
@@ -586,9 +682,10 @@ export const requestAdminPasswordReset = async (req, res) => {
 export const resetAdminPassword = async (req, res) => {
   const email = normalizeEmail(req.body.email);
   const token = String(req.body.token || "").trim();
+  const otp = String(req.body.otp || (/^\d{4,8}$/.test(token) ? token : "")).trim();
   const { password, confirmPassword } = req.body;
 
-  if (!email || !isValidEmail(email) || !token) {
+  if (!email || !isValidEmail(email) || (!token && !otp)) {
     return res.status(400).json({ msg: "Valid email and reset token are required" });
   }
 
@@ -597,6 +694,45 @@ export const resetAdminPassword = async (req, res) => {
 
   if (confirmPassword && password !== confirmPassword) {
     return res.status(400).json({ msg: "Passwords do not match" });
+  }
+
+  if (otp) {
+    const key = getAdminOtpKey(email);
+    const record = adminOtpStore.get(key);
+    if (!record || record.mode !== "forgot-password") {
+      return res.status(400).json({ msg: "Invalid or expired OTP" });
+    }
+
+    if (record.expiresAt < Date.now()) {
+      adminOtpStore.delete(key);
+      return res.status(400).json({ msg: "Invalid or expired OTP" });
+    }
+
+    if (record.used || record.verified || record.otp !== otp) {
+      const attempts = Number(record.attempts || 0) + 1;
+      if (attempts >= Number(record.maxAttempts || getAdminOtpMaxAttempts())) {
+        adminOtpStore.delete(key);
+        return res.status(429).json({ msg: "Too many invalid OTP attempts. Please request a new OTP." });
+      }
+      adminOtpStore.set(key, { ...record, attempts });
+      return res.status(400).json({ msg: "Invalid or expired OTP" });
+    }
+
+    const admin = await Admin.findOne({ email }).select("+resetPasswordTokenHash +resetPasswordExpiresAt");
+    if (!admin || !isEligibleInternalAdmin(admin)) {
+      adminOtpStore.delete(key);
+      return res.status(400).json({ msg: "Invalid or expired OTP" });
+    }
+
+    admin.password = await bcrypt.hash(password, 10);
+    admin.resetPasswordTokenHash = undefined;
+    admin.resetPasswordExpiresAt = undefined;
+    admin.resetPasswordRequestedAt = undefined;
+    admin.passwordChangedAt = new Date();
+    await admin.save();
+    adminOtpStore.delete(key);
+
+    return res.json({ msg: "Password reset successful. Please login." });
   }
 
   const admin = await Admin.findOne({
@@ -609,8 +745,8 @@ export const resetAdminPassword = async (req, res) => {
     return res.status(400).json({ msg: "Reset link is invalid or expired" });
   }
 
-  if (admin.status === "TERMINATED") {
-    return res.status(403).json({ msg: "Admin account terminated" });
+  if (!isEligibleInternalAdmin(admin)) {
+    return res.status(403).json({ msg: "Admin account is not eligible" });
   }
 
   admin.password = await bcrypt.hash(password, 10);
@@ -701,6 +837,7 @@ export const createAdmin = async (req, res) => {
     email,
     password: await bcrypt.hash(password, 10),
     role,
+    adminClass: ROLE_INTERNAL_CLASS[role] || "CLASS_III",
     status: "ACTIVE",
     createdBy: currentAdmin.id,
   });
@@ -715,7 +852,10 @@ export const updateAdmin = async (req, res) => {
   const { name, role, password } = req.body;
 
   if (typeof name === "string") updates.name = name.trim();
-  if (role && ADMIN_ROLES.includes(role) && role !== "SUPER_ADMIN") updates.role = role;
+  if (role && ADMIN_ROLES.includes(role) && role !== "SUPER_ADMIN") {
+    updates.role = role;
+    updates.adminClass = ROLE_INTERNAL_CLASS[role] || "CLASS_III";
+  }
   if (password) updates.password = await bcrypt.hash(password, 10);
 
   const admin = await Admin.findByIdAndUpdate(req.params.id, updates, { new: true }).select(ADMIN_SELECT);

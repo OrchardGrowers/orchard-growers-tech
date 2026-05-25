@@ -1,6 +1,10 @@
 import Admin from "../models/Admin.js";
 
 const normalizeEmail = (email = "") => String(email || "").trim().toLowerCase();
+const maskEmail = (email = "") => {
+  const [name = "", domain = ""] = normalizeEmail(email).split("@");
+  return `${name.slice(0, 2)}***@${domain}`;
+};
 
 const mapRole = (role = "") => {
   const v = String(role || "").trim().toLowerCase();
@@ -10,6 +14,13 @@ const mapRole = (role = "") => {
   if (v.includes("viewer")) return "VIEWER";
   if (v.includes("admin")) return "ADMIN";
   return String(role || "").toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+};
+const mapAdminClass = (value = "") => {
+  const normalized = String(value || "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+  if (["CLASS_I", "CLASS1", "CLASS_1", "I"].includes(normalized)) return "CLASS_I";
+  if (["CLASS_II", "CLASS2", "CLASS_2", "II"].includes(normalized)) return "CLASS_II";
+  if (["CLASS_III", "CLASS3", "CLASS_3", "III"].includes(normalized)) return "CLASS_III";
+  return "CLASS_I";
 };
 
 const mapStatus = (status = "") => {
@@ -38,13 +49,15 @@ export const seedAdminFromEnv = async () => {
     }
 
     const role = mapRole(process.env.ADMIN_SEED_ROLE || "SUPER_ADMIN");
+    const adminClass = mapAdminClass(process.env.ADMIN_SEED_CLASS || "CLASS_I");
     const status = mapStatus(process.env.ADMIN_SEED_STATUS || "ACTIVE");
 
-    const existing = await Admin.findOne({ email }).select("_id role status password");
+    const existing = await Admin.findOne({ email }).select("_id role status password adminClass");
     if (existing) {
       console.log("[admin-seed] Admin already exists; skipping creation.", {
-        email: email,
+        email: maskEmail(email),
         role: existing.role,
+        adminClass: existing.adminClass || "",
         status: existing.status,
         hasPassword: Boolean(existing.password),
       });
@@ -55,12 +68,14 @@ export const seedAdminFromEnv = async () => {
       name: defaultNameFromEmail(email),
       email,
       role,
+      adminClass,
       status,
     });
 
     console.log("[admin-seed] Created initial admin from env.", {
-      email,
+      email: maskEmail(email),
       role: admin.role,
+      adminClass: admin.adminClass || "",
       status: admin.status,
       id: admin._id?.toString?.() || "",
     });
