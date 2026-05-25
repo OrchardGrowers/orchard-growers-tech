@@ -1570,7 +1570,7 @@ function App() {
 
   if (!token || !admin) {
     const authFormTitle: Record<AdminAuthMode, string> = {
-      login: 'Authority Login',
+      login: 'Admin Panels',
       signup: 'Authority Signup',
       forgot: 'Forgot Password',
       reset: 'Reset Password',
@@ -1598,10 +1598,10 @@ function App() {
           autoComplete={authMode === 'login' ? 'off' : undefined}
           className={`mx-auto max-w-md rounded-2xl border border-slate-800 bg-slate-900 shadow-xl ${authMode === 'signup' ? 'p-4' : 'p-6'}`}
         >
-          <p className={`${authMode === 'signup' ? 'text-xs' : 'text-sm'} font-bold uppercase tracking-[0.25em] text-emerald-400`}>
-            Admin Panel
+          <p className={`${authMode === 'signup' ? 'text-xs' : 'text-sm'} text-center font-bold tracking-[0.25em] text-emerald-400`}>
+            Welcome To Orchard Growers Private Limited
           </p>
-          <h1 className={`${authMode === 'signup' ? 'mt-2 text-xl' : 'mt-3 text-2xl'} font-bold text-white`}>{authFormTitle[authMode]}</h1>
+          <h1 className={`${authMode === 'signup' ? 'mt-2 text-xl' : 'mt-3 text-2xl'} text-center font-bold text-white`}>{authFormTitle[authMode]}</h1>
           {message && <p className={`${authMode === 'signup' ? 'mt-2 px-3 py-1.5 text-xs' : 'mt-4 px-3 py-2 text-sm'} rounded bg-red-950`}>{message}</p>}
           {authMode === 'signup' && (
             <label className="mt-2 block text-sm font-semibold">

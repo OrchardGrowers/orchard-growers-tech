@@ -38,15 +38,17 @@ const wrapAsync = (handler) => (req, res, next) =>
   Promise.resolve(handler(req, res, next)).catch(next);
 const adminOtpLimiter = createRateLimiter({
   keyPrefix: "admin-otp",
-  windowMs: 15 * 60 * 1000,
-  max: 5,
+  windowMs: 10 * 60 * 1000,
+  lockMs: 15 * 60 * 1000,
+  max: 3,
   message: "Too many OTP requests. Please try again later.",
 });
 const adminOtpVerifyLimiter = createRateLimiter({
   keyPrefix: "admin-otp-verify",
   windowMs: 15 * 60 * 1000,
-  max: 10,
-  message: "Too many OTP attempts. Please try again later.",
+  lockMs: 15 * 60 * 1000,
+  max: 5,
+  message: "Too many OTP requests. Please try again later.",
 });
 
 const ensureActiveAdmin = async (req, res, next) => {

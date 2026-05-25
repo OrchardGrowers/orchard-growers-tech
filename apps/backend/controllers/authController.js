@@ -9,7 +9,14 @@ import { isMobileOtpConfigured, sendMobileOtp, verifyMsg91WidgetOtp } from "../s
 
 const otpStore = new Map();
 const otpVerificationTokens = new Map();
+const otpSendThrottleStore = new Map();
+const otpVerifyLockStore = new Map();
 const ACCOUNT_EXISTS_SIGNIN_MESSAGE = "Account already exists. Please sign in.";
+const OTP_THROTTLED_MESSAGE = "Too many OTP requests. Please try again later.";
+const OTP_RESEND_INTERVAL_MS = 60 * 1000;
+const OTP_SEND_WINDOW_MS = 10 * 60 * 1000;
+const OTP_MAX_SENDS_PER_WINDOW = 3;
+const OTP_LOCK_MS = 15 * 60 * 1000;
 const truthyEnv = (value = "") => ["1", "true", "yes"].includes(String(value).trim().toLowerCase());
 const useLegacyMsg91Api = () => truthyEnv(process.env.USE_LEGACY_MSG91_API);
 const shouldUseServerMobileOtp = () => true;
@@ -23,7 +30,7 @@ const getOtpLength = () => {
 };
 const getOtpMaxAttempts = () => {
   const attempts = Number(process.env.OTP_MAX_ATTEMPTS || 5);
-  return Number.isFinite(attempts) && attempts > 0 ? attempts : 5;
+  return Number.isFinite(attempts) && attempts > 0 ? Math.min(attempts, 5) : 5;
 };
 const createOtp = () => {
   const length = getOtpLength();
@@ -114,6 +121,7 @@ const getRequestPlatform = (req) => {
   return normalizeMailPlatform(req.body.platform || req.get("x-platform") || req.get("x-app-platform") || "orchardgrowers");
 };
 const getOtpKey = (platform, parsed, purpose = "auth") => `${normalizeMailPlatform(platform)}:${getOtpPurpose(purpose)}:${parsed.type}:${parsed.value}`;
+const getOtpThrottleKey = (platform, parsed) => `${normalizeMailPlatform(platform)}:${parsed.type}:${parsed.value}`;
 const hashToken = (token = "") => crypto.createHash("sha256").update(String(token)).digest("hex");
 const createOtpVerificationToken = ({ platform, parsed, purpose }) => {
   const token = crypto.randomBytes(32).toString("hex");
@@ -210,6 +218,68 @@ const logOtpError = (message, err) => {
 const logAuthDebug = (message, details = {}) => {
   console.log(`Auth debug: ${message}`, details);
 };
+
+const getActiveLock = (store, key) => {
+  const lock = store.get(key);
+  if (!lock) return null;
+  if (lock.lockedUntil <= Date.now()) {
+    store.delete(key);
+    return null;
+  }
+  return lock;
+};
+
+const checkOtpSendThrottle = ({ platform, parsed, purpose }) => {
+  const throttleKey = getOtpThrottleKey(platform, parsed);
+  const now = Date.now();
+  const existing = otpSendThrottleStore.get(throttleKey);
+
+  if (existing?.lockedUntil && existing.lockedUntil > now) {
+    return {
+      allowed: false,
+      reason: "send_locked",
+      retryAfterMs: existing.lockedUntil - now,
+      throttleKey,
+    };
+  }
+
+  const sendTimes = (existing?.sendTimes || []).filter((sentAt) => now - sentAt < OTP_SEND_WINDOW_MS);
+  const lastSentAt = sendTimes[sendTimes.length - 1] || 0;
+  if (lastSentAt && now - lastSentAt < OTP_RESEND_INTERVAL_MS) {
+    return {
+      allowed: false,
+      reason: "resend_cooldown",
+      retryAfterMs: OTP_RESEND_INTERVAL_MS - (now - lastSentAt),
+      throttleKey,
+    };
+  }
+
+  if (sendTimes.length >= OTP_MAX_SENDS_PER_WINDOW) {
+    const lockedUntil = now + OTP_LOCK_MS;
+    otpSendThrottleStore.set(throttleKey, { sendTimes, lockedUntil });
+    return {
+      allowed: false,
+      reason: "send_limit",
+      retryAfterMs: OTP_LOCK_MS,
+      throttleKey,
+    };
+  }
+
+  return { allowed: true, throttleKey, sendTimes, purpose };
+};
+
+const recordOtpSend = ({ throttleKey, sendTimes = [] }) => {
+  otpSendThrottleStore.set(throttleKey, {
+    sendTimes: [...sendTimes.filter((sentAt) => Date.now() - sentAt < OTP_SEND_WINDOW_MS), Date.now()],
+    lockedUntil: 0,
+  });
+};
+
+const lockOtpVerification = (key) => {
+  otpVerifyLockStore.set(key, { lockedUntil: Date.now() + OTP_LOCK_MS });
+};
+
+const getOtpVerificationLock = (key) => getActiveLock(otpVerifyLockStore, key);
 
 const storeOtp = ({ platform, parsed, otp, purpose }) => {
   const key = getOtpKey(platform, parsed, purpose);
@@ -354,8 +424,23 @@ const sendOtpForPurpose = async ({ req, res, purpose = "auth", requireExistingUs
     }
   }
 
-  const otp = createOtp();
   const normalizedPurpose = getOtpPurpose(purpose);
+  const throttle = checkOtpSendThrottle({ platform, parsed, purpose: normalizedPurpose });
+  if (!throttle.allowed) {
+    logAuthDebug("OTP send throttled", {
+      route: req.originalUrl,
+      platform,
+      channel: parsed.type,
+      purpose: normalizedPurpose,
+      identifier: maskOtpKey(getOtpKey(platform, parsed, normalizedPurpose)),
+      reason: throttle.reason,
+      retryAfterSeconds: Math.ceil(throttle.retryAfterMs / 1000),
+    });
+    res.set("Retry-After", String(Math.ceil(throttle.retryAfterMs / 1000)));
+    return res.status(429).json({ msg: OTP_THROTTLED_MESSAGE });
+  }
+
+  const otp = createOtp();
   const key = storeOtp({ platform, parsed, otp, purpose: normalizedPurpose });
   let delivery = {};
   try {
@@ -383,6 +468,7 @@ const sendOtpForPurpose = async ({ req, res, purpose = "auth", requireExistingUs
     return res.status(502).json({ msg: "Could not send OTP. Please try again." });
   }
 
+  recordOtpSend(throttle);
   logAuthDebug("OTP route success", {
     route: req.originalUrl,
     platform,
@@ -455,6 +541,7 @@ export const verifyOtp = async (req, res) => {
 
     const key = getOtpKey(platform, parsed, purpose);
     const record = otpStore.get(key);
+    const verifyLock = getOtpVerificationLock(key);
     logAuthDebug("OTP verify route hit", {
       route: req.originalUrl,
       platform,
@@ -462,6 +549,19 @@ export const verifyOtp = async (req, res) => {
       purpose,
       identifier: maskOtpKey(key),
     });
+
+    if (verifyLock) {
+      logAuthDebug("OTP verification throttled", {
+        platform,
+        channel: parsed.type,
+        purpose,
+        identifier: maskOtpKey(key),
+        reason: "verify_locked",
+        retryAfterSeconds: Math.ceil((verifyLock.lockedUntil - Date.now()) / 1000),
+      });
+      res.set("Retry-After", String(Math.ceil((verifyLock.lockedUntil - Date.now()) / 1000)));
+      return res.status(429).json({ msg: OTP_THROTTLED_MESSAGE });
+    }
 
     if (!record) {
       logAuthDebug("OTP verification failed", {
@@ -494,6 +594,7 @@ export const verifyOtp = async (req, res) => {
       const attempts = Number(record.attempts || 0) + 1;
       if (attempts >= Number(record.maxAttempts || getOtpMaxAttempts())) {
         otpStore.delete(key);
+        lockOtpVerification(key);
         logAuthDebug("OTP verification failed", {
           platform,
           channel: parsed.type,
@@ -501,7 +602,8 @@ export const verifyOtp = async (req, res) => {
           identifier: maskOtpKey(key),
           reason: "max_attempts",
         });
-        return res.status(429).json({ msg: "Too many invalid OTP attempts. Please request a new OTP." });
+        res.set("Retry-After", String(Math.ceil(OTP_LOCK_MS / 1000)));
+        return res.status(429).json({ msg: OTP_THROTTLED_MESSAGE });
       }
       otpStore.set(key, { ...record, attempts });
       logAuthDebug("OTP verification failed", {
@@ -551,6 +653,7 @@ export const verifyMobileWidgetOtp = async (req, res) => {
 
     const key = getOtpKey(platform, parsed, purpose);
     const record = otpStore.get(key);
+    const verifyLock = getOtpVerificationLock(key);
     logAuthDebug("OTP verify route hit", {
       route: req.originalUrl,
       platform,
@@ -558,6 +661,19 @@ export const verifyMobileWidgetOtp = async (req, res) => {
       purpose,
       identifier: maskOtpKey(key),
     });
+
+    if (verifyLock) {
+      logAuthDebug("OTP verification throttled", {
+        platform,
+        channel: parsed.type,
+        purpose,
+        identifier: maskOtpKey(key),
+        reason: "verify_locked",
+        retryAfterSeconds: Math.ceil((verifyLock.lockedUntil - Date.now()) / 1000),
+      });
+      res.set("Retry-After", String(Math.ceil((verifyLock.lockedUntil - Date.now()) / 1000)));
+      return res.status(429).json({ msg: OTP_THROTTLED_MESSAGE });
+    }
 
     if (!record) {
       logAuthDebug("OTP verification failed", {
@@ -601,6 +717,7 @@ export const verifyMobileWidgetOtp = async (req, res) => {
       const attempts = Number(record.attempts || 0) + 1;
       if (attempts >= Number(record.maxAttempts || getOtpMaxAttempts())) {
         otpStore.delete(key);
+        lockOtpVerification(key);
         logAuthDebug("OTP verification failed", {
           platform,
           channel: parsed.type,
@@ -608,7 +725,8 @@ export const verifyMobileWidgetOtp = async (req, res) => {
           identifier: maskOtpKey(key),
           reason: "max_attempts",
         });
-        return res.status(429).json({ msg: "Too many invalid OTP attempts. Please request a new OTP." });
+        res.set("Retry-After", String(Math.ceil(OTP_LOCK_MS / 1000)));
+        return res.status(429).json({ msg: OTP_THROTTLED_MESSAGE });
       }
 
       otpStore.set(key, { ...record, attempts });
@@ -626,6 +744,7 @@ export const verifyMobileWidgetOtp = async (req, res) => {
       const attempts = Number(record.attempts || 0) + 1;
       if (attempts >= Number(record.maxAttempts || getOtpMaxAttempts())) {
         otpStore.delete(key);
+        lockOtpVerification(key);
         logAuthDebug("OTP verification failed", {
           platform,
           channel: parsed.type,
@@ -633,7 +752,8 @@ export const verifyMobileWidgetOtp = async (req, res) => {
           identifier: maskOtpKey(key),
           reason: "max_attempts",
         });
-        return res.status(429).json({ msg: "Too many invalid OTP attempts. Please request a new OTP." });
+        res.set("Retry-After", String(Math.ceil(OTP_LOCK_MS / 1000)));
+        return res.status(429).json({ msg: OTP_THROTTLED_MESSAGE });
       }
 
       otpStore.set(key, { ...record, attempts });
@@ -707,6 +827,20 @@ export const resetPasswordWithOtp = async (req, res) => {
 
     const key = getOtpKey(platform, parsed, "forgot-password");
     const record = otpStore.get(key);
+    const verifyLock = getOtpVerificationLock(key);
+
+    if (verifyLock) {
+      logAuthDebug("Password reset OTP throttled", {
+        platform,
+        channel: parsed.type,
+        purpose: "forgot-password",
+        identifier: maskOtpKey(key),
+        reason: "verify_locked",
+        retryAfterSeconds: Math.ceil((verifyLock.lockedUntil - Date.now()) / 1000),
+      });
+      res.set("Retry-After", String(Math.ceil((verifyLock.lockedUntil - Date.now()) / 1000)));
+      return res.status(429).json({ msg: OTP_THROTTLED_MESSAGE });
+    }
 
     if (!record) {
       return res.status(400).json({ msg: "Invalid OTP" });
@@ -725,6 +859,7 @@ export const resetPasswordWithOtp = async (req, res) => {
       const attempts = Number(record.attempts || 0) + 1;
       if (attempts >= Number(record.maxAttempts || getOtpMaxAttempts())) {
         otpStore.delete(key);
+        lockOtpVerification(key);
         logAuthDebug("Password reset OTP failed", {
           platform,
           channel: parsed.type,
@@ -732,7 +867,8 @@ export const resetPasswordWithOtp = async (req, res) => {
           identifier: maskOtpKey(key),
           reason: "max_attempts",
         });
-        return res.status(429).json({ msg: "Too many invalid OTP attempts. Please request a new OTP." });
+        res.set("Retry-After", String(Math.ceil(OTP_LOCK_MS / 1000)));
+        return res.status(429).json({ msg: OTP_THROTTLED_MESSAGE });
       }
       otpStore.set(key, { ...record, attempts });
       return res.status(400).json({ msg: "Invalid OTP" });

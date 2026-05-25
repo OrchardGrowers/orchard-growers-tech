@@ -5,6 +5,7 @@ const getClientKey = (req) =>
 
 export const createRateLimiter = ({
   windowMs = 15 * 60 * 1000,
+  lockMs = windowMs,
   max = 5,
   keyPrefix = "rate",
   message = "Too many requests. Please try again later.",
@@ -14,13 +15,20 @@ export const createRateLimiter = ({
     const key = `${keyPrefix}:${getClientKey(req)}:${String(req.body?.identifier || req.body?.email || "").trim().toLowerCase()}`;
     const entry = buckets.get(key);
 
+    if (entry?.lockedUntil && entry.lockedUntil > now) {
+      res.set("Retry-After", String(Math.ceil((entry.lockedUntil - now) / 1000)));
+      return res.status(429).json({ msg: message });
+    }
+
     if (!entry || entry.resetAt <= now) {
       buckets.set(key, { count: 1, resetAt: now + windowMs });
       return next();
     }
 
     if (entry.count >= max) {
-      res.set("Retry-After", String(Math.ceil((entry.resetAt - now) / 1000)));
+      entry.lockedUntil = now + lockMs;
+      buckets.set(key, entry);
+      res.set("Retry-After", String(Math.ceil(lockMs / 1000)));
       return res.status(429).json({ msg: message });
     }
 

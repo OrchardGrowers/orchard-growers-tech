@@ -14,6 +14,13 @@ const USER_SELECT = "-password -__v";
 const ADMIN_MAIL_PLATFORM = "admin";
 const adminOtpStore = new Map();
 const adminPasswordSetupTokens = new Map();
+const adminOtpSendThrottleStore = new Map();
+const adminOtpVerifyLockStore = new Map();
+const OTP_THROTTLED_MESSAGE = "Too many OTP requests. Please try again later.";
+const OTP_RESEND_INTERVAL_MS = 60 * 1000;
+const OTP_SEND_WINDOW_MS = 10 * 60 * 1000;
+const OTP_MAX_SENDS_PER_WINDOW = 3;
+const OTP_LOCK_MS = 15 * 60 * 1000;
 const ADMIN_ROLES = [
   "SUPER_ADMIN",
   "ADMIN",
@@ -172,7 +179,7 @@ const ensureAdminClassPersisted = async (admin) => {
 };
 const getAdminOtpMaxAttempts = () => {
   const attempts = Number(process.env.OTP_MAX_ATTEMPTS || 5);
-  return Number.isFinite(attempts) && attempts > 0 ? attempts : 5;
+  return Number.isFinite(attempts) && attempts > 0 ? Math.min(attempts, 5) : 5;
 };
 
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -195,6 +202,64 @@ const getAdminOtpMode = (mode = "login") => {
 const logAdminOtpDebug = (message, details = {}) => {
   console.log(`Admin OTP debug: ${message}`, details);
 };
+const getAdminOtpThrottleKey = (email = "") => `admin-panel:${normalizeEmail(email)}`;
+const getActiveLock = (store, key) => {
+  const lock = store.get(key);
+  if (!lock) return null;
+  if (lock.lockedUntil <= Date.now()) {
+    store.delete(key);
+    return null;
+  }
+  return lock;
+};
+const checkAdminOtpSendThrottle = (email) => {
+  const throttleKey = getAdminOtpThrottleKey(email);
+  const now = Date.now();
+  const existing = adminOtpSendThrottleStore.get(throttleKey);
+
+  if (existing?.lockedUntil && existing.lockedUntil > now) {
+    return {
+      allowed: false,
+      reason: "send_locked",
+      retryAfterMs: existing.lockedUntil - now,
+      throttleKey,
+    };
+  }
+
+  const sendTimes = (existing?.sendTimes || []).filter((sentAt) => now - sentAt < OTP_SEND_WINDOW_MS);
+  const lastSentAt = sendTimes[sendTimes.length - 1] || 0;
+  if (lastSentAt && now - lastSentAt < OTP_RESEND_INTERVAL_MS) {
+    return {
+      allowed: false,
+      reason: "resend_cooldown",
+      retryAfterMs: OTP_RESEND_INTERVAL_MS - (now - lastSentAt),
+      throttleKey,
+    };
+  }
+
+  if (sendTimes.length >= OTP_MAX_SENDS_PER_WINDOW) {
+    const lockedUntil = now + OTP_LOCK_MS;
+    adminOtpSendThrottleStore.set(throttleKey, { sendTimes, lockedUntil });
+    return {
+      allowed: false,
+      reason: "send_limit",
+      retryAfterMs: OTP_LOCK_MS,
+      throttleKey,
+    };
+  }
+
+  return { allowed: true, throttleKey, sendTimes };
+};
+const recordAdminOtpSend = ({ throttleKey, sendTimes = [] }) => {
+  adminOtpSendThrottleStore.set(throttleKey, {
+    sendTimes: [...sendTimes.filter((sentAt) => Date.now() - sentAt < OTP_SEND_WINDOW_MS), Date.now()],
+    lockedUntil: 0,
+  });
+};
+const lockAdminOtpVerification = (key) => {
+  adminOtpVerifyLockStore.set(key, { lockedUntil: Date.now() + OTP_LOCK_MS });
+};
+const getAdminOtpVerificationLock = (key) => getActiveLock(adminOtpVerifyLockStore, key);
 const isAdminOtpVerified = (email = "") => {
   const key = getAdminOtpKey(email);
   const record = adminOtpStore.get(key);
@@ -277,6 +342,18 @@ export const sendAdminOtp = async (req, res) => {
   }
 
   const persistedAdminClass = await ensureAdminClassPersisted(existingAdmin);
+  const throttle = checkAdminOtpSendThrottle(email);
+  if (!throttle.allowed) {
+    logAdminOtpDebug("sendMail throttled", {
+      email: maskAdminEmail(email),
+      mode,
+      platform: ADMIN_MAIL_PLATFORM,
+      reason: throttle.reason,
+      retryAfterSeconds: Math.ceil(throttle.retryAfterMs / 1000),
+    });
+    res.set("Retry-After", String(Math.ceil(throttle.retryAfterMs / 1000)));
+    return res.status(429).json({ msg: OTP_THROTTLED_MESSAGE });
+  }
 
   const otp = createAdminOtp();
   logAdminOtpDebug("otp generated", {
@@ -327,6 +404,7 @@ export const sendAdminOtp = async (req, res) => {
     return res.status(502).json({ msg: "Could not send OTP. Please try again." });
   }
 
+  recordAdminOtpSend(throttle);
   logAdminOtpDebug("sendMail success", {
     email: maskAdminEmail(email),
     mode,
@@ -347,10 +425,22 @@ export const verifyAdminOtp = async (req, res) => {
 
   const key = getAdminOtpKey(email);
   const record = adminOtpStore.get(key);
+  const verifyLock = getAdminOtpVerificationLock(key);
   logAdminOtpDebug("verify route hit", {
     email: maskAdminEmail(email),
     mode: record?.mode || "",
   });
+
+  if (verifyLock) {
+    logAdminOtpDebug("verify throttled", {
+      email: maskAdminEmail(email),
+      reason: "verify_locked",
+      retryAfterSeconds: Math.ceil((verifyLock.lockedUntil - Date.now()) / 1000),
+    });
+    res.set("Retry-After", String(Math.ceil((verifyLock.lockedUntil - Date.now()) / 1000)));
+    return res.status(429).json({ msg: OTP_THROTTLED_MESSAGE });
+  }
+
   if (!record) {
     logAdminOtpDebug("verify failed", {
       email: maskAdminEmail(email),
@@ -377,12 +467,14 @@ export const verifyAdminOtp = async (req, res) => {
     const attempts = Number(record.attempts || 0) + 1;
     if (attempts >= Number(record.maxAttempts || getAdminOtpMaxAttempts())) {
       adminOtpStore.delete(key);
+      lockAdminOtpVerification(key);
       logAdminOtpDebug("verify failed", {
         email: maskAdminEmail(email),
         mode: record.mode,
         reason: "max_attempts",
       });
-      return res.status(429).json({ msg: "Too many invalid OTP attempts. Please request a new OTP." });
+      res.set("Retry-After", String(Math.ceil(OTP_LOCK_MS / 1000)));
+      return res.status(429).json({ msg: OTP_THROTTLED_MESSAGE });
     }
 
     adminOtpStore.set(key, { ...record, attempts });
@@ -780,6 +872,18 @@ export const resetAdminPassword = async (req, res) => {
   if (otp) {
     const key = getAdminOtpKey(email);
     const record = adminOtpStore.get(key);
+    const verifyLock = getAdminOtpVerificationLock(key);
+    if (verifyLock) {
+      logAdminOtpDebug("reset OTP throttled", {
+        email: maskAdminEmail(email),
+        mode: "forgot-password",
+        reason: "verify_locked",
+        retryAfterSeconds: Math.ceil((verifyLock.lockedUntil - Date.now()) / 1000),
+      });
+      res.set("Retry-After", String(Math.ceil((verifyLock.lockedUntil - Date.now()) / 1000)));
+      return res.status(429).json({ msg: OTP_THROTTLED_MESSAGE });
+    }
+
     if (!record || record.mode !== "forgot-password") {
       return res.status(400).json({ msg: "Invalid or expired OTP" });
     }
@@ -793,7 +897,9 @@ export const resetAdminPassword = async (req, res) => {
       const attempts = Number(record.attempts || 0) + 1;
       if (attempts >= Number(record.maxAttempts || getAdminOtpMaxAttempts())) {
         adminOtpStore.delete(key);
-        return res.status(429).json({ msg: "Too many invalid OTP attempts. Please request a new OTP." });
+        lockAdminOtpVerification(key);
+        res.set("Retry-After", String(Math.ceil(OTP_LOCK_MS / 1000)));
+        return res.status(429).json({ msg: OTP_THROTTLED_MESSAGE });
       }
       adminOtpStore.set(key, { ...record, attempts });
       return res.status(400).json({ msg: "Invalid or expired OTP" });
