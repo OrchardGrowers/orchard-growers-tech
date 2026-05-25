@@ -35,6 +35,10 @@ const isProductionLike = () => {
   const runtime = String(process.env.APP_ENV || process.env.NODE_ENV || "").trim().toLowerCase();
   return runtime === "production" || runtime === "staging";
 };
+const getEmailProvider = () => {
+  const configured = String(process.env.EMAIL_PROVIDER || "").trim().toLowerCase();
+  return configured === "smtp" ? "smtp" : "brevo_api";
+};
 
 const getSafeSmtpErrorDetails = (err = {}) => ({
   code: err.code,
@@ -57,6 +61,23 @@ const maskEmailAddress = (value = "") => {
   const [name = "", domain = ""] = email.split("@");
   if (!domain) return email ? "****" : "";
   return `${name.slice(0, 2)}***@${domain}`;
+};
+
+const parseSender = (value = "") => {
+  const sender = String(value || "").trim();
+  const match = sender.match(/^(.*?)\s*<([^<>@\s]+@[^<>\s]+)>$/);
+  if (match) {
+    return {
+      name: match[1].trim().replace(/^"|"$/g, "") || match[2].trim(),
+      email: match[2].trim(),
+    };
+  }
+
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sender)) {
+    return { name: sender, email: sender };
+  }
+
+  return { name: "", email: "" };
 };
 
 const escapeHtml = (value = "") =>
@@ -114,6 +135,7 @@ const getPlatformSettings = (platform = "orchardgrowers") => {
 const logSmtpEvent = (level, event, mailConfig, details = {}) => {
   const log = level === "error" ? console.error : console.log;
   log(event, {
+    provider: mailConfig.provider,
     platform: mailConfig.platform,
     host: mailConfig.host,
     port: mailConfig.port,
@@ -127,18 +149,43 @@ const logSmtpEvent = (level, event, mailConfig, details = {}) => {
 
 export const isSmtpConfigured = (platform = "orchardgrowers") => {
   const settings = getPlatformSettings(platform);
-  return Boolean(process.env.SMTP_HOST && settings.user && settings.pass && settings.from);
+  if (getEmailProvider() === "smtp") {
+    return Boolean(process.env.SMTP_HOST && settings.user && settings.pass && settings.from);
+  }
+  return Boolean(process.env.BREVO_API_KEY && parseSender(settings.from).email);
 };
 
 export const getMailTransport = ({ platform = "orchardgrowers", purpose = "general" } = {}) => {
   const settings = getPlatformSettings(platform);
   if (!isSmtpConfigured(settings.platform)) return null;
+  const provider = getEmailProvider();
+  const from = purpose === "reset" ? settings.resetFrom : settings.from;
+
+  if (provider === "brevo_api") {
+    const sender = parseSender(from);
+    if (!sender.email) return null;
+    const mailConfig = {
+      ...settings,
+      provider,
+      from,
+      sender,
+      host: "api.brevo.com",
+      port: 443,
+      secure: true,
+    };
+
+    logSmtpEvent("info", "Email provider initialized", mailConfig, {
+      smtpConfigName: "BREVO_API_KEY",
+      senderEmail: sender.email,
+    });
+
+    return mailConfig;
+  }
 
   const host = process.env.SMTP_HOST;
   const configuredPort = Number(process.env.SMTP_PORT || 587);
   const port = Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : 587;
   const secure = truthyEnv(process.env.SMTP_SECURE);
-  const from = purpose === "reset" ? settings.resetFrom : settings.from;
   const transporter = nodemailer.createTransport({
     host,
     port,
@@ -162,6 +209,7 @@ export const getMailTransport = ({ platform = "orchardgrowers", purpose = "gener
 
   const mailConfig = {
     ...settings,
+    provider,
     from,
     host,
     port,
@@ -178,6 +226,7 @@ export const getMailTransport = ({ platform = "orchardgrowers", purpose = "gener
 };
 
 const verifySmtpForDebug = (mailConfig) => {
+  if (mailConfig.provider !== "smtp" || !mailConfig.transporter) return;
   if (!truthyEnv(process.env.SMTP_DEBUG) || isProductionLike()) return;
 
   const verifyKey = `${mailConfig.platform}:${mailConfig.user}:${mailConfig.host}:${mailConfig.port}`;
@@ -237,61 +286,75 @@ const wrapSmtpError = (err) => {
   return error;
 };
 
-export const sendOtpEmail = async ({ to, otp, purpose = "verification", platform = "orchardgrowers" }) => {
-  const mailConfig = getMailTransport({ platform, purpose: purpose === "password reset" ? "reset" : "otp" });
-  if (!mailConfig) {
-    const error = new Error("SMTP is not configured");
-    error.code = "SMTP_NOT_CONFIGURED";
-    throw error;
-  }
-
-  verifySmtpForDebug(mailConfig);
-
-  try {
-    logSmtpEvent("info", "SMTP OTP send start", mailConfig, {
-      to: maskEmailAddress(to),
-      smtpConfigName: mailConfig.configSources.user || "SMTP_USER",
-    });
-    const info = await mailConfig.transporter.sendMail({
-      from: mailConfig.from,
-      to,
-      subject: `Your ${mailConfig.brandName} OTP`,
-      text: `Your ${mailConfig.brandName} OTP is ${otp}. It expires in ${process.env.OTP_EXPIRY_MINUTES || 5} minutes. If you did not request this code, ignore this email.`,
-      html: buildOtpEmailHtml({
-        brandName: mailConfig.brandName,
-        otp,
-        purpose,
-        supportEmail: mailConfig.supportEmail,
-      }),
-    });
-    logSmtpEvent("info", "SMTP OTP send success", mailConfig, {
-      to: maskEmailAddress(to),
-      code: info?.responseCode || info?.response || "SMTP_SEND_OK",
-    });
-  } catch (err) {
-    logSmtpEvent("error", "SMTP OTP send failed", mailConfig, {
-      to: maskEmailAddress(to),
-      code: err?.code || err?.responseCode || "SMTP_SEND_FAILED",
-      command: err?.command,
-      responseCode: err?.responseCode,
-      message: err?.message,
-    });
-    throw wrapSmtpError(err);
-  }
+const wrapBrevoApiError = (err) => {
+  const error = new Error("Brevo API send failed");
+  error.code = "BREVO_API_SEND_FAILED";
+  error.smtpCode = err?.status || err?.responseCode;
+  error.smtpDetails = {
+    status: err?.status,
+    message: err?.message,
+    body: err?.body,
+  };
+  return error;
 };
 
-export const sendEmail = async ({ to, subject, text, html, platform = "orchardgrowers", purpose = "general" }) => {
-  const mailConfig = getMailTransport({ platform, purpose });
-  if (!mailConfig) {
-    const error = new Error("SMTP is not configured");
-    error.code = "SMTP_NOT_CONFIGURED";
-    throw error;
+const sendBrevoApiEmail = async ({ mailConfig, to, subject, text, html }) => {
+  const sender = mailConfig.sender || parseSender(mailConfig.from);
+  const payload = {
+    sender,
+    to: [{ email: to }],
+    subject,
+    htmlContent: html || `<p>${escapeHtml(text || "")}</p>`,
+    textContent: text || "",
+  };
+
+  logSmtpEvent("info", "Brevo API email send start", mailConfig, {
+    provider: "brevo_api",
+    senderEmail: sender.email,
+    to: maskEmailAddress(to),
+  });
+
+  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      "api-key": process.env.BREVO_API_KEY,
+      "content-type": "application/json",
+      accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  const body = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    logSmtpEvent("error", "Brevo API email send failed", mailConfig, {
+      provider: "brevo_api",
+      senderEmail: sender.email,
+      to: maskEmailAddress(to),
+      statusCode: response.status,
+      code: body?.code || "BREVO_API_SEND_FAILED",
+      message: body?.message || response.statusText,
+    });
+    throw wrapBrevoApiError({
+      status: response.status,
+      message: body?.message || response.statusText,
+      body: body?.code ? { code: body.code, message: body.message } : {},
+    });
   }
 
+  logSmtpEvent("info", "Brevo API email send success", mailConfig, {
+    provider: "brevo_api",
+    senderEmail: sender.email,
+    to: maskEmailAddress(to),
+    statusCode: response.status,
+    messageId: body?.messageId || body?.messageIds?.[0] || "",
+  });
+};
+
+const sendSmtpEmail = async ({ mailConfig, to, subject, text, html, kind = "email" }) => {
   verifySmtpForDebug(mailConfig);
 
   try {
-    logSmtpEvent("info", "SMTP email send start", mailConfig, {
+    logSmtpEvent("info", `SMTP ${kind} send start`, mailConfig, {
       to: maskEmailAddress(to),
       smtpConfigName: mailConfig.configSources.user || "SMTP_USER",
     });
@@ -302,12 +365,12 @@ export const sendEmail = async ({ to, subject, text, html, platform = "orchardgr
       text,
       html,
     });
-    logSmtpEvent("info", "SMTP email send success", mailConfig, {
+    logSmtpEvent("info", `SMTP ${kind} send success`, mailConfig, {
       to: maskEmailAddress(to),
       code: info?.responseCode || info?.response || "SMTP_SEND_OK",
     });
   } catch (err) {
-    logSmtpEvent("error", "SMTP email send failed", mailConfig, {
+    logSmtpEvent("error", `SMTP ${kind} send failed`, mailConfig, {
       to: maskEmailAddress(to),
       code: err?.code || err?.responseCode || "SMTP_SEND_FAILED",
       command: err?.command,
@@ -316,4 +379,45 @@ export const sendEmail = async ({ to, subject, text, html, platform = "orchardgr
     });
     throw wrapSmtpError(err);
   }
+};
+
+export const sendOtpEmail = async ({ to, otp, purpose = "verification", platform = "orchardgrowers" }) => {
+  const mailConfig = getMailTransport({ platform, purpose: purpose === "password reset" ? "reset" : "otp" });
+  if (!mailConfig) {
+    const error = new Error("Email provider is not configured");
+    error.code = getEmailProvider() === "smtp" ? "SMTP_NOT_CONFIGURED" : "BREVO_API_NOT_CONFIGURED";
+    throw error;
+  }
+
+  const subject = `Your ${mailConfig.brandName} OTP`;
+  const text = `Your ${mailConfig.brandName} OTP is ${otp}. It expires in ${process.env.OTP_EXPIRY_MINUTES || 5} minutes. If you did not request this code, ignore this email.`;
+  const html = buildOtpEmailHtml({
+    brandName: mailConfig.brandName,
+    otp,
+    purpose,
+    supportEmail: mailConfig.supportEmail,
+  });
+
+  if (mailConfig.provider === "brevo_api") {
+    await sendBrevoApiEmail({ mailConfig, to, subject, text, html });
+    return;
+  }
+
+  await sendSmtpEmail({ mailConfig, to, subject, text, html, kind: "OTP" });
+};
+
+export const sendEmail = async ({ to, subject, text, html, platform = "orchardgrowers", purpose = "general" }) => {
+  const mailConfig = getMailTransport({ platform, purpose });
+  if (!mailConfig) {
+    const error = new Error("Email provider is not configured");
+    error.code = getEmailProvider() === "smtp" ? "SMTP_NOT_CONFIGURED" : "BREVO_API_NOT_CONFIGURED";
+    throw error;
+  }
+
+  if (mailConfig.provider === "brevo_api") {
+    await sendBrevoApiEmail({ mailConfig, to, subject, text, html });
+    return;
+  }
+
+  await sendSmtpEmail({ mailConfig, to, subject, text, html, kind: "email" });
 };
