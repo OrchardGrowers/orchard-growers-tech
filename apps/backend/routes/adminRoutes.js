@@ -3,6 +3,8 @@ import multer from "multer";
 import Admin from "../models/Admin.js";
 import {
   createAdmin,
+  activateAdmin,
+  approveAdmin,
   createProductByAdmin,
   deleteAdmin,
   deleteProductByAdmin,
@@ -16,12 +18,16 @@ import {
   listOrders,
   loginAdmin,
   requestAdminPasswordReset,
+  changeAdminClass,
+  rejectAdmin,
   resetAdminPassword,
+  resetManagedAdminPassword,
   reviewKycRequest,
   reviewVerificationRequest,
   sendAdminOtp,
   setUserStatusByAdmin,
   signupAdmin,
+  suspendAdmin,
   terminateAdmin,
   updateAdmin,
   updateProductByAdmin,
@@ -52,7 +58,7 @@ const adminOtpVerifyLimiter = createRateLimiter({
 });
 
 const ensureActiveAdmin = async (req, res, next) => {
-  const admin = await Admin.findById(req.user.id).select("_id status role adminClass");
+  const admin = await Admin.findById(req.user.id).select("_id email status role adminClass canManageClassIII");
 
   const validClasses = new Set(["CLASS_I", "CLASS_II", "CLASS_III"]);
   const roleClass = {
@@ -126,10 +132,16 @@ router.post("/reset-password", wrapAsync(resetAdminPassword));
 
 router.get("/analytics", ...adminOnly, requireRoles(...ANALYTICS_ROLES), wrapAsync(getAdminAnalytics));
 
-router.get("/admins", ...adminOnly, requireRoles(...ADMIN_MANAGEMENT_ROLES), wrapAsync(listAdmins));
-router.post("/admins", ...adminOnly, requireRoles(...ADMIN_MANAGEMENT_ROLES), wrapAsync(createAdmin));
-router.patch("/admins/:id", ...adminOnly, requireRoles(...ADMIN_MANAGEMENT_ROLES), wrapAsync(updateAdmin));
-router.patch("/admins/:id/status", ...adminOnly, requireRoles(...ADMIN_MANAGEMENT_ROLES), wrapAsync(terminateAdmin));
+router.get("/admins", ...adminOnly, wrapAsync(listAdmins));
+router.post("/admins", ...adminOnly, wrapAsync(createAdmin));
+router.patch("/admins/:id", ...adminOnly, wrapAsync(updateAdmin));
+router.patch("/admins/:id/status", ...adminOnly, wrapAsync(terminateAdmin));
+router.patch("/admins/:id/approve", ...adminOnly, wrapAsync(approveAdmin));
+router.patch("/admins/:id/reject", ...adminOnly, wrapAsync(rejectAdmin));
+router.patch("/admins/:id/suspend", ...adminOnly, wrapAsync(suspendAdmin));
+router.patch("/admins/:id/activate", ...adminOnly, wrapAsync(activateAdmin));
+router.patch("/admins/:id/class", ...adminOnly, wrapAsync(changeAdminClass));
+router.patch("/admins/:id/reset-password", ...adminOnly, wrapAsync(resetManagedAdminPassword));
 router.delete("/admins/:id", ...adminOnly, requireRoles(...ADMIN_MANAGEMENT_ROLES), wrapAsync(deleteAdmin));
 
 router.get("/users", ...adminOnly, requireRoles(...USER_READ_ROLES), wrapAsync(listUsers));

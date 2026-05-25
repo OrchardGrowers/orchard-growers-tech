@@ -95,6 +95,11 @@ const getNetworkErrorMessage = (err: unknown) => {
 
   return err instanceof Error ? err.message : 'Admin API request failed';
 };
+const formatDate = (value?: string) => {
+  if (!value) return 'Not available';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+};
 
 type AdminRole =
   | 'SUPER_ADMIN'
@@ -115,6 +120,7 @@ type Admin = {
   email: string;
   role: AdminRole;
   roleLabel?: string;
+  adminClass?: AdminClass;
 };
 
 type Review = {
@@ -221,6 +227,7 @@ type AdminTab =
   | 'analytics'
   | 'efruitSettings'
   | 'staffUsers'
+  | 'adminUsers'
   | 'customers'
   | 'sellers'
   | 'buyers'
@@ -276,6 +283,24 @@ type AdminUser = {
   isVerified?: boolean;
   adminNotes?: string;
   createdAt?: string;
+};
+type AdminClass = 'CLASS_I' | 'CLASS_II' | 'CLASS_III';
+type AdminStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'REJECTED' | 'TERMINATED';
+type AdminAccount = {
+  _id?: string;
+  id?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  adminClass?: AdminClass;
+  role?: AdminRole;
+  roleLabel?: string;
+  status?: AdminStatus;
+  createdAt?: string;
+  approvedBy?: { name?: string; email?: string } | string;
+  approvedAt?: string;
+  createdBy?: { name?: string; email?: string } | string;
+  auditLogs?: { action?: string; at?: string; note?: string }[];
 };
 type ProductDraft = {
   title: string;
@@ -465,6 +490,7 @@ const adminRoutePaths: Record<AdminTab, string> = {
   analytics: '/efruitmandi/analytics',
   efruitSettings: '/efruitmandi/settings',
   staffUsers: '/users/staff',
+  adminUsers: '/users/admin-users',
   customers: '/users/customers',
   sellers: '/users/sellers-growers-farmers',
   buyers: '/users/buyers',
@@ -499,6 +525,7 @@ const adminTabPlatforms: Record<AdminTab, AdminPlatform> = {
   analytics: 'efruitmandi',
   efruitSettings: 'efruitmandi',
   staffUsers: 'userManagement',
+  adminUsers: 'userManagement',
   customers: 'userManagement',
   sellers: 'userManagement',
   buyers: 'userManagement',
@@ -532,6 +559,7 @@ const platformTabs: Record<AdminPlatform, AdminTabButton[]> = {
   ],
   userManagement: [
     { id: 'staffUsers', label: 'Staff Users' },
+    { id: 'adminUsers', label: 'Admin Users' },
     { id: 'customers', label: 'Customers' },
     { id: 'sellers', label: 'Sellers / Growers / Farmers' },
     { id: 'buyers', label: 'Buyers' },
@@ -826,6 +854,7 @@ function App() {
   const [verificationRequests, setVerificationRequests] = useState<VerificationRequest[]>([]);
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [adminUsers, setAdminUsers] = useState<AdminAccount[]>([]);
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [loading, setLoading] = useState(false);
   const [viewingFile, setViewingFile] = useState<UploadedFile | null>(null);
@@ -1231,25 +1260,27 @@ function App() {
     setLoading(true);
     setMessage('');
     try {
-      const [kycRes, verificationRes, ordersRes, usersRes, productsRes] = await Promise.all([
+      const [kycRes, verificationRes, ordersRes, usersRes, productsRes, adminsRes] = await Promise.all([
         fetch(`${API_BASE}/admin/kyc-requests`, { headers: authHeaders }),
         fetch(`${API_BASE}/admin/verification-requests`, { headers: authHeaders }),
         fetch(`${API_BASE}/admin/orders`, { headers: authHeaders }),
         fetch(`${API_BASE}/admin/users`, { headers: authHeaders }),
         fetch(`${API_BASE}/admin/products`, { headers: authHeaders }),
+        fetch(`${API_BASE}/admin/admins`, { headers: authHeaders }),
       ]);
 
-      if ([kycRes, verificationRes, ordersRes, usersRes, productsRes].some((res) => [401, 403].includes(res.status))) {
+      if ([kycRes, verificationRes, ordersRes, usersRes, productsRes, adminsRes].some((res) => [401, 403].includes(res.status))) {
         clearAdminSession('Admin session expired or access was revoked. Please log in again.');
         return;
       }
 
-      const [kycData, verificationData, ordersData, usersData, productsData] = await Promise.all([
+      const [kycData, verificationData, ordersData, usersData, productsData, adminsData] = await Promise.all([
         readResponseJson(kycRes),
         readResponseJson(verificationRes),
         readResponseJson(ordersRes),
         readResponseJson(usersRes),
         readResponseJson(productsRes),
+        readResponseJson(adminsRes),
       ]);
       if (!kycRes.ok) throw new Error(kycData.msg || 'Could not load KYC requests');
       if (!verificationRes.ok) {
@@ -1258,11 +1289,13 @@ function App() {
       if (!ordersRes.ok) throw new Error(ordersData.msg || 'Could not load orders');
       if (!usersRes.ok) throw new Error(usersData.msg || 'Could not load users');
       if (!productsRes.ok) throw new Error(productsData.msg || 'Could not load products');
+      if (!adminsRes.ok) throw new Error(adminsData.msg || 'Could not load admin users');
       setKycRequests(kycData || []);
       setVerificationRequests(verificationData || []);
       setOrders(ordersData || []);
       setUsers(usersData || []);
       setProducts(productsData || []);
+      setAdminUsers(adminsData || []);
     } catch (err) {
       setMessage(getNetworkErrorMessage(err));
     } finally {
@@ -1568,6 +1601,79 @@ function App() {
     loadRequests();
   };
 
+  const createManagedAdmin = async () => {
+    const name = window.prompt('Admin name');
+    if (!name) return;
+    const email = window.prompt('Admin email');
+    if (!email) return;
+    const phone = window.prompt('Phone optional', '') || '';
+    const adminClass = window.prompt('Admin class: CLASS_II or CLASS_III', 'CLASS_III') || 'CLASS_III';
+    const role = window.prompt('Role / department', 'EMPLOYEE') || 'EMPLOYEE';
+    const status = window.prompt('Initial status: PENDING or ACTIVE', 'PENDING') || 'PENDING';
+    const res = await fetch(`${API_BASE}/admin/admins`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ name, email, phone, adminClass, role, status }),
+    });
+    const data = await readResponseJson(res);
+    if (!res.ok) {
+      setMessage(data.msg || 'Admin creation failed');
+      return;
+    }
+    setMessage('Admin user created. They must verify OTP and set password on first login.');
+    loadRequests();
+  };
+
+  const runAdminUserAction = async (target: AdminAccount, action: 'approve' | 'reject' | 'suspend' | 'activate' | 'reset-password') => {
+    const id = target._id || target.id;
+    if (!id) return;
+    if (!confirmTwice(`${action.replace('-', ' ')} ${target.email || target.name || 'this admin'}`)) return;
+    const res = await fetch(`${API_BASE}/admin/admins/${id}/${action}`, {
+      method: 'PATCH',
+      headers: authHeaders,
+    });
+    const data = await readResponseJson(res);
+    if (!res.ok) {
+      setMessage(data.msg || 'Admin action failed');
+      return;
+    }
+    setMessage(data.message || 'Admin user updated.');
+    loadRequests();
+  };
+
+  const changeManagedAdminClass = async (target: AdminAccount) => {
+    const id = target._id || target.id;
+    if (!id) return;
+    const adminClass = window.prompt('Admin class: CLASS_II or CLASS_III', target.adminClass || 'CLASS_III');
+    if (!adminClass) return;
+    const res = await fetch(`${API_BASE}/admin/admins/${id}/class`, {
+      method: 'PATCH',
+      headers: authHeaders,
+      body: JSON.stringify({ adminClass }),
+    });
+    const data = await readResponseJson(res);
+    if (!res.ok) {
+      setMessage(data.msg || 'Admin class update failed');
+      return;
+    }
+    setMessage('Admin class updated.');
+    loadRequests();
+  };
+
+  const viewManagedAdminDetails = (target: AdminAccount) => {
+    const approvedBy = typeof target.approvedBy === 'object' ? target.approvedBy?.email || target.approvedBy?.name : target.approvedBy || 'Not approved';
+    window.alert([
+      `Name: ${target.name || ''}`,
+      `Email: ${target.email || ''}`,
+      `Phone: ${target.phone || ''}`,
+      `Class: ${target.adminClass || ''}`,
+      `Role: ${target.role || ''}`,
+      `Status: ${target.status || ''}`,
+      `Created: ${formatDate(target.createdAt)}`,
+      `Approved by: ${approvedBy}`,
+    ].join('\n'));
+  };
+
   if (!token || !admin) {
     const authFormTitle: Record<AdminAuthMode, string> = {
       login: 'Admin Panels',
@@ -1740,6 +1846,7 @@ function App() {
     sellers: users.filter((user) => user.role === 'grower').length,
     buyers: users.filter((user) => user.role === 'buyer').length,
     suspendedUsers: users.filter((user) => ['HOLD', 'SUSPENDED', 'TERMINATED'].includes(user.accountStatus || '')).length,
+    adminUsers: adminUsers.length,
     notifications: notificationCount,
   };
   const tabs = platformTabs[activePlatform]
@@ -1889,6 +1996,23 @@ function App() {
           <ModulePlanPanel plan={modulePlans.users} />
           <UsersPanel users={searchedUsers} onEdit={editUserInfo} onStatus={setUserStatus} />
         </section>
+      );
+    }
+    if (tab === 'adminUsers') {
+      return (
+        <AdminUsersPanel
+          admins={adminUsers.filter((item) => {
+            const search = adminSearch.trim().toLowerCase();
+            if (!search) return true;
+            return [item.name, item.email, item.phone, item.adminClass, item.role, item.status].some((value) =>
+              String(value || '').toLowerCase().includes(search)
+            );
+          })}
+          onCreate={createManagedAdmin}
+          onAction={runAdminUserAction}
+          onChangeClass={changeManagedAdminClass}
+          onView={viewManagedAdminDetails}
+        />
       );
     }
     if (tab === 'kyc') {
@@ -2313,6 +2437,7 @@ function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: (
       subtitle: 'Accounts and access',
       items: [
         { label: 'Staff Users', icon: 'users', tab: 'staffUsers' },
+        { label: 'Admin Users', icon: 'roles', tab: 'adminUsers', count: counts.adminUsers },
         { label: 'Customers', icon: 'users', tab: 'customers' },
         { label: 'Sellers / Growers / Farmers', icon: 'users', tab: 'sellers' },
         { label: 'Buyers', icon: 'users', tab: 'buyers' },
@@ -2874,6 +2999,7 @@ function getAdminTabTitle(activeTab: AdminTab, activePlatform: AdminPlatform) {
   if (activeTab === 'analytics') return 'eFruitMandi Analytics';
   if (activeTab === 'efruitSettings') return 'eFruitMandi Settings';
   if (activeTab === 'staffUsers') return 'Staff Users';
+  if (activeTab === 'adminUsers') return 'Admin Users / Admin Management';
   if (activeTab === 'customers') return 'Customers';
   if (activeTab === 'sellers') return 'Sellers / Growers / Farmers';
   if (activeTab === 'buyers') return 'Buyers';
@@ -3860,6 +3986,76 @@ function UsersPanel({
           </article>
         ))}
         {!users.length && <EmptyState label={emptyLabel} />}
+      </div>
+    </section>
+  );
+}
+
+function AdminUsersPanel({
+  admins,
+  onCreate,
+  onAction,
+  onChangeClass,
+  onView,
+}: {
+  admins: AdminAccount[];
+  onCreate: () => void;
+  onAction: (admin: AdminAccount, action: 'approve' | 'reject' | 'suspend' | 'activate' | 'reset-password') => void;
+  onChangeClass: (admin: AdminAccount) => void;
+  onView: (admin: AdminAccount) => void;
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-white">Admin Users / Admin Management</h2>
+          <p className="mt-1 text-sm font-semibold text-slate-400">Class I approval, class changes, status control, and first-login password setup.</p>
+        </div>
+        <button type="button" onClick={onCreate} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-500">
+          Create Admin
+        </button>
+      </div>
+      <div className="overflow-x-auto rounded-xl border border-slate-800">
+        <table className="min-w-[1100px] w-full divide-y divide-slate-800 text-left text-sm">
+          <thead className="bg-slate-950 text-xs uppercase tracking-wide text-slate-400">
+            <tr>
+              {['Name', 'Email', 'Phone', 'Admin Class', 'Role', 'Status', 'Created At', 'Approved By', 'Actions'].map((header) => (
+                <th key={header} className="px-3 py-3">{header}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800 bg-slate-900">
+            {admins.map((admin) => {
+              const approvedBy = typeof admin.approvedBy === 'object' ? admin.approvedBy?.email || admin.approvedBy?.name : admin.approvedBy;
+              return (
+                <tr key={admin._id || admin.id || admin.email}>
+                  <td className="px-3 py-3 font-bold text-white">{admin.name || 'Unnamed admin'}</td>
+                  <td className="px-3 py-3 text-slate-300">{admin.email || 'No email'}</td>
+                  <td className="px-3 py-3 text-slate-300">{admin.phone || 'Optional'}</td>
+                  <td className="px-3 py-3 text-slate-300">{admin.adminClass || 'CLASS_III'}</td>
+                  <td className="px-3 py-3 text-slate-300">{admin.roleLabel || admin.role || 'EMPLOYEE'}</td>
+                  <td className="px-3 py-3">
+                    <span className="rounded-full bg-slate-800 px-2 py-1 text-xs font-bold text-emerald-300">{admin.status || 'PENDING'}</span>
+                  </td>
+                  <td className="px-3 py-3 text-slate-400">{formatDate(admin.createdAt)}</td>
+                  <td className="px-3 py-3 text-slate-400">{approvedBy || 'Not approved'}</td>
+                  <td className="px-3 py-3">
+                    <div className="flex flex-wrap gap-2">
+                      <button onClick={() => onAction(admin, 'approve')} className="rounded-lg bg-emerald-700 px-2 py-1 text-xs font-bold text-white hover:bg-emerald-600">Approve</button>
+                      <button onClick={() => onAction(admin, 'reject')} className="rounded-lg bg-rose-800 px-2 py-1 text-xs font-bold text-white hover:bg-rose-700">Reject</button>
+                      <button onClick={() => onAction(admin, 'suspend')} className="rounded-lg bg-amber-700 px-2 py-1 text-xs font-bold text-white hover:bg-amber-600">Suspend</button>
+                      <button onClick={() => onAction(admin, 'activate')} className="rounded-lg bg-slate-700 px-2 py-1 text-xs font-bold text-white hover:bg-slate-600">Activate</button>
+                      <button onClick={() => onChangeClass(admin)} className="rounded-lg bg-slate-700 px-2 py-1 text-xs font-bold text-white hover:bg-slate-600">Change Class</button>
+                      <button onClick={() => onAction(admin, 'reset-password')} className="rounded-lg bg-slate-700 px-2 py-1 text-xs font-bold text-white hover:bg-slate-600">Reset Password</button>
+                      <button onClick={() => onView(admin)} className="rounded-lg bg-white px-2 py-1 text-xs font-bold text-slate-950 hover:bg-emerald-100">View Details</button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {!admins.length && <EmptyState label="No admin users found." />}
       </div>
     </section>
   );

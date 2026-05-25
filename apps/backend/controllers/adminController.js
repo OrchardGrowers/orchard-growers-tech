@@ -34,7 +34,7 @@ const ADMIN_ROLES = [
   "VIEWER",
   "EMPLOYEE",
 ];
-const ADMIN_STATUSES = ["ACTIVE", "TERMINATED"];
+const ADMIN_STATUSES = ["PENDING", "ACTIVE", "SUSPENDED", "REJECTED", "TERMINATED"];
 const USER_ROLES = [null, "grower", "buyer", "driver"];
 const USER_STATUSES = ["ACTIVE", "HOLD", "SUSPENDED", "TERMINATED"];
 const ROLE_LABELS = {
@@ -73,6 +73,7 @@ const ROLE_INTERNAL_CLASS = {
 
 const normalizeEmail = (email = "") => email.trim().toLowerCase();
 const PASSWORD_RULE_MESSAGE = "Password must be at least 8 characters and include a letter and a number";
+const ADMIN_NOT_APPROVED_MESSAGE = "This email is not approved for admin access.";
 const ADMIN_RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
 const ADMIN_SETUP_TOKEN_TTL_MS = 10 * 60 * 1000;
 const CLASS_I_ADMIN_EMAILS = [
@@ -135,12 +136,19 @@ const getAdminRoleLabel = (admin) => {
 
 const safeAdmin = (admin) => ({
   id: admin._id,
+  _id: admin._id,
   name: admin.name,
   email: admin.email,
+  phone: admin.phone || "",
   role: admin.role,
   roleLabel: getAdminRoleLabel(admin),
   adminClass: getInternalAdminClass(admin),
   status: admin.status,
+  createdAt: admin.createdAt,
+  approvedBy: admin.approvedBy,
+  approvedAt: admin.approvedAt,
+  createdBy: admin.createdBy,
+  auditLogs: admin.auditLogs || [],
 });
 
 const getAdminClass = (role) => ADMIN_CLASS_LABELS[role] || "CLASS2";
@@ -152,14 +160,15 @@ const normalizeInternalAdminClass = (value = "") => {
   return "";
 };
 const getInternalAdminClass = (admin = {}) => {
-  const storedClass = normalizeInternalAdminClass(admin.adminClass);
+  const safeAdmin = admin || {};
+  const storedClass = normalizeInternalAdminClass(safeAdmin.adminClass);
   if (storedClass) return storedClass;
 
-  const email = normalizeEmail(admin.email);
+  const email = normalizeEmail(safeAdmin.email);
   if (CLASS_I_ADMIN_EMAILS.includes(email)) return "CLASS_I";
   if (CLASS_II_ADMIN_EMAILS.includes(email)) return "CLASS_II";
   if (CLASS_III_ADMIN_EMAILS.includes(email)) return "CLASS_III";
-  return ROLE_INTERNAL_CLASS[admin.role] || "";
+  return ROLE_INTERNAL_CLASS[safeAdmin.role] || "";
 };
 const isEligibleInternalAdmin = (admin) =>
   Boolean(
@@ -168,11 +177,35 @@ const isEligibleInternalAdmin = (admin) =>
       ADMIN_ROLES.includes(admin.role) &&
       INTERNAL_ADMIN_CLASSES.has(getInternalAdminClass(admin))
   );
-const adminHasPassword = (admin = {}) => Boolean(admin.hasPassword || String(admin.password || "").trim());
-const adminRequiresPasswordSetup = (admin = {}) => !adminHasPassword(admin) || admin.mustSetPassword === true;
+const canManageAdminClass = (currentAdmin, targetClass) => {
+  const currentClass = getInternalAdminClass(currentAdmin);
+  if (currentClass === "CLASS_I") return ["CLASS_II", "CLASS_III"].includes(targetClass);
+  if (currentClass === "CLASS_II") return targetClass === "CLASS_III" && Boolean(currentAdmin?.canManageClassIII);
+  return false;
+};
+const appendAdminAudit = (admin, action, by, from = {}, to = {}, note = "") => {
+  admin.auditLogs = admin.auditLogs || [];
+  admin.auditLogs.push({ action, by: by?._id || by?.id, at: new Date(), from, to, note });
+  console.log("Admin management audit", {
+    action,
+    targetAdmin: maskAdminEmail(admin.email),
+    by: by?.email ? maskAdminEmail(by.email) : by?.id || "",
+    targetClass: getInternalAdminClass(admin),
+    targetStatus: admin.status,
+  });
+};
+const adminHasPassword = (admin = {}) => {
+  const safeAdmin = admin || {};
+  return Boolean(safeAdmin.hasPassword || String(safeAdmin.password || "").trim());
+};
+const adminRequiresPasswordSetup = (admin = {}) => {
+  const safeAdmin = admin || {};
+  return !adminHasPassword(safeAdmin) || safeAdmin.mustSetPassword === true;
+};
 const ensureAdminClassPersisted = async (admin) => {
+  if (!admin) return "";
   const adminClass = getInternalAdminClass(admin);
-  if (!admin || admin.adminClass || !INTERNAL_ADMIN_CLASSES.has(adminClass)) return adminClass;
+  if (admin.adminClass || !INTERNAL_ADMIN_CLASSES.has(adminClass)) return adminClass;
   admin.adminClass = adminClass;
   await admin.save();
   return adminClass;
@@ -289,6 +322,7 @@ export const sendAdminOtp = async (req, res) => {
 
   logAdminOtpDebug("route hit", {
     mode,
+    emailNormalized: email,
     email: maskAdminEmail(email),
     platform: ADMIN_MAIL_PLATFORM,
   });
@@ -305,6 +339,7 @@ export const sendAdminOtp = async (req, res) => {
   const existingAdmin = await Admin.findOne({ email }).select("_id password status role adminClass hasPassword mustSetPassword firstLoginCompleted");
   const adminClass = getInternalAdminClass(existingAdmin || { email, role: ADMIN_SIGNUP_ROLE_BY_EMAIL.get(email) });
   logAdminOtpDebug("admin lookup", {
+    emailNormalized: email,
     email: maskAdminEmail(email),
     found: Boolean(existingAdmin),
     role: existingAdmin?.role || "",
@@ -313,6 +348,17 @@ export const sendAdminOtp = async (req, res) => {
     hasPassword: adminHasPassword(existingAdmin),
     mustSetPassword: Boolean(existingAdmin?.mustSetPassword),
   });
+
+  if (!existingAdmin) {
+    logAdminOtpDebug("sendMail skipped", {
+      emailNormalized: email,
+      email: maskAdminEmail(email),
+      mode,
+      reason: "admin_not_found",
+      found: false,
+    });
+    return res.status(403).json({ msg: ADMIN_NOT_APPROVED_MESSAGE });
+  }
 
   if (mode === "signup" && adminHasPassword(existingAdmin)) {
     logAdminOtpDebug("sendMail skipped", {
@@ -427,6 +473,7 @@ export const verifyAdminOtp = async (req, res) => {
   const record = adminOtpStore.get(key);
   const verifyLock = getAdminOtpVerificationLock(key);
   logAdminOtpDebug("verify route hit", {
+    emailNormalized: email,
     email: maskAdminEmail(email),
     mode: record?.mode || "",
   });
@@ -488,12 +535,26 @@ export const verifyAdminOtp = async (req, res) => {
 
   adminOtpStore.set(key, { ...record, otp: "", verified: true, used: true });
   const admin = await Admin.findOne({ email }).select("_id email password status role adminClass hasPassword mustSetPassword firstLoginCompleted");
+  if (!admin) {
+    adminOtpStore.delete(key);
+    logAdminOtpDebug("verify failed", {
+      emailNormalized: email,
+      email: maskAdminEmail(email),
+      mode: record.mode,
+      reason: "admin_not_found",
+      found: false,
+    });
+    return res.status(403).json({ msg: ADMIN_NOT_APPROVED_MESSAGE });
+  }
+
   if (!isEligibleInternalAdmin(admin)) {
     adminOtpStore.delete(key);
     logAdminOtpDebug("verify failed", {
+      emailNormalized: email,
       email: maskAdminEmail(email),
       mode: record.mode,
       reason: "not_eligible",
+      found: true,
     });
     return res.status(400).json({ msg: "Invalid OTP" });
   }
@@ -665,7 +726,13 @@ export const signupAdmin = async (req, res) => {
 
   const existingAdminForEligibility = await Admin.findOne({ email }).select("_id status role adminClass password hasPassword mustSetPassword firstLoginCompleted");
   if (!existingAdminForEligibility) {
-    return res.status(403).json({ msg: "This email is not allowed for admin signup" });
+    logAdminOtpDebug("signup blocked", {
+      emailNormalized: email,
+      email: maskAdminEmail(email),
+      reason: "admin_not_found",
+      found: false,
+    });
+    return res.status(403).json({ msg: ADMIN_NOT_APPROVED_MESSAGE });
   }
 
   if (existingAdminForEligibility && !isEligibleInternalAdmin(existingAdminForEligibility)) {
@@ -757,13 +824,21 @@ export const loginAdmin = async (req, res) => {
 
   const admin = await Admin.findOne({ email });
 
-  if (!admin) return res.status(404).json({ msg: "Admin not found" });
+  if (!admin) {
+    console.log("Admin login blocked: admin not found", {
+      emailNormalized: email,
+      email: maskAdminEmail(email),
+      found: false,
+    });
+    return res.status(403).json({ msg: ADMIN_NOT_APPROVED_MESSAGE });
+  }
   if (!isEligibleInternalAdmin(admin)) {
     return res.status(403).json({ msg: "Admin account is not eligible" });
   }
 
   if (adminRequiresPasswordSetup(admin)) {
     console.log("Admin login blocked: password setup required", {
+      emailNormalized: email,
       email: maskAdminEmail(email),
       found: true,
       hasPassword: adminHasPassword(admin),
@@ -799,12 +874,14 @@ export const requestAdminPasswordReset = async (req, res) => {
 
   console.log("Admin reset route hit", {
     platform: ADMIN_MAIL_PLATFORM,
+    emailNormalized: email,
     email: maskAdminEmail(email),
   });
 
   if (!email || !isValidEmail(email)) {
     console.log("Admin reset skipped", {
       platform: ADMIN_MAIL_PLATFORM,
+      emailNormalized: email,
       email: maskAdminEmail(email),
       reason: "invalid_email",
     });
@@ -815,6 +892,7 @@ export const requestAdminPasswordReset = async (req, res) => {
   if (!admin || !isEligibleInternalAdmin(admin)) {
     console.log("Admin reset skipped", {
       platform: ADMIN_MAIL_PLATFORM,
+      emailNormalized: email,
       email: maskAdminEmail(email),
       adminFound: Boolean(admin),
       status: admin?.status || "",
@@ -1027,26 +1105,43 @@ export const getAdminAnalytics = async (req, res) => {
 };
 
 export const listAdmins = async (req, res) => {
-  if (!requireSuperAdmin(req, res)) return;
+  const currentAdmin = req.admin || requireAdmin(req, res);
+  if (!currentAdmin) return;
 
-  const admins = await Admin.find().select(ADMIN_SELECT).sort({ role: -1, createdAt: -1 });
+  const currentClass = getInternalAdminClass(currentAdmin);
+  if (currentClass === "CLASS_III") return res.json([]);
+  const filter = currentClass === "CLASS_II" && currentAdmin.canManageClassIII ? { adminClass: "CLASS_III" } : {};
+  const admins = await Admin.find(filter)
+    .select(ADMIN_SELECT)
+    .populate("createdBy approvedBy rejectedBy suspendedBy classChangedBy resetPasswordBy", "name email role adminClass")
+    .sort({ role: -1, createdAt: -1 });
   res.json(admins.map(safeAdmin));
 };
 
 export const createAdmin = async (req, res) => {
-  const currentAdmin = requireSuperAdmin(req, res);
+  const currentAdmin = req.admin || requireAdmin(req, res);
   if (!currentAdmin) return;
 
-  const { name, password } = req.body;
+  const { name, phone } = req.body;
   const email = normalizeEmail(req.body.email);
   const role = req.body.role || "EMPLOYEE";
+  const adminClass = normalizeInternalAdminClass(req.body.adminClass) || ROLE_INTERNAL_CLASS[role] || "CLASS_III";
+  const status = String(req.body.status || "PENDING").trim().toUpperCase();
 
-  if (!email || !password || !ADMIN_ROLES.includes(role)) {
-    return res.status(400).json({ msg: "Valid email, password, and role are required" });
+  if (!email || !ADMIN_ROLES.includes(role) || !INTERNAL_ADMIN_CLASSES.has(adminClass)) {
+    return res.status(400).json({ msg: "Valid email, role, and admin class are required" });
   }
 
-  if (role === "SUPER_ADMIN") {
-    return res.status(403).json({ msg: "Only one master Super Admin should be used" });
+  if (role === "SUPER_ADMIN" || adminClass === "CLASS_I") {
+    return res.status(403).json({ msg: "Class I admins must be seeded or managed outside public creation" });
+  }
+
+  if (!["PENDING", "ACTIVE"].includes(status)) {
+    return res.status(400).json({ msg: "Status must be PENDING or ACTIVE" });
+  }
+
+  if (!canManageAdminClass(currentAdmin, adminClass)) {
+    return res.status(403).json({ msg: "You do not have permission to create this admin class" });
   }
 
   const existing = await Admin.findOne({ email });
@@ -1055,26 +1150,32 @@ export const createAdmin = async (req, res) => {
   const admin = await Admin.create({
     name: name || ROLE_LABELS[role],
     email,
-    password: await bcrypt.hash(password, 10),
+    phone: String(phone || "").trim(),
     role,
-    adminClass: ROLE_INTERNAL_CLASS[role] || "CLASS_III",
-    status: "ACTIVE",
-    hasPassword: true,
-    mustSetPassword: false,
-    firstLoginCompleted: true,
+    adminClass,
+    status,
+    hasPassword: false,
+    mustSetPassword: true,
+    firstLoginCompleted: false,
     createdBy: currentAdmin.id,
+    ...(status === "ACTIVE" ? { approvedBy: currentAdmin.id, approvedAt: new Date() } : {}),
   });
+  appendAdminAudit(admin, "CREATE_ADMIN", currentAdmin, {}, { status, adminClass, role }, "New admin must verify OTP and set password on first login");
+  if (status === "ACTIVE") appendAdminAudit(admin, "APPROVE_ADMIN", currentAdmin, { status: "PENDING" }, { status: "ACTIVE" });
+  await admin.save();
 
   res.status(201).json(safeAdmin(admin));
 };
 
 export const updateAdmin = async (req, res) => {
-  if (!requireSuperAdmin(req, res)) return;
+  const currentAdmin = req.admin || requireAdmin(req, res);
+  if (!currentAdmin) return;
 
   const updates = {};
-  const { name, role, password } = req.body;
+  const { name, role, password, phone } = req.body;
 
   if (typeof name === "string") updates.name = name.trim();
+  if (typeof phone === "string") updates.phone = phone.trim();
   if (role && ADMIN_ROLES.includes(role) && role !== "SUPER_ADMIN") {
     updates.role = role;
     updates.adminClass = ROLE_INTERNAL_CLASS[role] || "CLASS_III";
@@ -1086,14 +1187,22 @@ export const updateAdmin = async (req, res) => {
     updates.firstLoginCompleted = true;
   }
 
-  const admin = await Admin.findByIdAndUpdate(req.params.id, updates, { new: true }).select(ADMIN_SELECT);
+  const existing = await Admin.findById(req.params.id);
+  if (!existing) return res.status(404).json({ msg: "Admin not found" });
+  if (!canManageAdminClass(currentAdmin, getInternalAdminClass(existing))) {
+    return res.status(403).json({ msg: "You do not have permission to update this admin" });
+  }
+  Object.assign(existing, updates);
+  appendAdminAudit(existing, "UPDATE_ADMIN", currentAdmin, {}, updates);
+  await existing.save();
+  const admin = await Admin.findById(req.params.id).select(ADMIN_SELECT);
   if (!admin) return res.status(404).json({ msg: "Admin not found" });
 
   res.json(safeAdmin(admin));
 };
 
 export const terminateAdmin = async (req, res) => {
-  const currentAdmin = requireSuperAdmin(req, res);
+  const currentAdmin = req.admin || requireAdmin(req, res);
   if (!currentAdmin) return;
 
   const admin = await Admin.findById(req.params.id);
@@ -1101,20 +1210,34 @@ export const terminateAdmin = async (req, res) => {
   if (admin.role === "SUPER_ADMIN") {
     return res.status(403).json({ msg: "Super Admin cannot be terminated here" });
   }
+  if (!canManageAdminClass(currentAdmin, getInternalAdminClass(admin))) {
+    return res.status(403).json({ msg: "You do not have permission to change this admin status" });
+  }
 
   const requestedStatus = String(req.body.status || "TERMINATED").toUpperCase();
   if (!ADMIN_STATUSES.includes(requestedStatus)) {
     return res.status(400).json({ msg: "Invalid admin status" });
   }
 
+  const previousStatus = admin.status;
   admin.status = requestedStatus;
+  if (admin.status === "ACTIVE") {
+    admin.approvedBy = currentAdmin.id;
+    admin.approvedAt = new Date();
+  }
+  if (admin.status === "REJECTED") {
+    admin.rejectedBy = currentAdmin.id;
+    admin.rejectedAt = new Date();
+  }
+  if (admin.status === "SUSPENDED") {
+    admin.suspendedBy = currentAdmin.id;
+    admin.suspendedAt = new Date();
+  }
   if (admin.status === "TERMINATED") {
     admin.terminatedBy = currentAdmin.id;
     admin.terminatedAt = new Date();
-  } else {
-    admin.terminatedBy = null;
-    admin.terminatedAt = null;
   }
+  appendAdminAudit(admin, "CHANGE_ADMIN_STATUS", currentAdmin, { status: previousStatus }, { status: requestedStatus });
   await admin.save();
 
   res.json(safeAdmin(admin));
@@ -1131,6 +1254,76 @@ export const deleteAdmin = async (req, res) => {
 
   await admin.deleteOne();
   res.json({ message: "Admin deleted" });
+};
+
+export const approveAdmin = async (req, res) => {
+  req.body.status = "ACTIVE";
+  return terminateAdmin(req, res);
+};
+
+export const rejectAdmin = async (req, res) => {
+  req.body.status = "REJECTED";
+  return terminateAdmin(req, res);
+};
+
+export const suspendAdmin = async (req, res) => {
+  req.body.status = "SUSPENDED";
+  return terminateAdmin(req, res);
+};
+
+export const activateAdmin = async (req, res) => {
+  req.body.status = "ACTIVE";
+  return terminateAdmin(req, res);
+};
+
+export const changeAdminClass = async (req, res) => {
+  const currentAdmin = req.admin || requireAdmin(req, res);
+  if (!currentAdmin) return;
+
+  const adminClass = normalizeInternalAdminClass(req.body.adminClass);
+  if (!INTERNAL_ADMIN_CLASSES.has(adminClass)) {
+    return res.status(400).json({ msg: "Invalid admin class" });
+  }
+  if (!canManageAdminClass(currentAdmin, adminClass)) {
+    return res.status(403).json({ msg: "You do not have permission to assign this admin class" });
+  }
+
+  const admin = await Admin.findById(req.params.id);
+  if (!admin) return res.status(404).json({ msg: "Admin not found" });
+  if (admin.role === "SUPER_ADMIN") return res.status(403).json({ msg: "Super Admin class cannot be changed here" });
+  if (!canManageAdminClass(currentAdmin, getInternalAdminClass(admin))) {
+    return res.status(403).json({ msg: "You do not have permission to change this admin" });
+  }
+
+  const previousClass = getInternalAdminClass(admin);
+  admin.adminClass = adminClass;
+  admin.classChangedBy = currentAdmin.id;
+  admin.classChangedAt = new Date();
+  appendAdminAudit(admin, "CHANGE_ADMIN_CLASS", currentAdmin, { adminClass: previousClass }, { adminClass });
+  await admin.save();
+  res.json(safeAdmin(admin));
+};
+
+export const resetManagedAdminPassword = async (req, res) => {
+  const currentAdmin = req.admin || requireAdmin(req, res);
+  if (!currentAdmin) return;
+
+  const admin = await Admin.findById(req.params.id);
+  if (!admin) return res.status(404).json({ msg: "Admin not found" });
+  if (admin.role === "SUPER_ADMIN") return res.status(403).json({ msg: "Super Admin password cannot be reset here" });
+  if (!canManageAdminClass(currentAdmin, getInternalAdminClass(admin))) {
+    return res.status(403).json({ msg: "You do not have permission to reset this admin" });
+  }
+
+  admin.password = undefined;
+  admin.hasPassword = false;
+  admin.mustSetPassword = true;
+  admin.firstLoginCompleted = false;
+  admin.resetPasswordBy = currentAdmin.id;
+  admin.resetPasswordAt = new Date();
+  appendAdminAudit(admin, "RESET_ADMIN_PASSWORD", currentAdmin, {}, { mustSetPassword: true });
+  await admin.save();
+  res.json({ message: "Admin password reset. User must verify OTP and set password on next login.", admin: safeAdmin(admin) });
 };
 
 export const listUsers = async (req, res) => {
