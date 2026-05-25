@@ -456,6 +456,11 @@ const orchardModuleChildRoutes: Partial<Record<AdminTab, Record<string, AdminTab
     Expenses: 'expenses',
     Reports: 'reports',
   },
+  adminUsers: {
+    'Admin Users': 'adminUsers',
+    'Create Admin': 'adminUsers',
+    'Approved Admins': 'adminUsers',
+  },
 };
 
 const defaultOrchardModulePages: Partial<Record<AdminTab, string>> = {
@@ -464,6 +469,7 @@ const defaultOrchardModulePages: Partial<Record<AdminTab, string>> = {
   billing: 'New Invoice',
   financials: 'Expenses',
   orchardSettings: 'Invoice Series',
+  adminUsers: 'Admin Users',
 };
 
 const adminRoutePaths: Record<AdminTab, string> = {
@@ -1601,19 +1607,12 @@ function App() {
     loadRequests();
   };
 
-  const createManagedAdmin = async () => {
-    const name = window.prompt('Admin name');
-    if (!name) return;
-    const email = window.prompt('Admin email');
-    if (!email) return;
-    const phone = window.prompt('Phone optional', '') || '';
-    const adminClass = window.prompt('Admin class: CLASS_II or CLASS_III', 'CLASS_III') || 'CLASS_III';
-    const role = window.prompt('Role / department', 'EMPLOYEE') || 'EMPLOYEE';
-    const status = window.prompt('Initial status: PENDING or ACTIVE', 'PENDING') || 'PENDING';
+  const createManagedAdmin = async (payload: { name: string; email: string; phone: string; adminClass: string; role: string; status: string }) => {
+    if (!confirmTwice(`create admin ${payload.email}`)) return;
     const res = await fetch(`${API_BASE}/admin/admins`, {
       method: 'POST',
       headers: authHeaders,
-      body: JSON.stringify({ name, email, phone, adminClass, role, status }),
+      body: JSON.stringify(payload),
     });
     const data = await readResponseJson(res);
     if (!res.ok) {
@@ -1999,10 +1998,13 @@ function App() {
       );
     }
     if (tab === 'adminUsers') {
+      const activeAdminUsersPage = getOrchardModulePage('adminUsers');
       return (
         <AdminUsersPanel
+          activePage={activeAdminUsersPage}
           admins={adminUsers.filter((item) => {
             const search = adminSearch.trim().toLowerCase();
+            if (activeAdminUsersPage === 'Approved Admins' && item.status !== 'ACTIVE') return false;
             if (!search) return true;
             return [item.name, item.email, item.phone, item.adminClass, item.role, item.status].some((value) =>
               String(value || '').toLowerCase().includes(search)
@@ -2437,7 +2439,16 @@ function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: (
       subtitle: 'Accounts and access',
       items: [
         { label: 'Staff Users', icon: 'users', tab: 'staffUsers' },
-        { label: 'Admin Users', icon: 'roles', tab: 'adminUsers', count: counts.adminUsers },
+        {
+          label: 'Admin Users',
+          icon: 'roles',
+          tab: 'adminUsers',
+          count: counts.adminUsers,
+          children: [
+            { label: 'Create Admin', tab: 'adminUsers' },
+            { label: 'Approved Admins', tab: 'adminUsers', count: counts.adminUsers },
+          ],
+        },
         { label: 'Customers', icon: 'users', tab: 'customers' },
         { label: 'Sellers / Growers / Farmers', icon: 'users', tab: 'sellers' },
         { label: 'Buyers', icon: 'users', tab: 'buyers' },
@@ -3992,28 +4003,84 @@ function UsersPanel({
 }
 
 function AdminUsersPanel({
+  activePage,
   admins,
   onCreate,
   onAction,
   onChangeClass,
   onView,
 }: {
+  activePage: string;
   admins: AdminAccount[];
-  onCreate: () => void;
+  onCreate: (payload: { name: string; email: string; phone: string; adminClass: string; role: string; status: string }) => void;
   onAction: (admin: AdminAccount, action: 'approve' | 'reject' | 'suspend' | 'activate' | 'reset-password') => void;
   onChangeClass: (admin: AdminAccount) => void;
   onView: (admin: AdminAccount) => void;
 }) {
+  const [draft, setDraft] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    adminClass: 'CLASS_III',
+    role: 'EMPLOYEE',
+    status: 'PENDING',
+  });
+  const updateDraft = (field: keyof typeof draft, value: string) => setDraft((current) => ({ ...current, [field]: value }));
+  const submitDraft = (event: FormEvent) => {
+    event.preventDefault();
+    onCreate(draft);
+  };
+
+  if (activePage === 'Create Admin') {
+    return (
+      <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+        <div className="mb-4">
+          <h2 className="text-lg font-bold text-white">Create Admin</h2>
+          <p className="mt-1 text-sm font-semibold text-slate-400">Assign class, role, and initial status. New admins must verify OTP and set password on first login.</p>
+        </div>
+        <form onSubmit={submitDraft} className="grid gap-4 lg:grid-cols-2">
+          <AdminInput label="Name" value={draft.name} onChange={(value) => updateDraft('name', value)} placeholder="Admin name" />
+          <AdminInput label="Email" value={draft.email} onChange={(value) => updateDraft('email', value)} placeholder="admin@orchardgrowers.in" type="email" />
+          <AdminInput label="Phone Optional" value={draft.phone} onChange={(value) => updateDraft('phone', value)} placeholder="Phone number" />
+          <label className="block text-sm font-bold text-slate-300">
+            Admin Class
+            <select value={draft.adminClass} onChange={(event) => updateDraft('adminClass', event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400">
+              <option value="CLASS_II">CLASS_II</option>
+              <option value="CLASS_III">CLASS_III</option>
+            </select>
+          </label>
+          <label className="block text-sm font-bold text-slate-300">
+            Role / Department / Unit Access
+            <select value={draft.role} onChange={(event) => updateDraft('role', event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400">
+              {Object.keys(adminRoleLabels).filter((role) => role !== 'SUPER_ADMIN' && role !== 'ADMIN').map((role) => (
+                <option key={role} value={role}>{adminRoleLabels[role as AdminRole]}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm font-bold text-slate-300">
+            Initial Status
+            <select value={draft.status} onChange={(event) => updateDraft('status', event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400">
+              <option value="PENDING">PENDING</option>
+              <option value="ACTIVE">ACTIVE</option>
+            </select>
+          </label>
+          <div className="lg:col-span-2">
+            <button type="submit" className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-500">
+              Save Admin
+            </button>
+          </div>
+        </form>
+      </section>
+    );
+  }
+
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-white">Admin Users / Admin Management</h2>
+          <h2 className="text-lg font-bold text-white">{activePage === 'Approved Admins' ? 'Approved Admins' : 'Admin Users / Admin Management'}</h2>
           <p className="mt-1 text-sm font-semibold text-slate-400">Class I approval, class changes, status control, and first-login password setup.</p>
         </div>
-        <button type="button" onClick={onCreate} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-500">
-          Create Admin
-        </button>
       </div>
       <div className="overflow-x-auto rounded-xl border border-slate-800">
         <table className="min-w-[1100px] w-full divide-y divide-slate-800 text-left text-sm">
