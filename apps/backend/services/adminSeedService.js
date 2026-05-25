@@ -36,6 +36,7 @@ const defaultNameFromEmail = (email = "") => {
 
 export const seedAdminFromEnv = async () => {
   try {
+    // Future: support comma-separated ADMIN_SEED_EMAILS for multiple initial admins.
     const rawEmail = process.env.ADMIN_SEED_EMAIL;
     if (!rawEmail) {
       console.log("[admin-seed] No ADMIN_SEED_EMAIL configured; skipping admin seed.");
@@ -52,14 +53,14 @@ export const seedAdminFromEnv = async () => {
     const adminClass = mapAdminClass(process.env.ADMIN_SEED_CLASS || "CLASS_I");
     const status = mapStatus(process.env.ADMIN_SEED_STATUS || "ACTIVE");
 
-    const existing = await Admin.findOne({ email }).select("_id role status password adminClass");
+    const existing = await Admin.findOne({ email }).select("_id role status password hasPassword adminClass");
     if (existing) {
       console.log("[admin-seed] Admin already exists; skipping creation.", {
         email: maskEmail(email),
         role: existing.role,
         adminClass: existing.adminClass || "",
         status: existing.status,
-        hasPassword: Boolean(existing.password),
+        hasPassword: Boolean(existing.hasPassword || existing.password),
       });
       return existing;
     }
@@ -70,6 +71,9 @@ export const seedAdminFromEnv = async () => {
       role,
       adminClass,
       status,
+      hasPassword: false,
+      mustSetPassword: true,
+      firstLoginCompleted: false,
     });
 
     console.log("[admin-seed] Created initial admin from env.", {

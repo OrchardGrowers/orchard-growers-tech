@@ -20,6 +20,18 @@ const adminSchema = new mongoose.Schema({
   },
   resetPasswordRequestedAt: Date,
   passwordChangedAt: Date,
+  hasPassword: {
+    type: Boolean,
+    default: false,
+  },
+  mustSetPassword: {
+    type: Boolean,
+    default: false,
+  },
+  firstLoginCompleted: {
+    type: Boolean,
+    default: false,
+  },
   role: {
     type: String,
     enum: [

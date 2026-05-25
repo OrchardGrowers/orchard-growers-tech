@@ -1003,6 +1003,16 @@ function App() {
         return;
       }
 
+      if (data.requiresPasswordSetup && data.setupToken) {
+        setOtpVerifiedEmail('');
+        setResetToken(data.setupToken);
+        setPassword('');
+        setConfirmPassword('');
+        setAuthMode('reset');
+        setMessage('Please set your password to continue.');
+        return;
+      }
+
       setOtpVerifiedEmail(otpEmail);
       setMessage(data.message || 'OTP verified.');
     } catch (err) {
@@ -1036,6 +1046,10 @@ function App() {
       const data = await readResponseJson(res);
 
       if (!res.ok) {
+        if (data.requiresPasswordSetup) {
+          setMessage('Please set your password to continue.');
+          return;
+        }
         setMessage(data.msg || 'Admin login failed');
         return;
       }

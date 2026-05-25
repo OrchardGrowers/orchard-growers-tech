@@ -13,6 +13,7 @@ const ADMIN_SELECT = "-password -__v";
 const USER_SELECT = "-password -__v";
 const ADMIN_MAIL_PLATFORM = "admin";
 const adminOtpStore = new Map();
+const adminPasswordSetupTokens = new Map();
 const ADMIN_ROLES = [
   "SUPER_ADMIN",
   "ADMIN",
@@ -66,6 +67,7 @@ const ROLE_INTERNAL_CLASS = {
 const normalizeEmail = (email = "") => email.trim().toLowerCase();
 const PASSWORD_RULE_MESSAGE = "Password must be at least 8 characters and include a letter and a number";
 const ADMIN_RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
+const ADMIN_SETUP_TOKEN_TTL_MS = 10 * 60 * 1000;
 const CLASS_I_ADMIN_EMAILS = [
   "pawann@orchardgrowers.in",
   "founder@orchardgrowers.in",
@@ -159,6 +161,8 @@ const isEligibleInternalAdmin = (admin) =>
       ADMIN_ROLES.includes(admin.role) &&
       INTERNAL_ADMIN_CLASSES.has(getInternalAdminClass(admin))
   );
+const adminHasPassword = (admin = {}) => Boolean(admin.hasPassword || String(admin.password || "").trim());
+const adminRequiresPasswordSetup = (admin = {}) => !adminHasPassword(admin) || admin.mustSetPassword === true;
 const ensureAdminClassPersisted = async (admin) => {
   const adminClass = getInternalAdminClass(admin);
   if (!admin || admin.adminClass || !INTERNAL_ADMIN_CLASSES.has(adminClass)) return adminClass;
@@ -233,7 +237,7 @@ export const sendAdminOtp = async (req, res) => {
     return res.json(response);
   }
 
-  const existingAdmin = await Admin.findOne({ email }).select("_id password status role adminClass");
+  const existingAdmin = await Admin.findOne({ email }).select("_id password status role adminClass hasPassword mustSetPassword firstLoginCompleted");
   const adminClass = getInternalAdminClass(existingAdmin || { email, role: ADMIN_SIGNUP_ROLE_BY_EMAIL.get(email) });
   logAdminOtpDebug("admin lookup", {
     email: maskAdminEmail(email),
@@ -241,10 +245,11 @@ export const sendAdminOtp = async (req, res) => {
     role: existingAdmin?.role || "",
     adminClass,
     status: existingAdmin?.status || "",
-    hasPassword: Boolean(existingAdmin?.password),
+    hasPassword: adminHasPassword(existingAdmin),
+    mustSetPassword: Boolean(existingAdmin?.mustSetPassword),
   });
 
-  if (mode === "signup" && existingAdmin?.password) {
+  if (mode === "signup" && adminHasPassword(existingAdmin)) {
     logAdminOtpDebug("sendMail skipped", {
       email: maskAdminEmail(email),
       mode,
@@ -255,7 +260,7 @@ export const sendAdminOtp = async (req, res) => {
 
   let isEligible = isEligibleInternalAdmin(existingAdmin);
   if (mode === "signup") {
-    isEligible = isEligible && !existingAdmin?.password;
+    isEligible = isEligible && adminRequiresPasswordSetup(existingAdmin);
   }
 
   if (!isEligible) {
@@ -390,9 +395,44 @@ export const verifyAdminOtp = async (req, res) => {
   }
 
   adminOtpStore.set(key, { ...record, otp: "", verified: true, used: true });
+  const admin = await Admin.findOne({ email }).select("_id email password status role adminClass hasPassword mustSetPassword firstLoginCompleted");
+  if (!isEligibleInternalAdmin(admin)) {
+    adminOtpStore.delete(key);
+    logAdminOtpDebug("verify failed", {
+      email: maskAdminEmail(email),
+      mode: record.mode,
+      reason: "not_eligible",
+    });
+    return res.status(400).json({ msg: "Invalid OTP" });
+  }
+
+  if (adminRequiresPasswordSetup(admin)) {
+    const setupToken = createPasswordSetupToken(admin);
+    adminOtpStore.delete(key);
+    logAdminOtpDebug("verify success password setup required", {
+      email: maskAdminEmail(email),
+      mode: record.mode,
+      found: true,
+      hasPassword: adminHasPassword(admin),
+      mustSetPassword: Boolean(admin.mustSetPassword),
+      requiresPasswordSetup: true,
+      setupTokenIssued: Boolean(setupToken),
+    });
+    return res.json({
+      requiresPasswordSetup: true,
+      setupToken,
+      message: "Password setup required",
+    });
+  }
+
   logAdminOtpDebug("verify success", {
     email: maskAdminEmail(email),
     mode: record.mode,
+    found: true,
+    hasPassword: true,
+    mustSetPassword: false,
+    requiresPasswordSetup: false,
+    setupTokenIssued: false,
   });
   return res.json({ message: "OTP verified" });
 };
@@ -407,6 +447,26 @@ const getDefaultAdminName = (email) =>
 
 const hashResetToken = (token = "") =>
   crypto.createHash("sha256").update(token).digest("hex");
+const createPasswordSetupToken = (admin) => {
+  const token = crypto.randomBytes(32).toString("hex");
+  adminPasswordSetupTokens.set(hashResetToken(token), {
+    adminId: admin._id.toString(),
+    email: normalizeEmail(admin.email),
+    expiresAt: Date.now() + ADMIN_SETUP_TOKEN_TTL_MS,
+  });
+  return token;
+};
+const consumePasswordSetupToken = (token = "", email = "") => {
+  const tokenKey = hashResetToken(String(token || "").trim());
+  const record = adminPasswordSetupTokens.get(tokenKey);
+  if (!record) return null;
+  if (record.expiresAt < Date.now() || record.email !== normalizeEmail(email)) {
+    adminPasswordSetupTokens.delete(tokenKey);
+    return null;
+  }
+  adminPasswordSetupTokens.delete(tokenKey);
+  return record;
+};
 
 const createPasswordResetToken = () => {
   const token = crypto.randomBytes(32).toString("hex");
@@ -511,8 +571,8 @@ export const signupAdmin = async (req, res) => {
     return res.status(400).json({ msg: "Valid admin email is required" });
   }
 
-  const existingAdminForEligibility = await Admin.findOne({ email }).select("_id status role adminClass password");
-  if (!existingAdminForEligibility && !ALLOWED_ADMIN_SIGNUP_EMAILS.has(email)) {
+  const existingAdminForEligibility = await Admin.findOne({ email }).select("_id status role adminClass password hasPassword mustSetPassword firstLoginCompleted");
+  if (!existingAdminForEligibility) {
     return res.status(403).json({ msg: "This email is not allowed for admin signup" });
   }
 
@@ -536,7 +596,7 @@ export const signupAdmin = async (req, res) => {
     return res.status(403).json({ msg: "Admin account terminated" });
   }
 
-  if (existingAdmin?.password) {
+  if (adminHasPassword(existingAdmin) && !existingAdmin?.mustSetPassword) {
     return res.status(409).json({ msg: "Account already exists. Please sign in." });
   }
 
@@ -548,6 +608,9 @@ export const signupAdmin = async (req, res) => {
   admin.role = isNewAdmin ? getSignupRole(email) : admin.role || getSignupRole(email);
   admin.adminClass = getInternalAdminClass(admin) || "CLASS_III";
   admin.status = "ACTIVE";
+  admin.hasPassword = true;
+  admin.mustSetPassword = false;
+  admin.firstLoginCompleted = true;
   admin.resetPasswordTokenHash = undefined;
   admin.resetPasswordExpiresAt = undefined;
   admin.resetPasswordRequestedAt = undefined;
@@ -585,6 +648,9 @@ export const loginAdmin = async (req, res) => {
         role: "SUPER_ADMIN",
         adminClass: "CLASS_I",
         status: "ACTIVE",
+        hasPassword: true,
+        mustSetPassword: false,
+        firstLoginCompleted: true,
       },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
@@ -602,6 +668,21 @@ export const loginAdmin = async (req, res) => {
   if (!admin) return res.status(404).json({ msg: "Admin not found" });
   if (!isEligibleInternalAdmin(admin)) {
     return res.status(403).json({ msg: "Admin account is not eligible" });
+  }
+
+  if (adminRequiresPasswordSetup(admin)) {
+    console.log("Admin login blocked: password setup required", {
+      email: maskAdminEmail(email),
+      found: true,
+      hasPassword: adminHasPassword(admin),
+      mustSetPassword: Boolean(admin.mustSetPassword),
+      requiresPasswordSetup: true,
+      setupTokenIssued: false,
+    });
+    return res.status(403).json({
+      requiresPasswordSetup: true,
+      msg: "Password setup required",
+    });
   }
 
   if (!admin.password) {
@@ -729,10 +810,40 @@ export const resetAdminPassword = async (req, res) => {
     admin.resetPasswordExpiresAt = undefined;
     admin.resetPasswordRequestedAt = undefined;
     admin.passwordChangedAt = new Date();
+    admin.hasPassword = true;
+    admin.mustSetPassword = false;
+    admin.firstLoginCompleted = true;
     await admin.save();
     adminOtpStore.delete(key);
 
     return res.json({ msg: "Password reset successful. Please login." });
+  }
+
+  const setupRecord = consumePasswordSetupToken(token, email);
+  if (setupRecord) {
+    const admin = await Admin.findById(setupRecord.adminId).select("+resetPasswordTokenHash +resetPasswordExpiresAt");
+    if (!admin || normalizeEmail(admin.email) !== email || !isEligibleInternalAdmin(admin)) {
+      return res.status(400).json({ msg: "Reset link is invalid or expired" });
+    }
+
+    admin.password = await bcrypt.hash(password, 10);
+    admin.resetPasswordTokenHash = undefined;
+    admin.resetPasswordExpiresAt = undefined;
+    admin.resetPasswordRequestedAt = undefined;
+    admin.passwordChangedAt = new Date();
+    admin.hasPassword = true;
+    admin.mustSetPassword = false;
+    admin.firstLoginCompleted = true;
+    await admin.save();
+
+    console.log("Admin password setup completed", {
+      email: maskAdminEmail(email),
+      hasPassword: true,
+      mustSetPassword: false,
+      firstLoginCompleted: true,
+    });
+
+    return res.json({ msg: "Password setup successful. Please login." });
   }
 
   const admin = await Admin.findOne({
@@ -754,6 +865,9 @@ export const resetAdminPassword = async (req, res) => {
   admin.resetPasswordExpiresAt = undefined;
   admin.resetPasswordRequestedAt = undefined;
   admin.passwordChangedAt = new Date();
+  admin.hasPassword = true;
+  admin.mustSetPassword = false;
+  admin.firstLoginCompleted = true;
   await admin.save();
 
   res.json({ msg: "Password reset successful. Please login." });
@@ -839,6 +953,9 @@ export const createAdmin = async (req, res) => {
     role,
     adminClass: ROLE_INTERNAL_CLASS[role] || "CLASS_III",
     status: "ACTIVE",
+    hasPassword: true,
+    mustSetPassword: false,
+    firstLoginCompleted: true,
     createdBy: currentAdmin.id,
   });
 
@@ -856,7 +973,12 @@ export const updateAdmin = async (req, res) => {
     updates.role = role;
     updates.adminClass = ROLE_INTERNAL_CLASS[role] || "CLASS_III";
   }
-  if (password) updates.password = await bcrypt.hash(password, 10);
+  if (password) {
+    updates.password = await bcrypt.hash(password, 10);
+    updates.hasPassword = true;
+    updates.mustSetPassword = false;
+    updates.firstLoginCompleted = true;
+  }
 
   const admin = await Admin.findByIdAndUpdate(req.params.id, updates, { new: true }).select(ADMIN_SELECT);
   if (!admin) return res.status(404).json({ msg: "Admin not found" });
