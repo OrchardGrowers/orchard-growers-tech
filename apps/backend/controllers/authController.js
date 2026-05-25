@@ -8,6 +8,7 @@ import { isSmtpConfigured, normalizeMailPlatform, sendOtpEmail } from "../servic
 import { isMobileOtpConfigured, sendMobileOtp, verifyMsg91WidgetOtp } from "../services/mobileOtpService.js";
 
 const otpStore = new Map();
+const otpVerificationTokens = new Map();
 const ACCOUNT_EXISTS_SIGNIN_MESSAGE = "Account already exists. Please sign in.";
 const truthyEnv = (value = "") => ["1", "true", "yes"].includes(String(value).trim().toLowerCase());
 const useLegacyMsg91Api = () => truthyEnv(process.env.USE_LEGACY_MSG91_API);
@@ -19,6 +20,10 @@ const getOtpTtlMs = () => {
 const getOtpLength = () => {
   const configuredLength = Number(process.env.MSG91_OTP_LENGTH || 6);
   return Number.isFinite(configuredLength) && configuredLength >= 4 && configuredLength <= 8 ? configuredLength : 6;
+};
+const getOtpMaxAttempts = () => {
+  const attempts = Number(process.env.OTP_MAX_ATTEMPTS || 5);
+  return Number.isFinite(attempts) && attempts > 0 ? attempts : 5;
 };
 const createOtp = () => {
   const length = getOtpLength();
@@ -109,6 +114,42 @@ const getRequestPlatform = (req) => {
   return normalizeMailPlatform(req.body.platform || req.get("x-platform") || req.get("x-app-platform") || "orchardgrowers");
 };
 const getOtpKey = (platform, parsed, purpose = "auth") => `${normalizeMailPlatform(platform)}:${getOtpPurpose(purpose)}:${parsed.type}:${parsed.value}`;
+const hashToken = (token = "") => crypto.createHash("sha256").update(String(token)).digest("hex");
+const createOtpVerificationToken = ({ platform, parsed, purpose }) => {
+  const token = crypto.randomBytes(32).toString("hex");
+  const key = getOtpKey(platform, parsed, purpose);
+  otpVerificationTokens.set(hashToken(token), {
+    key,
+    platform: normalizeMailPlatform(platform),
+    purpose: getOtpPurpose(purpose),
+    channel: parsed.type,
+    identifier: parsed.value,
+    expiresAt: Date.now() + getOtpTtlMs(),
+    used: false,
+  });
+  return token;
+};
+const validateOtpVerificationToken = ({ token, platform, parsed, purpose = "auth" }) => {
+  const cleanToken = String(token || "").trim();
+  if (!cleanToken) return false;
+
+  const tokenKey = hashToken(cleanToken);
+  const record = otpVerificationTokens.get(tokenKey);
+  const expectedKey = getOtpKey(platform, parsed, purpose);
+  if (!record || record.used || record.key !== expectedKey) return false;
+
+  if (record.expiresAt < Date.now()) {
+    otpVerificationTokens.delete(tokenKey);
+    return false;
+  }
+
+  return true;
+};
+const consumeOtpVerificationToken = (token = "") => {
+  const cleanToken = String(token || "").trim();
+  if (!cleanToken) return;
+  otpVerificationTokens.delete(hashToken(cleanToken));
+};
 const getProviderRequestId = (data = {}) =>
   data?.reqId || data?.req_id || data?.requestId || data?.request_id || data?.RequestId || data?.id || "";
 const sanitizeMsg91Audit = (data = {}) => {
@@ -126,12 +167,8 @@ const hasMsg91VerificationProof = (data = {}) => {
   const status = String(data.type || data.status || data.Status || "").toLowerCase();
   const message = String(data.message || data.Message || data.details || data.Details || "").toLowerCase();
   return Boolean(
-    data.tokenAuth ||
-      data.token ||
-      data.accessToken ||
-      data["access-token"] ||
-      data.jwt ||
-      status === "success" ||
+    status === "success" ||
+      status === "verified" ||
       message.includes("verified")
   );
 };
@@ -181,6 +218,8 @@ const storeOtp = ({ platform, parsed, otp, purpose }) => {
     platform,
     purpose,
     expiresAt: Date.now() + getOtpTtlMs(),
+    attempts: 0,
+    maxAttempts: getOtpMaxAttempts(),
     verified: false,
     used: false,
   });
@@ -196,6 +235,8 @@ const storeWidgetVerification = ({ platform, parsed, purpose, audit }) => {
     provider: "MSG91_WIDGET",
     providerAudit: audit,
     expiresAt: Date.now() + getOtpTtlMs(),
+    attempts: 0,
+    maxAttempts: getOtpMaxAttempts(),
     verified: true,
     used: true,
   });
@@ -316,9 +357,24 @@ const sendOtpForPurpose = async ({ req, res, purpose = "auth", requireExistingUs
   const normalizedPurpose = getOtpPurpose(purpose);
   const key = storeOtp({ platform, parsed, otp, purpose: normalizedPurpose });
   let delivery = {};
-
   try {
-  delivery = await deliverOtp({ platform, parsed, otp, purpose: normalizedPurpose, forceLegacy: Boolean(req.body.forceLegacy) });
+    // Developer/test mode: if ALLOW_TEST_OTP=true, override stored OTP with TEST_OTP
+    try {
+      const allowTest = truthyEnv(process.env.ALLOW_TEST_OTP);
+      if (allowTest) {
+        const testOtp = String(process.env.TEST_OTP || otp || "");
+        // update the stored OTP so verify will accept the test value
+        const existing = otpStore.get(key) || {};
+        otpStore.set(key, { ...existing, otp: testOtp });
+        const requestId = `test:${Date.now()}`;
+        console.log("Test OTP mode active; storing test OTP for verification", { platform, channel: parsed.type, requestId, otp: testOtp ? "[configured]" : "[generated]" });
+        delivery = { message: `OTP sent (test)`, requestId };
+      } else {
+        delivery = await deliverOtp({ platform, parsed, otp, purpose: normalizedPurpose, forceLegacy: Boolean(req.body.forceLegacy) });
+      }
+    } catch (e) {
+      throw e;
+    }
   } catch (err) {
     otpStore.delete(key);
     logOtpError("OTP delivery failed:", err);
@@ -397,13 +453,34 @@ export const verifyOtp = async (req, res) => {
 
     const key = getOtpKey(platform, parsed, purpose);
     const record = otpStore.get(key);
+    logAuthDebug("OTP verify route hit", {
+      route: req.originalUrl,
+      platform,
+      channel: parsed.type,
+      purpose,
+      identifier: maskOtpKey(key),
+    });
 
     if (!record) {
+      logAuthDebug("OTP verification failed", {
+        platform,
+        channel: parsed.type,
+        purpose,
+        identifier: maskOtpKey(key),
+        reason: "missing_request",
+      });
       return res.status(400).json({ msg: "Invalid OTP" });
     }
 
     if (record.expiresAt < Date.now()) {
       otpStore.delete(key);
+      logAuthDebug("OTP verification failed", {
+        platform,
+        channel: parsed.type,
+        purpose,
+        identifier: maskOtpKey(key),
+        reason: "expired",
+      });
       return res.status(400).json({ msg: "OTP expired. Request a new OTP." });
     }
 
@@ -412,17 +489,48 @@ export const verifyOtp = async (req, res) => {
     }
 
     if (record.otp !== otp) {
+      const attempts = Number(record.attempts || 0) + 1;
+      if (attempts >= Number(record.maxAttempts || getOtpMaxAttempts())) {
+        otpStore.delete(key);
+        logAuthDebug("OTP verification failed", {
+          platform,
+          channel: parsed.type,
+          purpose,
+          identifier: maskOtpKey(key),
+          reason: "max_attempts",
+        });
+        return res.status(429).json({ msg: "Too many invalid OTP attempts. Please request a new OTP." });
+      }
+      otpStore.set(key, { ...record, attempts });
+      logAuthDebug("OTP verification failed", {
+        platform,
+        channel: parsed.type,
+        purpose,
+        identifier: maskOtpKey(key),
+        reason: "invalid_otp",
+      });
       return res.status(400).json({ msg: "Invalid OTP" });
     }
 
     otpStore.set(key, { ...record, otp: "", verified: true, used: true });
+    const otpVerificationToken = createOtpVerificationToken({ platform, parsed, purpose });
+
+    logAuthDebug("OTP verified", {
+      platform,
+      channel: parsed.type,
+      purpose,
+      identifier: maskOtpKey(key),
+      tokenIssued: true,
+    });
 
     res.json({
       message: "OTP verified",
       channel: parsed.type,
+      otpVerificationToken,
     });
   } catch (err) {
-    res.status(500).json({ msg: err.message });
+    console.error("OTP verification failed:", err?.message || err);
+    res.status(500).json({ msg: "OTP verification failed" });
   }
 };
 
@@ -439,16 +547,101 @@ export const verifyMobileWidgetOtp = async (req, res) => {
       return res.status(400).json({ msg: "Valid phone number is required" });
     }
 
-    if (!hasMsg91VerificationProof(msg91) && otp && reqId) {
+    const key = getOtpKey(platform, parsed, purpose);
+    const record = otpStore.get(key);
+    logAuthDebug("OTP verify route hit", {
+      route: req.originalUrl,
+      platform,
+      channel: parsed.type,
+      purpose,
+      identifier: maskOtpKey(key),
+    });
+
+    if (!record) {
+      logAuthDebug("OTP verification failed", {
+        platform,
+        channel: parsed.type,
+        purpose,
+        identifier: maskOtpKey(key),
+        reason: "missing_request",
+      });
+      return res.status(400).json({ msg: "Please request OTP first." });
+    }
+
+    if (record.expiresAt < Date.now()) {
+      otpStore.delete(key);
+      logAuthDebug("OTP verification failed", {
+        platform,
+        channel: parsed.type,
+        purpose,
+        identifier: maskOtpKey(key),
+        reason: "expired",
+      });
+      return res.status(400).json({ msg: "OTP expired. Request a new OTP." });
+    }
+
+    if (record.used || record.verified) {
+      return res.status(400).json({ msg: "Invalid OTP" });
+    }
+
+    if (!otp || !reqId) {
+      return res.status(400).json({ msg: "OTP verification failed" });
+    }
+
+    try {
       msg91 = await verifyMsg91WidgetOtp({
         phone: parsed.value,
         otp,
         reqId,
         platform,
       });
+    } catch (err) {
+      const attempts = Number(record.attempts || 0) + 1;
+      if (attempts >= Number(record.maxAttempts || getOtpMaxAttempts())) {
+        otpStore.delete(key);
+        logAuthDebug("OTP verification failed", {
+          platform,
+          channel: parsed.type,
+          purpose,
+          identifier: maskOtpKey(key),
+          reason: "max_attempts",
+        });
+        return res.status(429).json({ msg: "Too many invalid OTP attempts. Please request a new OTP." });
+      }
+
+      otpStore.set(key, { ...record, attempts });
+      logAuthDebug("OTP verification failed", {
+        platform,
+        channel: parsed.type,
+        purpose,
+        identifier: maskOtpKey(key),
+        reason: "invalid_otp",
+      });
+      return res.status(400).json({ msg: "Invalid OTP" });
     }
 
     if (!hasMsg91VerificationProof(msg91)) {
+      const attempts = Number(record.attempts || 0) + 1;
+      if (attempts >= Number(record.maxAttempts || getOtpMaxAttempts())) {
+        otpStore.delete(key);
+        logAuthDebug("OTP verification failed", {
+          platform,
+          channel: parsed.type,
+          purpose,
+          identifier: maskOtpKey(key),
+          reason: "max_attempts",
+        });
+        return res.status(429).json({ msg: "Too many invalid OTP attempts. Please request a new OTP." });
+      }
+
+      otpStore.set(key, { ...record, attempts });
+      logAuthDebug("OTP verification failed", {
+        platform,
+        channel: parsed.type,
+        purpose,
+        identifier: maskOtpKey(key),
+        reason: "invalid_otp",
+      });
       return res.status(400).json({ msg: "OTP verification failed" });
     }
 
@@ -457,10 +650,11 @@ export const verifyMobileWidgetOtp = async (req, res) => {
       requestId: reqId || getProviderRequestId(msg91),
       verifiedAt: new Date().toISOString(),
     });
-    const key = storeWidgetVerification({ platform, parsed, purpose, audit });
+    const verifiedKey = storeWidgetVerification({ platform, parsed, purpose, audit });
+    const otpVerificationToken = createOtpVerificationToken({ platform, parsed, purpose });
 
     if (String(process.env.APP_ENV || process.env.NODE_ENV || "").trim().toLowerCase() === "development") {
-      console.log(`MSG91 widget verification accepted for ${maskOtpKey(key)}`, {
+      console.log(`MSG91 widget verification accepted for ${maskOtpKey(verifiedKey)}`, {
         provider: "MSG91_WIDGET",
         requestId: audit.requestId || "",
       });
@@ -470,32 +664,28 @@ export const verifyMobileWidgetOtp = async (req, res) => {
       provider: "MSG91",
       flow: "widget",
       platform,
+      channel: parsed.type,
+      purpose,
+      identifier: maskOtpKey(verifiedKey),
       requestId: audit.requestId || "",
       status: "verified",
+      tokenIssued: true,
     });
 
-    return res.json({ message: "OTP verified", channel: "phone" });
+    return res.json({ message: "OTP verified", channel: "phone", otpVerificationToken });
   } catch (err) {
     console.error("MSG91 widget verification failed:", err?.message || err);
     return res.status(500).json({ msg: "OTP verification failed" });
   }
 };
 
-export const isOtpVerified = (parsed, platform = "orchardgrowers") => {
-  const key = getOtpKey(platform, parsed, "auth");
-  const record = otpStore.get(key);
-  if (!record) return false;
-
-  if (record.expiresAt < Date.now()) {
-    otpStore.delete(key);
-    return false;
-  }
-
-  return Boolean(record.verified && record.used);
+export const isOtpVerified = (parsed, platform = "orchardgrowers", purpose = "auth", token = "") => {
+  return validateOtpVerificationToken({ token, platform, parsed, purpose });
 };
 
-export const consumeOtpVerification = (parsed, platform = "orchardgrowers") => {
-  otpStore.delete(getOtpKey(platform, parsed, "auth"));
+export const consumeOtpVerification = (parsed, platform = "orchardgrowers", purpose = "auth", token = "") => {
+  consumeOtpVerificationToken(token);
+  otpStore.delete(getOtpKey(platform, parsed, purpose));
 };
 
 export const resetPasswordWithOtp = async (req, res) => {
@@ -525,7 +715,24 @@ export const resetPasswordWithOtp = async (req, res) => {
       return res.status(400).json({ msg: "OTP expired. Request a new OTP." });
     }
 
-    if (record.used || record.verified || record.otp !== otp) {
+    if (record.used || record.verified) {
+      return res.status(400).json({ msg: "Invalid OTP" });
+    }
+
+    if (record.otp !== otp) {
+      const attempts = Number(record.attempts || 0) + 1;
+      if (attempts >= Number(record.maxAttempts || getOtpMaxAttempts())) {
+        otpStore.delete(key);
+        logAuthDebug("Password reset OTP failed", {
+          platform,
+          channel: parsed.type,
+          purpose: "forgot-password",
+          identifier: maskOtpKey(key),
+          reason: "max_attempts",
+        });
+        return res.status(429).json({ msg: "Too many invalid OTP attempts. Please request a new OTP." });
+      }
+      otpStore.set(key, { ...record, attempts });
       return res.status(400).json({ msg: "Invalid OTP" });
     }
 
@@ -549,7 +756,7 @@ export const resetPasswordWithOtp = async (req, res) => {
 // ================= REGISTER USER =================
 export const registerUser = async (req, res) => {
   try {
-    const { name, identifier, password } = req.body;
+    const { name, identifier, password, otpVerificationToken } = req.body;
     const parsed = parseIdentifier(identifier);
     const platform = getRequestPlatform(req);
 
@@ -557,7 +764,7 @@ export const registerUser = async (req, res) => {
       return res.status(400).json({ msg: "Name, email/phone, and password are required" });
     }
 
-    if (!isOtpVerified(parsed, platform)) {
+    if (!isOtpVerified(parsed, platform, "auth", otpVerificationToken)) {
       return res.status(400).json({ msg: "Verify OTP before signup" });
     }
 
@@ -576,10 +783,22 @@ export const registerUser = async (req, res) => {
       role: null,
     });
 
-    consumeOtpVerification(parsed, platform);
+    consumeOtpVerification(parsed, platform, "auth", otpVerificationToken);
+    const { accessToken, refreshToken } = createTokenPair(user);
+
+    logAuthDebug("Auth session issued", {
+      route: req.originalUrl,
+      platform,
+      channel: parsed.type,
+      purpose: "auth",
+      identifier: maskOtpKey(getOtpKey(platform, parsed, "auth")),
+      flow: "signup",
+    });
 
     res.json({
       message: "User registered successfully",
+      accessToken,
+      refreshToken,
       user: safeUserPayload(user),
     });
   } catch (err) {
@@ -594,7 +813,7 @@ export const registerUser = async (req, res) => {
 // ================= LOGIN USER =================
 export const loginUser = async (req, res) => {
   try {
-    const { identifier, password } = req.body;
+    const { identifier, password, otpVerificationToken } = req.body;
     const parsed = parseIdentifier(identifier);
     const platform = getRequestPlatform(req);
 
@@ -602,7 +821,7 @@ export const loginUser = async (req, res) => {
       return res.status(400).json({ msg: "Email/phone and password required" });
     }
 
-    if (!isOtpVerified(parsed, platform)) {
+    if (!isOtpVerified(parsed, platform, "auth", otpVerificationToken)) {
       return res.status(400).json({ msg: "Verify OTP before login" });
     }
 
@@ -624,7 +843,16 @@ export const loginUser = async (req, res) => {
 
     const { accessToken, refreshToken } = createTokenPair(user);
 
-    consumeOtpVerification(parsed, platform);
+    consumeOtpVerification(parsed, platform, "auth", otpVerificationToken);
+
+    logAuthDebug("Auth session issued", {
+      route: req.originalUrl,
+      platform,
+      channel: parsed.type,
+      purpose: "auth",
+      identifier: maskOtpKey(getOtpKey(platform, parsed, "auth")),
+      flow: "login",
+    });
 
     res.json({
       message: "Login successful",

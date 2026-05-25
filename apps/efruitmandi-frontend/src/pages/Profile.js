@@ -25,6 +25,9 @@ import {
 const logoUrl = `${process.env.PUBLIC_URL || ""}/logo.png`;
 const stripApiSuffix = (value = "") => value.trim().replace(/\/+$/, "").replace(/\/api$/i, "");
 const EFRUIT_APP_NAME = process.env.VITE_APP_NAME || "efruitmandi";
+const OTP_RESEND_SECONDS = 60;
+const OTP_EXPIRY_SECONDS = Number(process.env.VITE_OTP_EXPIRY_SECONDS || 300);
+const OTP_MAX_ATTEMPTS = 5;
 const withOAuthAppParam = (url, appName) => {
   try {
     const nextUrl = new URL(url);
@@ -154,6 +157,10 @@ export default function Profile() {
     login: "",
     signup: "",
   });
+  const [otpVerificationToken, setOtpVerificationToken] = useState({
+    login: "",
+    signup: "",
+  });
   const [mobileOtpReqId, setMobileOtpReqId] = useState({
     login: "",
     signup: "",
@@ -162,10 +169,19 @@ export default function Profile() {
     login: false,
     signup: false,
   });
+  const [otpExpiresAt, setOtpExpiresAt] = useState({
+    login: 0,
+    signup: 0,
+  });
+  const [otpAttemptCount, setOtpAttemptCount] = useState({
+    login: 0,
+    signup: 0,
+  });
   const [otpCooldown, setOtpCooldown] = useState({
     login: 0,
     signup: 0,
   });
+  const [resetMode, setResetMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
 
@@ -187,13 +203,62 @@ export default function Profile() {
 
   const normalizeContact = (value) => value.trim().toLowerCase();
   const isPhoneIdentifier = (value) => Boolean(normalizeIndianMobile(value));
+  const isOtpExpired = (targetMode) => Boolean(otpExpiresAt[targetMode] && otpExpiresAt[targetMode] <= Date.now());
+  const hasOtpRequest = (targetMode) => Boolean(mobileOtpSent[targetMode] || otpExpiresAt[targetMode]);
+  const sanitizeAuthMessage = (err, fallback) => {
+    const status = err?.response?.status;
+    const serverMessage = String(err?.response?.data?.msg || err?.response?.data?.message || "").trim();
+    if (status === 429) return "Too many invalid OTP attempts. Please request a new OTP.";
+    if (/expired/i.test(serverMessage)) return "Invalid or expired OTP.";
+    if (/request.*otp|otp.*first/i.test(serverMessage)) return "Please request OTP first.";
+    if (/invalid.*otp|otp verification failed/i.test(serverMessage)) return "Invalid or expired OTP.";
+    if (/could not send|unable to send/i.test(serverMessage)) return "Could not send OTP. Please try again.";
+    return serverMessage || fallback;
+  };
+
+  useEffect(() => {
+    if (!otpExpiresAt.login && !otpExpiresAt.signup) return undefined;
+    const timer = window.setInterval(() => {
+      const now = Date.now();
+      const expiredLogin = Boolean(otpExpiresAt.login && otpExpiresAt.login <= now);
+      const expiredSignup = Boolean(otpExpiresAt.signup && otpExpiresAt.signup <= now);
+      if (!expiredLogin && !expiredSignup) return;
+
+      setOtpExpiresAt((current) => ({
+        login: expiredLogin ? 0 : current.login,
+        signup: expiredSignup ? 0 : current.signup,
+      }));
+      setVerifiedContact((current) => ({
+        login: expiredLogin ? "" : current.login,
+        signup: expiredSignup ? "" : current.signup,
+      }));
+      setOtpVerificationToken((current) => ({
+        login: expiredLogin ? "" : current.login,
+        signup: expiredSignup ? "" : current.signup,
+      }));
+      setMobileOtpSent((current) => ({
+        login: expiredLogin ? false : current.login,
+        signup: expiredSignup ? false : current.signup,
+      }));
+      setMobileOtpReqId((current) => ({
+        login: expiredLogin ? "" : current.login,
+        signup: expiredSignup ? "" : current.signup,
+      }));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [otpExpiresAt]);
 
   const updateIdentifier = (targetMode, value) => {
     const setForm = targetMode === "login" ? setLoginForm : setSignupForm;
     setForm((current) => ({ ...current, identifier: value, otp: "" }));
+    if (targetMode === "login") setResetMode(false);
     setVerifiedContact((current) => ({ ...current, [targetMode]: "" }));
+    setOtpVerificationToken((current) => ({ ...current, [targetMode]: "" }));
     setMobileOtpReqId((current) => ({ ...current, [targetMode]: "" }));
     setMobileOtpSent((current) => ({ ...current, [targetMode]: false }));
+    setOtpExpiresAt((current) => ({ ...current, [targetMode]: 0 }));
+    setOtpAttemptCount((current) => ({ ...current, [targetMode]: 0 }));
     setOtpCooldown((current) => ({ ...current, [targetMode]: 0 }));
     setMessage({ type: "", text: "" });
   };
@@ -242,14 +307,45 @@ export default function Profile() {
 
   const changeMode = (nextMode) => {
     setMode(nextMode);
+    setResetMode(false);
     if (nextMode === "signup") {
       setSignupForm(initialSignup);
     }
     setMessage({ type: "", text: "" });
     setVerifiedContact((current) => ({ ...current, [nextMode]: "" }));
+    setOtpVerificationToken((current) => ({ ...current, [nextMode]: "" }));
     setMobileOtpReqId((current) => ({ ...current, [nextMode]: "" }));
     setMobileOtpSent((current) => ({ ...current, [nextMode]: false }));
+    setOtpExpiresAt((current) => ({ ...current, [nextMode]: 0 }));
+    setOtpAttemptCount((current) => ({ ...current, [nextMode]: 0 }));
     setOtpCooldown((current) => ({ ...current, [nextMode]: 0 }));
+  };
+
+  const requestPasswordResetOtp = async () => {
+    const identifier = normalizeContact(loginForm.identifier);
+    if (!identifier) {
+      showError("Enter email or phone number first.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const res = await API.post("/auth/forgot-password", {
+        identifier,
+        platform: "efruitmandi",
+      });
+      setResetMode(true);
+      setVerifiedContact((current) => ({ ...current, login: "" }));
+      setOtpVerificationToken((current) => ({ ...current, login: "" }));
+      setOtpExpiresAt((current) => ({ ...current, login: Date.now() + OTP_EXPIRY_SECONDS * 1000 }));
+      setOtpAttemptCount((current) => ({ ...current, login: 0 }));
+      setOtpCooldown((current) => ({ ...current, login: OTP_RESEND_SECONDS }));
+      showSuccess(res.data?.message || "OTP sent successfully.");
+    } catch (err) {
+      showError(sanitizeAuthMessage(err, "Could not send OTP. Please try again."));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSendOtp = async (targetMode) => {
@@ -270,27 +366,36 @@ export default function Profile() {
 
     try {
       setLoading(true);
+      const setForm = targetMode === "login" ? setLoginForm : setSignupForm;
+      setForm((current) => ({ ...current, otp: "" }));
       if (isPhoneIdentifier(identifier)) {
         const widgetId = getEfruitMandiWidgetId();
         const tokenAuth = getEfruitMandiTokenAuth();
         const phone = normalizeIndianMobile(identifier);
         const result = mobileOtpSent[targetMode]
           ? await retryMsg91WidgetOtp({ widgetId, tokenAuth, reqId: mobileOtpReqId[targetMode] })
-          : await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone });
+          : await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone, mode: targetMode });
         setMobileOtpReqId((current) => ({ ...current, [targetMode]: result.reqId || "" }));
         setMobileOtpSent((current) => ({ ...current, [targetMode]: true }));
-        setOtpCooldown((current) => ({ ...current, [targetMode]: 60 }));
+        setOtpCooldown((current) => ({ ...current, [targetMode]: OTP_RESEND_SECONDS }));
         setVerifiedContact((current) => ({ ...current, [targetMode]: "" }));
-        showSuccess(result.reqId ? "OTP sent to phone." : "OTP sent. Enter the OTP received.");
+        setOtpVerificationToken((current) => ({ ...current, [targetMode]: "" }));
+        setOtpExpiresAt((current) => ({ ...current, [targetMode]: Date.now() + OTP_EXPIRY_SECONDS * 1000 }));
+        setOtpAttemptCount((current) => ({ ...current, [targetMode]: 0 }));
+        showSuccess("OTP sent successfully.");
         return;
       }
 
       const res = await API.post("/auth/send-otp", { identifier, platform: "efruitmandi", mode: targetMode });
       setVerifiedContact((current) => ({ ...current, [targetMode]: "" }));
-      setOtpCooldown((current) => ({ ...current, [targetMode]: 60 }));
-      showSuccess(res.data?.message || "OTP sent.");
+      setOtpVerificationToken((current) => ({ ...current, [targetMode]: "" }));
+      setMobileOtpSent((current) => ({ ...current, [targetMode]: false }));
+      setOtpCooldown((current) => ({ ...current, [targetMode]: OTP_RESEND_SECONDS }));
+      setOtpExpiresAt((current) => ({ ...current, [targetMode]: Date.now() + OTP_EXPIRY_SECONDS * 1000 }));
+      setOtpAttemptCount((current) => ({ ...current, [targetMode]: 0 }));
+      showSuccess(res.data?.message || "OTP sent successfully.");
     } catch (err) {
-      showError(err.response?.data?.msg || err.message || "Unable to send OTP.");
+      showError(sanitizeAuthMessage(err, "Could not send OTP. Please try again."));
     } finally {
       setLoading(false);
     }
@@ -302,6 +407,23 @@ export default function Profile() {
 
     if (!identifier || !form.otp.trim()) {
       showError("Enter email/phone and OTP.");
+      return;
+    }
+
+    if (!hasOtpRequest(targetMode)) {
+      showError("Please request OTP first.");
+      return;
+    }
+
+    if (isOtpExpired(targetMode)) {
+      setVerifiedContact((current) => ({ ...current, [targetMode]: "" }));
+      setOtpVerificationToken((current) => ({ ...current, [targetMode]: "" }));
+      showError("Invalid or expired OTP.");
+      return;
+    }
+
+    if (otpAttemptCount[targetMode] >= OTP_MAX_ATTEMPTS) {
+      showError("Too many invalid OTP attempts. Please request a new OTP.");
       return;
     }
 
@@ -317,32 +439,45 @@ export default function Profile() {
         }
 
         const result = await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp: form.otp.trim(), reqId });
-        await API.post("/auth/verify-mobile-widget-otp", {
-          identifier,
-          platform: "efruitmandi",
-          reqId: result.reqId || reqId,
-          msg91: result.data,
-        });
+        if (!result.data?.otpVerificationToken) {
+          throw new Error("OTP verification failed.");
+        }
         setVerifiedContact((current) => ({
           ...current,
           [targetMode]: identifier,
         }));
-        showSuccess("OTP verified.");
+        setOtpVerificationToken((current) => ({
+          ...current,
+          [targetMode]: result.data?.otpVerificationToken || "",
+        }));
+        setOtpAttemptCount((current) => ({ ...current, [targetMode]: 0 }));
+        showSuccess("OTP verified successfully.");
         return;
       }
 
-      await API.post("/auth/verify-otp", {
+      const res = await API.post("/auth/verify-otp", {
         identifier,
         otp: form.otp.trim(),
         platform: "efruitmandi",
       });
+      if (!res.data?.otpVerificationToken) {
+        throw new Error("OTP verification failed.");
+      }
       setVerifiedContact((current) => ({
         ...current,
         [targetMode]: identifier,
       }));
-      showSuccess("OTP verified.");
+      setOtpVerificationToken((current) => ({
+        ...current,
+        [targetMode]: res.data?.otpVerificationToken || "",
+      }));
+      setOtpAttemptCount((current) => ({ ...current, [targetMode]: 0 }));
+      showSuccess("OTP verified successfully.");
     } catch (err) {
-      showError(err.response?.data?.msg || err.message || "OTP verification failed.");
+      setVerifiedContact((current) => ({ ...current, [targetMode]: "" }));
+      setOtpVerificationToken((current) => ({ ...current, [targetMode]: "" }));
+      setOtpAttemptCount((current) => ({ ...current, [targetMode]: current[targetMode] + 1 }));
+      showError(sanitizeAuthMessage(err, "Invalid or expired OTP."));
     } finally {
       setLoading(false);
     }
@@ -354,12 +489,44 @@ export default function Profile() {
 
     const identifier = normalizeContact(loginForm.identifier);
 
+    if (resetMode) {
+      if (!identifier || !loginForm.otp.trim() || !loginForm.password) {
+        showError("Enter email/phone, OTP, and new password.");
+        return;
+      }
+      if (loginForm.password.length < 8 || !/[A-Za-z]/.test(loginForm.password) || !/\d/.test(loginForm.password)) {
+        showError("Password must be at least 8 characters and include a letter and a number.");
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const res = await API.post("/auth/reset-password", {
+          identifier,
+          otp: loginForm.otp.trim(),
+          password: loginForm.password,
+          platform: "efruitmandi",
+        });
+        setResetMode(false);
+        setLoginForm(initialLogin);
+        setVerifiedContact((current) => ({ ...current, login: "" }));
+        setOtpVerificationToken((current) => ({ ...current, login: "" }));
+        setOtpExpiresAt((current) => ({ ...current, login: 0 }));
+        showSuccess(res.data?.message || "Password reset successful. Please login.");
+      } catch (err) {
+        showError(sanitizeAuthMessage(err, "Could not reset password."));
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     if (!identifier || !loginForm.password) {
       showError("Enter email/phone and password.");
       return;
     }
 
-    if (verifiedContact.login !== identifier) {
+    if (verifiedContact.login !== identifier || !otpVerificationToken.login) {
       showError("Verify OTP before login.");
       return;
     }
@@ -370,6 +537,7 @@ export default function Profile() {
         identifier,
         password: loginForm.password,
         platform: "efruitmandi",
+        otpVerificationToken: otpVerificationToken.login,
       });
 
       saveSession(res.data);
@@ -398,7 +566,7 @@ export default function Profile() {
       return;
     }
 
-    if (verifiedContact.signup !== identifier) {
+    if (verifiedContact.signup !== identifier || !otpVerificationToken.signup) {
       showError("Verify OTP before signup.");
       return;
     }
@@ -416,20 +584,15 @@ export default function Profile() {
     try {
       setLoading(true);
 
-      await API.post("/auth/register", {
+      const registerRes = await API.post("/auth/register", {
         name: signupForm.name.trim(),
         identifier,
         password: signupForm.password,
         platform: "efruitmandi",
+        otpVerificationToken: otpVerificationToken.signup,
       });
 
-      const loginRes = await API.post("/auth/login", {
-        identifier,
-        password: signupForm.password,
-        platform: "efruitmandi",
-      });
-
-      saveSession(loginRes.data);
+      saveSession(registerRes.data);
       navigate("/profile-dashboard");
     } catch (err) {
       showError(err.response?.data?.msg || "Signup failed. Please try again.");
@@ -453,7 +616,21 @@ export default function Profile() {
   };
 
   const activeForm = mode === "login" ? loginForm : signupForm;
-  const activeVerified = verifiedContact[mode] === normalizeContact(activeForm.identifier);
+  const activeVerified =
+    verifiedContact[mode] === normalizeContact(activeForm.identifier) &&
+    Boolean(otpVerificationToken[mode]);
+  const loginIdentifier = normalizeContact(loginForm.identifier);
+  const signupIdentifier = normalizeContact(signupForm.identifier);
+  const loginCanSubmit = resetMode
+    ? Boolean(loginIdentifier && loginForm.otp.trim() && loginForm.password)
+    : Boolean(loginIdentifier && loginForm.password && activeVerified);
+  const signupCanSubmit = Boolean(
+    signupForm.name.trim() &&
+      signupIdentifier &&
+      signupForm.password &&
+      activeVerified &&
+      acceptedTerms
+  );
 
   return (
     <div className="fixed inset-0 z-[999] bg-[#18a64b] p-2 sm:p-3">
@@ -573,6 +750,7 @@ export default function Profile() {
                     verified={activeVerified}
                     loading={loading}
                     otpCooldown={otpCooldown.login}
+                    otpSent={hasOtpRequest("login")}
                     onSendOtp={() => handleSendOtp("login")}
                     onVerifyOtp={() => handleVerifyOtp("login")}
                     disableAutofill
@@ -592,13 +770,13 @@ export default function Profile() {
 
                   <button
                     type="button"
-                    onClick={() => showError("Password reset is not connected yet.")}
+                    onClick={requestPasswordResetOtp}
                     className="mb-3 block w-full text-left text-xs font-semibold text-green-700 lg:mb-2"
                   >
                     Forgot password?
                   </button>
 
-                  <SubmitButton loading={loading} label="Login" loadingLabel="Signing in..." />
+                  <SubmitButton loading={loading} disabled={!loginCanSubmit} label={resetMode ? "Reset password" : "Login"} loadingLabel="Please wait..." />
                 </form>
               ) : (
                 <form onSubmit={handleSignup} autoComplete="off">
@@ -622,6 +800,7 @@ export default function Profile() {
                     verified={activeVerified}
                     loading={loading}
                     otpCooldown={otpCooldown.signup}
+                    otpSent={hasOtpRequest("signup")}
                     onSendOtp={() => handleSendOtp("signup")}
                     onVerifyOtp={() => handleVerifyOtp("signup")}
                   />
@@ -641,7 +820,7 @@ export default function Profile() {
 
                   <TermsAcceptance checked={acceptedTerms} onChange={setAcceptedTerms} />
 
-                  <SubmitButton loading={loading} label="Signup" loadingLabel="Creating..." />
+                  <SubmitButton loading={loading} disabled={!signupCanSubmit} label="Signup" loadingLabel="Creating..." />
                 </form>
               )}
             </div>
@@ -737,6 +916,7 @@ function ContactOtpFields({
   verified,
   loading,
   otpCooldown,
+  otpSent,
   onSendOtp,
   onVerifyOtp,
   disableAutofill = false,
@@ -772,8 +952,9 @@ function ContactOtpFields({
           <input
             value={form.otp}
             onChange={(e) => setForm({ ...form, otp: e.target.value })}
-            placeholder="Enter OTP"
+            placeholder={otpSent ? "Enter OTP" : "Request OTP first"}
             inputMode="numeric"
+            disabled={loading || verified}
             className="min-w-0 rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-green-600 lg:py-1"
           />
           <button
@@ -786,11 +967,11 @@ function ContactOtpFields({
           </button>
           <button
             type="button"
-            disabled={loading}
+            disabled={loading || verified || !otpSent || !form.otp.trim()}
             onClick={onVerifyOtp}
             className="rounded-md bg-[#15883f] px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50 lg:py-1"
           >
-            Verify
+            {verified ? "Verified" : "Verify"}
           </button>
         </div>
       </div>
@@ -895,11 +1076,11 @@ function PasswordStrength({ strength }) {
   );
 }
 
-function SubmitButton({ loading, label, loadingLabel }) {
+function SubmitButton({ loading, disabled, label, loadingLabel }) {
   return (
     <button
       type="submit"
-      disabled={loading}
+      disabled={loading || disabled}
       className="w-full rounded-md bg-[#15883f] py-2.5 text-sm font-bold text-white disabled:opacity-60 lg:py-2"
     >
       {loading ? loadingLabel : label}

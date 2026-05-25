@@ -2782,6 +2782,7 @@ function AuthPage() {
   });
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetMode, setResetMode] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otpProviderData, setOtpProviderData] = useState<Record<string, unknown> | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -2839,12 +2840,14 @@ function AuthPage() {
       setOtpSent(false);
       setOtpCooldown(0);
       setOtpReqId("");
+      setResetMode(false);
     }
   };
 
   const switchAuthMode = (nextMode: "login" | "signup") => {
     setMode(nextMode);
     setMessage("");
+    setResetMode(false);
     setOtpSent(false);
     setOtpCooldown(0);
     setOtpReqId("");
@@ -2857,6 +2860,32 @@ function AuthPage() {
       confirmPassword: "",
       otp: "",
     });
+  };
+
+  const requestPasswordResetOtp = async () => {
+    setMessage("");
+    if (!form.identifier) {
+      setMessage("Enter your email or phone number first.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const mobile = normalizeIndianMobile(form.identifier);
+      const res = await API.post<{ message?: string }>("/auth/forgot-password", {
+        identifier: mobile || form.identifier,
+        platform: "orchardgrowers",
+      });
+      setResetMode(true);
+      setOtpSent(true);
+      setOtpCooldown(60);
+      setOtpReqId("");
+      setMessage(res.data.message || "If the account exists, an OTP has been sent.");
+    } catch (err: any) {
+      setMessage(err?.response?.data?.msg || err?.message || "Could not send password reset OTP.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const sendLoginOtp = async () => {
@@ -2938,6 +2967,38 @@ function AuthPage() {
 
     if (mode === "signup" && !acceptedTerms) {
       setMessage("Accept Terms & Conditions before continuing.");
+      return;
+    }
+
+    if (resetMode) {
+      if (!form.identifier || !form.otp || !form.password) {
+        setMessage("Enter your email/phone, OTP, and new password.");
+        return;
+      }
+      if (form.password.length < 8 || !/[A-Za-z]/.test(form.password) || !/\d/.test(form.password)) {
+        setMessage("Password must be at least 8 characters and include a letter and a number.");
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const mobile = normalizeIndianMobile(form.identifier);
+        const res = await API.post("/auth/reset-password", {
+          identifier: mobile || form.identifier,
+          otp: form.otp,
+          password: form.password,
+          platform: "orchardgrowers",
+        });
+        setResetMode(false);
+        setOtpSent(false);
+        setOtpReqId("");
+        setForm((current) => ({ ...current, otp: "", password: "" }));
+        setMessage(res.data.message || "Password reset successful. Please login.");
+      } catch (err: any) {
+        setMessage(err?.response?.data?.msg || err?.message || "Could not reset password.");
+      } finally {
+        setLoading(false);
+      }
       return;
     }
 
@@ -3147,7 +3208,7 @@ function AuthPage() {
                 <button
                   type="button"
                   className="text-sm font-medium text-green-800 hover:text-green-900"
-                  onClick={() => setMessage("Password reset is not configured yet. Please use OTP login or contact support.")}
+                  onClick={requestPasswordResetOtp}
                 >
                   Forgot password?
                 </button>
@@ -3173,7 +3234,7 @@ function AuthPage() {
                 disabled={loading}
                 className="h-10 w-full rounded-md bg-green-800 px-5 text-sm font-medium text-white transition hover:bg-green-900 disabled:opacity-60"
               >
-                {loading ? "Please wait..." : mode === "login" ? "Sign in" : "Sign up"}
+                {loading ? "Please wait..." : resetMode ? "Reset password" : mode === "login" ? "Sign in" : "Sign up"}
               </button>
             </form>
 

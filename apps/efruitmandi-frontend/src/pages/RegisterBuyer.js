@@ -81,7 +81,7 @@ export default function RegisterBuyer() {
 
       const result = otpSent
         ? await retryMsg91WidgetOtp({ widgetId, tokenAuth, reqId: otpReqId })
-        : await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone });
+        : await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone, mode: "signup" });
       setOtpReqId(result.reqId || "");
       setOtpSent(true);
       setOtpCooldown(60);
@@ -107,13 +107,7 @@ export default function RegisterBuyer() {
         return;
       }
 
-      const result = await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp: otp.trim(), reqId: otpReqId });
-      await API.post("/auth/verify-mobile-widget-otp", {
-        identifier: contactValue,
-        platform: "efruitmandi",
-        reqId: result.reqId || otpReqId,
-        msg91: result.data,
-      });
+      await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp: otp.trim(), reqId: otpReqId });
       setVerifiedPhone(contactValue);
       setMessage("Contact number verified.");
     } catch (err) {

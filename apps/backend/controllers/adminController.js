@@ -11,7 +11,7 @@ import { sendEmail, sendOtpEmail } from "../services/mailService.js";
 
 const ADMIN_SELECT = "-password -__v";
 const USER_SELECT = "-password -__v";
-const ADMIN_MAIL_PLATFORM = "orchardgrowers";
+const ADMIN_MAIL_PLATFORM = "admin";
 const adminOtpStore = new Map();
 const ADMIN_ROLES = [
   "SUPER_ADMIN",
@@ -331,7 +331,13 @@ const createPasswordResetToken = () => {
 };
 
 const getResetBaseUrl = (req) =>
-  (process.env.ADMIN_RESET_BASE_URL || process.env.ADMIN_PANEL_URL || req.get("origin") || "")
+  (
+    process.env.ADMIN_RESET_BASE_URL ||
+    process.env.ADMIN_FRONTEND_URL ||
+    process.env.ADMIN_PANEL_URL ||
+    req.get("origin") ||
+    ""
+  )
     .trim()
     .replace(/\/+$/, "");
 
@@ -345,7 +351,17 @@ const buildAdminResetUrl = (req, email, token) => {
 
 const sendAdminPasswordResetEmail = async ({ req, email, token }) => {
   const resetUrl = buildAdminResetUrl(req, email, token);
-  if (!resetUrl) return false;
+  if (!resetUrl) {
+    console.error("Admin reset email skipped: reset URL is not configured", {
+      platform: ADMIN_MAIL_PLATFORM,
+      email: maskAdminEmail(email),
+      adminResetBaseUrlPresent: Boolean(process.env.ADMIN_RESET_BASE_URL),
+      adminFrontendUrlPresent: Boolean(process.env.ADMIN_FRONTEND_URL),
+      adminPanelUrlPresent: Boolean(process.env.ADMIN_PANEL_URL),
+      originPresent: Boolean(req.get("origin")),
+    });
+    return false;
+  }
 
   await sendEmail({
     platform: ADMIN_MAIL_PLATFORM,
@@ -514,12 +530,29 @@ export const requestAdminPasswordReset = async (req, res) => {
   const email = normalizeEmail(req.body.email);
   const response = { msg: "If the admin email is registered, reset instructions have been sent." };
 
-  if (!email || !isValidEmail(email) || !ALLOWED_ADMIN_SIGNUP_EMAILS.has(email)) {
+  console.log("Admin reset route hit", {
+    platform: ADMIN_MAIL_PLATFORM,
+    email: maskAdminEmail(email),
+  });
+
+  if (!email || !isValidEmail(email)) {
+    console.log("Admin reset skipped", {
+      platform: ADMIN_MAIL_PLATFORM,
+      email: maskAdminEmail(email),
+      reason: "invalid_email",
+    });
     return res.json(response);
   }
 
   const admin = await Admin.findOne({ email }).select("+resetPasswordTokenHash +resetPasswordExpiresAt");
   if (!admin || admin.status === "TERMINATED") {
+    console.log("Admin reset skipped", {
+      platform: ADMIN_MAIL_PLATFORM,
+      email: maskAdminEmail(email),
+      adminFound: Boolean(admin),
+      status: admin?.status || "",
+      reason: !admin ? "admin_not_found" : "admin_terminated",
+    });
     return res.json(response);
   }
 
@@ -530,9 +563,21 @@ export const requestAdminPasswordReset = async (req, res) => {
   await admin.save();
 
   try {
-    await sendAdminPasswordResetEmail({ req, email, token });
+    const emailSent = await sendAdminPasswordResetEmail({ req, email, token });
+    console.log("Admin reset email processed", {
+      platform: ADMIN_MAIL_PLATFORM,
+      email: maskAdminEmail(email),
+      emailSent,
+    });
   } catch (err) {
-    console.error("Admin reset email failed:", err.message || err);
+    console.error("Admin reset email failed:", {
+      platform: ADMIN_MAIL_PLATFORM,
+      email: maskAdminEmail(email),
+      code: err?.code,
+      smtpCode: err?.smtpCode,
+      smtpDetails: err?.smtpDetails,
+      message: err?.message,
+    });
   }
 
   res.json(response);

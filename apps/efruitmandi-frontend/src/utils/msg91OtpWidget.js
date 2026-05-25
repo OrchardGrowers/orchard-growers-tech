@@ -35,6 +35,7 @@ const normalizeApiUrl = (value = "") => {
 };
 const API_BASE_URL = normalizeApiUrl(getEnvValue("VITE_API_BASE_URL") || "https://orchard-growers-backend.onrender.com");
 const efruitOtpPhonesByReqId = new Map();
+const efruitOtpModesByReqId = new Map();
 
 const isDevelopment = () => getProcessEnv().NODE_ENV === "development";
 
@@ -397,7 +398,7 @@ const callWidget = (method, invoke) =>
     }
   });
 
-export const sendMsg91WidgetOtp = async ({ widgetId, tokenAuth, phone }) => {
+export const sendMsg91WidgetOtp = async ({ widgetId, tokenAuth, phone, mode = "signup" }) => {
   debugOtp("sendOtp start", {
     normalizedPhoneMasked: maskNormalizedPhone(phone),
     widgetIdPresent: yesNo(Boolean(widgetId)),
@@ -412,12 +413,16 @@ export const sendMsg91WidgetOtp = async ({ widgetId, tokenAuth, phone }) => {
       body: JSON.stringify({
         identifier: phone,
         platform: "efruitmandi",
+        mode,
       }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw { response: { data } };
     const reqId = data.reqId || data.requestId || "";
-    if (reqId) efruitOtpPhonesByReqId.set(reqId, phone);
+    if (reqId) {
+      efruitOtpPhonesByReqId.set(reqId, phone);
+      efruitOtpModesByReqId.set(reqId, mode);
+    }
     return { data, reqId };
   } catch (error) {
     throw createMsg91Error(error, "MSG91 OTP request failed.");
@@ -427,8 +432,9 @@ export const sendMsg91WidgetOtp = async ({ widgetId, tokenAuth, phone }) => {
 export const retryMsg91WidgetOtp = async ({ widgetId, tokenAuth, reqId }) => {
   try {
     const phone = efruitOtpPhonesByReqId.get(reqId);
+    const mode = efruitOtpModesByReqId.get(reqId) || "signup";
     if (!phone) throw new Error("Request phone OTP again.");
-    const result = await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone });
+    const result = await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone, mode });
     return { ...result, reqId: result.reqId || reqId || "" };
   } catch (error) {
     throw createMsg91Error(error, "MSG91 OTP retry failed.");

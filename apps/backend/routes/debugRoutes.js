@@ -31,7 +31,10 @@ router.get(
   authorize(...ADMIN_DEBUG_ROLES),
   requireDebugAccess,
   async (req, res) => {
-    const mailConfig = getMailTransport({ platform: "orchardgrowers", purpose: "otp" });
+    const mailConfig = getMailTransport({
+      platform: req.query.platform || "orchardgrowers",
+      purpose: req.query.purpose === "reset" ? "reset" : "otp",
+    });
 
     if (!mailConfig) {
       return res.status(503).json({

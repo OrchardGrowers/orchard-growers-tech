@@ -441,7 +441,7 @@ export default function ProfileDashboard() {
       }
       const result = contactDraft.otpSent
         ? await retryMsg91WidgetOtp({ widgetId, tokenAuth, reqId: contactDraft.otpReqId })
-        : await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone: normalizedPhone });
+        : await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone: normalizedPhone, mode: "signup" });
       setContactDraft((current) => ({ ...current, otpReqId: result.reqId || "", otpSent: true }));
       setContactOtpCooldown(60);
       setNotice(result.reqId ? "OTP sent to phone." : "OTP sent. Enter the OTP received.");

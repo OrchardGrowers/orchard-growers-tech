@@ -12,6 +12,15 @@ const PLATFORM_CONFIG = {
     resetFromEnv: "ORCHARD_RESET_FROM",
     supportEnv: "ORCHARD_SUPPORT_EMAIL",
   },
+  admin: {
+    brandName: "Orchard Growers Admin",
+    userEnv: "ADMIN_SMTP_USER",
+    passEnv: "ADMIN_SMTP_PASS",
+    fromEnv: "ADMIN_SMTP_FROM",
+    resetFromEnv: "ADMIN_RESET_FROM",
+    supportEnv: "ADMIN_SUPPORT_EMAIL",
+    fallbackPlatform: "orchardgrowers",
+  },
   efruitmandi: {
     brandName: "eFruitMandi",
     userEnv: "EFRUITMANDI_SMTP_USER",
@@ -53,27 +62,45 @@ const escapeHtml = (value = "") =>
 
 export const normalizeMailPlatform = (platform = "") => {
   const normalized = String(platform || "").trim().toLowerCase();
+  if (["admin", "admin-panel", "orchard-admin", "orchardgrowers-admin"].includes(normalized)) return "admin";
   if (["efruitmandi", "efruitmandi.live", "efm"].includes(normalized)) return "efruitmandi";
   return "orchardgrowers";
+};
+
+const readEnvValue = (...keys) => {
+  for (const key of keys.filter(Boolean)) {
+    const value = process.env[key];
+    if (String(value || "").trim()) return { value, source: key };
+  }
+  return { value: "", source: "" };
 };
 
 const getPlatformSettings = (platform = "orchardgrowers") => {
   const platformKey = normalizeMailPlatform(platform);
   const config = PLATFORM_CONFIG[platformKey];
-  const user = process.env[config.userEnv] || process.env.SMTP_USER || "";
-  const pass = process.env[config.passEnv] || process.env.SMTP_PASS || "";
-  const from = process.env[config.fromEnv] || process.env.SMTP_FROM || user;
-  const resetFrom = process.env[config.resetFromEnv] || from;
-  const supportEmail = process.env[config.supportEnv] || "";
+  const fallbackConfig = config.fallbackPlatform ? PLATFORM_CONFIG[config.fallbackPlatform] : null;
+  const user = readEnvValue(config.userEnv, fallbackConfig?.userEnv, "SMTP_USER");
+  const pass = readEnvValue(config.passEnv, fallbackConfig?.passEnv, "SMTP_PASS");
+  const from = readEnvValue(config.fromEnv, fallbackConfig?.fromEnv, "SMTP_FROM");
+  const resetFrom = readEnvValue(config.resetFromEnv, fallbackConfig?.resetFromEnv);
+  const supportEmail = readEnvValue(config.supportEnv, fallbackConfig?.supportEnv);
+  const selectedFrom = from.value || user.value;
 
   return {
     platform: platformKey,
     brandName: config.brandName,
-    user,
-    pass,
-    from,
-    resetFrom,
-    supportEmail,
+    user: user.value,
+    pass: pass.value,
+    from: selectedFrom,
+    resetFrom: resetFrom.value || selectedFrom,
+    supportEmail: supportEmail.value,
+    configSources: {
+      user: user.source,
+      pass: pass.source,
+      from: from.source || (user.value ? user.source : ""),
+      resetFrom: resetFrom.source || from.source || (user.value ? user.source : ""),
+      supportEmail: supportEmail.source,
+    },
   };
 };
 
@@ -85,51 +112,60 @@ const logSmtpEvent = (level, event, mailConfig, details = {}) => {
     port: mailConfig.port,
     secure: mailConfig.secure,
     user: maskSmtpUser(mailConfig.user),
+    from: mailConfig.from,
+    configSources: mailConfig.configSources,
     ...details,
   });
 };
 
 export const isSmtpConfigured = (platform = "orchardgrowers") => {
   const settings = getPlatformSettings(platform);
-  return Boolean((process.env.SMTP_HOST || "smtp.hostinger.com") && settings.user && settings.pass && settings.from);
+  return Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT && settings.user && settings.pass && settings.from);
 };
 
 export const getMailTransport = ({ platform = "orchardgrowers", purpose = "general" } = {}) => {
   const settings = getPlatformSettings(platform);
   if (!isSmtpConfigured(settings.platform)) return null;
 
-  const host = process.env.SMTP_HOST || "smtp.hostinger.com";
-  const port = Number(process.env.SMTP_PORT || 587);
-  const secure = truthyEnv(process.env.SMTP_SECURE);
+  const host = process.env.SMTP_HOST;
+  const port = Number(process.env.SMTP_PORT);
+  const secure = false;
   const from = purpose === "reset" ? settings.resetFrom : settings.from;
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    requireTLS: true,
+    family: 4,
+    auth: {
+      user: settings.user,
+      pass: settings.pass,
+    },
+    connectionTimeout: 30000,
+    greetingTimeout: 30000,
+    socketTimeout: 60000,
+    tls: {
+      rejectUnauthorized: false,
+      minVersion: "TLSv1.2",
+    },
+    logger: true,
+    debug: true,
+  });
 
-  return {
+  const mailConfig = {
     ...settings,
     from,
     host,
     port,
     secure,
-    transporter: nodemailer.createTransport({
-      host,
-      port,
-      secure,
-      requireTLS: !secure,
-      family: 4,
-      auth: {
-        user: settings.user,
-        pass: settings.pass,
-      },
-      connectionTimeout: 30000,
-      greetingTimeout: 30000,
-      socketTimeout: 60000,
-      tls: {
-        rejectUnauthorized: false,
-        minVersion: "TLSv1.2",
-      },
-      logger: true,
-      debug: true,
-    }),
+    transporter,
   };
+
+  logSmtpEvent("info", "SMTP transporter initialized", mailConfig, {
+    transporterSelected: true,
+  });
+
+  return mailConfig;
 };
 
 const verifySmtpForDebug = (mailConfig) => {
