@@ -17,6 +17,25 @@ const deliverySchema = new mongoose.Schema(
     // optional negotiation fields
     negotiatedAmount: { type: Number },
     isNegotiated: { type: Boolean, default: false },
+    driverPayment: { type: Number, default: 0 },
+    platformCommission: { type: Number, default: 0 },
+    growerPayout: { type: Number, default: 0 },
+    lastLocation: {
+      lat: Number,
+      lng: Number,
+      accuracy: Number,
+      source: { type: String, enum: ["MANUAL", "AUTO"], default: "MANUAL" },
+      updatedAt: Date,
+    },
+    locationHistory: [
+      {
+        lat: Number,
+        lng: Number,
+        accuracy: Number,
+        source: { type: String, enum: ["MANUAL", "AUTO"], default: "MANUAL" },
+        updatedAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true }
 );

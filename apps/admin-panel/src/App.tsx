@@ -190,6 +190,7 @@ type AdminOrder = {
   paymentStatus?: string;
   deliveryStatus?: string;
   courierPartner?: string;
+  deliveryPartnerSelection?: string;
   courierBookingStatus?: string;
   trackingNumber?: string;
   createdAt?: string;
@@ -211,6 +212,7 @@ type AdminTab =
   | 'purchase'
   | 'billing'
   | 'sales'
+  | 'logistics'
   | 'unitsOutlets'
   | 'expenses'
   | 'financials'
@@ -480,6 +482,7 @@ const adminRoutePaths: Record<AdminTab, string> = {
   purchase: '/orchard/purchase',
   billing: '/orchard/billing',
   sales: '/orchard/sales-invoice',
+  logistics: '/orchard/logistics',
   unitsOutlets: '/orchard/units-outlets',
   expenses: '/orchard/expenses',
   financials: '/orchard/financials',
@@ -515,6 +518,7 @@ const adminTabPlatforms: Record<AdminTab, AdminPlatform> = {
   purchase: 'orchard',
   billing: 'orchard',
   sales: 'orchard',
+  logistics: 'orchard',
   unitsOutlets: 'orchard',
   expenses: 'orchard',
   financials: 'orchard',
@@ -548,6 +552,7 @@ const platformTabs: Record<AdminPlatform, AdminTabButton[]> = {
     { id: 'master', label: 'Master' },
     { id: 'inventory', label: 'Inventory' },
     { id: 'billing', label: 'Billing' },
+    { id: 'logistics', label: 'Logistics' },
     { id: 'financials', label: 'Financials' },
     { id: 'orchardSettings', label: 'Settings' },
   ],
@@ -619,9 +624,9 @@ const adminRolePermissions: Record<AdminRole, AdminTab[]> = {
   SUPER_ADMIN: allAdminTabs,
   ADMIN: allAdminTabs.filter((tab) => tab !== 'systemSettings'),
   EMPLOYEE: allAdminTabs.filter((tab) => tab !== 'systemSettings'),
-  UNIT_MANAGER: ['dashboard', 'master', 'inventory', 'productAdmin', 'billing', 'sales', 'unitsOutlets', 'expenses', 'reports', 'orchardSettings', 'notifications', 'downloadApp'],
+  UNIT_MANAGER: ['dashboard', 'master', 'inventory', 'productAdmin', 'billing', 'sales', 'logistics', 'unitsOutlets', 'expenses', 'reports', 'orchardSettings', 'notifications', 'downloadApp'],
   INVENTORY_MANAGER: ['dashboard', 'master', 'inventory', 'productAdmin', 'purchase', 'reports', 'notifications', 'downloadApp'],
-  SALES_EXECUTIVE: ['dashboard', 'billing', 'sales', 'customers', 'reports', 'notifications', 'downloadApp'],
+  SALES_EXECUTIVE: ['dashboard', 'billing', 'sales', 'logistics', 'customers', 'reports', 'notifications', 'downloadApp'],
   PURCHASE_MANAGER: ['dashboard', 'master', 'inventory', 'purchase', 'reports', 'notifications', 'downloadApp'],
   FINANCE_MANAGER: ['dashboard', 'billing', 'expenses', 'financials', 'transactions', 'reports', 'analytics', 'notifications', 'downloadApp'],
   VERIFICATION_OFFICER: ['dashboard', 'efruitDashboard', 'users', 'kyc', 'produceLots', 'sellers', 'buyers', 'suspendedUsers', 'notifications', 'downloadApp'],
@@ -1840,6 +1845,7 @@ function App() {
   const countByTab: Partial<Record<AdminTab, number>> = {
     inventory: products.length,
     sales: orders.length,
+    logistics: orders.length,
     users: users.length,
     kyc: kycRequests.length + verificationRequests.length,
     sellers: users.filter((user) => user.role === 'grower').length,
@@ -1962,6 +1968,9 @@ function App() {
           <OrdersPanel orders={orders} />
         </section>
       );
+    }
+    if (tab === 'logistics') {
+      return <LogisticsControlPanel orders={orders} authHeaders={authHeaders} onUpdated={loadRequests} />;
     }
     if (tab === 'orchardSettings') {
       return null;
@@ -2393,6 +2402,7 @@ function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: (
             { label: 'Returns / Refunds' },
           ],
         },
+        { label: 'Logistics Control', icon: 'purchase', tab: 'logistics', count: counts.logistics },
         {
           label: 'Financials',
           icon: 'financials',
@@ -2993,6 +3003,7 @@ function getAdminTabTitle(activeTab: AdminTab, activePlatform: AdminPlatform) {
   if (activeTab === 'purchase') return 'Purchase Entry';
   if (activeTab === 'billing') return 'Orchard Growers Billing';
   if (activeTab === 'sales') return 'Sales History';
+  if (activeTab === 'logistics') return 'Orchard Growers Logistics';
   if (activeTab === 'unitsOutlets') return 'Orchard Growers Units / Outlets';
   if (activeTab === 'expenses') return 'Orchard Growers Expenses';
   if (activeTab === 'financials') return 'Orchard Growers Financials';
@@ -4260,6 +4271,167 @@ function OrdersPanel({ orders }: { orders: AdminOrder[] }) {
         </article>
       ))}
     </RequestSection>
+  );
+}
+
+function LogisticsControlPanel({
+  orders,
+  authHeaders,
+  onUpdated,
+}: {
+  orders: AdminOrder[];
+  authHeaders: HeadersInit;
+  onUpdated: () => void;
+}) {
+  const [savingId, setSavingId] = useState('');
+  const [notice, setNotice] = useState('');
+
+  const updateLogistics = async (order: AdminOrder, payload: Partial<AdminOrder>) => {
+    setSavingId(order._id);
+    setNotice('');
+    try {
+      const res = await fetch(`${API_BASE}/admin/orders/${order._id}/logistics`, {
+        method: 'PATCH',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await readResponseJson(res);
+      if (!res.ok) throw new Error(data.msg || 'Could not update logistics');
+      setNotice('Logistics updated.');
+      onUpdated();
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : 'Could not update logistics');
+    } finally {
+      setSavingId('');
+    }
+  };
+
+  return (
+    <RequestSection title="Logistics Control Panel" count={orders.length}>
+      {notice && <div className="rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm font-bold text-emerald-300">{notice}</div>}
+      {orders.map((order) => (
+        <article key={order._id} className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h3 className="text-base font-bold text-white">{order.invoiceNumber || order._id}</h3>
+              <p className="mt-1 text-sm font-semibold text-slate-400">
+                {order.customer?.name || 'Customer'} - {order.customer?.phone || 'No phone'}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {order.shippingAddress?.city || 'City'}, {order.shippingAddress?.state || 'State'} {order.shippingAddress?.pinCode || ''}
+              </p>
+            </div>
+            <div className="text-left lg:text-right">
+              <p className="text-xs font-bold text-slate-400">Payment</p>
+              <p className="text-sm font-black text-emerald-300">{order.paymentStatus || 'PENDING'}</p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-4">
+            <AdminSelect
+              label="Delivery Mode"
+              value={order.deliveryPartnerSelection || 'AUTOMATIC'}
+              options={['AUTOMATIC', 'MANUAL']}
+              onChange={(value) => updateLogistics(order, { deliveryPartnerSelection: value })}
+              disabled={savingId === order._id}
+            />
+            <AdminInlineInput
+              label="Courier Partner"
+              value={order.courierPartner || 'India Post'}
+              onSave={(value) => updateLogistics(order, { courierPartner: value })}
+              disabled={savingId === order._id}
+            />
+            <AdminInlineInput
+              label="Tracking Number"
+              value={order.trackingNumber || ''}
+              onSave={(value) => updateLogistics(order, { trackingNumber: value })}
+              disabled={savingId === order._id}
+            />
+            <AdminSelect
+              label="Delivery Status"
+              value={order.deliveryStatus || 'PLACED'}
+              options={['PLACED', 'PENDING', 'IN_TRANSIT', 'DELIVERED']}
+              onChange={(value) => updateLogistics(order, { deliveryStatus: value })}
+              disabled={savingId === order._id}
+            />
+          </div>
+          <div className="mt-3 grid gap-2 text-sm text-slate-300 md:grid-cols-3">
+            <Info label="Booking" value={order.courierBookingStatus || 'PENDING'} />
+            <Info label="Selection" value={order.deliveryPartnerSelection || 'AUTOMATIC'} />
+            <Info label="Tracking" value={order.trackingNumber || 'Not assigned'} />
+          </div>
+        </article>
+      ))}
+    </RequestSection>
+  );
+}
+
+function AdminSelect({
+  label,
+  value,
+  options,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <label className="block text-sm font-bold text-slate-300">
+      {label}
+      <select
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400 disabled:opacity-60"
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>{option}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function AdminInlineInput({
+  label,
+  value,
+  onSave,
+  disabled,
+}: {
+  label: string;
+  value: string;
+  onSave: (value: string) => void;
+  disabled?: boolean;
+}) {
+  const [draft, setDraft] = useState(value);
+
+  useEffect(() => {
+    setDraft(value);
+  }, [value]);
+
+  return (
+    <label className="block text-sm font-bold text-slate-300">
+      {label}
+      <div className="mt-2 flex gap-2">
+        <input
+          value={draft}
+          disabled={disabled}
+          onChange={(event) => setDraft(event.target.value)}
+          className="h-11 min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400 disabled:opacity-60"
+        />
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => onSave(draft)}
+          className="rounded-lg bg-emerald-600 px-3 text-xs font-black text-white hover:bg-emerald-500 disabled:opacity-60"
+        >
+          Save
+        </button>
+      </div>
+    </label>
   );
 }
 

@@ -54,11 +54,42 @@ router.post("/callback", protect, authorize("buyer"), async (req, res) => {
     }
 
     order.paymentStatus = "ESCROW";
+    order.escrowStatus = "HELD_BY_BILLDESK";
     await order.save();
 
     res.json({
       msg: "Payment successful (ESCROW)",
       order,
+    });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+});
+
+router.get("/escrow/:orderId", protect, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.orderId)
+      .populate("product")
+      .populate("buyer", "name businessName buyerContactPerson phone email location")
+      .populate("grower", "name orchardName phone email location")
+      .populate("driver", "name logisticsName vehicleNumber driverName driverContact");
+
+    if (!order) return res.status(404).json({ msg: "Order not found" });
+
+    const userId = req.user.id?.toString();
+    const canView = [order.buyer?._id || order.buyer, order.grower?._id || order.grower, order.driver?._id || order.driver]
+      .some((id) => id?.toString() === userId);
+    if (!canView) return res.status(403).json({ msg: "You cannot view this escrow workflow" });
+
+    res.json({
+      order,
+      steps: [
+        { key: "DEAL_CONFIRMED", label: "Winning deal confirmed by grower", complete: Boolean(order.auction) },
+        { key: "HELD_BY_BILLDESK", label: "Buyer payment held by BillDesk escrow", complete: ["ESCROW", "RELEASED"].includes(order.paymentStatus) },
+        { key: "CONSIGNMENT_IN_TRANSIT", label: "Grower sends consignment and logistics details are updated", complete: ["IN_TRANSIT", "DELIVERED"].includes(order.deliveryStatus) },
+        { key: "BUYER_CONFIRMED", label: "Buyer confirms consignment received", complete: ["DELIVERED"].includes(order.deliveryStatus) },
+        { key: "PAYOUT_RELEASED", label: "Driver payment and platform commission deducted, grower payout released", complete: order.paymentStatus === "RELEASED" },
+      ],
     });
   } catch (err) {
     res.status(500).json({ msg: err.message });

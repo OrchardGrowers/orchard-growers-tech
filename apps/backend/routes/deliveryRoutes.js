@@ -6,6 +6,16 @@ import protect, { authorize } from "../middleware/authMiddleware.js";
 const router = express.Router();
 
 const genOTP = () => Math.floor(1000 + Math.random() * 9000).toString();
+const calculateSettlement = (amount = 0) => {
+  const finalAmount = Number(amount || 0);
+  const driverPayment = Math.round(finalAmount * Number(process.env.DRIVER_PAYMENT_PERCENT || 5) / 100);
+  const platformCommission = Math.round(finalAmount * Number(process.env.PLATFORM_COMMISSION_PERCENT || 3) / 100);
+  return {
+    driverPayment,
+    platformCommission,
+    growerPayout: Math.max(0, finalAmount - driverPayment - platformCommission),
+  };
+};
 
 router.get("/", (req, res) => {
   res.json({ message: "Delivery API working" });
@@ -43,6 +53,7 @@ router.post("/start", protect, authorize("driver"), async (req, res) => {
 
     order.driver = req.user.id;
     order.deliveryStatus = "IN_TRANSIT";
+    order.escrowStatus = "CONSIGNMENT_IN_TRANSIT";
     await order.save();
 
     res.json({
@@ -77,6 +88,7 @@ router.post("/confirm-delivery", protect, authorize("buyer"), async (req, res) =
     await delivery.save();
 
     order.deliveryStatus = "DELIVERED";
+    order.escrowStatus = "BUYER_CONFIRMED";
     await order.save();
 
     res.json({ msg: "Delivery confirmed. Negotiation unlocked." });
@@ -167,15 +179,71 @@ router.post("/confirm-settlement", protect, authorize("grower"), async (req, res
     const finalAmount = delivery.isNegotiated
       ? delivery.negotiatedAmount
       : order.auctionPrice;
+    const settlement = calculateSettlement(finalAmount);
 
     order.paymentStatus = "RELEASED";
     order.finalPrice = finalAmount;
+    order.driverPayment = settlement.driverPayment;
+    order.platformCommission = settlement.platformCommission;
+    order.growerPayout = settlement.growerPayout;
+    order.escrowStatus = "DEAL_CLOSED";
+    delivery.driverPayment = settlement.driverPayment;
+    delivery.platformCommission = settlement.platformCommission;
+    delivery.growerPayout = settlement.growerPayout;
+    await delivery.save();
     await order.save();
 
     res.json({
       msg: "Payment released successfully",
       finalAmount,
+      ...settlement,
     });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+});
+
+router.post("/location", protect, authorize("driver"), async (req, res) => {
+  try {
+    const { orderId, lat, lng, accuracy, source = "MANUAL" } = req.body;
+    const delivery = await Delivery.findOne({ order: orderId });
+    if (!delivery) return res.status(404).json({ msg: "Delivery not found" });
+    if (delivery.driver?.toString() !== req.user.id?.toString()) {
+      return res.status(403).json({ msg: "You can update only your own delivery location" });
+    }
+
+    const location = {
+      lat: Number(lat),
+      lng: Number(lng),
+      accuracy: Number(accuracy || 0),
+      source: source === "AUTO" ? "AUTO" : "MANUAL",
+      updatedAt: new Date(),
+    };
+    if (!Number.isFinite(location.lat) || !Number.isFinite(location.lng)) {
+      return res.status(400).json({ msg: "Valid latitude and longitude are required" });
+    }
+
+    delivery.lastLocation = location;
+    delivery.locationHistory.push(location);
+    await delivery.save();
+    res.json({ msg: "Location updated", location });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+});
+
+router.get("/track/:orderId", protect, async (req, res) => {
+  try {
+    const delivery = await Delivery.findOne({ order: req.params.orderId }).populate("driver", "name logisticsName vehicleNumber driverName driverContact logisticsOwnerName logisticsOwnerContact");
+    if (!delivery) return res.status(404).json({ msg: "Delivery not found" });
+    const order = await Order.findById(req.params.orderId);
+    if (!order) return res.status(404).json({ msg: "Order not found" });
+
+    const userId = req.user.id?.toString();
+    const canView = [order.buyer, order.grower, order.driver].some((id) => id?.toString() === userId);
+    if (!canView) return res.status(403).json({ msg: "You cannot view this delivery" });
+
+    res.json({ delivery, order });
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }

@@ -1751,6 +1751,38 @@ export const listOrders = async (req, res) => {
   res.json(orders);
 };
 
+export const updateOrderLogistics = async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const order = await Order.findById(req.params.id);
+  if (!order) return res.status(404).json({ msg: "Order not found" });
+
+  const deliveryMode = String(req.body.deliveryPartnerSelection || order.deliveryPartnerSelection || "AUTOMATIC").toUpperCase();
+  const courierPartner = String(req.body.courierPartner || order.courierPartner || "India Post").trim();
+  const bookingStatus = String(req.body.courierBookingStatus || "").trim().toUpperCase();
+  const deliveryStatus = String(req.body.deliveryStatus || "").trim().toUpperCase();
+
+  if (["AUTOMATIC", "MANUAL"].includes(deliveryMode)) {
+    order.deliveryPartnerSelection = deliveryMode;
+  }
+  if (courierPartner) order.courierPartner = courierPartner;
+  if (req.body.trackingNumber !== undefined) order.trackingNumber = String(req.body.trackingNumber || "").trim();
+  if (["PENDING", "TEST_BOOKED", "BOOKED", "FAILED", "MANUAL_REVIEW"].includes(bookingStatus)) {
+    order.courierBookingStatus = bookingStatus;
+  }
+  if (["PENDING", "IN_TRANSIT", "DELIVERED", "PLACED"].includes(deliveryStatus)) {
+    order.deliveryStatus = deliveryStatus;
+  }
+  if (order.deliveryPartnerSelection === "AUTOMATIC" && !order.trackingNumber) {
+    order.courierPartner = "India Post";
+    order.courierBookingStatus = "TEST_BOOKED";
+    order.trackingNumber = `IPTEST${Date.now().toString().slice(-10)}`;
+  }
+
+  await order.save();
+  res.json(order);
+};
+
 export const reviewKycRequest = async (req, res) => {
   const currentAdmin = requireAdmin(req, res);
   if (!currentAdmin) return;

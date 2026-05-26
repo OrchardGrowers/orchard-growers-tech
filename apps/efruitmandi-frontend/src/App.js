@@ -24,6 +24,8 @@ import SearchResults from "./pages/SearchResults";
 import GetVerified from "./pages/GetVerified";
 import Kyc from "./pages/Kyc";
 import TermsAndConditions from "./pages/TermsAndConditions";
+import GpsTracking from "./pages/GpsTracking";
+import EscrowWorkflow from "./pages/EscrowWorkflow";
 
 function App() {
   return (
@@ -58,6 +60,8 @@ function App() {
 
           {/* 💳 Payment */}
           <Route path="payment/:orderId" element={<Payment />} />
+          <Route path="tracking/:orderId" element={<GpsTracking />} />
+          <Route path="escrow/:orderId" element={<EscrowWorkflow />} />
           <Route path="login" element={<Profile />} />
 
             {/* 👤 Profile */}

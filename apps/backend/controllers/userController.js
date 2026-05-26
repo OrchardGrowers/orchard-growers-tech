@@ -28,6 +28,11 @@ export const setUserRole = async (req, res) => {
       gstNumber,
       tradeLicenseNumber,
       logisticsName,
+      logisticsOwnerName,
+      logisticsOwnerContact,
+      driverName,
+      driverContact,
+      ownerIsDriver,
       vehicleNumber,
       licenseNumber,
       location,
@@ -109,6 +114,11 @@ export const setUserRole = async (req, res) => {
       }
       user.role = role;
       user.logisticsName = logisticsName.trim();
+      user.logisticsOwnerName = (logisticsOwnerName || logisticsName).trim();
+      user.logisticsOwnerContact = (logisticsOwnerContact || contact).trim();
+      user.ownerIsDriver = Boolean(ownerIsDriver);
+      user.driverName = (ownerIsDriver ? logisticsOwnerName || logisticsName : driverName || logisticsName).trim();
+      user.driverContact = (ownerIsDriver ? logisticsOwnerContact || contact : driverContact || contact).trim();
       user.vehicleNumber = vehicleNumber.trim();
       user.contact = contact.trim();
       if (licenseNumber) user.licenseNumber = licenseNumber.trim();

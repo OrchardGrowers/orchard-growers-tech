@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import API from "../services/api";
 import { getCurrentUser } from "../utils/auth";
+import { useNavigate } from "react-router-dom";
 
 export default function Delivery() {
+  const navigate = useNavigate();
   const [orderId, setOrderId] = useState("");
   const [otp, setOtp] = useState("");
   const [amount, setAmount] = useState("");
@@ -67,9 +69,14 @@ export default function Delivery() {
       />
 
       {user.role === "driver" && (
-        <button onClick={startDelivery} className="w-full rounded bg-green-700 py-2 text-white">
-          Start Delivery
-        </button>
+        <>
+          <button onClick={startDelivery} className="w-full rounded bg-green-700 py-2 text-white">
+            Start Delivery
+          </button>
+          <button onClick={() => navigate(`/tracking/${orderId}`)} className="w-full rounded bg-orange-500 py-2 text-white">
+            GPS Tracking
+          </button>
+        </>
       )}
 
       {user.role === "buyer" && (
@@ -97,6 +104,9 @@ export default function Delivery() {
           <button onClick={generateOtp} className="w-full rounded bg-blue-600 py-2 text-white">
             Generate Settlement OTP
           </button>
+          <button onClick={() => navigate(`/escrow/${orderId}`)} className="w-full rounded bg-orange-500 py-2 text-white">
+            View Escrow Flow
+          </button>
         </>
       )}
 
@@ -110,6 +120,9 @@ export default function Delivery() {
           />
           <button onClick={confirmPayment} className="w-full rounded bg-green-700 py-2 text-white">
             Confirm Payment
+          </button>
+          <button onClick={() => navigate(`/escrow/${orderId}`)} className="w-full rounded bg-blue-600 py-2 text-white">
+            View Escrow Flow
           </button>
         </>
       )}

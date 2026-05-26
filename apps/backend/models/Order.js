@@ -46,20 +46,30 @@ const orderSchema = new mongoose.Schema(
 
     paymentMethod: {
       type: String,
-      enum: ["COD", "UPI", "CARD", "NETBANKING", "TEST_PAYMENT"],
+      enum: ["COD", "UPI", "CARD", "NETBANKING", "CASHFREE", "TEST_PAYMENT"],
       default: "TEST_PAYMENT",
     },
 
     paymentReference: String,
+    paymentGatewayOrderId: String,
+    paymentGatewaySessionId: String,
+    paymentGateway: String,
+    paymentGatewayStatus: String,
+    paymentGatewayResponse: mongoose.Schema.Types.Mixed,
 
     courierPartner: {
       type: String,
       default: "India Post",
     },
+    deliveryPartnerSelection: {
+      type: String,
+      enum: ["AUTOMATIC", "MANUAL"],
+      default: "AUTOMATIC",
+    },
     courierTestKey: String,
     courierBookingStatus: {
       type: String,
-      enum: ["PENDING", "TEST_BOOKED", "FAILED"],
+      enum: ["PENDING", "TEST_BOOKED", "BOOKED", "FAILED", "MANUAL_REVIEW"],
       default: "PENDING",
     },
     trackingNumber: String,
@@ -75,6 +85,14 @@ const orderSchema = new mongoose.Schema(
       enum: ["PENDING", "IN_TRANSIT", "DELIVERED", "PLACED"],
       default: "PENDING",
     },
+    escrowStatus: {
+      type: String,
+      enum: ["PENDING_BUYER_PAYMENT", "HELD_BY_BILLDESK", "CONSIGNMENT_IN_TRANSIT", "BUYER_CONFIRMED", "PAYOUT_RELEASED", "DEAL_CLOSED"],
+      default: "PENDING_BUYER_PAYMENT",
+    },
+    driverPayment: { type: Number, default: 0 },
+    platformCommission: { type: Number, default: 0 },
+    growerPayout: { type: Number, default: 0 },
 
     // 🔐 OTPs
     deliveryOTP: String,

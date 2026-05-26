@@ -17,7 +17,6 @@ import {
   getEfruitMandiWidgetId,
   getEfruitMandiTokenAuth,
   normalizeIndianMobile,
-  retryMsg91WidgetOtp,
   sendMsg91WidgetOtp,
   verifyMsg91WidgetOtp,
 } from "../utils/msg91OtpWidget";
@@ -208,6 +207,7 @@ export default function Profile() {
   const sanitizeAuthMessage = (err, fallback) => {
     const status = err?.response?.status;
     const serverMessage = String(err?.response?.data?.msg || err?.response?.data?.message || "").trim();
+    if (status === 404 || /user\s+not\s+found/i.test(serverMessage)) return "User Not Found Please Signup First";
     if (status === 429) return "Too many invalid OTP attempts. Please request a new OTP.";
     if (/expired/i.test(serverMessage)) return "Invalid or expired OTP.";
     if (/request.*otp|otp.*first/i.test(serverMessage)) return "Please request OTP first.";
@@ -271,6 +271,7 @@ export default function Profile() {
 
   const showError = (text) => setMessage({ type: "error", text });
   const showSuccess = (text) => setMessage({ type: "success", text });
+  const getAuthIdentifier = (value) => normalizeIndianMobile(value) || normalizeContact(value);
 
   useEffect(() => {
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
@@ -322,7 +323,7 @@ export default function Profile() {
   };
 
   const requestPasswordResetOtp = async () => {
-    const identifier = normalizeContact(loginForm.identifier);
+    const identifier = getAuthIdentifier(loginForm.identifier);
     if (!identifier) {
       showError("Enter email or phone number first.");
       return;
@@ -350,7 +351,7 @@ export default function Profile() {
 
   const handleSendOtp = async (targetMode) => {
     const form = targetMode === "login" ? loginForm : signupForm;
-    const identifier = normalizeContact(form.identifier);
+    const identifier = getAuthIdentifier(form.identifier);
 
     if (otpCooldown[targetMode] > 0) return;
 
@@ -372,9 +373,7 @@ export default function Profile() {
         const widgetId = getEfruitMandiWidgetId();
         const tokenAuth = getEfruitMandiTokenAuth();
         const phone = normalizeIndianMobile(identifier);
-        const result = mobileOtpSent[targetMode]
-          ? await retryMsg91WidgetOtp({ widgetId, tokenAuth, reqId: mobileOtpReqId[targetMode] })
-          : await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone, mode: targetMode });
+        const result = await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone, mode: targetMode });
         setMobileOtpReqId((current) => ({ ...current, [targetMode]: result.reqId || "" }));
         setMobileOtpSent((current) => ({ ...current, [targetMode]: true }));
         setOtpCooldown((current) => ({ ...current, [targetMode]: OTP_RESEND_SECONDS }));
@@ -403,7 +402,7 @@ export default function Profile() {
 
   const handleVerifyOtp = async (targetMode) => {
     const form = targetMode === "login" ? loginForm : signupForm;
-    const identifier = normalizeContact(form.identifier);
+    const identifier = getAuthIdentifier(form.identifier);
 
     if (!identifier || !form.otp.trim()) {
       showError("Enter email/phone and OTP.");
@@ -487,7 +486,7 @@ export default function Profile() {
     event.preventDefault();
     setMessage({ type: "", text: "" });
 
-    const identifier = normalizeContact(loginForm.identifier);
+    const identifier = getAuthIdentifier(loginForm.identifier);
 
     if (resetMode) {
       if (!identifier || !loginForm.otp.trim() || !loginForm.password) {
@@ -559,7 +558,7 @@ export default function Profile() {
     event.preventDefault();
     setMessage({ type: "", text: "" });
 
-    const identifier = normalizeContact(signupForm.identifier);
+    const identifier = getAuthIdentifier(signupForm.identifier);
 
     if (!signupForm.name.trim() || !identifier) {
       showError("Enter name and email/phone.");

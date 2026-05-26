@@ -1,7 +1,7 @@
 import express from "express";
 import Order from "../models/Order.js";
 import Product from "../models/Product.js";
-import protect from "../middleware/authMiddleware.js";
+import protect, { optionalProtect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
@@ -25,9 +25,19 @@ const INDIA_POST_TEST_KEY = process.env.INDIA_POST_TEST_KEY || "INDIA_POST_TEST_
 const createInvoiceNumber = () =>
   `OG-${new Date().getFullYear()}-${Date.now().toString().slice(-8)}`;
 
-router.post("/checkout", async (req, res) => {
+const createIndiaPostTracking = () => `IPTEST${Date.now().toString().slice(-10)}`;
+
+router.post("/checkout", optionalProtect, async (req, res) => {
   try {
-    const { items = [], customer = {}, shippingAddress = {}, paymentMethod = "TEST_PAYMENT", courierTestKey = "" } = req.body;
+    const {
+      items = [],
+      customer = {},
+      shippingAddress = {},
+      paymentMethod = "TEST_PAYMENT",
+      courierTestKey = "",
+      deliveryPartnerSelection = "AUTOMATIC",
+      courierPartner = "India Post",
+    } = req.body;
 
     if (!Array.isArray(items) || !items.length) {
       return res.status(400).json({ msg: "Cart items are required" });
@@ -64,9 +74,14 @@ router.post("/checkout", async (req, res) => {
     const totalAmount = subtotal + shippingCharge + taxAmount;
     const invoiceNumber = createInvoiceNumber();
 
+    const selectedDeliveryMode = deliveryPartnerSelection === "MANUAL" ? "MANUAL" : "AUTOMATIC";
+    const selectedCourier = courierPartner || "India Post";
+    const onlinePayment = paymentMethod === "CASHFREE";
+
     const order = await Order.create({
       product: orderItems[0]?.product,
       grower: products[0]?.createdBy,
+      buyer: req.user?.role === "buyer" ? req.user.id : undefined,
       items: orderItems,
       customer,
       shippingAddress,
@@ -78,16 +93,44 @@ router.post("/checkout", async (req, res) => {
       invoiceNumber,
       invoiceDate: new Date(),
       paymentMethod,
-      paymentStatus: paymentMethod === "COD" ? "PENDING" : "PAID",
-      paymentReference: paymentMethod === "COD" ? "" : `TESTPAY-${Date.now()}`,
+      paymentStatus: paymentMethod === "COD" || onlinePayment ? "PENDING" : "PAID",
+      paymentReference: paymentMethod === "COD" || onlinePayment ? "" : `TESTPAY-${Date.now()}`,
       deliveryStatus: "PLACED",
-      courierPartner: "India Post",
+      courierPartner: selectedCourier,
+      deliveryPartnerSelection: selectedDeliveryMode,
       courierTestKey,
-      courierBookingStatus: "TEST_BOOKED",
-      trackingNumber: `IPTEST${Date.now().toString().slice(-10)}`,
+      courierBookingStatus: selectedDeliveryMode === "MANUAL" ? "MANUAL_REVIEW" : "TEST_BOOKED",
+      trackingNumber: selectedDeliveryMode === "MANUAL" ? "" : createIndiaPostTracking(),
     });
 
     res.status(201).json(await populateOrder(Order.findById(order._id)));
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+});
+
+router.get("/:id/tracking", async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ msg: "Order not found" });
+
+    res.json({
+      orderId: order._id,
+      invoiceNumber: order.invoiceNumber,
+      courierPartner: order.courierPartner || "India Post",
+      deliveryPartnerSelection: order.deliveryPartnerSelection || "AUTOMATIC",
+      courierBookingStatus: order.courierBookingStatus || "PENDING",
+      trackingNumber: order.trackingNumber || "",
+      deliveryStatus: order.deliveryStatus || "PLACED",
+      trackingEvents: [
+        { label: "Order placed", status: "DONE", at: order.createdAt },
+        {
+          label: order.trackingNumber ? "India Post booking created" : "Delivery partner pending",
+          status: order.trackingNumber ? "DONE" : "PENDING",
+          at: order.trackingNumber ? order.updatedAt : null,
+        },
+      ],
+    });
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }

@@ -7,6 +7,11 @@ export default function RegisterDriver() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
     logisticsName: "",
+    logisticsOwnerName: "",
+    logisticsOwnerContact: "",
+    ownerIsDriver: true,
+    driverName: "",
+    driverContact: "",
     vehicleNumber: "",
     licenseNumber: "",
     location: "",
@@ -33,6 +38,11 @@ export default function RegisterDriver() {
       const res = await API.post("/user/set-role", {
         role: "driver",
         logisticsName: form.logisticsName.trim(),
+        logisticsOwnerName: form.logisticsOwnerName.trim() || form.logisticsName.trim(),
+        logisticsOwnerContact: form.logisticsOwnerContact.trim() || form.contact.trim(),
+        ownerIsDriver: form.ownerIsDriver,
+        driverName: form.ownerIsDriver ? (form.logisticsOwnerName.trim() || form.logisticsName.trim()) : form.driverName.trim(),
+        driverContact: form.ownerIsDriver ? (form.logisticsOwnerContact.trim() || form.contact.trim()) : form.driverContact.trim(),
         vehicleNumber: form.vehicleNumber.trim(),
         licenseNumber: form.licenseNumber.trim(),
         location: form.location.trim(),
@@ -79,11 +89,53 @@ export default function RegisterDriver() {
           <div className="space-y-4">
             <Field
               icon={<FaTruck />}
-              label="Logistics / Driver name"
+              label="Logistics partner name"
               value={form.logisticsName}
               placeholder="Fast Fruit Logistics"
               onChange={(value) => updateForm("logisticsName", value)}
             />
+            <Field
+              icon={<FaIdCard />}
+              label="Vehicle owner name"
+              value={form.logisticsOwnerName}
+              placeholder="Owner name"
+              onChange={(value) => updateForm("logisticsOwnerName", value)}
+            />
+            <Field
+              icon={<FaPhoneAlt />}
+              label="Vehicle owner contact"
+              value={form.logisticsOwnerContact}
+              placeholder="Owner phone number"
+              inputMode="tel"
+              onChange={(value) => updateForm("logisticsOwnerContact", value)}
+            />
+            <label className="flex items-center gap-2 rounded-md bg-orange-50 px-3 py-2 text-sm font-semibold text-orange-700">
+              <input
+                type="checkbox"
+                checked={form.ownerIsDriver}
+                onChange={(event) => updateForm("ownerIsDriver", event.target.checked)}
+              />
+              Owner and driver are same
+            </label>
+            {!form.ownerIsDriver && (
+              <>
+                <Field
+                  icon={<FaIdCard />}
+                  label="Driver name"
+                  value={form.driverName}
+                  placeholder="Driver name"
+                  onChange={(value) => updateForm("driverName", value)}
+                />
+                <Field
+                  icon={<FaPhoneAlt />}
+                  label="Driver contact"
+                  value={form.driverContact}
+                  placeholder="Driver phone number"
+                  inputMode="tel"
+                  onChange={(value) => updateForm("driverContact", value)}
+                />
+              </>
+            )}
             <Field
               icon={<FaTruck />}
               label="Vehicle number"

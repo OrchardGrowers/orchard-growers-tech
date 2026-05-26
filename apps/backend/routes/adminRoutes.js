@@ -30,6 +30,7 @@ import {
   suspendAdmin,
   terminateAdmin,
   updateAdmin,
+  updateOrderLogistics,
   updateProductByAdmin,
   updateUserByAdmin,
   updateVerificationRequestByAdmin,
@@ -161,5 +162,6 @@ router.post("/verification-requests/:id/review", ...adminOnly, requireRoles(...V
 router.get("/kyc-requests", ...adminOnly, requireRoles(...VERIFICATION_READ_ROLES), wrapAsync(listKycRequests));
 router.post("/kyc-requests/:userId/review", ...adminOnly, requireRoles(...VERIFICATION_WRITE_ROLES), wrapAsync(reviewKycRequest));
 router.get("/orders", ...adminOnly, requireRoles(...ORDER_READ_ROLES), wrapAsync(listOrders));
+router.patch("/orders/:id/logistics", ...adminOnly, requireRoles(...ORDER_READ_ROLES), wrapAsync(updateOrderLogistics));
 
 export default router;

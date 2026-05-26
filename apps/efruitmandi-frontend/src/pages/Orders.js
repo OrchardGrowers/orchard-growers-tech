@@ -41,6 +41,7 @@ export default function Orders() {
           <p>Product: {order.product?.title || "Fruit lot"}</p>
           <p>Amount: Rs. {order.finalPrice || order.auctionPrice || 0}</p>
           <p>Status: {order.paymentStatus}</p>
+          <p>Delivery: {order.deliveryStatus || "PENDING"}</p>
 
           {order.paymentStatus === "PENDING" && !isGrower && (
             <button
@@ -56,6 +57,23 @@ export default function Orders() {
               Grower accounts cannot buy or pay for consignments.
             </p>
           )}
+
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              onClick={() => navigate(`/escrow/${order._id}`)}
+              className="rounded bg-blue-600 px-3 py-1 text-sm text-white"
+            >
+              Escrow Flow
+            </button>
+            {order.deliveryStatus && order.deliveryStatus !== "PENDING" && (
+              <button
+                onClick={() => navigate(`/tracking/${order._id}`)}
+                className="rounded bg-orange-500 px-3 py-1 text-sm text-white"
+              >
+                Track
+              </button>
+            )}
+          </div>
         </div>
       ))}
     </div>

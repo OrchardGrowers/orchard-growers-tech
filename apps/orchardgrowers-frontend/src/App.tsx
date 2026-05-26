@@ -6,10 +6,14 @@ import {
   FaChevronDown,
   FaChevronLeft,
   FaChevronRight,
+  FaBoxOpen,
+  FaCog,
   FaSearchMinus,
   FaSearchPlus,
   FaEye,
   FaEyeSlash,
+  FaHeart,
+  FaMapMarkerAlt,
   FaFacebookF,
   FaGoogle,
   FaInstagram,
@@ -17,6 +21,7 @@ import {
   FaMicrophone,
   FaSearch,
   FaShoppingCart,
+  FaSignOutAlt,
   FaStar,
   FaUser,
   FaWhatsapp,
@@ -134,10 +139,10 @@ const normalizeServerMessage = (payload: unknown): string | null => {
 const getLoginErrorMessage = (error: unknown) => {
   const err = error as { response?: { status?: number; data?: unknown }; message?: string };
   const serverMsg = normalizeServerMessage(err.response?.data);
-  if (serverMsg) return serverMsg;
-  if (err.response?.status === 404) {
-    return "Login API route was not found. Check VITE_API_BASE_URL and backend /api/auth/login deployment.";
+  if (err.response?.status === 404 || /user\s+not\s+found/i.test(serverMsg || "")) {
+    return "User Not Found Please Signup First";
   }
+  if (serverMsg) return serverMsg;
   return err.message || "Authentication failed.";
 };
 const getOrchardOAuthUrl = (provider: "google" | "facebook", mode: "login" | "signup", termsAccepted: boolean) => {
@@ -188,6 +193,8 @@ type OrderInvoice = {
   courierPartner?: string;
   courierBookingStatus?: string;
   trackingNumber?: string;
+  deliveryPartnerSelection?: string;
+  deliveryStatus?: string;
 };
 
 type AddressForm = {
@@ -425,9 +432,17 @@ function App() {
           <Route path="/save-our-earth/donate" element={<StaticInfoPage page={staticPages.donate} />} />
           <Route path="/login" element={<AuthPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/account" element={<Dashboard />} />
+          <Route path="/account/orders" element={<OrdersPage />} />
+          <Route path="/account/addresses" element={<SavedAddressesPage />} />
+          <Route path="/account/saved" element={<SavedItemsPage />} />
+          <Route path="/account/settings" element={<AccountSettingsPage />} />
+          <Route path="/account/help" element={<AccountHelpPage />} />
           <Route path="/cart" element={<CartPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/invoice/:id" element={<InvoicePage />} />
+          <Route path="/tracking/:id" element={<TrackingPage />} />
+          <Route path="/payment/cashfree/callback" element={<CashfreeCallbackPage />} />
           <Route path="/dashboard" element={<Dashboard />} />
         </Routes>
       </main>
@@ -521,7 +536,7 @@ function Home() {
 
       <div className="hidden w-full gap-5 md:grid md:grid-cols-[218px_minmax(0,1fr)] lg:grid-cols-[218px_minmax(0,1fr)_314px] xl:grid-cols-[240px_minmax(0,1fr)_340px]">
         <aside className="auto-hide-column-scroll sticky top-16 max-h-[calc(100vh-5rem)] self-start space-y-2.5 overflow-y-auto pr-1">
-          <ProfileCard user={user} isSignedIn={isSignedIn} onOpen={() => navigate(isSignedIn ? "/dashboard" : "/login")} />
+          <ProfileCard user={user} isSignedIn={isSignedIn} onOpen={() => navigate(isSignedIn ? "/profile" : "/login")} />
           <StatsCard />
           <CompanyCard />
           <SidebarContactCard />
@@ -2284,13 +2299,9 @@ function ImagePreviewModal({
 function ProfileCard({ user, isSignedIn, onOpen }: { user: UserProfile; isSignedIn: boolean; onOpen: () => void }) {
   if (!isSignedIn) {
     return (
-      <button onClick={onOpen} className="block w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-left transition hover:border-green-300">
-        <div className="h-20 bg-cover bg-center" style={{ backgroundImage: `url(${orchardCover})` }} />
-        <div className="px-4 pb-4">
-          <div className="-mt-10 flex h-20 w-20 items-center justify-center rounded-full border-2 border-white bg-slate-900 text-2xl font-bold text-white">
-            <FaUser aria-hidden="true" />
-          </div>
-          <h1 className="mt-3 text-xl font-semibold leading-tight text-slate-900">Sign in to view account</h1>
+      <button onClick={onOpen} className="block w-full rounded-lg border border-slate-200 bg-white px-4 py-5 text-left transition hover:border-green-300">
+        <div>
+          <h1 className="text-xl font-semibold leading-tight text-slate-900">Sign in to view account</h1>
           <p className="mt-1 text-xs text-slate-500">Your profile details will appear after login.</p>
           <p className="mt-2 text-xs font-semibold text-green-700">Login or create an account</p>
         </div>
@@ -2298,18 +2309,24 @@ function ProfileCard({ user, isSignedIn, onOpen }: { user: UserProfile; isSigned
     );
   }
 
-  const displayName = user.orchardName || user.businessName || user.name || "Orchard Growers";
+  const displayName = getBuyerDisplayName(user);
+  const savedAddress = getSavedAddresses(user).shipping;
+  const addressLabel = getAddressLabel(savedAddress) || user.location || "Address not updated";
+  const mainLocation = getMainLocationLabel(savedAddress, user);
   return (
     <button onClick={onOpen} className="block w-full overflow-hidden rounded-lg border border-slate-200 bg-white text-left transition hover:border-green-300">
-      <div className="h-20 bg-cover bg-center" style={{ backgroundImage: `url(${user.bannerUrl || orchardCover})` }} />
+      {user.bannerUrl ? <div className="h-20 bg-cover bg-center" style={{ backgroundImage: `url(${user.bannerUrl})` }} /> : <div className="h-5 bg-green-700" />}
       <div className="px-4 pb-4">
-        <div className="-mt-10 flex h-20 w-20 items-center justify-center rounded-full border-2 border-white bg-slate-900 text-2xl font-bold text-white">
-          {displayName.slice(0, 1).toUpperCase()}
-        </div>
+        {user.avatarUrl ? (
+          <img src={user.avatarUrl} alt={displayName} className="-mt-10 h-20 w-20 rounded-full border-2 border-white object-cover" />
+        ) : (
+          <div className="-mt-3 flex h-12 w-12 items-center justify-center rounded-full border-2 border-white bg-slate-900 text-lg font-bold text-white">
+            {displayName.slice(0, 1).toUpperCase()}
+          </div>
+        )}
         <h1 className="mt-3 text-xl font-semibold leading-tight text-slate-900">{displayName}</h1>
-        <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-green-700">Orchard Growers</p>
-        <p className="mt-1 text-xs text-slate-500">{user.location || "Products and Plants"}</p>
-        <p className="mt-2 text-xs font-semibold text-slate-700">WhatsApp: +917018108900</p>
+        <p className="mt-1 text-xs text-slate-500">{addressLabel}</p>
+        {mainLocation && <p className="mt-2 text-xs font-semibold text-green-700">Main location: {mainLocation}</p>}
       </div>
     </button>
   );
@@ -2501,7 +2518,8 @@ function EmptyFeed({ onAdd }: { onAdd: () => void }) {
 function ProfilePage() {
   const navigate = useNavigate();
   const [user, setUser] = useState<UserProfile>(() => getStoredUser());
-  const userName = user.name || user.orchardName || user.businessName || "Orchard Growers Customer";
+  const signedIn = hasSignedInUser();
+  const userName = getBuyerDisplayName(user);
   const [addresses, setAddresses] = useState<SavedAddresses>(() => getSavedAddresses(user));
   const [sameAsPermanent, setSameAsPermanent] = useState(false);
   const [addressMessage, setAddressMessage] = useState("");
@@ -2584,6 +2602,8 @@ function ProfilePage() {
     setUser({});
     navigate("/", { replace: true });
   };
+
+  if (!signedIn) return <LoginRequiredPage title="My Profile" />;
   
   return (
     <section className="w-full rounded-lg border border-green-200 bg-gradient-to-b from-green-50 to-green-100 p-6">
@@ -2597,7 +2617,10 @@ function ProfilePage() {
           
           <div className="space-y-4 rounded-lg bg-white p-6 shadow-lg">
             <ProfileField label="Full Name" value={userName} />
-            <ProfileField label="Location" value={user.location || "India"} />
+            <ProfileField label="Address" value={getAddressLabel(addresses.shipping) || "Address not updated"} />
+            {getMainLocationLabel(addresses.shipping, user) && (
+              <ProfileField label="Main Location" value={getMainLocationLabel(addresses.shipping, user)} />
+            )}
             <div className="rounded-md bg-green-50 p-4">
               <p className="text-xs font-medium uppercase text-green-700">Status</p>
               <div className="mt-2 flex items-center gap-2">
@@ -2620,6 +2643,9 @@ function ProfilePage() {
             <Link to="/cart" className="inline-flex min-h-11 items-center justify-center rounded-full border-2 border-green-700 px-4 py-2 text-center text-sm font-semibold text-green-700 transition-all hover:bg-green-50 sm:px-6 sm:py-3">
               View Cart
             </Link>
+            <Link to="/account" className="inline-flex min-h-11 items-center justify-center rounded-full border-2 border-green-700 px-4 py-2 text-center text-sm font-semibold text-green-700 transition-all hover:bg-green-50 sm:px-6 sm:py-3">
+              Account Options
+            </Link>
             <button type="button" onClick={openOrchardInstallPrompt} className="inline-flex min-h-11 items-center justify-center rounded-full border-2 border-green-700 px-4 py-2 text-center text-sm font-semibold text-green-700 transition-all hover:bg-green-50 sm:px-6 sm:py-3">
               Download App
             </button>
@@ -2640,8 +2666,8 @@ function ProfilePage() {
                   className="h-24 w-24 rounded-full border-4 border-white/40 object-cover shadow-lg"
                 />
               ) : (
-                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-white/10">
-                  <FaUser className="text-6xl opacity-30" />
+                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-white/15 text-4xl font-bold">
+                  {userName.slice(0, 1).toUpperCase()}
                 </div>
               )}
               <h2 className="text-2xl font-bold">Welcome to Your Profile</h2>
@@ -3449,6 +3475,8 @@ function CheckoutPage() {
   const [paying, setPaying] = useState(false);
   const [challanOrder, setChallanOrder] = useState<OrderInvoice | null>(null);
   const [lastDetectedPinCode, setLastDetectedPinCode] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"CASHFREE" | "COD">("CASHFREE");
+  const [deliveryPartnerSelection, setDeliveryPartnerSelection] = useState<"AUTOMATIC" | "MANUAL">("AUTOMATIC");
   const savedUser = getStoredUser();
   const savedShipping = getSavedAddresses(savedUser).shipping;
   const [form, setForm] = useState({
@@ -3487,7 +3515,7 @@ function CheckoutPage() {
     return () => window.clearTimeout(id);
   }, [form.pinCode, lastDetectedPinCode]);
 
-  const createCheckoutOrder = (paymentMethod: "UPI" | "COD") =>
+  const createCheckoutOrder = (selectedPaymentMethod: "CASHFREE" | "COD") =>
     API.post<OrderInvoice>("/orders/checkout", {
       items,
       customer: { name: form.name, phone: form.phone, email: form.email },
@@ -3499,19 +3527,37 @@ function CheckoutPage() {
         pinCode: form.pinCode,
         country: "India",
       },
-      paymentMethod,
+      paymentMethod: selectedPaymentMethod,
+      deliveryPartnerSelection,
+      courierPartner: "India Post",
       courierTestKey: INDIA_POST_TEST_KEY,
     });
 
   const placeOrder = async (event: FormEvent) => {
     event.preventDefault();
-    setMessage("Opening payment gateway...");
+    setMessage(paymentMethod === "COD" ? "Creating cash on delivery challan..." : "Opening Cashfree payment gateway...");
     setChallanReady(false);
     setChallanOrder(null);
     setPaying(true);
 
     try {
-      const res = await createCheckoutOrder("UPI");
+      const res = await createCheckoutOrder(paymentMethod);
+      if (paymentMethod === "COD") {
+        setChallanOrder(res.data);
+        setChallanReady(true);
+        setMessage("Thanks for your order. Cash on delivery challan has been generated.");
+        return;
+      }
+
+      const cashfreeRes = await API.post<{ paymentUrl?: string; testMode?: boolean; msg?: string }>("/payments/cashfree/create-session", {
+        orderId: res.data._id,
+      });
+      const paymentUrl = cashfreeRes.data.paymentUrl || "";
+      if (paymentUrl) {
+        window.location.href = paymentUrl;
+        return;
+      }
+
       if (res.data.paymentStatus === "PAID") {
         saveCartItems([]);
         navigate(`/invoice/${res.data._id}`);
@@ -3520,7 +3566,7 @@ function CheckoutPage() {
 
       setChallanOrder(res.data);
       setChallanReady(true);
-      setMessage("Thanks for your order. Payment is unpaid, so a challan has been generated for cash on delivery.");
+      setMessage(cashfreeRes.data.msg || "Cashfree session created. Complete payment to confirm the order.");
     } catch (err: any) {
       try {
         const codRes = await createCheckoutOrder("COD");
@@ -3571,11 +3617,35 @@ function CheckoutPage() {
             </label>
           ))}
         </div>
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <label className="rounded-md border border-slate-200 p-3 text-sm font-medium text-slate-700">
+            Payment option
+            <select
+              value={paymentMethod}
+              onChange={(event) => setPaymentMethod(event.target.value as "CASHFREE" | "COD")}
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-green-600"
+            >
+              <option value="CASHFREE">Online Payment - Cashfree</option>
+              <option value="COD">Cash on Delivery</option>
+            </select>
+          </label>
+          <label className="rounded-md border border-slate-200 p-3 text-sm font-medium text-slate-700">
+            Delivery partner
+            <select
+              value={deliveryPartnerSelection}
+              onChange={(event) => setDeliveryPartnerSelection(event.target.value as "AUTOMATIC" | "MANUAL")}
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 outline-none focus:border-green-600"
+            >
+              <option value="AUTOMATIC">Automatic - India Post</option>
+              <option value="MANUAL">Manual selection by Orchard Growers</option>
+            </select>
+          </label>
+        </div>
         <button
           disabled={paying}
           className="mt-6 rounded-full bg-green-700 px-6 py-3 text-sm font-semibold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-green-400"
         >
-          {paying ? "Opening Payment Gateway..." : "Place Order"}
+          {paying ? "Please wait..." : paymentMethod === "COD" ? "Place COD Order" : "Pay with Cashfree"}
         </button>
       </form>
       <div className="space-y-4">
@@ -3714,6 +3784,9 @@ function InvoicePage() {
           <p>{order.courierPartner} - {order.courierBookingStatus}</p>
           <p>Tracking: {order.trackingNumber}</p>
           <p>Payment: {order.paymentStatus}</p>
+          <Link to={`/tracking/${order._id}`} className="mt-3 inline-flex rounded-full bg-green-700 px-4 py-2 text-sm font-semibold text-white">
+            Track Order
+          </Link>
         </div>
       </div>
       <div className="mt-6 overflow-x-auto">
@@ -3736,15 +3809,294 @@ function InvoicePage() {
   );
 }
 
-function Dashboard() {
+function CashfreeCallbackPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [message, setMessage] = useState("Confirming Cashfree payment...");
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const orderId = params.get("order_id") || "";
+    const status = params.get("status") || "PAID";
+    const reference = params.get("cf_order_id") || params.get("reference") || "";
+
+    if (!orderId) {
+      setMessage("Payment callback is missing order details.");
+      return;
+    }
+
+    API.post<{ order?: OrderInvoice; msg?: string }>("/payments/cashfree/confirm", {
+      orderId,
+      status,
+      reference,
+      gatewayResponse: Object.fromEntries(params.entries()),
+    })
+      .then((res) => {
+        saveCartItems([]);
+        setMessage(res.data.msg || "Payment confirmed.");
+        window.setTimeout(() => navigate(`/invoice/${res.data.order?._id || orderId}`, { replace: true }), 900);
+      })
+      .catch((err) => setMessage(err?.response?.data?.msg || "Could not confirm payment."));
+  }, [location.search, navigate]);
+
   return (
-    <section className="mx-4 space-y-4 rounded-lg border border-slate-200 bg-white p-6">
-      <h2 className="text-2xl font-semibold">Orchard Growers</h2>
+    <section className="mx-3 rounded-lg border border-slate-200 bg-white p-8 text-center">
+      <h1 className="text-2xl font-semibold text-slate-900">Payment Confirmation</h1>
+      <p className="mt-3 text-sm font-medium text-slate-600">{message}</p>
+    </section>
+  );
+}
+
+function TrackingPage() {
+  const { id } = useParams();
+  const [tracking, setTracking] = useState<any>(null);
+  const [message, setMessage] = useState("Loading tracking details...");
+
+  useEffect(() => {
+    if (!id) return;
+    API.get(`/orders/${id}/tracking`)
+      .then((res) => {
+        setTracking(res.data);
+        setMessage("");
+      })
+      .catch((err) => setMessage(err?.response?.data?.msg || "Could not load tracking details."));
+  }, [id]);
+
+  return (
+    <section className="mx-3 rounded-lg border border-slate-200 bg-white p-6">
+      <h1 className="text-2xl font-semibold text-slate-900">Order Tracking</h1>
+      {message && <p className="mt-3 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-800">{message}</p>}
+      {tracking && (
+        <div className="mt-5 space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <ProfileField label="Courier" value={tracking.courierPartner || "India Post"} />
+            <ProfileField label="Booking" value={tracking.courierBookingStatus || "PENDING"} />
+            <ProfileField label="Tracking" value={tracking.trackingNumber || "Not assigned"} />
+          </div>
+          <div className="rounded-lg border border-slate-200 p-4">
+            <h2 className="font-semibold text-slate-900">Timeline</h2>
+            <div className="mt-3 space-y-2">
+              {(tracking.trackingEvents || []).map((event: any) => (
+                <div key={event.label} className="flex items-center justify-between rounded-md bg-green-50 px-3 py-2 text-sm">
+                  <span className="font-medium text-slate-800">{event.label}</span>
+                  <span className="font-semibold text-green-800">{event.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function Dashboard() {
+  if (!hasSignedInUser()) return <LoginRequiredPage title="Account Options" />;
+
+  const user = getStoredUser();
+  const addresses = getSavedAddresses(user);
+  const cartItems = getCartItems();
+
+  return (
+    <AccountShell title={getBuyerDisplayName(user)} subtitle={getAddressLabel(addresses.shipping) || "Address not updated"}>
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Products and Plants" value="Open" />
-        <StatCard label="Our Services" value="Live" />
-        <StatCard label="Save Our Earth" value="Active" />
+        <StatCard label="Cart Items" value={String(cartItems.reduce((sum, item) => sum + item.quantity, 0))} />
+        <StatCard label="Shipping Address" value={isAddressComplete(addresses.shipping) ? "Ready" : "Update"} />
+        <StatCard label="Account Type" value="Buyer" />
       </div>
+    </AccountShell>
+  );
+}
+
+function OrdersPage() {
+  const [orders, setOrders] = useState<OrderInvoice[]>([]);
+  const [message, setMessage] = useState("Loading your orders...");
+
+  useEffect(() => {
+    if (!hasSignedInUser()) return;
+    API.get<OrderInvoice[]>("/orders")
+      .then((res) => {
+        setOrders(res.data || []);
+        setMessage("");
+      })
+      .catch((err) => setMessage(err?.response?.data?.msg || "Could not load orders."));
+  }, []);
+
+  if (!hasSignedInUser()) return <LoginRequiredPage title="My Orders" />;
+
+  return (
+    <AccountShell title="My Orders" subtitle="Track Orchard Growers purchases, invoices, payment, and courier updates.">
+      {message && <p className="rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-800">{message}</p>}
+      {!message && !orders.length ? (
+        <DesktopEmptyState text="No orders found yet. Start shopping to place your first Orchard Growers order." />
+      ) : (
+        <div className="space-y-3">
+          {orders.map((order) => (
+            <Link key={order._id} to={`/invoice/${order._id}`} className="block rounded-lg border border-slate-200 bg-white p-4 hover:border-green-300">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="font-semibold text-slate-900">{order.invoiceNumber || "Order"}</h2>
+                  <p className="mt-1 text-sm text-slate-600">{(order.items || []).map((item) => item.title).join(", ") || "Orchard Growers products"}</p>
+                </div>
+                <div className="text-sm font-semibold text-green-800">Rs. {order.totalAmount || 0}</div>
+              </div>
+              <p className="mt-2 text-xs text-slate-500">Payment: {order.paymentStatus || "PENDING"} | Courier: {order.courierBookingStatus || "PENDING"}</p>
+            </Link>
+          ))}
+        </div>
+      )}
+    </AccountShell>
+  );
+}
+
+function SavedAddressesPage() {
+  if (!hasSignedInUser()) return <LoginRequiredPage title="Saved Addresses" />;
+
+  const addresses = getSavedAddresses(getStoredUser());
+  return (
+    <AccountShell title="Saved Addresses" subtitle="Use these details at checkout for product delivery.">
+      <div className="grid gap-4 md:grid-cols-2">
+        <AddressSummary title="Permanent Address" address={addresses.permanent} />
+        <AddressSummary title="Shipping Address" address={addresses.shipping} />
+      </div>
+      <Link to="/profile" className="mt-5 inline-flex rounded-full bg-green-700 px-5 py-2 text-sm font-semibold text-white hover:bg-green-800">
+        Update Address
+      </Link>
+    </AccountShell>
+  );
+}
+
+function SavedItemsPage() {
+  if (!hasSignedInUser()) return <LoginRequiredPage title="Saved Items" />;
+
+  return (
+    <AccountShell title="Saved Items" subtitle="Keep products here for future orchard shopping.">
+      <DesktopEmptyState text="No saved products yet. Browse products and add items to your cart when you are ready." />
+      <Link to="/products" className="inline-flex rounded-full bg-green-700 px-5 py-2 text-sm font-semibold text-white hover:bg-green-800">
+        Browse Products
+      </Link>
+    </AccountShell>
+  );
+}
+
+function AccountSettingsPage() {
+  if (!hasSignedInUser()) return <LoginRequiredPage title="Settings" />;
+
+  const user = getStoredUser();
+  return (
+    <AccountShell title="Settings" subtitle="Manage app install, login details, and customer preferences.">
+      <div className="grid gap-4 md:grid-cols-2">
+        <ProfileField label="Name" value={getBuyerDisplayName(user)} />
+        <ProfileField label="Phone" value={user.phone || user.contact || "Not updated"} />
+        <ProfileField label="Email" value={user.email || "Not updated"} />
+        <ProfileField label="Account" value="Buyer customer" />
+      </div>
+      <button type="button" onClick={openOrchardInstallPrompt} className="mt-5 rounded-full border border-green-700 px-5 py-2 text-sm font-semibold text-green-800 hover:bg-green-50">
+        Download App
+      </button>
+    </AccountShell>
+  );
+}
+
+function AccountHelpPage() {
+  if (!hasSignedInUser()) return <LoginRequiredPage title="Help" />;
+
+  return (
+    <AccountShell title="Help" subtitle="Support for shopping, checkout, delivery, services, and plant care.">
+      <div className="grid gap-4 md:grid-cols-2">
+        <SupportTile title="WhatsApp Support" text="+91 7018108900" to="https://wa.me/917018108900" />
+        <SupportTile title="Email Support" text="care@orchardgrowers.in" to="mailto:care@orchardgrowers.in" />
+      </div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <Link to="/support/faqs" className="rounded-md border border-slate-200 px-4 py-3 text-sm font-semibold hover:border-green-300">FAQs</Link>
+        <Link to="/support/shippingpolicy" className="rounded-md border border-slate-200 px-4 py-3 text-sm font-semibold hover:border-green-300">Shipping Policy</Link>
+        <Link to="/support/returnpolicy" className="rounded-md border border-slate-200 px-4 py-3 text-sm font-semibold hover:border-green-300">Return Policy</Link>
+      </div>
+    </AccountShell>
+  );
+}
+
+function AccountShell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
+  return (
+    <section className="mx-3 rounded-lg border border-slate-200 bg-white p-6">
+      <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[240px_minmax(0,1fr)]">
+        <aside className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <AccountOptionList />
+        </aside>
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
+          <p className="mt-1 text-sm text-slate-600">{subtitle}</p>
+          <div className="mt-5">{children}</div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function AccountOptionList() {
+  const navigate = useNavigate();
+  const logout = () => {
+    clearOrchardSession();
+    navigate("/", { replace: true });
+  };
+  const options: { label: string; to?: string; icon: ReactNode; action?: () => void }[] = [
+    { label: "Profile", to: "/profile", icon: <FaUser /> },
+    { label: "Orders", to: "/account/orders", icon: <FaBoxOpen /> },
+    { label: "Saved", to: "/account/saved", icon: <FaHeart /> },
+    { label: "Addresses", to: "/account/addresses", icon: <FaMapMarkerAlt /> },
+    { label: "Cart", to: "/cart", icon: <FaShoppingCart /> },
+    { label: "Settings", to: "/account/settings", icon: <FaCog /> },
+    { label: "Help", to: "/account/help", icon: <FaWhatsapp /> },
+    { label: "Logout", icon: <FaSignOutAlt />, action: logout },
+  ];
+
+  return (
+    <nav className="space-y-1" aria-label="Account options">
+      {options.map((option) =>
+        option.to ? (
+          <Link key={option.label} to={option.to} className="flex min-h-12 items-center gap-3 rounded-md px-3 text-sm font-semibold text-slate-800 hover:bg-green-50 hover:text-green-800">
+            <span className="flex h-7 w-7 items-center justify-center text-lg text-green-700">{option.icon}</span>
+            {option.label}
+          </Link>
+        ) : (
+          <button key={option.label} type="button" onClick={option.action} className="flex min-h-12 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-semibold text-slate-800 hover:bg-red-50 hover:text-red-700">
+            <span className="flex h-7 w-7 items-center justify-center text-lg text-red-600">{option.icon}</span>
+            {option.label}
+          </button>
+        )
+      )}
+    </nav>
+  );
+}
+
+function AddressSummary({ title, address }: { title: string; address: AddressForm }) {
+  const label = getAddressLabel(address);
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <h2 className="font-semibold text-slate-900">{title}</h2>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{label || "Address not updated"}</p>
+      <p className="mt-2 text-xs font-semibold text-green-700">{isAddressComplete(address) ? "Ready for checkout" : "Update required"}</p>
+    </div>
+  );
+}
+
+function SupportTile({ title, text, to }: { title: string; text: string; to: string }) {
+  return (
+    <a href={to} className="rounded-lg border border-slate-200 bg-white p-4 hover:border-green-300">
+      <h2 className="font-semibold text-slate-900">{title}</h2>
+      <p className="mt-2 text-sm text-green-800">{text}</p>
+    </a>
+  );
+}
+
+function LoginRequiredPage({ title }: { title: string }) {
+  return (
+    <section className="mx-3 rounded-lg border border-slate-200 bg-white p-8 text-center">
+      <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
+      <p className="mt-2 text-sm text-slate-600">Please login or signup first to view this page.</p>
+      <Link to="/login" className="mt-5 inline-flex rounded-full bg-green-700 px-5 py-2 text-sm font-semibold text-white hover:bg-green-800">
+        Login or Signup
+      </Link>
     </section>
   );
 }
@@ -3768,6 +4120,10 @@ function getStoredUser(): UserProfile {
   }
 }
 
+function getBuyerDisplayName(user: UserProfile) {
+  return user.name || user.buyerContactPerson || "Orchard Growers Customer";
+}
+
 function hasSignedInUser() {
   try {
     const user = JSON.parse(localStorage.getItem("user") || "null");
@@ -3788,7 +4144,7 @@ function clearOrchardSession() {
 }
 
 function getAccountPath() {
-  return hasSignedInUser() ? "/profile" : "/login";
+  return hasSignedInUser() ? "/account" : "/login";
 }
 
 function fileToProfileImageDataUrl(file: File): Promise<string> {
@@ -3863,6 +4219,20 @@ function getSavedAddresses(user: UserProfile): SavedAddresses {
     permanent: fallbackPermanent,
     shipping: { ...fallbackPermanent },
   };
+}
+
+function getAddressLabel(address: AddressForm) {
+  return [address.line1, address.line2, address.landmark, address.city, address.district, address.state, address.pinCode, address.country]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
+function getMainLocationLabel(address: AddressForm, user: UserProfile) {
+  return [address.city || user.location || "", address.state || ""]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(", ");
 }
 
 function isAddressComplete(address: AddressForm) {

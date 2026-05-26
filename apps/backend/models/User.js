@@ -134,6 +134,30 @@ const userSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    logisticsOwnerName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    logisticsOwnerContact: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    driverName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    driverContact: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    ownerIsDriver: {
+      type: Boolean,
+      default: false,
+    },
 
     location: {
       type: String,
