@@ -10,7 +10,9 @@ html,
 body {
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 
 #root,
@@ -194,6 +196,7 @@ a {
   right: 8px;
   width: min(360px, calc(100vw - 16px));
   max-height: calc(100vh - 112px);
+  max-height: calc(100dvh - 112px);
   overflow-y: auto;
   border: 1px solid #334155;
   border-radius: 12px;
@@ -264,6 +267,7 @@ a {
 .admin-action-panel:fullscreen {
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   overflow: auto;
   background: #020617;
   padding: 8px;
@@ -271,7 +275,7 @@ a {
 
 .admin-action-panel:fullscreen main {
   height: auto;
-  min-height: calc(100vh - 82px);
+  min-height: calc(100dvh - 82px);
 }
 
 .admin-action-panel main {
@@ -329,26 +333,15 @@ a {
   opacity: 1;
 }
 
-@media (max-width: 767px) {
-  .admin-announcement-shell {
-    min-height: 38px;
-  }
-
-  .admin-announcement-track {
-    display: none;
-  }
-
-  .admin-mobile-announcement-text {
-    display: flex !important;
-  }
-
-  .admin-announcement-shell > button {
-    width: 28px;
-    height: 28px;
+@media (max-width: 1023px) {
+  #root,
+  #root > div {
+    min-height: 100dvh;
+    height: 100dvh;
   }
 
   .admin-top-nav {
-    grid-template-columns: 44px minmax(0, 1fr);
+    grid-template-columns: minmax(118px, 138px) minmax(0, 1fr);
     align-items: center;
   }
 
@@ -367,32 +360,6 @@ a {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-
-  .admin-top-nav > div:last-child > span:nth-child(2),
-  .admin-top-nav .admin-logout-button {
-    display: none;
-  }
-
-  .admin-top-nav .admin-refresh-button {
-    width: 34px;
-    padding-left: 0;
-    padding-right: 0;
-    overflow: hidden;
-    color: transparent;
-    position: relative;
-  }
-
-  .admin-top-nav .admin-refresh-button::after {
-    content: 'R';
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #020617;
-    font-size: 18px;
-    line-height: 1;
   }
 
   .admin-top-nav .admin-mobile-menu-button {
@@ -418,9 +385,154 @@ a {
     border-radius: 10px;
   }
 
+  .admin-action-panel nav {
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-action-panel nav button {
+    scroll-snap-align: start;
+  }
+
   .admin-action-panel main {
-    padding: 12px;
     border-left: 1px solid #334155;
     border-right: 1px solid #334155;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 767px) {
+  .admin-announcement-shell {
+    min-height: 38px;
+  }
+
+  .admin-announcement-track {
+    display: none;
+  }
+
+  .admin-mobile-announcement-text {
+    display: flex !important;
+  }
+
+  .admin-announcement-shell > button {
+    width: 28px;
+    height: 28px;
+  }
+
+  .admin-top-nav > div:last-child {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .admin-top-nav > div:last-child > span:nth-child(2),
+  .admin-top-nav .admin-download-button,
+  .admin-top-nav .admin-logout-button {
+    display: none;
+  }
+
+  .admin-top-nav .admin-refresh-button {
+    width: 34px;
+    padding-left: 0;
+    padding-right: 0;
+    overflow: hidden;
+    color: transparent;
+    position: relative;
+  }
+
+  .admin-top-nav .admin-refresh-button::after {
+    content: 'R';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #020617;
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .admin-action-panel main {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 560px) {
+  body {
+    min-width: 320px;
+  }
+
+  .admin-top-nav {
+    grid-template-columns: minmax(112px, 128px) minmax(0, 1fr);
+  }
+
+  .admin-top-nav > div:first-child {
+    height: 40px;
+  }
+
+  .admin-top-nav > div:first-child img {
+    max-width: 56px;
+    height: 28px;
+  }
+
+  .admin-theme-control {
+    height: 32px;
+    border-radius: 10px;
+  }
+
+  .admin-theme-control button {
+    height: 24px;
+    min-width: 28px;
+    padding-left: 6px;
+    padding-right: 6px;
+    font-size: 11px;
+  }
+
+  .admin-mobile-menu {
+    top: 86px;
+    right: max(8px, env(safe-area-inset-right));
+    left: max(8px, env(safe-area-inset-left));
+    width: auto;
+    max-height: calc(100dvh - 100px);
+  }
+
+  .admin-action-panel nav {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .admin-action-panel nav span:first-child {
+    display: none;
+  }
+
+  .admin-action-panel nav button {
+    min-height: 34px;
+    padding-left: 10px;
+    padding-right: 10px;
+    font-size: 12px;
+  }
+
+  .admin-action-panel main {
+    padding: 10px;
+  }
+
+  .admin-action-panel section,
+  .admin-action-panel article {
+    border-radius: 12px;
+  }
+
+  .admin-action-panel h1,
+  .admin-action-panel h2 {
+    overflow-wrap: anywhere;
+  }
+
+  .admin-action-panel input,
+  .admin-action-panel textarea,
+  .admin-action-panel select,
+  .admin-action-panel button {
+    max-width: 100%;
+  }
+
+  .admin-action-panel table {
+    min-width: 680px;
   }
 }

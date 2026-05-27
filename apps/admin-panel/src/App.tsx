@@ -21,6 +21,7 @@ if (!import.meta.env.VITE_API_BASE_URL) {
 }
 const FILE_BASE = API_BASE.replace(/\/api\/?$/, '');
 const LOGO_URL = new URL('../logo.png', import.meta.url).href;
+const ORCHARD_LOGO_URL = new URL('../../orchardgrowers-frontend/public/logo.png', import.meta.url).href;
 const ADMIN_AUTH_SOURCE = {
   platform: 'orchardgrowers',
   sourceApp: 'admin-panel',
@@ -441,6 +442,8 @@ const orchardModuleChildRoutes: Partial<Record<AdminTab, Record<string, AdminTab
   master: {
     'Add Product': 'productAdmin',
     'Units / Outlets': 'unitsOutlets',
+    'Vendors / Parties': 'master',
+    Categories: 'master',
   },
   inventory: {
     'Production Update': 'inventory',
@@ -453,10 +456,25 @@ const orchardModuleChildRoutes: Partial<Record<AdminTab, Record<string, AdminTab
   billing: {
     'New Invoice': 'billing',
     'Sales History': 'sales',
+    'Returns / Refunds': 'billing',
+  },
+  logistics: {
+    eFruitMandi: 'logistics',
+    'India Post': 'logistics',
+    Delivery: 'logistics',
+    AWS: 'logistics',
+    Potter: 'logistics',
   },
   financials: {
     Expenses: 'expenses',
+    'GST Summary': 'financials',
     Reports: 'reports',
+  },
+  orchardSettings: {
+    'Invoice Series': 'orchardSettings',
+    'Stock Sync': 'orchardSettings',
+    'GST Defaults': 'orchardSettings',
+    'Low Stock Thresholds': 'orchardSettings',
   },
   adminUsers: {
     'Admin Users': 'adminUsers',
@@ -469,6 +487,7 @@ const defaultOrchardModulePages: Partial<Record<AdminTab, string>> = {
   master: 'Add Product',
   inventory: 'Current Stock',
   billing: 'New Invoice',
+  logistics: 'eFruitMandi',
   financials: 'Expenses',
   orchardSettings: 'Invoice Series',
   adminUsers: 'Admin Users',
@@ -733,6 +752,13 @@ const modulePlans: Partial<Record<AdminTab, ModulePlan>> = {
     title: 'Settings',
     text: 'Orchard Growers ERP configuration for storefront stock sync, invoice sequence, tax defaults, and low stock thresholds.',
     pages: ['Invoice Series', 'Stock Sync', 'GST Defaults', 'Low Stock Thresholds', 'Storefront Visibility'],
+  },
+  logistics: {
+    title: 'Logistics Control',
+    text: 'Control eFruitMandi, India Post, delivery, AWS, and Potter logistics integrations from one operational panel.',
+    pages: ['eFruitMandi', 'India Post', 'Delivery', 'AWS', 'Potter'],
+    fields: ['Partner', 'Mode', 'Booking Status', 'Tracking', 'Webhook / API Status', 'Fallback Action'],
+    rules: ['Use eFruitMandi for marketplace dispatch coordination.', 'Use India Post for postal booking and tracking.', 'Use manual providers when automatic partner integration is pending.'],
   },
   efruitDashboard: {
     title: 'eFruitMandi Dashboard',
@@ -1920,7 +1946,7 @@ function App() {
     }
 
     if (tab === 'master') {
-      return null;
+      return <OrchardSubOptionPanel module="master" activePage={getOrchardModulePage('master')} />;
     }
 
     if (tab === 'inventory') {
@@ -1970,16 +1996,16 @@ function App() {
       );
     }
     if (tab === 'logistics') {
-      return <LogisticsControlPanel orders={orders} authHeaders={authHeaders} onUpdated={loadRequests} />;
+      return <LogisticsControlPanel orders={orders} authHeaders={authHeaders} onUpdated={loadRequests} activePage={getOrchardModulePage('logistics')} />;
     }
     if (tab === 'orchardSettings') {
-      return null;
+      return <OrchardSubOptionPanel module="orchardSettings" activePage={getOrchardModulePage('orchardSettings')} />;
     }
     if (tab === 'financials') {
-      return null;
+      return <OrchardSubOptionPanel module="financials" activePage={getOrchardModulePage('financials')} />;
     }
     if (['purchase', 'unitsOutlets', 'expenses', 'reports'].includes(tab)) {
-      return null;
+      return <OrchardSubOptionPanel module={tab as AdminTab} activePage={getOrchardModulePage(tab as AdminTab) || getAdminTabTitle(tab as AdminTab, activePlatform)} />;
     }
     if (tab === 'efruitDashboard') {
       return (
@@ -2120,9 +2146,11 @@ function App() {
           isFullscreen={fullscreenTarget === 'announcement'}
           onFullscreen={toggleAnnouncementFullscreen}
         />
-        <section className="admin-top-nav mt-2 grid gap-2 md:grid-cols-[108px_220px_minmax(0,1fr)]">
-          <div className="flex h-11 items-center justify-center px-1">
-            <img src={LOGO_URL} alt="Orchard Growers Admin" className="h-9 w-auto object-contain" />
+        <section className="admin-top-nav mt-2 grid gap-2 lg:grid-cols-[138px_220px_minmax(0,1fr)]">
+          <div className="flex h-11 items-center justify-center gap-1 overflow-hidden rounded-xl border border-slate-700 bg-white px-1">
+            <img src={ORCHARD_LOGO_URL} alt="Orchard Growers" className="h-8 max-w-[62px] object-contain" />
+            <span className="h-7 w-px bg-slate-200" />
+            <img src={LOGO_URL} alt="eFruitMandi" className="h-8 max-w-[62px] object-contain" />
           </div>
           <label className="flex h-11 items-center rounded-full border border-slate-700 bg-slate-900/95 px-4 shadow-sm shadow-black/20">
             <span className="sr-only">Search admin records</span>
@@ -2147,7 +2175,7 @@ function App() {
               <button
                 type="button"
                 onClick={openAdminInstallPrompt}
-                className="h-8 rounded-lg bg-white px-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-100"
+                className="admin-download-button h-8 rounded-lg bg-white px-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-100"
               >
                 Download App
               </button>
@@ -2375,8 +2403,8 @@ function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: (
           children: [
             { label: 'Add Product', tab: 'productAdmin' },
             { label: 'Units / Outlets', tab: 'unitsOutlets' },
-            { label: 'Vendors / Parties' },
-            { label: 'Categories' },
+            { label: 'Vendors / Parties', tab: 'master' },
+            { label: 'Categories', tab: 'master' },
           ],
         },
         {
@@ -2399,17 +2427,29 @@ function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: (
           children: [
             { label: 'New Invoice', tab: 'billing' },
             { label: 'Sales History', tab: 'sales' },
-            { label: 'Returns / Refunds' },
+            { label: 'Returns / Refunds', tab: 'billing' },
           ],
         },
-        { label: 'Logistics Control', icon: 'purchase', tab: 'logistics', count: counts.logistics },
+        {
+          label: 'Logistics Control',
+          icon: 'purchase',
+          tab: 'logistics',
+          count: counts.logistics,
+          children: [
+            { label: 'eFruitMandi', tab: 'logistics' },
+            { label: 'India Post', tab: 'logistics' },
+            { label: 'Delivery', tab: 'logistics' },
+            { label: 'AWS', tab: 'logistics' },
+            { label: 'Potter', tab: 'logistics' },
+          ],
+        },
         {
           label: 'Financials',
           icon: 'financials',
           tab: 'financials',
           children: [
             { label: 'Expenses', tab: 'expenses' },
-            { label: 'GST Summary' },
+            { label: 'GST Summary', tab: 'financials' },
             { label: 'Reports', tab: 'reports' },
           ],
         },
@@ -2418,10 +2458,10 @@ function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: (
           icon: 'settings',
           tab: 'orchardSettings',
           children: [
-            { label: 'Invoice Series' },
-            { label: 'Stock Sync' },
-            { label: 'GST Defaults' },
-            { label: 'Low Stock Thresholds' },
+            { label: 'Invoice Series', tab: 'orchardSettings' },
+            { label: 'Stock Sync', tab: 'orchardSettings' },
+            { label: 'GST Defaults', tab: 'orchardSettings' },
+            { label: 'Low Stock Thresholds', tab: 'orchardSettings' },
           ],
         },
       ],
@@ -2651,8 +2691,18 @@ function MobileAdminMenu({
     onClose();
   };
 
+  const selectTab = (tab: AdminTab, childLabel?: string, parentTab?: AdminTab) => {
+    onOpenTab(tab, childLabel, parentTab);
+    onClose();
+  };
+
+  const selectPlatform = (platform: AdminPlatform) => {
+    onOpenPlatform(platform);
+    onClose();
+  };
+
   return (
-    <div id="mobile-admin-menu" className="admin-mobile-menu fixed z-40 md:hidden">
+    <div id="mobile-admin-menu" className="admin-mobile-menu fixed z-40 lg:hidden">
       <div className="mb-2 flex items-center justify-between gap-3 border-b border-slate-800 pb-2">
         <span className="text-sm font-black text-white">Admin Menu</span>
         <button
@@ -2676,7 +2726,7 @@ function MobileAdminMenu({
           >
             <button
               type="button"
-              onClick={() => (group.action ? runAction(group.action) : onOpenPlatform(group.platform))}
+              onClick={() => (group.action ? runAction(group.action) : selectPlatform(group.platform))}
               className="flex w-full items-center justify-between gap-2 text-left"
             >
               <span className="min-w-0">
@@ -2694,7 +2744,7 @@ function MobileAdminMenu({
                   <div key={item.label} className={expanded ? 'col-span-2' : ''}>
                     <button
                       type="button"
-                      onClick={() => (item.action ? runAction(item.action) : item.tab && onOpenTab(item.tab))}
+                      onClick={() => (item.action ? runAction(item.action) : item.tab && selectTab(item.tab))}
                       className={`flex min-h-10 w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[11px] font-bold transition ${
                         selected ? 'bg-emerald-600 text-white' : 'text-slate-200 hover:bg-slate-800 hover:text-white'
                       }`}
@@ -2715,7 +2765,7 @@ function MobileAdminMenu({
                               type="button"
                               onClick={() => {
                                 if (child.action) runAction(child.action);
-                                else if (child.tab) onOpenTab(child.tab, child.label, item.tab);
+                                else if (child.tab) selectTab(child.tab, child.label, item.tab);
                               }}
                               disabled={!child.tab && !child.action}
                               className={`flex min-h-8 items-center gap-1 rounded-md px-2 py-1.5 text-left text-[10px] font-bold transition ${
@@ -3125,6 +3175,143 @@ function PlanList({ title, items }: { title: string; items: string[] }) {
   );
 }
 
+const subOptionVisuals: Record<string, { title: string; text: string; metrics: string[]; actions: string[] }> = {
+  'Vendors / Parties': {
+    title: 'Vendors / Parties',
+    text: 'Maintain nursery vendors, transport vendors, local suppliers, and purchase parties used in Orchard Growers procurement.',
+    metrics: ['Party Ledger', 'GST Details', 'Payment Terms', 'Purchase Link'],
+    actions: ['Add Party', 'Verify GST', 'Map Products', 'Export Ledger'],
+  },
+  Categories: {
+    title: 'Categories',
+    text: 'Manage product, seasonal, plant, tools, manure, and orchard input categories used by storefront filters.',
+    metrics: ['Product Tree', 'SEO Slug', 'Display Order', 'Active Status'],
+    actions: ['Add Category', 'Set Parent', 'Sync Storefront', 'Review Filters'],
+  },
+  'Production Update': {
+    title: 'Production Update',
+    text: 'Record nursery production batches and push available quantity into aggregated stock after internal approval.',
+    metrics: ['Batch No.', 'Unit', 'Quantity', 'Ready Date'],
+    actions: ['Create Batch', 'Approve Stock', 'Attach Photos', 'Sync Inventory'],
+  },
+  'Purchase Entry': {
+    title: 'Purchase Entry',
+    text: 'Enter third-party purchase invoices, transport cost, GST values, and stock receipt details.',
+    metrics: ['Vendor', 'Invoice', 'GST', 'Stock In'],
+    actions: ['New Purchase', 'Upload Bill', 'Add Rows', 'Post Stock'],
+  },
+  'Stock Transfer': {
+    title: 'Stock Transfer',
+    text: 'Move stock between units, outlets, and online stock pools with dispatch and receiving confirmation.',
+    metrics: ['From Unit', 'To Unit', 'In Transit', 'Received'],
+    actions: ['Create Transfer', 'Dispatch', 'Receive', 'Audit'],
+  },
+  'Damaged / Dead Stock': {
+    title: 'Damaged / Dead Stock',
+    text: 'Write off damaged, dead, expired, or unsellable stock with reason, photo proof, and approval trail.',
+    metrics: ['Product', 'Quantity', 'Reason', 'Approval'],
+    actions: ['Report Damage', 'Upload Photo', 'Approve Writeoff', 'Update Stock'],
+  },
+  'Low Stock Alert': {
+    title: 'Low Stock Alert',
+    text: 'Monitor products below threshold and trigger purchase or production tasks before storefront stockouts.',
+    metrics: ['Threshold', 'Current Qty', 'Reorder Qty', 'Priority'],
+    actions: ['Set Threshold', 'Create Purchase', 'Notify Team', 'Export List'],
+  },
+  'Returns / Refunds': {
+    title: 'Returns / Refunds',
+    text: 'Review customer returns, replacement requests, refund approval, and stock reversal workflow.',
+    metrics: ['Return ID', 'Reason', 'Refund Mode', 'Stock Impact'],
+    actions: ['Create Return', 'Approve Refund', 'Issue Credit', 'Restock'],
+  },
+  'GST Summary': {
+    title: 'GST Summary',
+    text: 'View CGST, SGST, taxable sales, input purchases, and return-ready tax summaries.',
+    metrics: ['Taxable Value', 'CGST', 'SGST', 'Input Credit'],
+    actions: ['Generate Summary', 'Check HSN', 'Export CSV', 'Lock Period'],
+  },
+  'Invoice Series': {
+    title: 'Invoice Series',
+    text: 'Configure Orchard Growers invoice prefix, financial year sequence, and next invoice number.',
+    metrics: ['Prefix', 'FY', 'Next No.', 'Status'],
+    actions: ['Update Prefix', 'Preview Invoice', 'Lock Series', 'Audit Changes'],
+  },
+  'Stock Sync': {
+    title: 'Stock Sync',
+    text: 'Control online storefront quantity sync, offline deductions, and marketplace stock visibility.',
+    metrics: ['Last Sync', 'Pending Sync', 'Failed Items', 'Storefront'],
+    actions: ['Run Sync', 'Retry Failed', 'Pause Sync', 'View Log'],
+  },
+  'GST Defaults': {
+    title: 'GST Defaults',
+    text: 'Set default HSN, GST, CGST, and SGST values for plant, tool, manure, and input categories.',
+    metrics: ['Category', 'HSN', 'GST Rate', 'Verification'],
+    actions: ['Add Default', 'Verify HSN', 'Apply to Products', 'Export Rules'],
+  },
+  'Low Stock Thresholds': {
+    title: 'Low Stock Thresholds',
+    text: 'Set reorder levels per category and unit so low stock alerts remain actionable.',
+    metrics: ['Category', 'Unit', 'Minimum Qty', 'Alert Owner'],
+    actions: ['Set Threshold', 'Assign Owner', 'Notify', 'Review'],
+  },
+};
+
+function OrchardSubOptionPanel({ module, activePage }: { module: AdminTab; activePage: string }) {
+  const plan = modulePlans[module];
+  const visual = subOptionVisuals[activePage] || {
+    title: activePage || plan?.title || 'Workflow',
+    text: plan?.text || 'Operational controls for this admin workflow.',
+    metrics: plan?.fields?.slice(0, 4) || ['Status', 'Owner', 'Records', 'Action'],
+    actions: plan?.pages?.slice(0, 4) || ['Create', 'Review', 'Approve', 'Export'],
+  };
+
+  return (
+    <section className="space-y-4">
+      <section className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-emerald-300">{plan?.title || getAdminTabTitle(module, 'orchard')}</p>
+            <h2 className="mt-1 text-xl font-black text-white">{visual.title}</h2>
+            <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-400">{visual.text}</p>
+          </div>
+          <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-bold text-emerald-300">Action Panel</span>
+        </div>
+        <div className="mt-5 grid gap-3 md:grid-cols-4">
+          {visual.metrics.map((metric, index) => (
+            <div key={metric} className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+              <p className="text-xs font-black uppercase tracking-wide text-slate-500">{metric}</p>
+              <p className="mt-2 text-2xl font-black text-white">{index === 0 ? 'Ready' : index === 1 ? '0' : index === 2 ? 'Live' : 'Open'}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_260px]">
+          <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+            <p className="text-sm font-black text-white">Workflow Board</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {['Draft', 'Review', 'Approved', 'Synced'].map((status) => (
+                <div key={status} className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-sm font-bold text-slate-300">
+                  {status}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+            <p className="text-sm font-black text-white">Actions</p>
+            <div className="mt-3 space-y-2">
+              {visual.actions.map((action) => (
+                <button key={action} type="button" className="w-full rounded-lg bg-slate-800 px-3 py-2 text-left text-xs font-bold text-white hover:bg-slate-700">
+                  {action}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+      <ModulePlanPanel plan={plan} />
+    </section>
+  );
+}
+
 function RolesPermissionsPanel() {
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
@@ -3296,7 +3483,7 @@ function InventoryPanel({
   const onlineActiveListings = products.filter((product) => product.status === 'AVAILABLE' && product.active !== false).length;
 
   if (activePage !== 'Current Stock') {
-    return null;
+    return <OrchardSubOptionPanel module="inventory" activePage={activePage} />;
   }
 
   return (
@@ -3376,7 +3563,7 @@ function BillingPanel({
   const activeProducts = products.filter((product) => product.status === 'AVAILABLE' && product.active !== false);
 
   if (activePage !== 'New Invoice') {
-    return null;
+    return <OrchardSubOptionPanel module="billing" activePage={activePage} />;
   }
 
   return (
@@ -4278,10 +4465,12 @@ function LogisticsControlPanel({
   orders,
   authHeaders,
   onUpdated,
+  activePage,
 }: {
   orders: AdminOrder[];
   authHeaders: HeadersInit;
   onUpdated: () => void;
+  activePage: string;
 }) {
   const [savingId, setSavingId] = useState('');
   const [notice, setNotice] = useState('');
@@ -4309,6 +4498,7 @@ function LogisticsControlPanel({
   return (
     <RequestSection title="Logistics Control Panel" count={orders.length}>
       {notice && <div className="rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm font-bold text-emerald-300">{notice}</div>}
+      <LogisticsProviderPanel activePage={activePage} orders={orders} />
       {orders.map((order) => (
         <article key={order._id} className="rounded-xl border border-slate-800 bg-slate-950 p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -4362,6 +4552,65 @@ function LogisticsControlPanel({
         </article>
       ))}
     </RequestSection>
+  );
+}
+
+function LogisticsProviderPanel({ activePage, orders }: { activePage: string; orders: AdminOrder[] }) {
+  const providerConfig: Record<string, { text: string; metrics: string[]; actions: string[] }> = {
+    eFruitMandi: {
+      text: 'Marketplace logistics desk for eFruitMandi deals, buyer/grower dispatch coordination, and delivery escalation.',
+      metrics: ['Open Deals', 'Assigned Drivers', 'Escrow Holds', 'Pending Proof'],
+      actions: ['Assign Driver', 'Review Deal', 'Notify Buyer', 'Escalate'],
+    },
+    'India Post': {
+      text: 'India Post booking, test tracking, PIN-based dispatch review, and postal status reconciliation.',
+      metrics: ['Booked', 'Pending Booking', 'Tracking Issued', 'Failed'],
+      actions: ['Book Consignment', 'Retry Booking', 'Update Tracking', 'Print Label'],
+    },
+    Delivery: {
+      text: 'Operational delivery queue for manual updates, in-transit consignments, buyer confirmation, and settlement unlock.',
+      metrics: ['Placed', 'In Transit', 'Delivered', 'Closed'],
+      actions: ['Start Delivery', 'Manual Update', 'Confirm OTP', 'Close Deal'],
+    },
+    AWS: {
+      text: 'AWS integration placeholder for storage, events, notifications, or future logistics automation jobs.',
+      metrics: ['Events', 'Jobs', 'Webhook', 'Storage'],
+      actions: ['Configure Endpoint', 'Test Event', 'View Logs', 'Retry Job'],
+    },
+    Potter: {
+      text: 'Potter partner placeholder for local delivery partner mapping, manual booking, and fallback tracking.',
+      metrics: ['Partner Mode', 'Manual Orders', 'Coverage', 'SLA'],
+      actions: ['Map Area', 'Manual Booking', 'Update SLA', 'Contact Partner'],
+    },
+  };
+  const config = providerConfig[activePage] || providerConfig.eFruitMandi;
+
+  return (
+    <section className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-wide text-emerald-300">Logistics Sub Option</p>
+          <h3 className="mt-1 text-lg font-black text-white">{activePage}</h3>
+          <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-400">{config.text}</p>
+        </div>
+        <span className="rounded-full bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-300">{orders.length} orders</span>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        {config.metrics.map((metric, index) => (
+          <div key={metric} className="rounded-lg border border-slate-800 bg-slate-900 p-3">
+            <p className="text-xs font-bold text-slate-500">{metric}</p>
+            <p className="mt-1 text-xl font-black text-white">{index === 0 ? orders.length : 0}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {config.actions.map((action) => (
+          <button key={action} type="button" className="rounded-lg bg-slate-800 px-3 py-2 text-xs font-bold text-white hover:bg-slate-700">
+            {action}
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 
