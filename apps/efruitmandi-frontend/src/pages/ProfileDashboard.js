@@ -663,9 +663,10 @@ export default function ProfileDashboard() {
           >
             <label
               onClick={(event) => event.stopPropagation()}
-              className="absolute right-5 top-5 z-10 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-white/90 text-gray-900 shadow hover:bg-white"
+              className="absolute right-5 top-5 z-10 inline-flex cursor-pointer items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-xs font-extrabold text-gray-900 shadow hover:bg-white"
             >
               <FaPen />
+              Update Banner
               <input
                 type="file"
                 accept="image/*"

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
-import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   FaCamera,
   FaCheck,
@@ -378,7 +378,7 @@ const partnerLinks: NavLinkItem[] = [
   { label: "Affiliate Nursery With Us", to: "/partnersprogramme/affiliatenurserywithus" },
 ];
 const supportLinks: NavLinkItem[] = [
-  { label: "Your Account", to: "/profile" },
+  { label: "Your Account", to: "/account" },
   { label: "Shipping Policy", to: "/support/shippingpolicy" },
   { label: "Terms & Conditions", to: "/support/termsandconditions" },
   { label: "Privacy Policy", to: "/support/privacypolicy" },
@@ -431,14 +431,15 @@ function App() {
           <Route path="/save-our-earth/blogs" element={<StaticInfoPage page={staticPages.earthBlogs} />} />
           <Route path="/save-our-earth/donate" element={<StaticInfoPage page={staticPages.donate} />} />
           <Route path="/login" element={<AuthPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/profile" element={<Navigate to="/account" replace />} />
           <Route path="/account" element={<Dashboard />} />
           <Route path="/account/orders" element={<OrdersPage />} />
           <Route path="/account/addresses" element={<SavedAddressesPage />} />
           <Route path="/account/saved" element={<SavedItemsPage />} />
+          <Route path="/account/cart" element={<AccountCartPage />} />
           <Route path="/account/settings" element={<AccountSettingsPage />} />
           <Route path="/account/help" element={<AccountHelpPage />} />
-          <Route path="/cart" element={<CartPage />} />
+          <Route path="/cart" element={<AccountCartPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/invoice/:id" element={<InvoicePage />} />
           <Route path="/tracking/:id" element={<TrackingPage />} />
@@ -536,7 +537,7 @@ function Home() {
 
       <div className="hidden w-full gap-5 md:grid md:grid-cols-[218px_minmax(0,1fr)] lg:grid-cols-[218px_minmax(0,1fr)_314px] xl:grid-cols-[240px_minmax(0,1fr)_340px]">
         <aside className="auto-hide-column-scroll sticky top-16 max-h-[calc(100vh-5rem)] self-start space-y-2.5 overflow-y-auto pr-1">
-          <ProfileCard user={user} isSignedIn={isSignedIn} onOpen={() => navigate(isSignedIn ? "/profile" : "/login")} />
+          <ProfileCard user={user} isSignedIn={isSignedIn} onOpen={() => navigate(isSignedIn ? "/account" : "/login")} />
           <StatsCard />
           <CompanyCard />
           <SidebarContactCard />
@@ -1488,7 +1489,7 @@ function ShoppingCartPopup({
               </button>
               <button
                 type="button"
-                onClick={() => goTo("/cart")}
+                onClick={() => goTo("/account/cart")}
                 className="mt-3 w-full rounded-md border border-green-600 px-5 py-3 text-sm font-medium text-green-700 hover:bg-green-50"
               >
                 View Cart
@@ -2574,6 +2575,30 @@ function ProfilePage() {
     setAddressMessage("Address saved. Checkout will use your shipping address.");
   };
 
+  const uploadProfileMedia = async (field: "avatarUrl" | "bannerUrl", file: File) => {
+    const previewUrl = URL.createObjectURL(file);
+    const optimisticUser = { ...user, [field]: previewUrl };
+    setUser(optimisticUser);
+
+    try {
+      const formData = new FormData();
+      formData.append(field === "avatarUrl" ? "avatar" : "banner", file);
+      const res = await API.patch("/user/profile/media", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const savedUser = res.data || optimisticUser;
+      setUser(savedUser);
+      localStorage.setItem("user", JSON.stringify(savedUser));
+      window.dispatchEvent(new Event("orchard-auth-updated"));
+      setProfileMessage(field === "avatarUrl" ? "Profile picture updated." : "Profile banner updated.");
+    } catch {
+      setUser(user);
+      setProfileMessage(field === "avatarUrl" ? "Could not upload this profile picture. Please try another image." : "Could not upload this profile banner. Please try another image.");
+    } finally {
+      URL.revokeObjectURL(previewUrl);
+    }
+  };
+
   const uploadProfilePic = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -2584,14 +2609,24 @@ function ProfilePage() {
     }
 
     try {
-      const avatarUrl = await fileToProfileImageDataUrl(file);
-      const nextUser = { ...user, avatarUrl };
-      setUser(nextUser);
-      localStorage.setItem("user", JSON.stringify(nextUser));
-      window.dispatchEvent(new Event("orchard-auth-updated"));
-      setProfileMessage("Profile picture updated.");
-    } catch {
-      setProfileMessage("Could not upload this profile picture. Please try another image.");
+      await uploadProfileMedia("avatarUrl", file);
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  const uploadProfileBanner = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setProfileMessage("");
+    if (!file.type.startsWith("image/")) {
+      setProfileMessage("Please choose an image file.");
+      event.target.value = "";
+      return;
+    }
+
+    try {
+      await uploadProfileMedia("bannerUrl", file);
     } finally {
       event.target.value = "";
     }
@@ -2640,7 +2675,7 @@ function ProfilePage() {
             <Link to="/products" className="inline-flex min-h-11 items-center justify-center rounded-full bg-green-700 px-4 py-2 text-center text-sm font-semibold text-white transition-all hover:bg-green-800 sm:px-6 sm:py-3">
               Browse Products
             </Link>
-            <Link to="/cart" className="inline-flex min-h-11 items-center justify-center rounded-full border-2 border-green-700 px-4 py-2 text-center text-sm font-semibold text-green-700 transition-all hover:bg-green-50 sm:px-6 sm:py-3">
+            <Link to="/account/cart" className="inline-flex min-h-11 items-center justify-center rounded-full border-2 border-green-700 px-4 py-2 text-center text-sm font-semibold text-green-700 transition-all hover:bg-green-50 sm:px-6 sm:py-3">
               View Cart
             </Link>
             <Link to="/account" className="inline-flex min-h-11 items-center justify-center rounded-full border-2 border-green-700 px-4 py-2 text-center text-sm font-semibold text-green-700 transition-all hover:bg-green-50 sm:px-6 sm:py-3">
@@ -2657,16 +2692,21 @@ function ProfilePage() {
 
         {/* Right Column - Image/Banner */}
         <div className="flex items-center justify-center">
-          <div className="relative h-80 w-full rounded-lg bg-gradient-to-br from-green-500 to-green-700 p-8 text-white shadow-2xl">
-            <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+          <div className="relative min-h-80 w-full overflow-hidden rounded-lg bg-gradient-to-br from-green-500 to-green-700 text-white shadow-2xl">
+            {user.bannerUrl ? (
+              <div className="h-28 bg-cover bg-center" style={{ backgroundImage: `url(${user.bannerUrl})` }} />
+            ) : (
+              <div className="h-12 bg-green-800/50" />
+            )}
+            <div className="flex min-h-60 flex-col items-center justify-center gap-4 px-8 pb-8 pt-0 text-center">
               {user.avatarUrl ? (
                 <img
                   src={user.avatarUrl}
                   alt={userName}
-                  className="h-24 w-24 rounded-full border-4 border-white/40 object-cover shadow-lg"
+                  className="-mt-12 h-24 w-24 rounded-full border-4 border-white/60 object-cover shadow-lg"
                 />
               ) : (
-                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-white/15 text-4xl font-bold">
+                <div className="-mt-12 flex h-24 w-24 items-center justify-center rounded-full border-4 border-white/50 bg-white/15 text-4xl font-bold">
                   {userName.slice(0, 1).toUpperCase()}
                 </div>
               )}
@@ -2681,6 +2721,11 @@ function ProfilePage() {
                 <FaCamera />
                 Upload Profile Pic
                 <input type="file" accept="image/*" className="hidden" onChange={uploadProfilePic} />
+              </label>
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/70 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-white/10">
+                <FaCamera />
+                Update Banner
+                <input type="file" accept="image/*" className="hidden" onChange={uploadProfileBanner} />
               </label>
               {profileMessage && <p className="text-xs font-medium text-white/90">{profileMessage}</p>}
             </div>
@@ -2857,7 +2902,7 @@ function AuthPage() {
     localStorage.setItem("user", JSON.stringify(user));
     window.dispatchEvent(new Event("orchard-auth-updated"));
     window.history.replaceState({}, document.title, location.pathname);
-    navigate("/profile", { replace: true });
+    navigate("/account", { replace: true });
   }, [location.pathname, location.search, navigate]);
 
   const updateForm = (field: keyof typeof form, value: string) => {
@@ -3084,7 +3129,7 @@ function AuthPage() {
       if (res.data.user) localStorage.setItem("user", JSON.stringify(res.data.user));
       window.dispatchEvent(new Event("orchard-auth-updated"));
 
-      navigate("/profile");
+      navigate("/account");
     } catch (err: unknown) {
       setMessage(getLoginErrorMessage(err));
     } finally {
@@ -3408,6 +3453,24 @@ function AuthPageLegacy() {
 }
 
 function CartPage() {
+  return (
+    <section className="mx-3 rounded-lg border border-slate-200 bg-white p-6">
+      <CartItemsPanel showHeader />
+    </section>
+  );
+}
+
+function AccountCartPage() {
+  if (!hasSignedInUser()) return <LoginRequiredPage title="Cart" />;
+
+  return (
+    <AccountShell title="Cart" subtitle="Review products before checkout.">
+      <CartItemsPanel />
+    </AccountShell>
+  );
+}
+
+function CartItemsPanel({ showHeader = false }: { showHeader?: boolean }) {
   const navigate = useNavigate();
   const [items, setItems] = useState<CartItem[]>(() => getCartItems());
   const subtotal = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
@@ -3418,10 +3481,10 @@ function CartPage() {
   };
 
   return (
-    <section className="mx-3 rounded-lg border border-slate-200 bg-white p-6">
-      <div className="flex items-center justify-between gap-3">
+    <>
+      <div className={`flex items-center justify-between gap-3 ${showHeader ? "" : "rounded-lg border border-slate-200 bg-white p-4"}`}>
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Cart</h1>
+          <h2 className={showHeader ? "text-2xl font-semibold text-slate-900" : "text-lg font-semibold text-slate-900"}>Cart</h2>
           <p className="mt-1 text-sm text-slate-600">Review products before checkout.</p>
         </div>
         <Link to="/products" className="rounded-full border border-green-700 px-4 py-2 text-sm font-semibold text-green-800">Add Products</Link>
@@ -3463,7 +3526,7 @@ function CartPage() {
           </div>
         </div>
       )}
-    </section>
+    </>
   );
 }
 
@@ -3899,12 +3962,91 @@ function Dashboard() {
 
   return (
     <AccountShell title={getBuyerDisplayName(user)} subtitle={getAddressLabel(addresses.shipping) || "Address not updated"}>
+      <AccountProfileMediaPanel initialUser={user} />
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard label="Cart Items" value={String(cartItems.reduce((sum, item) => sum + item.quantity, 0))} />
         <StatCard label="Shipping Address" value={isAddressComplete(addresses.shipping) ? "Ready" : "Update"} />
         <StatCard label="Account Type" value="Buyer" />
       </div>
     </AccountShell>
+  );
+}
+
+function AccountProfileMediaPanel({ initialUser }: { initialUser: UserProfile }) {
+  const [user, setUser] = useState<UserProfile>(initialUser);
+  const [message, setMessage] = useState("");
+  const displayName = getBuyerDisplayName(user);
+
+  const updateMedia = async (field: "avatarUrl" | "bannerUrl", event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setMessage("");
+
+    if (!file.type.startsWith("image/")) {
+      setMessage("Please choose an image file.");
+      event.target.value = "";
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    const optimisticUser = { ...user, [field]: previewUrl };
+    setUser(optimisticUser);
+
+    try {
+      const formData = new FormData();
+      formData.append(field === "avatarUrl" ? "avatar" : "banner", file);
+      const res = await API.patch("/user/profile/media", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const savedUser = res.data || optimisticUser;
+      setUser(savedUser);
+      localStorage.setItem("user", JSON.stringify(savedUser));
+      window.dispatchEvent(new Event("orchard-auth-updated"));
+      setMessage(field === "avatarUrl" ? "Profile picture updated." : "Profile banner updated.");
+    } catch {
+      setUser(user);
+      setMessage("Image could not be saved. Please try again with an image under 5 MB.");
+    } finally {
+      URL.revokeObjectURL(previewUrl);
+      event.target.value = "";
+    }
+  };
+
+  return (
+    <section className="mb-5 overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div
+        className="h-24 bg-green-50 bg-cover bg-center"
+        style={user.bannerUrl ? { backgroundImage: `url(${user.bannerUrl})` } : undefined}
+      />
+      <div className="flex flex-col gap-4 px-4 pb-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="-mt-10 flex items-end gap-3">
+          {user.avatarUrl ? (
+            <img src={user.avatarUrl} alt={displayName} className="h-20 w-20 rounded-full border-4 border-white object-cover shadow" />
+          ) : (
+            <div className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-white bg-green-700 text-2xl font-bold text-white shadow">
+              {displayName.slice(0, 1).toUpperCase()}
+            </div>
+          )}
+          <div className="pb-1">
+            <p className="text-sm font-bold text-slate-900">{displayName}</p>
+            <p className="text-xs font-semibold text-slate-500">Profile media</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800">
+            <FaCamera />
+            Profile Pic
+            <input type="file" accept="image/*" className="hidden" onChange={(event) => updateMedia("avatarUrl", event)} />
+          </label>
+          <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-green-700 px-4 py-2 text-sm font-semibold text-green-800 hover:bg-green-50">
+            <FaCamera />
+            Banner
+            <input type="file" accept="image/*" className="hidden" onChange={(event) => updateMedia("bannerUrl", event)} />
+          </label>
+        </div>
+      </div>
+      {message && <p className="px-4 pb-4 text-xs font-semibold text-green-800">{message}</p>}
+    </section>
   );
 }
 
@@ -3959,7 +4101,7 @@ function SavedAddressesPage() {
         <AddressSummary title="Permanent Address" address={addresses.permanent} />
         <AddressSummary title="Shipping Address" address={addresses.shipping} />
       </div>
-      <Link to="/profile" className="mt-5 inline-flex rounded-full bg-green-700 px-5 py-2 text-sm font-semibold text-white hover:bg-green-800">
+      <Link to="/account" className="mt-5 inline-flex rounded-full bg-green-700 px-5 py-2 text-sm font-semibold text-white hover:bg-green-800">
         Update Address
       </Link>
     </AccountShell>
@@ -4040,11 +4182,11 @@ function AccountOptionList() {
     navigate("/", { replace: true });
   };
   const options: { label: string; to?: string; icon: ReactNode; action?: () => void }[] = [
-    { label: "Profile", to: "/profile", icon: <FaUser /> },
+    { label: "Profile", to: "/account", icon: <FaUser /> },
     { label: "Orders", to: "/account/orders", icon: <FaBoxOpen /> },
     { label: "Saved", to: "/account/saved", icon: <FaHeart /> },
     { label: "Addresses", to: "/account/addresses", icon: <FaMapMarkerAlt /> },
-    { label: "Cart", to: "/cart", icon: <FaShoppingCart /> },
+    { label: "Cart", to: "/account/cart", icon: <FaShoppingCart /> },
     { label: "Settings", to: "/account/settings", icon: <FaCog /> },
     { label: "Help", to: "/account/help", icon: <FaWhatsapp /> },
     { label: "Logout", icon: <FaSignOutAlt />, action: logout },

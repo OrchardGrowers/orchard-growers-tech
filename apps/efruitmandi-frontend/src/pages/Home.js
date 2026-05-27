@@ -780,6 +780,11 @@ function DesktopEmptyState({ text }) {
 }
 
 function ProfileCard({ user, onOpen }) {
+  const hasProfileSession = Boolean(
+    localStorage.getItem("accessToken") &&
+      user &&
+      (user._id || user.email || user.phone || user.name)
+  );
   const isGrower = user.role === "grower" || Boolean(user.orchardName);
   const isBuyer = user.role === "buyer" || Boolean(user.businessName);
   const isDriver = user.role === "driver" || Boolean(user.logisticsName);
@@ -795,8 +800,8 @@ function ProfileCard({ user, onOpen }) {
   const ownerName = user.name || "Guest User";
   const location = user.location || (firmName ? "Mandi, Himachal Pradesh" : "Location not available");
   const joinedLabel = formatJoinDate(user.createdAt);
-  const bannerUrl = user.bannerUrl || orchardCover;
-  const avatarUrl = user.avatarUrl;
+  const bannerUrl = hasProfileSession ? user.bannerUrl : "";
+  const avatarUrl = hasProfileSession ? user.avatarUrl : "";
   const accountLabel = isGrower
     ? "Growers Profile Dashboard"
     : isBuyer
@@ -826,17 +831,19 @@ function ProfileCard({ user, onOpen }) {
       className="block w-full cursor-pointer overflow-hidden rounded-lg border border-gray-200 bg-white text-left transition hover:border-green-300 hover:shadow-sm"
     >
       <div
-        className="group relative h-20 bg-cover bg-center"
-        style={{ backgroundImage: `url(${bannerUrl})` }}
+        className="group relative h-20 bg-gray-100 bg-cover bg-center"
+        style={bannerUrl ? { backgroundImage: `url(${bannerUrl})` } : undefined}
       />
       <div className="px-4 pb-4">
-        <div className="relative -mt-10 h-20 w-20">
-          <Avatar
-            name={displayName}
-            imageUrl={avatarUrl}
-            className="h-20 w-20 border-2 border-white text-2xl"
-          />
-        </div>
+        {avatarUrl && (
+          <div className="relative -mt-10 h-20 w-20">
+            <Avatar
+              name={displayName}
+              imageUrl={avatarUrl}
+              className="h-20 w-20 border-2 border-white text-2xl"
+            />
+          </div>
+        )}
         <h1 className="mt-3 flex items-center gap-1 text-xl font-semibold leading-tight text-gray-900">
           {displayName}
           {isTrustedAccount && <FaShieldAlt className="text-sm text-green-700" />}

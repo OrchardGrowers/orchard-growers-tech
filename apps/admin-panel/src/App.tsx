@@ -2147,9 +2147,9 @@ function App() {
           onFullscreen={toggleAnnouncementFullscreen}
         />
         <section className="admin-top-nav mt-2 grid gap-2 lg:grid-cols-[138px_220px_minmax(0,1fr)]">
-          <div className="flex h-11 items-center justify-center gap-1 overflow-hidden rounded-xl border border-slate-700 bg-white px-1">
+          <div className="flex h-11 items-center justify-center gap-1 overflow-hidden rounded-xl bg-transparent px-1">
             <img src={ORCHARD_LOGO_URL} alt="Orchard Growers" className="h-8 max-w-[62px] object-contain" />
-            <span className="h-7 w-px bg-slate-200" />
+            <span className="h-7 w-px bg-slate-700" />
             <img src={LOGO_URL} alt="eFruitMandi" className="h-8 max-w-[62px] object-contain" />
           </div>
           <label className="flex h-11 items-center rounded-full border border-slate-700 bg-slate-900/95 px-4 shadow-sm shadow-black/20">
