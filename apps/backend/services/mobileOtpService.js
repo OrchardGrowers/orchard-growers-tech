@@ -9,12 +9,14 @@ const PLATFORM_MSG91_CONFIG = {
     templateIdEnv: "ORCHARD_MSG91_TEMPLATE_ID",
     senderIdEnv: "ORCHARD_MSG91_SENDER_ID",
     widgetIdEnv: "ORCHARD_MSG91_WIDGET_ID",
+    tokenAuthEnv: "ORCHARD_MSG91_TOKEN_AUTH",
   },
   efruitmandi: {
     authKeyEnv: "EFRUITMANDI_MSG91_AUTH_KEY",
     templateIdEnv: "EFRUITMANDI_MSG91_TEMPLATE_ID",
     senderIdEnv: "EFRUITMANDI_MSG91_SENDER_ID",
     widgetIdEnv: "EFRUITMANDI_MSG91_WIDGET_ID",
+    tokenAuthEnv: "EFRUITMANDI_MSG91_TOKEN_AUTH",
   },
 };
 
@@ -30,34 +32,14 @@ const normalizePlatform = (platform = "") => {
 const getMsg91Settings = (platform = "orchardgrowers") => {
   const platformKey = normalizePlatform(platform);
   const config = PLATFORM_MSG91_CONFIG[platformKey];
-  const isOrchard = platformKey === "orchardgrowers";
-  const efruitConfig = PLATFORM_MSG91_CONFIG.efruitmandi;
 
   return {
     platform: platformKey,
-    authKey: firstConfigured(
-      process.env[config.authKeyEnv],
-      isOrchard ? process.env[efruitConfig.authKeyEnv] : "",
-      isOrchard ? process.env.MSG91_AUTH_KEY : ""
-    ),
-    templateId: firstConfigured(
-      process.env[config.templateIdEnv],
-      isOrchard ? process.env[efruitConfig.templateIdEnv] : "",
-      isOrchard ? process.env.MSG91_TEMPLATE_ID : ""
-    ),
-    senderId: firstConfigured(
-      process.env[config.senderIdEnv],
-      isOrchard ? process.env[efruitConfig.senderIdEnv] : "",
-      isOrchard ? process.env.MSG91_SENDER_ID : ""
-    ),
-    widgetId: firstConfigured(
-      process.env[config.widgetIdEnv],
-      process.env[config.templateIdEnv],
-      isOrchard ? process.env[efruitConfig.widgetIdEnv] : "",
-      isOrchard ? process.env[efruitConfig.templateIdEnv] : "",
-      isOrchard ? process.env.MSG91_WIDGET_ID : "",
-      isOrchard ? process.env.MSG91_TEMPLATE_ID : ""
-    ),
+    authKey: firstConfigured(process.env[config.authKeyEnv]),
+    templateId: firstConfigured(process.env[config.templateIdEnv]),
+    senderId: firstConfigured(process.env[config.senderIdEnv]),
+    widgetId: firstConfigured(process.env[config.widgetIdEnv], process.env[config.templateIdEnv]),
+    tokenAuth: firstConfigured(process.env[config.tokenAuthEnv]),
   };
 };
 
@@ -158,7 +140,19 @@ const assertProviderResponse = ({ response, data, provider, action }) => {
   throw error;
 };
 
-const logMsg91Event = ({ message, platform, mobile, templateId, senderId, status, body, flow = "template", widgetId, authKeyPresent = false }) => {
+const logMsg91Event = ({
+  message,
+  platform,
+  mobile,
+  templateId,
+  senderId,
+  status,
+  body,
+  flow = "template",
+  widgetId,
+  authKeyPresent = false,
+  tokenAuthPresent = false,
+}) => {
   const sanitizedBody = sanitizeProviderBody(body);
   const requestId = getProviderRequestId(sanitizedBody) || "";
   const providerMessage = getProviderMessage(sanitizedBody);
@@ -176,6 +170,7 @@ const logMsg91Event = ({ message, platform, mobile, templateId, senderId, status
       templateId: templateId ? true : false,
       senderId: senderId ? true : false,
       widgetId: widgetId ? true : false,
+      tokenAuth: Boolean(tokenAuthPresent),
     },
     status,
     requestId,
@@ -286,7 +281,7 @@ const sendMsg91Otp = async ({ mobile, otp, platform }) => {
 };
 
 const sendMsg91WidgetOtp = async ({ mobile, platform }) => {
-  const { authKey, widgetId, platform: platformKey } = getMsg91Settings(platform);
+  const { authKey, widgetId, tokenAuth, platform: platformKey } = getMsg91Settings(platform);
 
   if (!authKey || !widgetId) {
     const error = new Error(`MSG91 widget mobile OTP is not configured for ${platformKey}`);
@@ -306,6 +301,7 @@ const sendMsg91WidgetOtp = async ({ mobile, platform }) => {
     mobile,
     widgetId,
     authKeyPresent: Boolean(authKey),
+    tokenAuthPresent: Boolean(tokenAuth),
   });
 
   let response;
@@ -371,6 +367,7 @@ const sendMsg91WidgetOtp = async ({ mobile, platform }) => {
     mobile,
     widgetId,
     authKeyPresent: Boolean(authKey),
+    tokenAuthPresent: Boolean(tokenAuth),
     status: response.status,
     body: data,
   });
@@ -383,7 +380,7 @@ export const verifyMsg91WidgetOtp = async ({ phone, otp, reqId, platform = "orch
   const mobile = normalizeMobile(phone);
   const cleanOtp = String(otp || "").trim();
   const cleanReqId = String(reqId || "").trim();
-  const { authKey, widgetId, platform: platformKey } = getMsg91Settings(platform);
+  const { authKey, widgetId, tokenAuth, platform: platformKey } = getMsg91Settings(platform);
 
   if (!mobile) {
     const error = new Error("Valid mobile number is required");
@@ -425,6 +422,7 @@ export const verifyMsg91WidgetOtp = async ({ phone, otp, reqId, platform = "orch
     mobile,
     widgetId,
     authKeyPresent: Boolean(authKey),
+    tokenAuthPresent: Boolean(tokenAuth),
     status: response.status,
     body: { ...data, request_id: getProviderRequestId(data) || cleanReqId },
   });

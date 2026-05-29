@@ -1021,28 +1021,61 @@ export const loginUser = async (req, res) => {
   }
 };
 
-const OAUTH_PLATFORMS = new Set(["orchardgrowers", "efruitmandi"]);
+const OAUTH_PLATFORM_ALIASES = {
+  orchard: "orchardgrowers",
+  orchardgrowers: "orchardgrowers",
+  "orchard-growers": "orchardgrowers",
+  efruitmandi: "efruitmandi",
+  "efruitmandi.live": "efruitmandi",
+  efm: "efruitmandi",
+};
 const normalizeOAuthPlatform = (value = "") => {
   const normalized = String(value || "").trim().toLowerCase();
-  return OAUTH_PLATFORMS.has(normalized) ? normalized : "orchardgrowers";
+  return OAUTH_PLATFORM_ALIASES[normalized] || "orchardgrowers";
 };
-const getOAuthAppFromRequest = (req) => normalizeOAuthPlatform(req.query.app || req.query.platform);
+const getOAuthPlatformFromRoute = (req) => {
+  const routePath = String(req.originalUrl || req.path || "").toLowerCase();
+  if (routePath.includes("/api/auth/efruitmandi/")) return "efruitmandi";
+  if (routePath.includes("/api/auth/orchard/")) return "orchardgrowers";
+  return "";
+};
+const getOAuthAppFromRequest = (req) =>
+  normalizeOAuthPlatform(getOAuthPlatformFromRoute(req) || req.query.app || req.query.platform);
 const getRequestBaseUrl = (req) => `${req.protocol}://${req.get("host")}`;
 const getPlatformEnvName = (platform) => (normalizeOAuthPlatform(platform) === "efruitmandi" ? "EFRUITMANDI" : "ORCHARD");
+const getPlatformRouteSlug = (platform) => (normalizeOAuthPlatform(platform) === "efruitmandi" ? "efruitmandi" : "orchard");
 const getProductionOAuthCallbackOrigin = (platform) =>
   normalizeOAuthPlatform(platform) === "efruitmandi"
-    ? "https://api.efruitmandi.live"
-    : "https://api.orchardgrowers.in";
+    ? String(process.env.EFRUITMANDI_API_URL || "https://api.efruitmandi.live").trim().replace(/\/+$/, "")
+    : String(process.env.ORCHARD_API_URL || "https://api.orchardgrowers.in").trim().replace(/\/+$/, "");
+const getOAuthCallbackPath = (provider, platform) => `/api/auth/${getPlatformRouteSlug(platform)}/${provider}/callback`;
+const coerceOAuthCallbackUrl = (value, provider, platform) => {
+  const cleanValue = String(value || "").trim();
+  if (!cleanValue) return "";
+  try {
+    const url = new URL(cleanValue);
+    url.pathname = getOAuthCallbackPath(provider, platform);
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return "";
+  }
+};
 const getOAuthCallbackUrl = (req, provider) => {
-  const platform = normalizeOAuthPlatform(req.query.app || req.query.platform || readOAuthState(req.query.state).platform);
+  const platform = normalizeOAuthPlatform(
+    getOAuthPlatformFromRoute(req) || req.query.app || req.query.platform || readOAuthState(req.query.state).platform
+  );
   const envPrefix = provider === "google" ? "GOOGLE_CALLBACK_URL" : "FACEBOOK_CALLBACK_URL";
   const platformEnvKey = `${envPrefix}_${getPlatformEnvName(platform)}`;
-  if (process.env[platformEnvKey]) return process.env[platformEnvKey];
-  if (process.env[envPrefix]) return process.env[envPrefix];
+  const configuredCallback = coerceOAuthCallbackUrl(process.env[platformEnvKey], provider, platform);
+  if (configuredCallback) return configuredCallback;
+  const genericCallback = coerceOAuthCallbackUrl(process.env[envPrefix], provider, platform);
+  if (genericCallback) return genericCallback;
   if (isProductionLikeOAuth()) {
-    return `${getProductionOAuthCallbackOrigin(platform)}/api/auth/${provider}/callback`;
+    return `${getProductionOAuthCallbackOrigin(platform)}${getOAuthCallbackPath(provider, platform)}`;
   }
-  return `${getRequestBaseUrl(req)}/api/auth/${provider}/callback`;
+  return `${getRequestBaseUrl(req)}${getOAuthCallbackPath(provider, platform)}`;
 };
 const getFacebookGraphVersion = () => {
   const configured = String(process.env.FACEBOOK_GRAPH_VERSION || "v25.0").trim();
@@ -1052,12 +1085,12 @@ const getGoogleOAuthConfig = (platform) => {
   const normalizedPlatform = normalizeOAuthPlatform(platform);
   const clientId =
     normalizedPlatform === "efruitmandi"
-      ? process.env.GOOGLE_CLIENT_ID_EFRUITMANDI || process.env.GOOGLE_CLIENT_ID
-      : process.env.GOOGLE_CLIENT_ID_ORCHARD || process.env.GOOGLE_CLIENT_ID;
+      ? process.env.GOOGLE_CLIENT_ID_EFRUITMANDI
+      : process.env.GOOGLE_CLIENT_ID_ORCHARD;
   const clientSecret =
     normalizedPlatform === "efruitmandi"
-      ? process.env.GOOGLE_CLIENT_SECRET_EFRUITMANDI || process.env.GOOGLE_CLIENT_SECRET
-      : process.env.GOOGLE_CLIENT_SECRET_ORCHARD || process.env.GOOGLE_CLIENT_SECRET;
+      ? process.env.GOOGLE_CLIENT_SECRET_EFRUITMANDI
+      : process.env.GOOGLE_CLIENT_SECRET_ORCHARD;
 
   return { clientId, clientSecret };
 };
@@ -1065,12 +1098,12 @@ const getFacebookOAuthConfig = (platform) => {
   const normalizedPlatform = normalizeOAuthPlatform(platform);
   const appId =
     normalizedPlatform === "efruitmandi"
-      ? process.env.FACEBOOK_APP_ID_EFRUITMANDI || process.env.FACEBOOK_APP_ID
-      : process.env.FACEBOOK_APP_ID_ORCHARD || process.env.FACEBOOK_APP_ID;
+      ? process.env.FACEBOOK_APP_ID_EFRUITMANDI
+      : process.env.FACEBOOK_APP_ID_ORCHARD;
   const appSecret =
     normalizedPlatform === "efruitmandi"
-      ? process.env.FACEBOOK_APP_SECRET_EFRUITMANDI || process.env.FACEBOOK_APP_SECRET
-      : process.env.FACEBOOK_APP_SECRET_ORCHARD || process.env.FACEBOOK_APP_SECRET;
+      ? process.env.FACEBOOK_APP_SECRET_EFRUITMANDI
+      : process.env.FACEBOOK_APP_SECRET_ORCHARD;
 
   return { appId, appSecret };
 };
@@ -1087,6 +1120,7 @@ const firstFrontendUrl = (...values) =>
 const getFrontendUrl = (platform) => {
   if (platform === "efruitmandi") {
     return firstFrontendUrl(
+      process.env.EFRUITMANDI_FRONTEND_URL,
       process.env.EFRUITMANDI_CLIENT_URL,
       process.env.EFRUITMANDI_URL,
       isProductionLikeOAuth() ? "https://efruitmandi.live" : "http://localhost:3000"
@@ -1094,6 +1128,7 @@ const getFrontendUrl = (platform) => {
   }
 
   return firstFrontendUrl(
+    process.env.ORCHARD_FRONTEND_URL,
     process.env.CLIENT_URL,
     process.env.ORCHARDGROWERS_CLIENT_URL,
     process.env.ORCHARD_URL,
@@ -1311,7 +1346,7 @@ export const startGoogleOAuth = (req, res) => {
 
 export const handleGoogleOAuthCallback = async (req, res) => {
   const state = readOAuthState(req.query.state);
-  const platform = normalizeOAuthPlatform(state.platform);
+  const platform = normalizeOAuthPlatform(getOAuthPlatformFromRoute(req) || state.platform);
   const googleConfig = getGoogleOAuthConfig(platform);
   logAuthDebug("OAuth callback", {
     provider: "google",
@@ -1395,7 +1430,7 @@ export const startFacebookOAuth = (req, res) => {
 
 export const handleFacebookOAuthCallback = async (req, res) => {
   const state = readOAuthState(req.query.state);
-  const platform = normalizeOAuthPlatform(state.platform);
+  const platform = normalizeOAuthPlatform(getOAuthPlatformFromRoute(req) || state.platform);
   const facebookConfig = getFacebookOAuthConfig(platform);
   logAuthDebug("OAuth callback", {
     provider: "facebook",

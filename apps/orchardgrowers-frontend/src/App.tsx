@@ -148,7 +148,10 @@ const getOrchardOAuthUrl = (provider: "google" | "facebook", mode: "login" | "si
   const apiOrigin = stripApiSuffix(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || DEFAULT_API_ORIGIN);
   if (!apiOrigin) return "";
 
-  return addOAuthParams(`${apiOrigin}/api/auth/${provider}?app=${encodeURIComponent(ORCHARD_APP_NAME)}`, mode, termsAccepted);
+  const configuredUrl =
+    provider === "google" ? import.meta.env.VITE_GOOGLE_AUTH_URL : import.meta.env.VITE_FACEBOOK_AUTH_URL;
+  const baseUrl = configuredUrl || `${apiOrigin}/api/auth/orchard/${provider}`;
+  return addOAuthParams(withOAuthAppParam(baseUrl, ORCHARD_APP_NAME), mode, termsAccepted);
 };
 const readOAuthUser = (encodedUser: string | null): UserProfile | null => {
   if (!encodedUser) return null;

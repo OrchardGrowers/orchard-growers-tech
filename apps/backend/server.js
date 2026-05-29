@@ -91,9 +91,13 @@ const isProductionLike = () => {
   return runtime === "production" || runtime === "staging";
 };
 const allowedOrigins = [
+  process.env.ALLOWED_ORIGINS || "",
+  process.env.CORS_ORIGINS || "",
   process.env.CORS_ORIGIN || "",
   process.env.CLIENT_URL || "",
+  process.env.ORCHARD_FRONTEND_URL || "",
   process.env.ORCHARDGROWERS_CLIENT_URL || "",
+  process.env.EFRUITMANDI_FRONTEND_URL || "",
   process.env.EFRUITMANDI_CLIENT_URL || "",
   process.env.ADMIN_FRONTEND_URL || "",
   "https://orchardgrowers.in",

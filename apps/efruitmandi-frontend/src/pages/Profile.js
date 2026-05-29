@@ -58,7 +58,12 @@ const getEfruitOAuthUrl = (provider, mode, termsAccepted) => {
       "https://api.efruitmandi.live"
   );
   if (apiOrigin) {
-    return addOAuthParams(`${apiOrigin}/api/auth/${provider}?app=${encodeURIComponent(EFRUIT_APP_NAME)}`, mode, termsAccepted);
+    const configuredUrl =
+      provider === "google"
+        ? process.env.VITE_GOOGLE_AUTH_URL || process.env.REACT_APP_GOOGLE_AUTH_URL
+        : process.env.VITE_FACEBOOK_AUTH_URL || process.env.REACT_APP_FACEBOOK_AUTH_URL;
+    const baseUrl = configuredUrl || `${apiOrigin}/api/auth/efruitmandi/${provider}`;
+    return addOAuthParams(withOAuthAppParam(baseUrl, EFRUIT_APP_NAME), mode, termsAccepted);
   }
 
   return "";

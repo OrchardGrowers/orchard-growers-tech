@@ -26,7 +26,7 @@ const getProcessEnv = () => {
   }
 };
 
-const getEnvValue = (viteKey) => getProcessEnv()[viteKey] || "";
+const getEnvValue = (viteKey, compatKey = "") => getProcessEnv()[viteKey] || (compatKey ? getProcessEnv()[compatKey] : "") || "";
 const normalizeBaseUrl = (value = "") => String(value || "").trim().replace(/\/+$/, "");
 const normalizeApiUrl = (value = "") => {
   const normalized = normalizeBaseUrl(value);
@@ -195,10 +195,10 @@ const waitForMsg91Methods = () =>
   });
 
 export const getEfruitMandiWidgetId = () =>
-  getEnvValue("VITE_MSG91_EFRUITMANDI_WIDGET_ID");
+  getEnvValue("VITE_MSG91_EFRUITMANDI_WIDGET_ID", "REACT_APP_MSG91_EFRUITMANDI_WIDGET_ID");
 
 export const getEfruitMandiTokenAuth = () =>
-  "backend";
+  getEnvValue("VITE_MSG91_EFRUITMANDI_TOKEN_AUTH", "REACT_APP_MSG91_EFRUITMANDI_TOKEN_AUTH") || "backend";
 
 export const initMsg91Widget = async ({ widgetId, tokenAuth }) => {
   debugOtp("init", {
