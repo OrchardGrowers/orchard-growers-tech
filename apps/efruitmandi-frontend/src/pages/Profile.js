@@ -53,8 +53,8 @@ const addOAuthParams = (url, mode, termsAccepted) => {
 };
 const getEfruitOAuthUrl = (provider, mode, termsAccepted) => {
   const apiOrigin = stripApiSuffix(
-    process.env.VITE_API_URL ||
-      process.env.VITE_API_BASE_URL ||
+    process.env.VITE_API_BASE_URL ||
+      process.env.VITE_API_URL ||
       "https://orchard-growers-backend.onrender.com"
   );
   if (apiOrigin) {

@@ -1209,12 +1209,6 @@ const upsertOAuthUser = async ({ provider, providerId, email, name, avatarUrl, m
     return user;
   }
 
-  if (oauthMode === "signup") {
-    const error = new Error(ACCOUNT_EXISTS_SIGNIN_MESSAGE);
-    error.statusCode = 409;
-    throw error;
-  }
-
   if (user.accountStatus && user.accountStatus !== "ACTIVE") {
     const error = new Error(`Account ${String(user.accountStatus).toLowerCase()}. Contact support.`);
     error.statusCode = 403;

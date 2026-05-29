@@ -25,6 +25,7 @@ import SearchResults from "./pages/SearchResults";
 import GetVerified from "./pages/GetVerified";
 import Kyc from "./pages/Kyc";
 import TermsAndConditions from "./pages/TermsAndConditions";
+import PolicyPage from "./pages/PolicyPage";
 import GpsTracking from "./pages/GpsTracking";
 import EscrowWorkflow from "./pages/EscrowWorkflow";
 
@@ -94,6 +95,9 @@ function App() {
             <Route path="/get-verified" element={<GetVerified />} />
             <Route path="/kyc" element={<Kyc />} />
             <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+            <Route path="/privacy-policy" element={<PolicyPage type="privacy" />} />
+            <Route path="/terms-of-service" element={<PolicyPage type="terms" />} />
+            <Route path="/user-data-deletion" element={<PolicyPage type="deletion" />} />
             <Route path="/lots/:lotId" element={<LotDetails />} />
             <Route path="/search" element={<SearchResults />} />
 

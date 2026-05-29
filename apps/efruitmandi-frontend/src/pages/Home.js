@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   FaChevronDown,
   FaEllipsisH,
@@ -248,6 +248,7 @@ export default function Home() {
         />
         <StatsCard onOpen={openProfileEntry} />
         <CompanyCard onOpen={openProfileEntry} />
+        <PolicyMiniLinks />
       </aside>
 
       <section className="min-w-0 space-y-3">
@@ -906,6 +907,18 @@ function CompanyCard({ onOpen }) {
       <h2 className="text-base font-semibold text-gray-900">Orchard Growers</h2>
       <p className="mt-2 text-xs text-gray-600">Agriculture marketplace updates and fruit lots.</p>
     </button>
+  );
+}
+
+function PolicyMiniLinks() {
+  return (
+    <nav className="px-1 text-xs font-semibold leading-5 text-gray-500" aria-label="E-Fruit Mandi policy links">
+      <Link to="/privacy-policy" className="hover:text-green-700 hover:underline">Privacy policy</Link>
+      <span> · </span>
+      <Link to="/terms-of-service" className="hover:text-green-700 hover:underline">Terms of Service</Link>
+      <span> · </span>
+      <Link to="/user-data-deletion" className="hover:text-green-700 hover:underline">User data deletion</Link>
+    </nav>
   );
 }
 
