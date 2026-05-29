@@ -1029,12 +1029,19 @@ const normalizeOAuthPlatform = (value = "") => {
 const getOAuthAppFromRequest = (req) => normalizeOAuthPlatform(req.query.app || req.query.platform);
 const getRequestBaseUrl = (req) => `${req.protocol}://${req.get("host")}`;
 const getPlatformEnvName = (platform) => (normalizeOAuthPlatform(platform) === "efruitmandi" ? "EFRUITMANDI" : "ORCHARD");
+const getProductionOAuthCallbackOrigin = (platform) =>
+  normalizeOAuthPlatform(platform) === "efruitmandi"
+    ? "https://api.efruitmandi.live"
+    : "https://api.orchardgrowers.in";
 const getOAuthCallbackUrl = (req, provider) => {
   const platform = normalizeOAuthPlatform(req.query.app || req.query.platform || readOAuthState(req.query.state).platform);
   const envPrefix = provider === "google" ? "GOOGLE_CALLBACK_URL" : "FACEBOOK_CALLBACK_URL";
   const platformEnvKey = `${envPrefix}_${getPlatformEnvName(platform)}`;
   if (process.env[platformEnvKey]) return process.env[platformEnvKey];
   if (process.env[envPrefix]) return process.env[envPrefix];
+  if (isProductionLikeOAuth()) {
+    return `${getProductionOAuthCallbackOrigin(platform)}/api/auth/${provider}/callback`;
+  }
   return `${getRequestBaseUrl(req)}/api/auth/${provider}/callback`;
 };
 const getFacebookGraphVersion = () => {
