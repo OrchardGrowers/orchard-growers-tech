@@ -1028,13 +1028,21 @@ const normalizeOAuthPlatform = (value = "") => {
 };
 const getOAuthAppFromRequest = (req) => normalizeOAuthPlatform(req.query.app || req.query.platform);
 const getRequestBaseUrl = (req) => `${req.protocol}://${req.get("host")}`;
+const getPlatformEnvName = (platform) => (normalizeOAuthPlatform(platform) === "efruitmandi" ? "EFRUITMANDI" : "ORCHARD");
 const getOAuthCallbackUrl = (req, provider) => {
-  const envKey = provider === "google" ? "GOOGLE_CALLBACK_URL" : "FACEBOOK_CALLBACK_URL";
-  if (process.env[envKey]) return process.env[envKey];
+  const platform = normalizeOAuthPlatform(req.query.app || req.query.platform || readOAuthState(req.query.state).platform);
+  const envPrefix = provider === "google" ? "GOOGLE_CALLBACK_URL" : "FACEBOOK_CALLBACK_URL";
+  const platformEnvKey = `${envPrefix}_${getPlatformEnvName(platform)}`;
+  if (process.env[platformEnvKey]) return process.env[platformEnvKey];
+  if (process.env[envPrefix]) return process.env[envPrefix];
   if (isProductionLikeOAuth()) {
     return `https://orchard-growers-backend.onrender.com/api/auth/${provider}/callback`;
   }
   return `${getRequestBaseUrl(req)}/api/auth/${provider}/callback`;
+};
+const getFacebookGraphVersion = () => {
+  const configured = String(process.env.FACEBOOK_GRAPH_VERSION || "v25.0").trim();
+  return /^v\d+\.\d+$/.test(configured) ? configured : "v25.0";
 };
 const getGoogleOAuthConfig = (platform) => {
   const normalizedPlatform = normalizeOAuthPlatform(platform);
@@ -1077,7 +1085,7 @@ const getFrontendUrl = (platform) => {
     return firstFrontendUrl(
       process.env.EFRUITMANDI_CLIENT_URL,
       process.env.EFRUITMANDI_URL,
-      isProductionLikeOAuth() ? "https://www.efruitmandi.live" : "http://localhost:3000"
+      isProductionLikeOAuth() ? "https://efruitmandi.live" : "http://localhost:3000"
     );
   }
 
@@ -1085,7 +1093,7 @@ const getFrontendUrl = (platform) => {
     process.env.CLIENT_URL,
     process.env.ORCHARDGROWERS_CLIENT_URL,
     process.env.ORCHARD_URL,
-    isProductionLikeOAuth() ? "https://www.orchardgrowers.in" : "http://localhost:3001"
+    isProductionLikeOAuth() ? "https://orchardgrowers.in" : "http://localhost:3001"
   );
 };
 const isProductionLikeOAuth = () => {
@@ -1115,11 +1123,13 @@ const redirectOAuthError = (res, platform, message, extraParams = {}) => {
 };
 const redirectFacebookMissingEmail = (res, platform) => {
   const fallbackUrl = getOAuthFallbackUrl(platform);
-  if (!fallbackUrl) return res.status(400).json({ msg: "facebook_email_missing" });
+  const message = "Facebook account did not provide an email address. Please sign up with Google, email, or phone.";
+  if (!fallbackUrl) return res.status(400).json({ msg: message });
 
   const separator = fallbackUrl.includes("?") ? "&" : "?";
   console.log("Facebook redirect frontend:", fallbackUrl);
-  return res.redirect(`${fallbackUrl}${separator}error=facebook_email_missing`);
+  const params = new URLSearchParams({ oauthError: message, oauthSignup: "facebook" });
+  return res.redirect(`${fallbackUrl}${separator}${params.toString()}`);
 };
 const normalizeOAuthMode = (value = "") => {
   const normalized = String(value || "").trim().toLowerCase();
@@ -1378,7 +1388,7 @@ export const startFacebookOAuth = (req, res) => {
       response_type: "code",
     });
 
-    return res.redirect(`https://www.facebook.com/v19.0/dialog/oauth?${params.toString()}`);
+    return res.redirect(`https://www.facebook.com/${getFacebookGraphVersion()}/dialog/oauth?${params.toString()}`);
   } catch (err) {
     console.error("Facebook OAuth start failed:", err.message || err);
     return res.status(500).json({ msg: "Could not start Facebook login" });
@@ -1404,7 +1414,8 @@ export const handleFacebookOAuthCallback = async (req, res) => {
       return redirectOAuthError(res, platform, "Facebook OAuth is not configured.");
     }
 
-    const tokenRes = await axios.get("https://graph.facebook.com/v19.0/oauth/access_token", {
+    const graphVersion = getFacebookGraphVersion();
+    const tokenRes = await axios.get(`https://graph.facebook.com/${graphVersion}/oauth/access_token`, {
       params: {
         client_id: facebookConfig.appId,
         client_secret: facebookConfig.appSecret,
@@ -1412,7 +1423,7 @@ export const handleFacebookOAuthCallback = async (req, res) => {
         code: req.query.code,
       },
     });
-    const profileRes = await axios.get("https://graph.facebook.com/me", {
+    const profileRes = await axios.get(`https://graph.facebook.com/${graphVersion}/me`, {
       params: {
         fields: "id,name,email,picture.type(large)",
         access_token: tokenRes.data.access_token,
@@ -1434,7 +1445,17 @@ export const handleFacebookOAuthCallback = async (req, res) => {
     });
   } catch (err) {
     console.error("Facebook OAuth callback failed:", err.response?.data || err.message || err);
-    return redirectOAuthError(res, platform, err.statusCode ? err.message : "Facebook login failed.");
+    const providerMessage =
+      err.response?.data?.error?.message ||
+      err.response?.data?.message ||
+      err.message ||
+      "";
+    const callbackMessage = /redirect_uri|valid oauth redirect/i.test(providerMessage)
+      ? "Facebook OAuth redirect URL is not configured for this domain."
+      : err.statusCode
+        ? err.message
+        : "Facebook login failed.";
+    return redirectOAuthError(res, platform, callbackMessage);
   }
 };
 

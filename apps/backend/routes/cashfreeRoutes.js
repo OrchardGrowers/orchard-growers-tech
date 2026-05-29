@@ -10,7 +10,7 @@ const getCashfreeBaseUrl = () =>
     : "https://sandbox.cashfree.com/pg";
 
 const getFrontendBaseUrl = () =>
-  (process.env.ORCHARDGROWERS_CLIENT_URL || process.env.CLIENT_URL || "http://localhost:5174").replace(/\/+$/, "");
+  (process.env.ORCHARDGROWERS_CLIENT_URL || process.env.CLIENT_URL || "https://orchardgrowers.in").replace(/\/+$/, "");
 
 const cashfreeHeaders = () => ({
   "Content-Type": "application/json",
