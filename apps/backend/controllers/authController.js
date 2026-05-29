@@ -13,7 +13,7 @@ const otpSendThrottleStore = new Map();
 const otpVerifyLockStore = new Map();
 const ACCOUNT_EXISTS_SIGNIN_MESSAGE = "Account already exists. Please sign in.";
 const OTP_THROTTLED_MESSAGE = "Too many OTP requests. Please try again later.";
-const OTP_RESEND_INTERVAL_MS = 60 * 1000;
+const OTP_RESEND_INTERVAL_MS = Math.max(0, Number(process.env.OTP_RESEND_INTERVAL_MS || 0));
 const OTP_SEND_WINDOW_MS = 10 * 60 * 1000;
 const OTP_MAX_SENDS_PER_WINDOW = Math.max(0, Number(process.env.OTP_MAX_SENDS_PER_WINDOW || 0));
 const OTP_LOCK_MS = 15 * 60 * 1000;
@@ -245,7 +245,7 @@ const checkOtpSendThrottle = ({ platform, parsed, purpose }) => {
 
   const sendTimes = (existing?.sendTimes || []).filter((sentAt) => now - sentAt < OTP_SEND_WINDOW_MS);
   const lastSentAt = sendTimes[sendTimes.length - 1] || 0;
-  if (lastSentAt && now - lastSentAt < OTP_RESEND_INTERVAL_MS) {
+  if (OTP_RESEND_INTERVAL_MS > 0 && lastSentAt && now - lastSentAt < OTP_RESEND_INTERVAL_MS) {
     return {
       allowed: false,
       reason: "resend_cooldown",

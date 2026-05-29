@@ -83,6 +83,8 @@ const getProviderRequestId = (data = {}) =>
   data?.requestId ||
   data?.RequestId ||
   data?.requestId ||
+  data?.message ||
+  data?.Message ||
   data?.message_id ||
   data?.messageId ||
   data?.id;

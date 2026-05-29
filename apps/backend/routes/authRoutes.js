@@ -16,33 +16,16 @@ import {
   getCurrentAuthUser,
   logoutUser,
 } from "../controllers/authController.js";
-import { createRateLimiter } from "../middleware/rateLimit.js";
 import protect from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-const otpLimiter = createRateLimiter({
-  keyPrefix: "otp",
-  windowMs: 60 * 1000,
-  lockMs: 60 * 1000,
-  max: 1,
-  message: "Too many OTP requests. Please try again later.",
-});
-
-const otpVerifyLimiter = createRateLimiter({
-  keyPrefix: "otp-verify",
-  windowMs: 15 * 60 * 1000,
-  lockMs: 15 * 60 * 1000,
-  max: 5,
-  message: "Too many OTP requests. Please try again later.",
-});
-
-router.post("/send-otp", otpLimiter, sendOtp);
-router.post("/resend-otp", otpLimiter, resendOtp);
-router.post("/verify-otp", otpVerifyLimiter, verifyOtp);
-router.post("/verify-mobile-widget-otp", otpVerifyLimiter, verifyMobileWidgetOtp);
-router.post("/forgot-password", otpLimiter, forgotPasswordOtp);
-router.post("/reset-password", otpVerifyLimiter, resetPasswordWithOtp);
+router.post("/send-otp", sendOtp);
+router.post("/resend-otp", resendOtp);
+router.post("/verify-otp", verifyOtp);
+router.post("/verify-mobile-widget-otp", verifyMobileWidgetOtp);
+router.post("/forgot-password", forgotPasswordOtp);
+router.post("/reset-password", resetPasswordWithOtp);
 router.post("/register", registerUser);
 router.post("/login", loginUser);
 router.post("/refresh", refreshToken);
