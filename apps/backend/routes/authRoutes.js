@@ -23,9 +23,9 @@ const router = express.Router();
 
 const otpLimiter = createRateLimiter({
   keyPrefix: "otp",
-  windowMs: 10 * 60 * 1000,
-  lockMs: 15 * 60 * 1000,
-  max: 3,
+  windowMs: 60 * 1000,
+  lockMs: 60 * 1000,
+  max: 1,
   message: "Too many OTP requests. Please try again later.",
 });
 

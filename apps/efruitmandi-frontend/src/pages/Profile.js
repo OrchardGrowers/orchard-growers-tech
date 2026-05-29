@@ -616,10 +616,10 @@ export default function Profile() {
 
   const activeForm = mode === "login" ? loginForm : signupForm;
   const activeVerified =
-    verifiedContact[mode] === normalizeContact(activeForm.identifier) &&
+    verifiedContact[mode] === getAuthIdentifier(activeForm.identifier) &&
     Boolean(otpVerificationToken[mode]);
-  const loginIdentifier = normalizeContact(loginForm.identifier);
-  const signupIdentifier = normalizeContact(signupForm.identifier);
+  const loginIdentifier = getAuthIdentifier(loginForm.identifier);
+  const signupIdentifier = getAuthIdentifier(signupForm.identifier);
   const loginCanSubmit = resetMode
     ? Boolean(loginIdentifier && loginForm.otp.trim() && loginForm.password)
     : Boolean(loginIdentifier && loginForm.password && activeVerified);

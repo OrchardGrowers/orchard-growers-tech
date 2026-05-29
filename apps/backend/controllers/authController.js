@@ -15,7 +15,7 @@ const ACCOUNT_EXISTS_SIGNIN_MESSAGE = "Account already exists. Please sign in.";
 const OTP_THROTTLED_MESSAGE = "Too many OTP requests. Please try again later.";
 const OTP_RESEND_INTERVAL_MS = 60 * 1000;
 const OTP_SEND_WINDOW_MS = 10 * 60 * 1000;
-const OTP_MAX_SENDS_PER_WINDOW = 3;
+const OTP_MAX_SENDS_PER_WINDOW = Math.max(0, Number(process.env.OTP_MAX_SENDS_PER_WINDOW || 0));
 const OTP_LOCK_MS = 15 * 60 * 1000;
 const truthyEnv = (value = "") => ["1", "true", "yes"].includes(String(value).trim().toLowerCase());
 const useLegacyMsg91Api = () => truthyEnv(process.env.USE_LEGACY_MSG91_API);
@@ -254,7 +254,7 @@ const checkOtpSendThrottle = ({ platform, parsed, purpose }) => {
     };
   }
 
-  if (sendTimes.length >= OTP_MAX_SENDS_PER_WINDOW) {
+  if (OTP_MAX_SENDS_PER_WINDOW > 0 && sendTimes.length >= OTP_MAX_SENDS_PER_WINDOW) {
     const lockedUntil = now + OTP_LOCK_MS;
     otpSendThrottleStore.set(throttleKey, { sendTimes, lockedUntil });
     return {
@@ -442,6 +442,22 @@ const sendOtpForPurpose = async ({ req, res, purpose = "auth", requireExistingUs
 
   const otp = createOtp();
   const key = storeOtp({ platform, parsed, otp, purpose: normalizedPurpose });
+  if (parsed.type === "phone" && req.body.recordOnly === true) {
+    recordOtpSend(throttle);
+    logAuthDebug("OTP request recorded for external delivery", {
+      route: req.originalUrl,
+      platform,
+      channel: parsed.type,
+      purpose: normalizedPurpose,
+      identifier: maskOtpKey(key),
+    });
+    return res.json({
+      message: "OTP request prepared.",
+      channel: parsed.type,
+      otpFlow: "widget",
+    });
+  }
+
   let delivery = {};
   try {
     // Developer/test mode: if ALLOW_TEST_OTP=true, override stored OTP with TEST_OTP
@@ -1061,7 +1077,7 @@ const getFrontendUrl = (platform) => {
     return firstFrontendUrl(
       process.env.EFRUITMANDI_CLIENT_URL,
       process.env.EFRUITMANDI_URL,
-      !isProductionLikeOAuth() ? "http://localhost:3000" : ""
+      isProductionLikeOAuth() ? "https://www.efruitmandi.live" : "http://localhost:3000"
     );
   }
 
@@ -1069,7 +1085,7 @@ const getFrontendUrl = (platform) => {
     process.env.CLIENT_URL,
     process.env.ORCHARDGROWERS_CLIENT_URL,
     process.env.ORCHARD_URL,
-    isProductionLikeOAuth() ? "https://orchardgrowers.in" : "http://localhost:3001"
+    isProductionLikeOAuth() ? "https://www.orchardgrowers.in" : "http://localhost:3001"
   );
 };
 const isProductionLikeOAuth = () => {

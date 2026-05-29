@@ -34,7 +34,6 @@ import type { Product } from "./types";
 import { normalizeIndianMobile } from "./utils/phone";
 import {
   sendMsg91WidgetOtp,
-  verifyMsg91WidgetOtp,
   getOrchardWidgetId,
   getOrchardTokenAuth,
   getMsg91SafeErrorMessage,
@@ -2976,38 +2975,24 @@ function AuthPage() {
       setLoading(true);
       const mobile = normalizeIndianMobile(form.identifier);
       if (mobile) {
-        // Use client-side MSG91 widget for Orchard mobile OTP (keeps UX unchanged)
+        // Keep one backend OTP record for signup/login, but let the MSG91 widget be the only SMS sender.
         try {
-          const otpRecord = await API.post<{ message?: string; requestId?: string; reqId?: string }>("/auth/send-otp", {
+          await API.post<{ message?: string; requestId?: string; reqId?: string }>("/auth/send-otp", {
             identifier: mobile,
             platform: "orchardgrowers",
             mode,
+            recordOnly: true,
           });
           const widgetId = getOrchardWidgetId();
           const tokenAuth = getOrchardTokenAuth();
           const result = await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone: mobile });
           setOtpSent(true);
-          setOtpReqId(result.reqId || (result.data as any)?.requestId || otpRecord.data.requestId || otpRecord.data.reqId || "");
+          setOtpReqId(result.reqId || (result.data as any)?.requestId || "");
           setOtpProviderData((result.data as Record<string, unknown>) || null);
           setOtpCooldown(60);
           setMessage("OTP sent.");
         } catch (err: any) {
-          // Report widget error to user, then attempt a server-side fallback that forces legacy send.
           setMessage(getMsg91SafeErrorMessage(err, err?.message || "Could not send OTP."));
-          try {
-            const res = await API.post<{ message?: string; requestId?: string; reqId?: string }>("/auth/send-otp", {
-              identifier: mobile,
-              platform: "orchardgrowers",
-              mode,
-              forceLegacy: true,
-            });
-            setOtpSent(true);
-            setOtpReqId(res.data.requestId || res.data.reqId || "");
-            setOtpCooldown(60);
-            setMessage(res.data.message || "OTP sent (server fallback).");
-          } catch (err2: any) {
-            setMessage(err2?.response?.data?.msg || err2?.message || "Could not send OTP.");
-          }
         }
       } else {
         const res = await API.post<{ message?: string; requestId?: string; reqId?: string }>("/auth/send-otp", {
@@ -3094,25 +3079,13 @@ function AuthPage() {
           return;
         }
 
-        // Try client-side widget verification first so we can send verified provider proof to backend
-        try {
-          const widgetId = getOrchardWidgetId();
-          const tokenAuth = getOrchardTokenAuth();
-          const verifyResult = await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp: form.otp, reqId: otpReqId });
-          // send provider proof to backend so server doesn't need to call MSG91 directly
-          const verified = await API.post<{ otpVerificationToken?: string }>("/auth/verify-mobile-widget-otp", {
-            identifier: mobile,
-            otp: form.otp,
-            reqId: otpReqId,
-            platform: "orchardgrowers",
-            providerData: verifyResult.data || {},
-          });
-          otpVerificationToken = verified.data.otpVerificationToken || "";
-        } catch (err) {
-          // fallback to server-side verification if client verify fails
-          const verified = await API.post<{ otpVerificationToken?: string }>("/auth/verify-mobile-widget-otp", { identifier: mobile, otp: form.otp, reqId: otpReqId, platform: "orchardgrowers" });
-          otpVerificationToken = verified.data.otpVerificationToken || "";
-        }
+        const verified = await API.post<{ otpVerificationToken?: string }>("/auth/verify-mobile-widget-otp", {
+          identifier: mobile,
+          otp: form.otp,
+          reqId: otpReqId,
+          platform: "orchardgrowers",
+        });
+        otpVerificationToken = verified.data.otpVerificationToken || "";
       } else {
         const verified = await API.post<{ otpVerificationToken?: string }>("/auth/verify-otp", { identifier: form.identifier, otp: form.otp, platform: "orchardgrowers" });
         otpVerificationToken = verified.data.otpVerificationToken || "";
