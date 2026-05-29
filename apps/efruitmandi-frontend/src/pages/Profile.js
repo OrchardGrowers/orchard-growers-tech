@@ -55,7 +55,7 @@ const getEfruitOAuthUrl = (provider, mode, termsAccepted) => {
   const apiOrigin = stripApiSuffix(
     process.env.VITE_API_BASE_URL ||
       process.env.VITE_API_URL ||
-      "https://orchard-growers-backend.onrender.com"
+      "https://api.efruitmandi.live"
   );
   if (apiOrigin) {
     return addOAuthParams(`${apiOrigin}/api/auth/${provider}?app=${encodeURIComponent(EFRUIT_APP_NAME)}`, mode, termsAccepted);

@@ -12,7 +12,7 @@ const normalizeApiUrl = (value = "") => {
 export const API_ORIGIN = normalizeBaseUrl(
   process.env.VITE_API_BASE_URL ||
     stripApiSuffix(process.env.VITE_API_URL || "") ||
-    "https://orchard-growers-backend.onrender.com"
+    "https://api.efruitmandi.live"
 );
 if (!API_ORIGIN) {
   console.warn("Missing VITE_API_BASE_URL for eFruitMandi frontend.");

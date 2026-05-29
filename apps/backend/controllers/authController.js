@@ -1035,9 +1035,6 @@ const getOAuthCallbackUrl = (req, provider) => {
   const platformEnvKey = `${envPrefix}_${getPlatformEnvName(platform)}`;
   if (process.env[platformEnvKey]) return process.env[platformEnvKey];
   if (process.env[envPrefix]) return process.env[envPrefix];
-  if (isProductionLikeOAuth()) {
-    return `https://orchard-growers-backend.onrender.com/api/auth/${provider}/callback`;
-  }
   return `${getRequestBaseUrl(req)}/api/auth/${provider}/callback`;
 };
 const getFacebookGraphVersion = () => {

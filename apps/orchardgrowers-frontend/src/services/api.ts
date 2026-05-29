@@ -8,7 +8,7 @@ const normalizeApiUrl = (value: string) => {
   return /\/api$/i.test(normalized) ? normalized : `${normalized}/api`;
 };
 
-const DEFAULT_API_ORIGIN = "https://orchard-growers-backend.onrender.com";
+const DEFAULT_API_ORIGIN = "https://api.orchardgrowers.in";
 const API_ORIGIN = normalizeBaseUrl(
   import.meta.env.VITE_API_BASE_URL || stripApiSuffix(import.meta.env.VITE_API_URL || "") || DEFAULT_API_ORIGIN
 );

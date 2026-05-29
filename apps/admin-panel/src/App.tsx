@@ -5,7 +5,7 @@ import InstallAppPrompt, { openAdminInstallPrompt } from './components/InstallAp
 const rawApiBase =
   import.meta.env.VITE_API_BASE_URL ||
   import.meta.env.VITE_API_URL ||
-  'https://orchard-growers-backend.onrender.com';
+  'https://api.orchardgrowers.in';
 
 const normalizeApiBase = (value: string) => {
   const trimmed = value.trim().replace(/\/+$/, '');

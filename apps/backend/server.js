@@ -169,6 +169,22 @@ app.get("/", (req, res) => {
   res.send("API Running...");
 });
 
+const healthPayload = () => ({
+  ok: true,
+  service: "orchard-growers-api",
+  database: dbConnected ? "connected" : "offline",
+  uptimeSeconds: Math.round(process.uptime()),
+  timestamp: new Date().toISOString(),
+});
+
+app.get("/health", (req, res) => {
+  res.json(healthPayload());
+});
+
+app.get("/api/health", (req, res) => {
+  res.json(healthPayload());
+});
+
 // ================= ERROR HANDLING =================
 app.use((req, res) => {
   res.status(404).json({ message: "Route Not Found", msg: "Route Not Found" });

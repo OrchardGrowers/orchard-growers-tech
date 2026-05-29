@@ -83,7 +83,7 @@ type FeedItem = {
 
 const stripApiSuffix = (value = "") => value.trim().replace(/\/+$/, "").replace(/\/api$/i, "");
 const ORCHARD_APP_NAME = import.meta.env.VITE_APP_NAME || "orchardgrowers";
-const DEFAULT_API_ORIGIN = "https://orchard-growers-backend.onrender.com";
+const DEFAULT_API_ORIGIN = "https://api.orchardgrowers.in";
 const withOAuthAppParam = (url: string, appName: string) => {
   try {
     const nextUrl = new URL(url);

@@ -33,7 +33,7 @@ const normalizeApiUrl = (value = "") => {
   if (!normalized) return "";
   return /\/api$/i.test(normalized) ? normalized : `${normalized}/api`;
 };
-const API_BASE_URL = normalizeApiUrl(getEnvValue("VITE_API_BASE_URL") || "https://orchard-growers-backend.onrender.com");
+const API_BASE_URL = normalizeApiUrl(getEnvValue("VITE_API_BASE_URL") || "https://api.efruitmandi.live");
 const efruitOtpPhonesByReqId = new Map();
 const efruitOtpModesByReqId = new Map();
 const efruitOtpFlowsByReqId = new Map();
