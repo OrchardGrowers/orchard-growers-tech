@@ -1973,7 +1973,9 @@ function App() {
     }
 
     if (tab === 'master') {
-      return <OrchardSubOptionPanel module="master" activePage={getOrchardModulePage('master')} />;
+      const activeMasterPage = getOrchardModulePage('master');
+      if (activeMasterPage === 'Vendors / Parties') return <PartyVendorPanel />;
+      return <OrchardSubOptionPanel module="master" activePage={activeMasterPage} />;
     }
 
     if (tab === 'inventory') {
@@ -2022,6 +2024,12 @@ function App() {
         </section>
       );
     }
+    if (tab === 'unitsOutlets') {
+      return <CreateUnitPanel />;
+    }
+    if (tab === 'purchase') {
+      return <PurchaseEntryPanel products={searchedProducts} />;
+    }
     if (tab === 'logistics') {
       return <LogisticsControlPanel orders={orders} authHeaders={authHeaders} onUpdated={loadRequests} activePage={getOrchardModulePage('logistics')} />;
     }
@@ -2031,7 +2039,7 @@ function App() {
     if (tab === 'financials') {
       return <OrchardSubOptionPanel module="financials" activePage={getOrchardModulePage('financials')} />;
     }
-    if (['purchase', 'unitsOutlets', 'expenses', 'reports'].includes(tab)) {
+    if (['expenses', 'reports'].includes(tab)) {
       return <OrchardSubOptionPanel module={tab as AdminTab} activePage={getOrchardModulePage(tab as AdminTab) || getAdminTabTitle(tab as AdminTab, activePlatform)} />;
     }
     if (tab === 'efruitDashboard') {
@@ -3509,6 +3517,10 @@ function InventoryPanel({
   const totalLiveQuantity = aggregatedRows.reduce((sum, row) => sum + row.quantity, 0);
   const onlineActiveListings = products.filter((product) => product.status === 'AVAILABLE' && product.active !== false).length;
 
+  if (activePage === 'Production Update') {
+    return <ProductionUpdatePanel products={products} />;
+  }
+
   if (activePage !== 'Current Stock') {
     return <OrchardSubOptionPanel module="inventory" activePage={activePage} />;
   }
@@ -3601,53 +3613,350 @@ function BillingPanel({
         <MetricCard label="Billable Products" value={activeProducts.length} />
         <MetricCard label="Returns / Refunds" value={0} />
       </div>
-      <div className="grid gap-4">
-        <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
-          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-white">New Invoice</h2>
-              <p className="mt-1 text-sm font-semibold text-slate-400">Offline billing scaffold with shared online/offline invoice sequence.</p>
-            </div>
-            <span className="rounded-full bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-300">{invoicePreview}</span>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <AdminInput label="Customer Name" value="" onChange={() => undefined} placeholder="Customer / Firm name" />
-            <AdminInput label="Contact Number" value="" onChange={() => undefined} placeholder="Phone number" />
-            <AdminInput label="GST No. optional" value="" onChange={() => undefined} placeholder="GSTIN" />
-            <AdminInput label="Payment Method" value="" onChange={() => undefined} placeholder="Cash / UPI / Card / Bank" />
-          </div>
-          <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800">
-            <table className="min-w-[640px] w-full text-left text-sm">
-              <thead className="bg-slate-950 text-xs uppercase text-slate-400">
-                <tr>
-                  <th className="px-3 py-3">Product</th>
-                  <th className="px-3 py-3">Qty</th>
-                  <th className="px-3 py-3">Discount</th>
-                  <th className="px-3 py-3">Tax</th>
-                  <th className="px-3 py-3">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="text-slate-400">
-                  <td className="px-3 py-3">Select product</td>
-                  <td className="px-3 py-3">0</td>
-                  <td className="px-3 py-3">0%</td>
-                  <td className="px-3 py-3">Auto</td>
-                  <td className="px-3 py-3">Rs. 0</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {['Save Invoice', 'Print', 'Generate PDF', 'SMS Summary', 'WhatsApp Share'].map((action) => (
-              <button key={action} type="button" className="rounded-lg bg-slate-800 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700">
-                {action}
-              </button>
-            ))}
-          </div>
-        </section>
-      </div>
+      <NewInvoicePanel products={activeProducts} invoiceNumber={invoicePreview} />
     </section>
+  );
+}
+
+function FormSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+}) {
+  return (
+    <label className="block text-sm font-bold text-slate-300">
+      {label}
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400"
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>{option}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function PanelShell({ title, text, children }: { title: string; text: string; children: ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-white">{title}</h2>
+          <p className="mt-1 text-sm font-semibold text-slate-400">{text}</p>
+        </div>
+        <span className="rounded-full bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-300">Action Panel</span>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function CreateUnitPanel() {
+  const [draft, setDraft] = useState({
+    unitName: '',
+    unitType: 'Nursery Unit',
+    manager: '',
+    phone: '',
+    gstin: '',
+    address: '',
+    city: '',
+    state: '',
+    pinCode: '',
+    openingStockTag: 'Online stock pool',
+    status: 'Active',
+  });
+  const update = (field: keyof typeof draft, value: string) => setDraft((current) => ({ ...current, [field]: value }));
+
+  return (
+    <section className="space-y-4">
+      <PanelShell title="Create Unit / Outlet" text="Create operational units for nursery, warehouse, retail outlet, or online stock handling.">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <AdminInput label="Unit / Outlet Name" value={draft.unitName} onChange={(value) => update('unitName', value)} placeholder="Orchard Growers Solan Unit" />
+          <FormSelect label="Unit Type" value={draft.unitType} onChange={(value) => update('unitType', value)} options={['Nursery Unit', 'Warehouse', 'Retail Outlet', 'Online Stock Pool', 'Dispatch Hub']} />
+          <AdminInput label="Unit Manager" value={draft.manager} onChange={(value) => update('manager', value)} placeholder="Manager name" />
+          <AdminInput label="Contact Number" value={draft.phone} onChange={(value) => update('phone', value)} placeholder="Phone number" />
+          <AdminInput label="GSTIN Optional" value={draft.gstin} onChange={(value) => update('gstin', value.toUpperCase())} placeholder="GST number" />
+          <FormSelect label="Status" value={draft.status} onChange={(value) => update('status', value)} options={['Active', 'Inactive', 'Hold']} />
+          <AdminInput label="Address" value={draft.address} onChange={(value) => update('address', value)} placeholder="Street / landmark" />
+          <AdminInput label="City" value={draft.city} onChange={(value) => update('city', value)} placeholder="City" />
+          <AdminInput label="State" value={draft.state} onChange={(value) => update('state', value)} placeholder="State" />
+          <AdminInput label="PIN Code" value={draft.pinCode} onChange={(value) => update('pinCode', value)} placeholder="PIN code" />
+          <FormSelect label="Stock Mapping" value={draft.openingStockTag} onChange={(value) => update('openingStockTag', value)} options={['Online stock pool', 'Offline only', 'Purchase receiving', 'Production nursery']} />
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {['Save Unit', 'Map Inventory', 'Assign Manager', 'Export'].map((action) => (
+            <button key={action} type="button" className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">
+              {action}
+            </button>
+          ))}
+        </div>
+      </PanelShell>
+    </section>
+  );
+}
+
+function PartyVendorPanel() {
+  const [draft, setDraft] = useState({
+    partyName: '',
+    partyType: 'Supplier',
+    contactPerson: '',
+    phone: '',
+    email: '',
+    gstin: '',
+    pan: '',
+    paymentTerms: 'Immediate',
+    creditLimit: '',
+    address: '',
+    productMapping: '',
+    status: 'Active',
+  });
+  const update = (field: keyof typeof draft, value: string) => setDraft((current) => ({ ...current, [field]: value }));
+
+  return (
+    <section className="space-y-4">
+      <PanelShell title="Create Party / Vendor / Supplier" text="Maintain purchase parties, vendors, suppliers, transport vendors, and ledger-ready vendor records.">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <AdminInput label="Party / Firm Name" value={draft.partyName} onChange={(value) => update('partyName', value)} placeholder="Vendor or supplier name" />
+          <FormSelect label="Party Type" value={draft.partyType} onChange={(value) => update('partyType', value)} options={['Supplier', 'Vendor', 'Transport Vendor', 'Nursery Partner', 'Service Provider']} />
+          <AdminInput label="Contact Person" value={draft.contactPerson} onChange={(value) => update('contactPerson', value)} placeholder="Contact name" />
+          <AdminInput label="Phone" value={draft.phone} onChange={(value) => update('phone', value)} placeholder="Phone number" />
+          <AdminInput label="Email" value={draft.email} onChange={(value) => update('email', value)} placeholder="email@example.com" type="email" />
+          <AdminInput label="GSTIN" value={draft.gstin} onChange={(value) => update('gstin', value.toUpperCase())} placeholder="GST number" />
+          <AdminInput label="PAN Optional" value={draft.pan} onChange={(value) => update('pan', value.toUpperCase())} placeholder="PAN number" />
+          <FormSelect label="Payment Terms" value={draft.paymentTerms} onChange={(value) => update('paymentTerms', value)} options={['Immediate', '7 Days', '15 Days', '30 Days', 'Advance']} />
+          <AdminInput label="Credit Limit" value={draft.creditLimit} onChange={(value) => update('creditLimit', value)} placeholder="0" type="number" />
+          <AdminInput label="Address" value={draft.address} onChange={(value) => update('address', value)} placeholder="Billing address" />
+          <AdminInput label="Product / Category Mapping" value={draft.productMapping} onChange={(value) => update('productMapping', value)} placeholder="Plants, manure, tools" />
+          <FormSelect label="Status" value={draft.status} onChange={(value) => update('status', value)} options={['Active', 'Inactive', 'Blacklisted']} />
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {['Save Party', 'Verify GST', 'Open Ledger', 'Export'].map((action) => (
+            <button key={action} type="button" className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">
+              {action}
+            </button>
+          ))}
+        </div>
+      </PanelShell>
+    </section>
+  );
+}
+
+function ProductionUpdatePanel({ products }: { products: AdminProduct[] }) {
+  const [draft, setDraft] = useState({
+    batchNo: `OG-PROD-${new Date().getFullYear()}-0001`,
+    unit: 'Orchard Growers',
+    productId: products[0]?._id || '',
+    productionDate: new Date().toISOString().slice(0, 10),
+    readyDate: '',
+    quantity: '',
+    wastage: '',
+    supervisor: '',
+    status: 'Draft',
+    notes: '',
+  });
+  const update = (field: keyof typeof draft, value: string) => setDraft((current) => ({ ...current, [field]: value }));
+  const produced = Number(draft.quantity || 0);
+  const wastage = Number(draft.wastage || 0);
+  const netStock = Math.max(0, produced - wastage);
+
+  return (
+    <section className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-3">
+        <MetricCard label="Produced Qty" value={produced} />
+        <MetricCard label="Wastage" value={wastage} />
+        <MetricCard label="Net Stock" value={netStock} />
+      </div>
+      <PanelShell title="Production Update" text="Record nursery production batches and calculate stock ready for approval.">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <AdminInput label="Batch No." value={draft.batchNo} onChange={(value) => update('batchNo', value.toUpperCase())} placeholder="OG-PROD-2026-0001" />
+          <label className="block text-sm font-bold text-slate-300">
+            Product
+            <select value={draft.productId} onChange={(event) => update('productId', event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400">
+              <option value="">Select product</option>
+              {products.map((product) => (
+                <option key={product._id} value={product._id}>{product.title || product.fruitName || 'Untitled product'}</option>
+              ))}
+            </select>
+          </label>
+          <AdminInput label="Unit / Outlet" value={draft.unit} onChange={(value) => update('unit', value)} placeholder="Orchard Growers" />
+          <AdminInput label="Production Date" value={draft.productionDate} onChange={(value) => update('productionDate', value)} placeholder="YYYY-MM-DD" type="date" />
+          <AdminInput label="Ready Date" value={draft.readyDate} onChange={(value) => update('readyDate', value)} placeholder="YYYY-MM-DD" type="date" />
+          <AdminInput label="Produced Quantity" value={draft.quantity} onChange={(value) => update('quantity', value)} placeholder="0" type="number" />
+          <AdminInput label="Damage / Dead Qty" value={draft.wastage} onChange={(value) => update('wastage', value)} placeholder="0" type="number" />
+          <AdminInput label="Supervisor" value={draft.supervisor} onChange={(value) => update('supervisor', value)} placeholder="Supervisor name" />
+          <FormSelect label="Status" value={draft.status} onChange={(value) => update('status', value)} options={['Draft', 'Under Review', 'Approved', 'Synced']} />
+        </div>
+        <label className="mt-3 block text-sm font-bold text-slate-300">
+          Notes
+          <textarea value={draft.notes} onChange={(event) => update('notes', event.target.value)} rows={3} className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-emerald-400" placeholder="Production notes, quality remarks, or attachment reference." />
+        </label>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {['Save Production', 'Approve Stock', 'Sync Inventory', 'Attach Photos'].map((action) => (
+            <button key={action} type="button" className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">
+              {action}
+            </button>
+          ))}
+        </div>
+      </PanelShell>
+    </section>
+  );
+}
+
+function PurchaseEntryPanel({ products }: { products: AdminProduct[] }) {
+  const [draft, setDraft] = useState({
+    vendor: '',
+    invoiceNo: '',
+    invoiceDate: new Date().toISOString().slice(0, 10),
+    productId: products[0]?._id || '',
+    quantity: '',
+    rate: '',
+    gstRate: '5',
+    transportCost: '',
+    unit: 'Orchard Growers',
+    paymentStatus: 'Unpaid',
+    notes: '',
+  });
+  const update = (field: keyof typeof draft, value: string) => setDraft((current) => ({ ...current, [field]: value }));
+  const taxable = Number(draft.quantity || 0) * Number(draft.rate || 0);
+  const tax = taxable * (Number(draft.gstRate || 0) / 100);
+  const total = taxable + tax + Number(draft.transportCost || 0);
+
+  return (
+    <section className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-4">
+        <MetricCard label="Taxable Value" value={Math.round(taxable)} />
+        <MetricCard label="GST" value={Math.round(tax)} />
+        <MetricCard label="Transport" value={Math.round(Number(draft.transportCost || 0))} />
+        <MetricCard label="Grand Total" value={Math.round(total)} />
+      </div>
+      <PanelShell title="Purchase Entry" text="Enter supplier invoices, product rows, GST, transport cost, and stock receiving details.">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <AdminInput label="Vendor / Supplier" value={draft.vendor} onChange={(value) => update('vendor', value)} placeholder="Supplier name" />
+          <AdminInput label="Invoice No." value={draft.invoiceNo} onChange={(value) => update('invoiceNo', value.toUpperCase())} placeholder="Purchase invoice no." />
+          <AdminInput label="Invoice Date" value={draft.invoiceDate} onChange={(value) => update('invoiceDate', value)} placeholder="YYYY-MM-DD" type="date" />
+          <label className="block text-sm font-bold text-slate-300">
+            Product
+            <select value={draft.productId} onChange={(event) => update('productId', event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400">
+              <option value="">Select product</option>
+              {products.map((product) => (
+                <option key={product._id} value={product._id}>{product.title || product.fruitName || 'Untitled product'}</option>
+              ))}
+            </select>
+          </label>
+          <AdminInput label="Quantity" value={draft.quantity} onChange={(value) => update('quantity', value)} placeholder="0" type="number" />
+          <AdminInput label="Rate" value={draft.rate} onChange={(value) => update('rate', value)} placeholder="0" type="number" />
+          <FormSelect label="GST %" value={draft.gstRate} onChange={(value) => update('gstRate', value)} options={['0', '5', '12', '18', '28']} />
+          <AdminInput label="Transport Cost" value={draft.transportCost} onChange={(value) => update('transportCost', value)} placeholder="0" type="number" />
+          <AdminInput label="Receiving Unit" value={draft.unit} onChange={(value) => update('unit', value)} placeholder="Orchard Growers" />
+          <FormSelect label="Payment Status" value={draft.paymentStatus} onChange={(value) => update('paymentStatus', value)} options={['Unpaid', 'Part Paid', 'Paid', 'On Hold']} />
+        </div>
+        <label className="mt-3 block text-sm font-bold text-slate-300">
+          Notes
+          <textarea value={draft.notes} onChange={(event) => update('notes', event.target.value)} rows={3} className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-emerald-400" placeholder="Transport reference, bill upload note, stock condition, or payment remarks." />
+        </label>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {['Save Purchase', 'Upload Bill', 'Post Stock', 'Create Payable'].map((action) => (
+            <button key={action} type="button" className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">
+              {action}
+            </button>
+          ))}
+        </div>
+      </PanelShell>
+    </section>
+  );
+}
+
+function NewInvoicePanel({ products, invoiceNumber }: { products: AdminProduct[]; invoiceNumber: string }) {
+  const firstProduct = products[0];
+  const [customer, setCustomer] = useState({
+    name: '',
+    phone: '',
+    gstin: '',
+    paymentMethod: 'Cash',
+    billingAddress: '',
+  });
+  const [row, setRow] = useState({
+    productId: firstProduct?._id || '',
+    quantity: '1',
+    rate: String(firstProduct?.basePrice || ''),
+    discountPercent: String(firstProduct?.discountPercent || 0),
+    gstRate: String(firstProduct?.gstRate || 5),
+  });
+  const updateCustomer = (field: keyof typeof customer, value: string) => setCustomer((current) => ({ ...current, [field]: value }));
+  const updateRow = (field: keyof typeof row, value: string) => setRow((current) => ({ ...current, [field]: value }));
+  const subtotal = Number(row.quantity || 0) * Number(row.rate || 0);
+  const discount = subtotal * (Number(row.discountPercent || 0) / 100);
+  const taxable = Math.max(0, subtotal - discount);
+  const tax = taxable * (Number(row.gstRate || 0) / 100);
+  const total = taxable + tax;
+
+  return (
+    <PanelShell title="New Invoice" text="Create offline invoices with the same sequence logic used for Orchard Growers billing.">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="rounded-full bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-300">{invoiceNumber}</span>
+        <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-bold text-slate-300">Draft</span>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <AdminInput label="Customer Name" value={customer.name} onChange={(value) => updateCustomer('name', value)} placeholder="Customer / firm name" />
+        <AdminInput label="Contact Number" value={customer.phone} onChange={(value) => updateCustomer('phone', value)} placeholder="Phone number" />
+        <AdminInput label="GST No. optional" value={customer.gstin} onChange={(value) => updateCustomer('gstin', value.toUpperCase())} placeholder="GSTIN" />
+        <FormSelect label="Payment Method" value={customer.paymentMethod} onChange={(value) => updateCustomer('paymentMethod', value)} options={['Cash', 'UPI', 'Card', 'Bank', 'COD']} />
+        <AdminInput label="Billing Address" value={customer.billingAddress} onChange={(value) => updateCustomer('billingAddress', value)} placeholder="Billing address" />
+      </div>
+      <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800">
+        <table className="min-w-[900px] w-full text-left text-sm">
+          <thead className="bg-slate-950 text-xs uppercase text-slate-400">
+            <tr>
+              <th className="px-3 py-3">Product</th>
+              <th className="px-3 py-3">Qty</th>
+              <th className="px-3 py-3">Rate</th>
+              <th className="px-3 py-3">Discount %</th>
+              <th className="px-3 py-3">GST %</th>
+              <th className="px-3 py-3">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="text-slate-300">
+              <td className="px-3 py-3">
+                <select value={row.productId} onChange={(event) => updateRow('productId', event.target.value)} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400">
+                  <option value="">Select product</option>
+                  {products.map((product) => (
+                    <option key={product._id} value={product._id}>{product.title || product.fruitName || 'Untitled product'}</option>
+                  ))}
+                </select>
+              </td>
+              <td className="px-3 py-3"><input value={row.quantity} onChange={(event) => updateRow('quantity', event.target.value)} type="number" className="h-10 w-24 rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400" /></td>
+              <td className="px-3 py-3"><input value={row.rate} onChange={(event) => updateRow('rate', event.target.value)} type="number" className="h-10 w-28 rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400" /></td>
+              <td className="px-3 py-3"><input value={row.discountPercent} onChange={(event) => updateRow('discountPercent', event.target.value)} type="number" className="h-10 w-24 rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400" /></td>
+              <td className="px-3 py-3"><input value={row.gstRate} onChange={(event) => updateRow('gstRate', event.target.value)} type="number" className="h-10 w-24 rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400" /></td>
+              <td className="px-3 py-3 font-bold text-white">Rs. {Math.round(total)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <MetricCard label="Subtotal" value={Math.round(subtotal)} />
+        <MetricCard label="Discount" value={Math.round(discount)} />
+        <MetricCard label="GST" value={Math.round(tax)} />
+        <MetricCard label="Grand Total" value={Math.round(total)} />
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {['Save Invoice', 'Print', 'Generate PDF', 'SMS Summary', 'WhatsApp Share'].map((action) => (
+          <button key={action} type="button" className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">
+            {action}
+          </button>
+        ))}
+      </div>
+    </PanelShell>
   );
 }
 
@@ -4130,7 +4439,7 @@ function ProductAdminPanel({
       </div>
       <div className="mt-4 rounded-xl border border-dashed border-slate-700 bg-slate-950 p-4">
         <p className="text-sm font-black text-white">Product Images</p>
-        <p className="mt-1 text-xs font-semibold text-slate-500">Select at least 5 images from this device. They will upload securely to Cloudinary.</p>
+        <p className="mt-1 text-xs font-semibold text-slate-500">Select at list 5 images</p>
         <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_140px] md:items-end">
           <label className="block text-xs font-bold text-slate-300">
             Upload images
