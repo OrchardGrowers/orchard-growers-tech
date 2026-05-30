@@ -1451,6 +1451,15 @@ const PRODUCT_ADMIN_FIELDS = [
   "location",
   "status",
   "packingType",
+  "packShape",
+  "packLengthCm",
+  "packWidthCm",
+  "packHeightCm",
+  "packRadiusCm",
+  "packThicknessCm",
+  "actualWeightKg",
+  "dimensionWeightKg",
+  "chargeableWeightKg",
   "packingWeightKg",
   "totalWeightKg",
   "images",
@@ -1462,6 +1471,99 @@ const parseBooleanInput = (value) => {
   return ["1", "true", "yes", "on"].includes(normalized);
 };
 const GST_ALLOWED_VALUES = new Set([0, 5, 12, 18, 28]);
+const SKU_CATEGORY_CODES = {
+  plant: "PLT",
+  plants: "PLT",
+  "live plants": "PLT",
+  "fruit plants": "PLT",
+  seed: "SED",
+  seeds: "SED",
+  tool: "TOOL",
+  tools: "TOOL",
+  "gardening tools": "TOOL",
+  fertilizer: "FRT",
+  fertilizers: "FRT",
+  manure: "MAN",
+  "organic manure": "MAN",
+  cocopeat: "COCO",
+  pot: "POT",
+  pots: "POT",
+  "nursery pots": "POT",
+  "shade net": "NET",
+  irrigation: "IRR",
+};
+const SKU_UNIT_CODES = {
+  kg: "U1",
+  piece: "U2",
+  plant: "U1",
+  box: "U3",
+  litre: "U4",
+  liter: "U4",
+};
+const toSkuPart = (value = "", maxLength = 8) => {
+  const cleaned = String(value || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "");
+  return (cleaned || "ITEM").slice(0, maxLength);
+};
+const getCategoryCode = (category = "") => {
+  const normalized = String(category || "").trim().toLowerCase();
+  return SKU_CATEGORY_CODES[normalized] || toSkuPart(normalized, 4);
+};
+const getUnitCode = (unitId = "") => {
+  const normalized = String(unitId || "").trim().toLowerCase();
+  if (/^u\d+$/i.test(normalized)) return normalized.toUpperCase();
+  return SKU_UNIT_CODES[normalized] || toSkuPart(normalized || "U1", 3);
+};
+const createProductSlug = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+const generateAdminSku = async ({ category, productName, unitId }) => {
+  const categoryCode = getCategoryCode(category);
+  const productShort = toSkuPart(String(productName || "").split(/\s+/)[0] || productName, 8);
+  const unitCode = getUnitCode(unitId);
+  const familyPattern = new RegExp(`^OG-${categoryCode}-[A-Z0-9]+-${unitCode}-(\\d{4})$`);
+  const existing = await Product.find({ sku: familyPattern }).select("sku").lean();
+  const maxSerial = existing.reduce((max, product) => {
+    const match = String(product.sku || "").match(familyPattern);
+    return match ? Math.max(max, Number(match[1] || 0)) : max;
+  }, 0);
+
+  for (let serial = maxSerial + 1; serial < 10000; serial += 1) {
+    const sku = `OG-${categoryCode}-${productShort}-${unitCode}-${String(serial).padStart(4, "0")}`;
+    // eslint-disable-next-line no-await-in-loop
+    const duplicate = await Product.exists({ sku });
+    if (!duplicate) return sku;
+  }
+
+  return "";
+};
+const calculatePackWeights = (payload) => {
+  const shape = ["box", "cylinder", "flyer"].includes(String(payload.packShape || "").toLowerCase())
+    ? String(payload.packShape).toLowerCase()
+    : "box";
+  const length = Number(payload.packLengthCm || 0);
+  const width = Number(payload.packWidthCm || 0);
+  const height = Number(payload.packHeightCm || 0);
+  const radius = Number(payload.packRadiusCm || 0);
+  const thickness = Number(payload.packThicknessCm || 0);
+  const actualWeightKg = Number(payload.actualWeightKg || 0);
+  const volume =
+    shape === "cylinder"
+      ? Math.PI * radius * radius * height
+      : length * width * (shape === "flyer" ? thickness : height);
+  const dimensionWeightKg = volume > 0 ? Number((volume / 5000).toFixed(2)) : 0;
+
+  return {
+    packShape: shape,
+    dimensionWeightKg,
+    actualWeightKg: Number.isFinite(actualWeightKg) ? actualWeightKg : 0,
+    chargeableWeightKg: Math.max(Number.isFinite(actualWeightKg) ? actualWeightKg : 0, dimensionWeightKg),
+  };
+};
 
 const isCloudinaryConfigured = () =>
   Boolean(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
@@ -1600,7 +1702,12 @@ export const createProductByAdmin = async (req, res) => {
     return res.status(400).json({ msg: "Product name, category, and description are required" });
   }
 
-  payload.sku = String(payload.sku || "").trim().toUpperCase();
+  payload.slug = createProductSlug(payload.title);
+  payload.sku = await generateAdminSku({
+    category,
+    productName: payload.title,
+    unitId: payload.unit || "Plant",
+  });
   if (!payload.sku) {
     return res.status(400).json({ msg: "SKU is required" });
   }
@@ -1641,9 +1748,11 @@ export const createProductByAdmin = async (req, res) => {
   const uploadedImages = await uploadAdminProductImages(imageFiles);
   const uploadedUrls = uploadedImages.map((image) => image.secure_url);
   const uploadedPublicIds = uploadedImages.map((image) => image.public_id);
+  const packWeights = calculatePackWeights(payload);
 
   const product = await Product.create({
     ...payload,
+    ...packWeights,
     fruitName: category,
     productCategory: category,
     variety: payload.variety || category,
@@ -1656,7 +1765,7 @@ export const createProductByAdmin = async (req, res) => {
     images: [...existingImageUrls, ...uploadedUrls],
     imagePublicIds: [...existingPublicIds, ...uploadedPublicIds],
     status: payload.status || "AVAILABLE",
-    packingType: payload.packingType || "Orchard Growers pack",
+    packingType: payload.packingType || "0 x 0 x 0 cm",
     location: payload.location || "Orchard Growers",
     createdSource: "admin-panel",
   });
@@ -1668,19 +1777,16 @@ export const updateProductByAdmin = async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const payload = normalizeProductAdminPayload(req.body);
+  if (payload.title) {
+    payload.slug = createProductSlug(payload.title);
+  }
   if (Object.prototype.hasOwnProperty.call(payload, "status")) {
     if (!["AVAILABLE", "SOLD"].includes(payload.status)) {
       return res.status(400).json({ msg: "Invalid product status" });
     }
   }
 
-  if (payload.sku) {
-    const duplicate = await Product.exists({ _id: { $ne: req.params.id }, sku: String(payload.sku).trim().toUpperCase() });
-    if (duplicate) {
-      return res.status(409).json({ msg: "SKU already exists. Please generate a new SKU or edit manually." });
-    }
-    payload.sku = String(payload.sku).trim().toUpperCase();
-  }
+  delete payload.sku;
 
   if (payload.hsnCode && !/^\d+$/.test(String(payload.hsnCode).trim())) {
     return res.status(400).json({ msg: "HSN code must be numeric" });
@@ -1696,6 +1802,20 @@ export const updateProductByAdmin = async (req, res) => {
       return res.status(400).json({ msg: "Discount must be between 0 and 100" });
     }
     payload.discountPercent = discountPercent;
+  }
+
+  if (
+    [
+      "packShape",
+      "packLengthCm",
+      "packWidthCm",
+      "packHeightCm",
+      "packRadiusCm",
+      "packThicknessCm",
+      "actualWeightKg",
+    ].some((field) => Object.prototype.hasOwnProperty.call(payload, field))
+  ) {
+    Object.assign(payload, calculatePackWeights(payload));
   }
 
   const product = await Product.findByIdAndUpdate(req.params.id, payload, { new: true });

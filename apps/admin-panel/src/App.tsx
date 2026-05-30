@@ -269,6 +269,15 @@ type AdminProduct = {
   location?: string;
   status?: string;
   packingType?: string;
+  packShape?: string;
+  packLengthCm?: number;
+  packWidthCm?: number;
+  packHeightCm?: number;
+  packRadiusCm?: number;
+  packThicknessCm?: number;
+  actualWeightKg?: number;
+  dimensionWeightKg?: number;
+  chargeableWeightKg?: number;
   images?: string[];
   imagePublicIds?: string[];
   createdAt?: string;
@@ -330,6 +339,15 @@ type ProductDraft = {
   discountPercent: string;
   location: string;
   packingType: string;
+  packShape: string;
+  packLengthCm: string;
+  packWidthCm: string;
+  packHeightCm: string;
+  packRadiusCm: string;
+  packThicknessCm: string;
+  actualWeightKg: string;
+  dimensionWeightKg: string;
+  chargeableWeightKg: string;
   status: string;
   uploadedImages: ProductImageUpload[];
 };
@@ -390,6 +408,15 @@ const emptyProductDraft: ProductDraft = {
   discountPercent: '',
   location: 'Orchard Growers',
   packingType: 'Orchard Growers pack',
+  packShape: 'box',
+  packLengthCm: '',
+  packWidthCm: '',
+  packHeightCm: '',
+  packRadiusCm: '',
+  packThicknessCm: '',
+  actualWeightKg: '',
+  dimensionWeightKg: '',
+  chargeableWeightKg: '',
   status: 'AVAILABLE',
   uploadedImages: [],
 };
@@ -1691,7 +1718,7 @@ function App() {
   };
 
   const viewManagedAdminDetails = (target: AdminAccount) => {
-    const approvedBy = typeof target.approvedBy === 'object' ? target.approvedBy?.email || target.approvedBy?.name : target.approvedBy || 'Not approved';
+    const approvedBy = typeof target.approvedBy === 'object' ? target.approvedBy?.email || target.approvedBy?.name : target.approvedBy || (target.status === 'ACTIVE' ? 'Approved' : 'Not approved');
     window.alert([
       `Name: ${target.name || ''}`,
       `Email: ${target.email || ''}`,
@@ -3625,9 +3652,17 @@ function BillingPanel({
 }
 
 function getProductPayload(draft: ProductDraft) {
+  const slug = createProductSlug(draft.title);
+  const dimensionWeightKg = calculateDimensionWeightKg(draft);
+  const actualWeightKg = Number(draft.actualWeightKg || 0);
+  const chargeableWeightKg = Math.max(
+    Number.isFinite(actualWeightKg) ? actualWeightKg : 0,
+    dimensionWeightKg
+  );
+
   return {
     title: draft.title,
-    slug: draft.slug,
+    slug,
     productCategory: draft.productCategory || draft.fruitName,
     fruitName: draft.fruitName || draft.productCategory,
     seasonalCategory: draft.seasonalCategory,
@@ -3645,7 +3680,16 @@ function getProductPayload(draft: ProductDraft) {
     variety: draft.variety || draft.productCategory || draft.fruitName,
     productType: draft.productType,
     unit: draft.unit,
-    packingType: draft.packingType,
+    packingType: getPackSizeLabel(draft),
+    packShape: draft.packShape,
+    packLengthCm: Number(draft.packLengthCm || 0),
+    packWidthCm: Number(draft.packWidthCm || 0),
+    packHeightCm: Number(draft.packHeightCm || 0),
+    packRadiusCm: Number(draft.packRadiusCm || 0),
+    packThicknessCm: Number(draft.packThicknessCm || 0),
+    actualWeightKg,
+    dimensionWeightKg,
+    chargeableWeightKg,
     seoMetaTitle: draft.seoMetaTitle,
     seoMetaDescription: draft.seoMetaDescription,
     featured: draft.featured,
@@ -3692,7 +3736,53 @@ function getProductDraftFromProduct(product: AdminProduct): ProductDraft {
     packingType: product.packingType || 'Orchard Growers pack',
     status: product.status === 'SOLD' ? 'SOLD' : 'AVAILABLE',
     uploadedImages: images.map((url, index) => ({ url, publicId: publicIds[index] || '' })),
+    packShape: product.packShape || 'box',
+    packLengthCm: String(product.packLengthCm ?? ''),
+    packWidthCm: String(product.packWidthCm ?? ''),
+    packHeightCm: String(product.packHeightCm ?? ''),
+    packRadiusCm: String(product.packRadiusCm ?? ''),
+    packThicknessCm: String(product.packThicknessCm ?? ''),
+    actualWeightKg: String(product.actualWeightKg ?? ''),
+    dimensionWeightKg: String(product.dimensionWeightKg ?? ''),
+    chargeableWeightKg: String(product.chargeableWeightKg ?? ''),
   };
+}
+
+function createProductSlug(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function calculateDimensionWeightKg(draft: ProductDraft) {
+  const length = Number(draft.packLengthCm || 0);
+  const width = Number(draft.packWidthCm || 0);
+  const height = Number(draft.packHeightCm || 0);
+  const radius = Number(draft.packRadiusCm || 0);
+  const thickness = Number(draft.packThicknessCm || 0);
+
+  if (draft.packShape === 'cylinder') {
+    const volume = Math.PI * radius * radius * height;
+    return volume > 0 ? Number((volume / 5000).toFixed(2)) : 0;
+  }
+
+  const thirdDimension = draft.packShape === 'flyer' ? thickness : height;
+  const volume = length * width * thirdDimension;
+  return volume > 0 ? Number((volume / 5000).toFixed(2)) : 0;
+}
+
+function getPackSizeLabel(draft: ProductDraft) {
+  if (draft.packShape === 'cylinder') {
+    return `${draft.packRadiusCm || '0'} x ${draft.packHeightCm || '0'} cm (radius x height)`;
+  }
+
+  if (draft.packShape === 'flyer') {
+    return `${draft.packLengthCm || '0'} x ${draft.packWidthCm || '0'} x ${draft.packThicknessCm || '0'} cm (length x width x thickness)`;
+  }
+
+  return `${draft.packLengthCm || '0'} x ${draft.packWidthCm || '0'} x ${draft.packHeightCm || '0'} cm (length x width x height)`;
 }
 
 function ProductAdminPanel({
@@ -3712,15 +3802,9 @@ function ProductAdminPanel({
   editing: boolean;
   onCancelEdit: () => void;
 }) {
-  const createSlug = (value: string) =>
-    value
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
   const update = (field: keyof ProductDraft, value: string | boolean | ProductImageUpload[]) => {
     const nextDraft = { ...draft, [field]: value };
-    if (field === 'title' && !draft.slug) nextDraft.slug = createSlug(String(value));
+    if (field === 'title') nextDraft.slug = createProductSlug(String(value));
     onChange(nextDraft);
   };
   const [imagePreviewUrl, setImagePreviewUrl] = useState('');
@@ -3729,6 +3813,10 @@ function ProductAdminPanel({
   const [hsnSuggestions, setHsnSuggestions] = useState<HsnSuggestion[]>([]);
   const [hsnOpen, setHsnOpen] = useState(false);
   const [skuGenerating, setSkuGenerating] = useState(false);
+  const dimensionWeightKg = calculateDimensionWeightKg(draft);
+  const actualWeightKg = Number(draft.actualWeightKg || 0);
+  const chargeableWeightKg = Math.max(Number.isFinite(actualWeightKg) ? actualWeightKg : 0, dimensionWeightKg);
+  const generatedSlug = createProductSlug(draft.title);
 
   useEffect(() => {
     if (!draft.uploadedImages.length) {
@@ -3787,9 +3875,9 @@ function ProductAdminPanel({
   };
 
   useEffect(() => {
-    if (draft.sku || !draft.title.trim() || !(draft.productCategory || draft.fruitName).trim() || !draft.unit.trim()) return;
+    if (editing || !draft.title.trim() || !(draft.productCategory || draft.fruitName).trim() || !draft.unit.trim()) return;
     generateSku();
-  }, [draft.title, draft.productCategory, draft.fruitName, draft.unit, draft.sku]);
+  }, [draft.title, draft.productCategory, draft.fruitName, draft.unit, editing]);
 
   const selectHsn = (item: HsnSuggestion) => {
     onChange({
@@ -3860,25 +3948,15 @@ function ProductAdminPanel({
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <AdminInput label="Product Name" value={draft.title} onChange={(value) => update('title', value)} placeholder="Avocado Plant" />
-        <AdminInput label="Slug" value={draft.slug} onChange={(value) => update('slug', value)} placeholder="avocado-plant" />
+        <AdminInput label="Slug" value={generatedSlug} onChange={() => undefined} placeholder="auto-generated-slug" disabled />
         <label className="block text-sm font-bold text-slate-300">
           SKU
-          <div className="mt-2 flex gap-2">
-            <input
-              value={draft.sku}
-              onChange={(event) => update('sku', event.target.value.toUpperCase())}
-              placeholder="OG-PLT-APPLE-U1-0001"
-              className="h-11 min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none placeholder:text-slate-600 focus:border-emerald-400"
-            />
-            <button
-              type="button"
-              onClick={generateSku}
-              disabled={skuGenerating}
-              className="rounded-lg bg-slate-800 px-3 text-xs font-bold text-white hover:bg-slate-700 disabled:opacity-60"
-            >
-              {skuGenerating ? '...' : 'Regenerate SKU'}
-            </button>
-          </div>
+          <input
+            value={skuGenerating ? 'Generating...' : draft.sku}
+            readOnly
+            placeholder="Auto-generated after name, category, and unit"
+            className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-slate-300 outline-none placeholder:text-slate-600"
+          />
         </label>
         <label className="relative block text-sm font-bold text-slate-300">
           HSN Code
@@ -3980,7 +4058,40 @@ function ProductAdminPanel({
         <AdminInput label="Location" value={draft.location} onChange={(value) => update('location', value)} placeholder="Orchard Growers" />
         <AdminInput label="Price" value={draft.basePrice} onChange={(value) => update('basePrice', value)} placeholder="999" type="number" />
         <AdminInput label="Discount %" value={draft.discountPercent} onChange={(value) => update('discountPercent', value)} placeholder="0" type="number" />
-        <AdminInput label="Pack size" value={draft.packingType} onChange={(value) => update('packingType', value)} placeholder="Plant pack" />
+        <label className="block text-sm font-bold text-slate-300">
+          Pack shape
+          <select
+            value={draft.packShape}
+            onChange={(event) => update('packShape', event.target.value)}
+            className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400"
+          >
+            <option value="box">Box / carton</option>
+            <option value="cylinder">Cylinder</option>
+            <option value="flyer">Flyer / packet</option>
+          </select>
+        </label>
+        {draft.packShape === 'cylinder' ? (
+          <>
+            <AdminInput label="Radius cm" value={draft.packRadiusCm} onChange={(value) => update('packRadiusCm', value)} placeholder="10" type="number" />
+            <AdminInput label="Height cm" value={draft.packHeightCm} onChange={(value) => update('packHeightCm', value)} placeholder="30" type="number" />
+          </>
+        ) : (
+          <>
+            <AdminInput label="Length cm" value={draft.packLengthCm} onChange={(value) => update('packLengthCm', value)} placeholder="30" type="number" />
+            <AdminInput label="Width cm" value={draft.packWidthCm} onChange={(value) => update('packWidthCm', value)} placeholder="20" type="number" />
+            <AdminInput
+              label={draft.packShape === 'flyer' ? 'Thickness cm' : 'Height cm'}
+              value={draft.packShape === 'flyer' ? draft.packThicknessCm : draft.packHeightCm}
+              onChange={(value) => update(draft.packShape === 'flyer' ? 'packThicknessCm' : 'packHeightCm', value)}
+              placeholder={draft.packShape === 'flyer' ? '2' : '15'}
+              type="number"
+            />
+          </>
+        )}
+        <AdminInput label="Pack size" value={getPackSizeLabel(draft)} onChange={() => undefined} placeholder="auto-generated pack size" disabled />
+        <AdminInput label="Actual weight kg" value={draft.actualWeightKg} onChange={(value) => update('actualWeightKg', value)} placeholder="1.25" type="number" />
+        <AdminInput label="Dimension weight kg" value={String(dimensionWeightKg)} onChange={() => undefined} placeholder="auto" disabled />
+        <AdminInput label="Chargeable weight kg" value={String(chargeableWeightKg)} onChange={() => undefined} placeholder="auto" disabled />
         <label className="block text-sm font-bold text-slate-300">
           Product status
           <select
@@ -4291,7 +4402,7 @@ function AdminUsersPanel({
           </thead>
           <tbody className="divide-y divide-slate-800 bg-slate-900">
             {admins.map((admin) => {
-              const approvedBy = typeof admin.approvedBy === 'object' ? admin.approvedBy?.email || admin.approvedBy?.name : admin.approvedBy;
+              const approvedBy = typeof admin.approvedBy === 'object' ? admin.approvedBy?.email || admin.approvedBy?.name : admin.approvedBy || (admin.status === 'ACTIVE' ? 'Approved' : '');
               return (
                 <tr key={admin._id || admin.id || admin.email}>
                   <td className="px-3 py-3 font-bold text-white">{admin.name || 'Unnamed admin'}</td>
@@ -4353,12 +4464,14 @@ function AdminInput({
   onChange,
   placeholder,
   type = 'text',
+  disabled = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
   type?: string;
+  disabled?: boolean;
 }) {
   return (
     <label className="block text-sm font-bold text-slate-300">
@@ -4366,9 +4479,11 @@ function AdminInput({
       <input
         value={value}
         type={type}
+        disabled={disabled}
+        readOnly={disabled}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none placeholder:text-slate-600 focus:border-emerald-400"
+        className={`mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 outline-none placeholder:text-slate-600 ${disabled ? 'text-slate-400' : 'text-white focus:border-emerald-400'}`}
       />
     </label>
   );

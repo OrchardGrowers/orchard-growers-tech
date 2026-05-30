@@ -3021,6 +3021,16 @@ function AuthPage() {
       return;
     }
 
+    if (mode === "signup" && (!form.password || !form.confirmPassword)) {
+      setMessage("Enter and confirm your password before requesting OTP.");
+      return;
+    }
+
+    if (mode === "signup" && form.password !== form.confirmPassword) {
+      setMessage("Passwords do not match.");
+      return;
+    }
+
     if (!form.identifier) {
       setMessage("Enter your email address first.");
       return;

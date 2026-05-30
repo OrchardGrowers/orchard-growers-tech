@@ -49,6 +49,19 @@ const productSchema = new mongoose.Schema(
     auctionStartTime: Date,
 
     location: String,
+    packShape: {
+      type: String,
+      enum: ["box", "cylinder", "flyer"],
+      default: "box",
+    },
+    packLengthCm: Number,
+    packWidthCm: Number,
+    packHeightCm: Number,
+    packRadiusCm: Number,
+    packThicknessCm: Number,
+    actualWeightKg: Number,
+    dimensionWeightKg: Number,
+    chargeableWeightKg: Number,
 
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
