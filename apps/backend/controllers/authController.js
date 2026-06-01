@@ -420,7 +420,7 @@ const sendOtpForPurpose = async ({ req, res, purpose = "auth", requireExistingUs
     if (!user) {
       return genericResponse
         ? res.json({ message: "If the account exists, an OTP has been sent.", channel: parsed.type })
-        : res.status(404).json({ msg: "User not found" });
+        : res.status(404).json({ msg: "No. does not exist, please check the no. and enter again." });
     }
   }
 
@@ -537,7 +537,7 @@ export const forgotPasswordOtp = async (req, res) => {
       res,
       purpose: "forgot-password",
       requireExistingUser: true,
-      genericResponse: true,
+      genericResponse: false,
     });
   } catch (err) {
     logOtpError("Forgot password OTP failed:", err);
@@ -831,10 +831,11 @@ export const resetPasswordWithOtp = async (req, res) => {
   try {
     const parsed = parseIdentifier(req.body.identifier || req.body.email);
     const otp = String(req.body.otp || "").trim();
+    const otpVerificationToken = String(req.body.otpVerificationToken || "").trim();
     const password = String(req.body.password || "");
     const platform = getRequestPlatform(req);
 
-    if (!parsed || !otp || !password) {
+    if (!parsed || (!otp && !otpVerificationToken) || !password) {
       return res.status(400).json({ msg: "Identifier, OTP, and new password are required" });
     }
 
@@ -845,6 +846,12 @@ export const resetPasswordWithOtp = async (req, res) => {
     const key = getOtpKey(platform, parsed, "forgot-password");
     const record = otpStore.get(key);
     const verifyLock = getOtpVerificationLock(key);
+    const hasVerifiedResetToken = validateOtpVerificationToken({
+      token: otpVerificationToken,
+      platform,
+      parsed,
+      purpose: "forgot-password",
+    });
 
     if (verifyLock) {
       logAuthDebug("Password reset OTP throttled", {
@@ -859,20 +866,20 @@ export const resetPasswordWithOtp = async (req, res) => {
       return res.status(429).json({ msg: OTP_THROTTLED_MESSAGE });
     }
 
-    if (!record) {
+    if (!record && !hasVerifiedResetToken) {
       return res.status(400).json({ msg: "Invalid OTP" });
     }
 
-    if (record.expiresAt < Date.now()) {
+    if (record && record.expiresAt < Date.now()) {
       otpStore.delete(key);
       return res.status(400).json({ msg: "OTP expired. Request a new OTP." });
     }
 
-    if (record.used || record.verified) {
+    if (record && (record.used || record.verified) && !hasVerifiedResetToken) {
       return res.status(400).json({ msg: "Invalid OTP" });
     }
 
-    if (record.otp !== otp) {
+    if (!hasVerifiedResetToken && record.otp !== otp) {
       const attempts = Number(record.attempts || 0) + 1;
       if (attempts >= Number(record.maxAttempts || getOtpMaxAttempts())) {
         otpStore.delete(key);
@@ -899,6 +906,7 @@ export const resetPasswordWithOtp = async (req, res) => {
 
     user.password = await bcrypt.hash(password, 10);
     await user.save();
+    if (hasVerifiedResetToken) consumeOtpVerificationToken(otpVerificationToken);
     otpStore.delete(key);
 
     return res.json({ message: "Password reset successful. Please login." });

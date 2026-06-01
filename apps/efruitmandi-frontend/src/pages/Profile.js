@@ -212,7 +212,9 @@ export default function Profile() {
   const sanitizeAuthMessage = (err, fallback) => {
     const status = err?.response?.status;
     const serverMessage = String(err?.response?.data?.msg || err?.response?.data?.message || "").trim();
-    if (status === 404 || /user\s+not\s+found/i.test(serverMessage)) return "User Not Found Please Signup First";
+    if (status === 404 || /user\s+not\s+found|account.*not.*exist|does\s+not\s+exist/i.test(serverMessage)) {
+      return "No. does not exist, please check the no. and enter again.";
+    }
     if (status === 429) return "Too many invalid OTP attempts. Please request a new OTP.";
     if (/expired/i.test(serverMessage)) return "Invalid or expired OTP.";
     if (/request.*otp|otp.*first/i.test(serverMessage)) return "Please request OTP first.";
@@ -408,6 +410,7 @@ export default function Profile() {
   const handleVerifyOtp = async (targetMode) => {
     const form = targetMode === "login" ? loginForm : signupForm;
     const identifier = getAuthIdentifier(form.identifier);
+    const otpPurpose = resetMode && targetMode === "login" ? "forgot-password" : "auth";
 
     if (!identifier || !form.otp.trim()) {
       showError("Enter email/phone and OTP.");
@@ -433,7 +436,7 @@ export default function Profile() {
 
     try {
       setLoading(true);
-      if (isPhoneIdentifier(identifier)) {
+      if (isPhoneIdentifier(identifier) && otpPurpose === "auth") {
         const widgetId = getEfruitMandiWidgetId();
         const tokenAuth = getEfruitMandiTokenAuth();
         const reqId = mobileOtpReqId[targetMode];
@@ -463,6 +466,7 @@ export default function Profile() {
         identifier,
         otp: form.otp.trim(),
         platform: "efruitmandi",
+        purpose: otpPurpose,
       });
       if (!res.data?.otpVerificationToken) {
         throw new Error("OTP verification failed.");
@@ -510,6 +514,7 @@ export default function Profile() {
           otp: loginForm.otp.trim(),
           password: loginForm.password,
           platform: "efruitmandi",
+          otpVerificationToken: otpVerificationToken.login,
         });
         setResetMode(false);
         setLoginForm(initialLogin);

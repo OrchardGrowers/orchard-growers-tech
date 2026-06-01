@@ -452,6 +452,7 @@ const orchardProductCategories = [
 ];
 
 const orchardSeasonalCategories = ['Spring', 'Summer', 'Monsoon', 'Winter'];
+const rawMaterialCategories = ['Growing Media', 'Organic Manure', 'Fertilizer', 'Packaging', 'Pots / Containers', 'Irrigation Material', 'Plant Protection', 'Tools Consumable', 'Other'];
 
 type AdminTabButton = { id: AdminTab; label: string; count?: number };
 type SidebarSubItem = { label: string; tab?: AdminTab; action?: () => void; count?: number };
@@ -943,6 +944,7 @@ function App() {
   const [fullscreenTarget, setFullscreenTarget] = useState<'announcement' | 'action' | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [orchardModulePages, setOrchardModulePages] = useState<OrchardModulePages>(defaultOrchardModulePages);
+  const [expandedSidebarKey, setExpandedSidebarKey] = useState<string | null>(null);
   const [lastPlatformTabs, setLastPlatformTabs] = useState<Partial<Record<AdminPlatform, AdminTab>>>({});
   const [themeMode, setThemeMode] = useState<AdminThemeMode>(readAdminThemeMode);
   const [systemPrefersDark, setSystemPrefersDark] = useState(() =>
@@ -1528,7 +1530,8 @@ function App() {
   const saveOrchardProduct = async (event: FormEvent) => {
     event.preventDefault();
     setMessage('');
-    if (productDraft.uploadedImages.length < 5) {
+    const isRawMaterial = productDraft.inventoryType === 'raw_material';
+    if (!isRawMaterial && productDraft.uploadedImages.length < 5) {
       setMessage('Upload at least 5 product images.');
       return;
     }
@@ -1601,8 +1604,18 @@ function App() {
   const updateProductStock = async (product: AdminProduct) => {
     const quantity = window.prompt('Update stock units', String(product.quantity ?? 0));
     if (quantity === null) return;
+    const nextQuantity = Number(quantity);
+    if (!Number.isFinite(nextQuantity) || nextQuantity < 0) {
+      setMessage('Negative stock cannot be processed. Purchase or update stock first.');
+      return;
+    }
     const basePrice = window.prompt('Update product price', String(product.basePrice ?? 0));
     if (basePrice === null) return;
+    const nextBasePrice = Number(basePrice);
+    if (!Number.isFinite(nextBasePrice) || nextBasePrice < 0) {
+      setMessage('Price cannot be negative.');
+      return;
+    }
     const status = window.prompt('Status: ACTIVE, QUOTE_ENABLED, INACTIVE', formatProductStatus(product.status || 'AVAILABLE'));
     if (status === null) return;
     const nextStatus = normalizeProductStatusInput(status);
@@ -1610,7 +1623,7 @@ function App() {
     const res = await fetch(`${API_BASE}/admin/products/${product._id}`, {
       method: 'PATCH',
       headers: authHeaders,
-      body: JSON.stringify({ quantity: Number(quantity), basePrice: Number(basePrice), status: nextStatus }),
+      body: JSON.stringify({ quantity: nextQuantity, basePrice: nextBasePrice, status: nextStatus }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -2259,6 +2272,8 @@ function App() {
             activePlatform={activePlatform}
             activeTab={activeTab}
             activePages={orchardModulePages}
+            expandedItemKey={expandedSidebarKey}
+            onToggleItem={(key) => setExpandedSidebarKey((current) => (current === key ? null : key))}
             onOpenTab={(tab, childLabel, parentTab) => openTab(tab, { childLabel, parentTab })}
             onOpenPlatform={(platform) => openTab(getLastTabForPlatform(platform))}
             onClose={() => setMobileMenuOpen(false)}
@@ -2274,6 +2289,8 @@ function App() {
             activeTab={activeTab}
             activePages={orchardModulePages}
             groups={sidebarGroups}
+            expandedItemKey={expandedSidebarKey}
+            onToggleItem={(key) => setExpandedSidebarKey((current) => (current === key ? null : key))}
             onChange={(platform) => {
               openTab(getLastTabForPlatform(platform));
             }}
@@ -2617,6 +2634,10 @@ function isSidebarChildActive(
   return Boolean(item.tab && activePages[item.tab] === child.label);
 }
 
+function getSidebarItemKey(group: SidebarGroup, item: SidebarMenuItem) {
+  return `${group.platform}:${item.label}`;
+}
+
 type MenuIconName =
   | 'menu'
   | 'dashboard'
@@ -2648,15 +2669,19 @@ function PlatformRail({
   activeTab,
   activePages,
   groups,
+  expandedItemKey,
   onChange,
   onOpenTab,
+  onToggleItem,
 }: {
   activePlatform: AdminPlatform;
   activeTab: AdminTab;
   activePages: OrchardModulePages;
   groups: SidebarGroup[];
+  expandedItemKey: string | null;
   onChange: (platform: AdminPlatform) => void;
   onOpenTab: (platform: AdminPlatform, tab: AdminTab, childLabel?: string, parentTab?: AdminTab) => void;
+  onToggleItem: (key: string) => void;
 }) {
   return (
     <aside className="admin-platform-scroll h-full overflow-y-auto rounded-lg border border-slate-800 bg-slate-950/40 p-2">
@@ -2676,14 +2701,21 @@ function PlatformRail({
             </button>
             <div className="mt-3 space-y-1">
               {group.items.map((item) => {
+                const itemKey = getSidebarItemKey(group, item);
+                const hasChildren = Boolean(item.children?.length);
                 const childSelected = item.children?.some((child) => isSidebarChildActive(item, child, activeTab, activePages)) || false;
-                const selected = Boolean(item.tab && activePlatform === group.platform && (activeTab === item.tab || childSelected));
-                const expanded = selected && Boolean(item.children?.length);
+                const expanded = hasChildren && (expandedItemKey === itemKey || childSelected);
+                const selected = Boolean(item.tab && (activeTab === item.tab || childSelected || expanded));
                 return (
                   <div key={item.label}>
                     <button
                       type="button"
-                      onClick={() => (item.action ? item.action() : item.tab && onOpenTab(group.platform, item.tab))}
+                      onClick={() => {
+                        if (item.action) item.action();
+                        else if (hasChildren) onToggleItem(itemKey);
+                        else if (item.tab) onOpenTab(group.platform, item.tab);
+                      }}
+                      aria-expanded={hasChildren ? expanded : undefined}
                       className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-bold transition ${
                         selected ? 'bg-emerald-600 text-white' : 'text-slate-200 hover:bg-slate-800 hover:text-white'
                       }`}
@@ -2731,16 +2763,20 @@ function MobileAdminMenu({
   activePlatform,
   activeTab,
   activePages,
+  expandedItemKey,
   onOpenTab,
   onOpenPlatform,
+  onToggleItem,
   onClose,
 }: {
   groups: SidebarGroup[];
   activePlatform: AdminPlatform;
   activeTab: AdminTab;
   activePages: OrchardModulePages;
+  expandedItemKey: string | null;
   onOpenTab: (tab: AdminTab, childLabel?: string, parentTab?: AdminTab) => void;
   onOpenPlatform: (platform: AdminPlatform) => void;
+  onToggleItem: (key: string) => void;
   onClose: () => void;
 }) {
   const runAction = (action: () => void) => {
@@ -2794,14 +2830,21 @@ function MobileAdminMenu({
             </button>
             <div className="mt-2 grid grid-cols-2 gap-1">
               {group.items.map((item) => {
+                const itemKey = getSidebarItemKey(group, item);
+                const hasChildren = Boolean(item.children?.length);
                 const childSelected = item.children?.some((child) => isSidebarChildActive(item, child, activeTab, activePages)) || false;
-                const selected = Boolean(item.tab && (activeTab === item.tab || childSelected));
-                const expanded = selected && Boolean(item.children?.length);
+                const expanded = hasChildren && (expandedItemKey === itemKey || childSelected);
+                const selected = Boolean(item.tab && (activeTab === item.tab || childSelected || expanded));
                 return (
                   <div key={item.label} className={expanded ? 'col-span-2' : ''}>
                     <button
                       type="button"
-                      onClick={() => (item.action ? runAction(item.action) : item.tab && selectTab(item.tab))}
+                      onClick={() => {
+                        if (item.action) runAction(item.action);
+                        else if (hasChildren) onToggleItem(itemKey);
+                        else if (item.tab) selectTab(item.tab);
+                      }}
+                      aria-expanded={hasChildren ? expanded : undefined}
                       className={`flex min-h-10 w-full items-center gap-2 rounded-md px-2 py-2 text-left text-[11px] font-bold transition ${
                         selected ? 'bg-emerald-600 text-white' : 'text-slate-200 hover:bg-slate-800 hover:text-white'
                       }`}
@@ -3620,7 +3663,7 @@ function BillingPanel({
   onOpenTab: (tab: AdminTab) => void;
   activePage: string;
 }) {
-  const invoicePreview = `OG/${new Date().getFullYear()}/0000001`;
+  const invoicePreview = getNextInvoiceNumber(orders);
   const activeProducts = products.filter((product) => product.status === 'AVAILABLE' && product.active !== false);
 
   if (activePage !== 'New Invoice') {
@@ -3631,7 +3674,7 @@ function BillingPanel({
     <section className="space-y-4">
       <div className="grid gap-3 md:grid-cols-4">
         <MetricCard label="Sales History" value={orders.length} />
-        <MetricCard label="Invoice Series" value={1} />
+        <MetricCard label="Next Invoice" value={invoicePreview} />
         <MetricCard label="Billable Products" value={activeProducts.length} />
         <MetricCard label="Returns / Refunds" value={0} />
       </div>
@@ -3977,6 +4020,11 @@ function PurchaseEntryPanel({ products }: { products: AdminProduct[] }) {
 
 function NewInvoicePanel({ products, invoiceNumber }: { products: AdminProduct[]; invoiceNumber: string }) {
   const firstProduct = products[0];
+  const productsById = new Map(products.map((product) => [product._id, product]));
+  const [currentInvoiceNumber, setCurrentInvoiceNumber] = useState(invoiceNumber);
+  useEffect(() => {
+    setCurrentInvoiceNumber(invoiceNumber);
+  }, [invoiceNumber]);
   const [customer, setCustomer] = useState({
     name: '',
     phone: '',
@@ -4016,14 +4064,33 @@ function NewInvoicePanel({ products, invoiceNumber }: { products: AdminProduct[]
       const product = products.find((item) => item._id === row.productId);
       return `${index + 1}. ${product?.title || 'Product'} x ${row.quantity || 0} = Rs. ${Math.round(rowTotals[index]?.total || 0)}`;
     });
-    return [`Invoice ${invoiceNumber}`, `Customer: ${customer.name || 'Walk-in customer'}`, ...productLines, `Grand Total: Rs. ${Math.round(total)}`].join('\n');
+    return [`Invoice ${currentInvoiceNumber}`, `Customer: ${customer.name || 'Walk-in customer'}`, ...productLines, `Grand Total: Rs. ${Math.round(total)}`].join('\n');
   };
   const saveInvoice = () => {
     try {
+      const requestedByProduct = rows.reduce((map, row) => {
+        if (!row.productId) return map;
+        map.set(row.productId, (map.get(row.productId) || 0) + Number(row.quantity || 0));
+        return map;
+      }, new Map<string, number>());
+
+      for (const [productId, requestedQuantity] of requestedByProduct.entries()) {
+        const product = productsById.get(productId);
+        const availableQuantity = Number(product?.quantity || 0);
+        if (!product || requestedQuantity <= 0) {
+          notifyLocalAction('Select product and enter a valid quantity before saving invoice.');
+          return;
+        }
+        if (requestedQuantity > availableQuantity) {
+          notifyLocalAction(`${product.title || product.fruitName || 'Product'} has only ${availableQuantity} unit(s) in stock. Purchase or update stock first.`);
+          return;
+        }
+      }
+
       const stored = JSON.parse(localStorage.getItem('orchard_invoices') || '[]');
       const invoice = {
         id: `inv-${Date.now()}`,
-        invoiceNumber,
+        invoiceNumber: currentInvoiceNumber,
         customerType,
         customer: { ...customer },
         rows: rows.map(({ id, ...row }) => row),
@@ -4031,9 +4098,11 @@ function NewInvoicePanel({ products, invoiceNumber }: { products: AdminProduct[]
         createdAt: new Date().toISOString(),
       };
       localStorage.setItem('orchard_invoices', JSON.stringify([invoice, ...stored]));
+      commitInvoiceNumber(currentInvoiceNumber);
       notifyLocalAction('Invoice saved locally.');
       setCustomer({ name: '', phone: '', email: '', gstin: '', paymentMethod: 'Cash', billingAddress: '' });
       setRows([createInvoiceRow()]);
+      setCurrentInvoiceNumber(formatInvoiceNumber(getInvoiceSerial(currentInvoiceNumber) + 1));
     } catch (err) {
       notifyLocalAction(err instanceof Error ? err.message : 'Save failed');
     }
@@ -4051,7 +4120,7 @@ function NewInvoicePanel({ products, invoiceNumber }: { products: AdminProduct[]
     window.open(url, '_blank', 'noopener,noreferrer');
   };
   const sendEmail = () => {
-    const subject = encodeURIComponent(`Invoice ${invoiceNumber}`);
+    const subject = encodeURIComponent(`Invoice ${currentInvoiceNumber}`);
     const body = encodeURIComponent(getInvoiceSummary());
     window.location.href = `mailto:${customer.email || ''}?subject=${subject}&body=${body}`;
   };
@@ -4059,7 +4128,7 @@ function NewInvoicePanel({ products, invoiceNumber }: { products: AdminProduct[]
   return (
     <PanelShell title="New Invoice" text="Create offline invoices with the same sequence logic used for Orchard Growers billing.">
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <span className="rounded-full bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-300">{invoiceNumber}</span>
+        <span className="rounded-full bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-300">{currentInvoiceNumber}</span>
         <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-bold text-slate-300">Draft</span>
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -4308,6 +4377,7 @@ function ProductAdminPanel({
   const [hsnSuggestions, setHsnSuggestions] = useState<HsnSuggestion[]>([]);
   const [hsnOpen, setHsnOpen] = useState(false);
   const [skuGenerating, setSkuGenerating] = useState(false);
+  const isRawMaterial = draft.inventoryType === 'raw_material';
   const dimensionWeightKg = calculateDimensionWeightKg(draft);
   const actualWeightKg = Number(draft.actualWeightKg || 0);
   const chargeableWeightKg = Math.max(Number.isFinite(actualWeightKg) ? actualWeightKg : 0, dimensionWeightKg);
@@ -4437,14 +4507,14 @@ function ProductAdminPanel({
         </p>
       </div>
       <div className="mb-4 flex flex-wrap gap-2">
-        {['Basic', 'Tax & Stock', 'SEO', 'Images'].map((tab) => (
+        {(isRawMaterial ? ['Basic', 'Tax & Stock'] : ['Basic', 'Tax & Stock', 'SEO', 'Images']).map((tab) => (
           <span key={tab} className="rounded-full bg-slate-950 px-3 py-1 text-xs font-bold text-slate-300">
             {tab}
           </span>
         ))}
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <AdminInput label="Product Name" value={draft.title} onChange={(value) => update('title', value)} placeholder="Avocado Plant" />
+        <AdminInput label={isRawMaterial ? 'Raw Material Name' : 'Product Name'} value={draft.title} onChange={(value) => update('title', value)} placeholder={isRawMaterial ? 'Cocopeat' : 'Avocado Plant'} />
         <AdminInput label="Slug" value={generatedSlug} onChange={() => undefined} placeholder="auto-generated-slug" disabled />
         <label className="block text-sm font-bold text-slate-300">
           SKU
@@ -4489,31 +4559,33 @@ function ProductAdminPanel({
         <AdminInput label="GST %" value={draft.gstRate} onChange={(value) => update('gstRate', value)} placeholder="5" type="number" />
         <AdminInput label="HSN Description" value={draft.hsnDescription} onChange={(value) => update('hsnDescription', value)} placeholder="HSN item description" />
         <label className="block text-sm font-bold text-slate-300">
-          Product Category
+          {isRawMaterial ? 'Raw Material Category' : 'Product Category'}
           <select
             value={draft.productCategory}
             onChange={(event) => update('productCategory', event.target.value)}
             className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400"
           >
             <option value="">Select category</option>
-            {orchardProductCategories.map((category) => (
+            {(isRawMaterial ? rawMaterialCategories : orchardProductCategories).map((category) => (
               <option key={category} value={category}>{category}</option>
             ))}
           </select>
         </label>
-        <label className="block text-sm font-bold text-slate-300">
-          Seasonal Plant Category
-          <select
-            value={draft.seasonalCategory}
-            onChange={(event) => update('seasonalCategory', event.target.value)}
-            className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400"
-          >
-            <option value="">Not seasonal</option>
-            {orchardSeasonalCategories.map((season) => (
-              <option key={season} value={season}>{season}</option>
-            ))}
-          </select>
-        </label>
+        {!isRawMaterial && (
+          <label className="block text-sm font-bold text-slate-300">
+            Seasonal Plant Category
+            <select
+              value={draft.seasonalCategory}
+              onChange={(event) => update('seasonalCategory', event.target.value)}
+              className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400"
+            >
+              <option value="">Not seasonal</option>
+              {orchardSeasonalCategories.map((season) => (
+                <option key={season} value={season}>{season}</option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="block text-sm font-bold text-slate-300">
           Inventory Type
           <select
@@ -4526,7 +4598,7 @@ function ProductAdminPanel({
           </select>
         </label>
         <label className="block text-sm font-bold text-slate-300">
-          Product Type
+          {isRawMaterial ? 'Material Type' : 'Product Type'}
           <select
             value={draft.productType}
             onChange={(event) => update('productType', event.target.value)}
@@ -4549,41 +4621,45 @@ function ProductAdminPanel({
             ))}
           </select>
         </label>
-        <label className="block text-sm font-bold text-slate-300">
-          Product category legacy
-          <select
-            value={draft.fruitName}
-            onChange={(event) => update('fruitName', event.target.value)}
-            className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400"
-          >
-            <option value="">Select legacy category</option>
-            {orchardProductCategories.map((category) => (
-              <option key={category} value={category}>{category}</option>
-            ))}
-          </select>
-        </label>
-        <AdminInput label="Variety / product line" value={draft.variety} onChange={(value) => update('variety', value)} placeholder="Orchard Growers Premium" />
+        {!isRawMaterial && (
+          <label className="block text-sm font-bold text-slate-300">
+            Product category legacy
+            <select
+              value={draft.fruitName}
+              onChange={(event) => update('fruitName', event.target.value)}
+              className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400"
+            >
+              <option value="">Select legacy category</option>
+              {orchardProductCategories.map((category) => (
+                <option key={category} value={category}>{category}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        {!isRawMaterial && <AdminInput label="Variety / product line" value={draft.variety} onChange={(value) => update('variety', value)} placeholder="Orchard Growers Premium" />}
         <AdminInput label="Location" value={draft.location} onChange={(value) => update('location', value)} placeholder="Orchard Growers" />
-        <AdminInput label="Price" value={draft.basePrice} onChange={(value) => update('basePrice', value)} placeholder="999" type="number" />
-        <AdminInput label="Discount %" value={draft.discountPercent} onChange={(value) => update('discountPercent', value)} placeholder="0" type="number" />
-        <label className="block text-sm font-bold text-slate-300">
-          Pack shape
-          <select
-            value={draft.packShape}
-            onChange={(event) => update('packShape', event.target.value)}
-            className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400"
-          >
-            <option value="box">Box / carton</option>
-            <option value="cylinder">Cylinder</option>
-            <option value="flyer">Flyer / packet</option>
-          </select>
-        </label>
-        {draft.packShape === 'cylinder' ? (
+        {!isRawMaterial && <AdminInput label="Price" value={draft.basePrice} onChange={(value) => update('basePrice', value)} placeholder="999" type="number" />}
+        {!isRawMaterial && <AdminInput label="Discount %" value={draft.discountPercent} onChange={(value) => update('discountPercent', value)} placeholder="0" type="number" />}
+        {!isRawMaterial && (
+          <label className="block text-sm font-bold text-slate-300">
+            Pack shape
+            <select
+              value={draft.packShape}
+              onChange={(event) => update('packShape', event.target.value)}
+              className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400"
+            >
+              <option value="box">Box / carton</option>
+              <option value="cylinder">Cylinder</option>
+              <option value="flyer">Flyer / packet</option>
+            </select>
+          </label>
+        )}
+        {!isRawMaterial && draft.packShape === 'cylinder' ? (
           <>
             <AdminInput label="Radius cm" value={draft.packRadiusCm} onChange={(value) => update('packRadiusCm', value)} placeholder="10" type="number" />
             <AdminInput label="Height cm" value={draft.packHeightCm} onChange={(value) => update('packHeightCm', value)} placeholder="30" type="number" />
           </>
-        ) : (
+        ) : !isRawMaterial ? (
           <>
             <AdminInput label="Length cm" value={draft.packLengthCm} onChange={(value) => update('packLengthCm', value)} placeholder="30" type="number" />
             <AdminInput label="Width cm" value={draft.packWidthCm} onChange={(value) => update('packWidthCm', value)} placeholder="20" type="number" />
@@ -4595,11 +4671,11 @@ function ProductAdminPanel({
               type="number"
             />
           </>
-        )}
-        <AdminInput label="Pack size" value={getPackSizeLabel(draft)} onChange={() => undefined} placeholder="auto-generated pack size" disabled />
-        <AdminInput label="Actual weight kg" value={draft.actualWeightKg} onChange={(value) => update('actualWeightKg', value)} placeholder="1.25" type="number" />
-        <AdminInput label="Dimension weight kg" value={String(dimensionWeightKg)} onChange={() => undefined} placeholder="auto" disabled />
-        <AdminInput label="Chargeable weight kg" value={String(chargeableWeightKg)} onChange={() => undefined} placeholder="auto" disabled />
+        ) : null}
+        {!isRawMaterial && <AdminInput label="Pack size" value={getPackSizeLabel(draft)} onChange={() => undefined} placeholder="auto-generated pack size" disabled />}
+        {!isRawMaterial && <AdminInput label="Actual weight kg" value={draft.actualWeightKg} onChange={(value) => update('actualWeightKg', value)} placeholder="1.25" type="number" />}
+        {!isRawMaterial && <AdminInput label="Dimension weight kg" value={String(dimensionWeightKg)} onChange={() => undefined} placeholder="auto" disabled />}
+        {!isRawMaterial && <AdminInput label="Chargeable weight kg" value={String(chargeableWeightKg)} onChange={() => undefined} placeholder="auto" disabled />}
         <label className="block text-sm font-bold text-slate-300">
           Product status
           <select
@@ -4612,34 +4688,42 @@ function ProductAdminPanel({
           </select>
         </label>
       </div>
-      <label className="mt-3 block text-sm font-bold text-slate-300">
-        Product Description Blog
-        <textarea
-          value={draft.description}
-          onChange={(event) => update('description', event.target.value)}
-          rows={3}
-          className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-emerald-400"
-          placeholder="Demo product details for buyers and Orchard Growers showcase."
-        />
-      </label>
-      <div className="mt-3 grid gap-3 md:grid-cols-2">
-        <AdminInput label="SEO Meta Title" value={draft.seoMetaTitle} onChange={(value) => update('seoMetaTitle', value)} placeholder="Buy Avocado Plant Online" />
-        <AdminInput label="SEO Meta Description" value={draft.seoMetaDescription} onChange={(value) => update('seoMetaDescription', value)} placeholder="Healthy grafted plants from Orchard Growers." />
-      </div>
-      <div className="mt-3">
-        <AdminInput label="SEO Keywords" value={draft.seoKeywords} onChange={(value) => update('seoKeywords', value)} placeholder="avocado plant, grafted fruit plant, orchard growers" />
-      </div>
-      <div className="mt-3 flex flex-wrap gap-3">
-        <label className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm font-bold text-slate-300">
-          <input type="checkbox" checked={draft.featured} onChange={(event) => update('featured', event.target.checked)} />
-          Featured Product
+      {!isRawMaterial && (
+        <label className="mt-3 block text-sm font-bold text-slate-300">
+          Product Description Blog
+          <textarea
+            value={draft.description}
+            onChange={(event) => update('description', event.target.value)}
+            rows={3}
+            className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-emerald-400"
+            placeholder="Demo product details for buyers and Orchard Growers showcase."
+          />
         </label>
+      )}
+      {!isRawMaterial && (
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <AdminInput label="SEO Meta Title" value={draft.seoMetaTitle} onChange={(value) => update('seoMetaTitle', value)} placeholder="Buy Avocado Plant Online" />
+          <AdminInput label="SEO Meta Description" value={draft.seoMetaDescription} onChange={(value) => update('seoMetaDescription', value)} placeholder="Healthy grafted plants from Orchard Growers." />
+        </div>
+      )}
+      {!isRawMaterial && (
+        <div className="mt-3">
+          <AdminInput label="SEO Keywords" value={draft.seoKeywords} onChange={(value) => update('seoKeywords', value)} placeholder="avocado plant, grafted fruit plant, orchard growers" />
+        </div>
+      )}
+      <div className="mt-3 flex flex-wrap gap-3">
+        {!isRawMaterial && (
+          <label className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm font-bold text-slate-300">
+            <input type="checkbox" checked={draft.featured} onChange={(event) => update('featured', event.target.checked)} />
+            Featured Product
+          </label>
+        )}
         <label className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm font-bold text-slate-300">
           <input type="checkbox" checked={draft.active} onChange={(event) => update('active', event.target.checked)} />
           Active
         </label>
       </div>
-      <div className="mt-4 rounded-xl border border-dashed border-slate-700 bg-slate-950 p-4">
+      {!isRawMaterial && <div className="mt-4 rounded-xl border border-dashed border-slate-700 bg-slate-950 p-4">
         <p className="text-sm font-black text-white">Product Images</p>
         <p className="mt-1 text-xs font-semibold text-slate-500">Select at list 5 images</p>
         <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_140px] md:items-end">
@@ -4681,7 +4765,7 @@ function ProductAdminPanel({
             ))}
           </div>
         )}
-      </div>
+      </div>}
       <div className="mt-4 flex flex-wrap gap-2">
         <button disabled={saving} className="rounded-lg bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-500 disabled:opacity-60">
           {saving ? 'Saving...' : editing ? `Update ${modeLabel}` : `Save ${modeLabel}`}
@@ -4960,7 +5044,7 @@ function SimpleAdminPanel({ title, text }: { title: string; text: string }) {
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: number }) {
+function MetricCard({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
       <p className="text-sm font-bold text-slate-400">{label}</p>
@@ -5727,6 +5811,29 @@ function confirmTwice(actionLabel: string) {
 
 function notifyLocalAction(message: string) {
   window.alert(message);
+}
+
+const INVOICE_SEQUENCE_KEY = 'orchard_invoice_sequence';
+
+function getInvoiceSerial(invoiceNumber?: string) {
+  const match = String(invoiceNumber || '').match(/^OG\/\d{4}\/(\d+)$/);
+  return match ? Number(match[1]) : 0;
+}
+
+function formatInvoiceNumber(serial: number, year = new Date().getFullYear()) {
+  return `OG/${year}/${String(serial).padStart(7, '0')}`;
+}
+
+function getNextInvoiceNumber(orders: AdminOrder[] = []) {
+  const year = new Date().getFullYear();
+  const savedSerial = Number(getAdminStorageItem(INVOICE_SEQUENCE_KEY) || 0);
+  const onlineSerial = orders.reduce((max, order) => Math.max(max, getInvoiceSerial(order.invoiceNumber)), 0);
+  return formatInvoiceNumber(Math.max(savedSerial, onlineSerial) + 1, year);
+}
+
+function commitInvoiceNumber(invoiceNumber: string) {
+  const serial = getInvoiceSerial(invoiceNumber);
+  if (serial > 0) setAdminStorageItem(INVOICE_SEQUENCE_KEY, String(serial));
 }
 
 export default App;

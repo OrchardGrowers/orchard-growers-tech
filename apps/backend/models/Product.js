@@ -46,7 +46,7 @@ const productSchema = new mongoose.Schema(
     ],
     sampleVideo: String,
 
-    quantity: Number, // in boxes
+    quantity: { type: Number, min: 0 }, // in boxes
     lotNo: String,
     packingType: String,
     packingWeightKg: Number,

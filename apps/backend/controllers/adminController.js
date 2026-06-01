@@ -1714,12 +1714,13 @@ export const createProductByAdmin = async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const payload = normalizeProductAdminPayload(req.body);
+  const isRawMaterial = payload.inventoryType === "raw_material";
   const category = String(payload.productCategory || payload.fruitName || "").trim();
   const price = Number(payload.basePrice || 0);
   const discountPercent = Number(payload.discountPercent || 0);
 
-  if (!payload.title || !category || !payload.description) {
-    return res.status(400).json({ msg: "Product name, category, and description are required" });
+  if (!payload.title || !category || (!isRawMaterial && !payload.description)) {
+    return res.status(400).json({ msg: isRawMaterial ? "Raw material name and category are required" : "Product name, category, and description are required" });
   }
 
   payload.slug = createProductSlug(payload.title);
@@ -1737,12 +1738,20 @@ export const createProductByAdmin = async (req, res) => {
     return res.status(409).json({ msg: "SKU already exists. Please generate a new SKU or edit manually." });
   }
 
-  if (!Number.isFinite(price) || price <= 0) {
+  if (!isRawMaterial && (!Number.isFinite(price) || price <= 0)) {
     return res.status(400).json({ msg: "Price must be greater than zero" });
   }
 
   if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
     return res.status(400).json({ msg: "Discount must be between 0 and 100" });
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, "quantity")) {
+    const quantity = Number(payload.quantity || 0);
+    if (!Number.isFinite(quantity) || quantity < 0) {
+      return res.status(400).json({ msg: "Negative stock cannot be processed. Purchase or update stock first." });
+    }
+    payload.quantity = quantity;
   }
 
   payload.hsnCode = String(payload.hsnCode || "").trim();
@@ -1757,7 +1766,7 @@ export const createProductByAdmin = async (req, res) => {
   const imageFiles = Array.isArray(req.files) ? req.files : [];
   const existingImageUrls = Array.isArray(payload.images) ? payload.images : [];
   const existingPublicIds = Array.isArray(payload.imagePublicIds) ? payload.imagePublicIds : [];
-  if (imageFiles.length + existingImageUrls.length < 5) {
+  if (!isRawMaterial && imageFiles.length + existingImageUrls.length < 5) {
     return res.status(400).json({ msg: "At least 5 product images are required" });
   }
 
@@ -1776,12 +1785,13 @@ export const createProductByAdmin = async (req, res) => {
     fruitName: category,
     productCategory: category,
     variety: payload.variety || category,
-    basePrice: price,
+    description: payload.description || `${payload.title} raw material`,
+    basePrice: Number.isFinite(price) ? price : 0,
     discountPercent,
     gstRate: Number(payload.gstRate),
     cgst: Number(payload.gstRate) / 2,
     sgst: Number(payload.gstRate) / 2,
-    quantity: 0,
+    quantity: Number(payload.quantity || 0),
     images: [...existingImageUrls, ...uploadedUrls],
     imagePublicIds: [...existingPublicIds, ...uploadedPublicIds],
     status: payload.status || "AVAILABLE",
@@ -1822,6 +1832,14 @@ export const updateProductByAdmin = async (req, res) => {
       return res.status(400).json({ msg: "Discount must be between 0 and 100" });
     }
     payload.discountPercent = discountPercent;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, "quantity")) {
+    const quantity = Number(payload.quantity || 0);
+    if (!Number.isFinite(quantity) || quantity < 0) {
+      return res.status(400).json({ msg: "Negative stock cannot be processed. Purchase or update stock first." });
+    }
+    payload.quantity = quantity;
   }
 
   if (

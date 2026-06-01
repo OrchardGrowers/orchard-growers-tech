@@ -22,8 +22,19 @@ const populateOrder = (query) =>
 
 const INDIA_POST_TEST_KEY = process.env.INDIA_POST_TEST_KEY || "INDIA_POST_TEST_KEY";
 
-const createInvoiceNumber = () =>
-  `OG-${new Date().getFullYear()}-${Date.now().toString().slice(-8)}`;
+const getFinancialYearStart = () => {
+  const now = new Date();
+  return new Date(now.getFullYear(), 0, 1);
+};
+
+const createInvoiceNumber = async () => {
+  const year = new Date().getFullYear();
+  const count = await Order.countDocuments({
+    invoiceDate: { $gte: getFinancialYearStart() },
+    invoiceNumber: new RegExp(`^OG/${year}/`),
+  });
+  return `OG/${year}/${String(count + 1).padStart(7, "0")}`;
+};
 
 const createIndiaPostTracking = () => `IPTEST${Date.now().toString().slice(-10)}`;
 
@@ -55,6 +66,26 @@ router.post("/checkout", optionalProtect, async (req, res) => {
     const products = await Product.find({ _id: { $in: productIds } });
     const productMap = new Map(products.map((product) => [product._id.toString(), product]));
 
+    const requestedByProduct = new Map();
+    items.forEach((item) => {
+      if (!item.productId) return;
+      const productId = String(item.productId);
+      requestedByProduct.set(productId, (requestedByProduct.get(productId) || 0) + Math.max(1, Number(item.quantity || 1)));
+    });
+
+    for (const [productId, requestedQuantity] of requestedByProduct.entries()) {
+      const product = productMap.get(productId);
+      if (!product || product.active === false || product.inventoryType === "raw_material") {
+        return res.status(400).json({ msg: "Selected product is not available for sale" });
+      }
+      const availableQuantity = Number(product.quantity || 0);
+      if (!Number.isFinite(availableQuantity) || availableQuantity < requestedQuantity) {
+        return res.status(400).json({
+          msg: `${product.title || product.fruitName || "Product"} has only ${Math.max(0, availableQuantity)} unit(s) available. Please purchase or update stock first.`,
+        });
+      }
+    }
+
     const orderItems = items.map((item) => {
       const product = productMap.get(String(item.productId));
       const quantity = Math.max(1, Number(item.quantity || 1));
@@ -72,7 +103,7 @@ router.post("/checkout", optionalProtect, async (req, res) => {
     const shippingCharge = subtotal >= 499 ? 0 : 60;
     const taxAmount = Math.round(subtotal * 0.05);
     const totalAmount = subtotal + shippingCharge + taxAmount;
-    const invoiceNumber = createInvoiceNumber();
+    const invoiceNumber = await createInvoiceNumber();
 
     const selectedDeliveryMode = deliveryPartnerSelection === "MANUAL" ? "MANUAL" : "AUTOMATIC";
     const selectedCourier = courierPartner || "India Post";
@@ -102,6 +133,15 @@ router.post("/checkout", optionalProtect, async (req, res) => {
       courierBookingStatus: selectedDeliveryMode === "MANUAL" ? "MANUAL_REVIEW" : "TEST_BOOKED",
       trackingNumber: selectedDeliveryMode === "MANUAL" ? "" : createIndiaPostTracking(),
     });
+
+    await Promise.all(
+      Array.from(requestedByProduct.entries()).map(async ([productId, requestedQuantity]) => {
+        const product = productMap.get(productId);
+        product.quantity = Math.max(0, Number(product.quantity || 0) - requestedQuantity);
+        if (product.quantity <= 0) product.status = "SOLD";
+        await product.save();
+      })
+    );
 
     res.status(201).json(await populateOrder(Order.findById(order._id)));
   } catch (err) {
