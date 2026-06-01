@@ -453,6 +453,26 @@ const orchardProductCategories = [
 
 const orchardSeasonalCategories = ['Spring', 'Summer', 'Monsoon', 'Winter'];
 const rawMaterialCategories = ['Growing Media', 'Organic Manure', 'Fertilizer', 'Packaging', 'Pots / Containers', 'Irrigation Material', 'Plant Protection', 'Tools Consumable', 'Other'];
+const logisticsCourierPartners = [
+  'eFruitMandi',
+  'India Post',
+  'Delhivery',
+  'Blue Dart',
+  'DTDC',
+  'Shiprocket',
+  'Xpressbees',
+  'Ecom Express',
+  'Ekart',
+  'Shadowfax',
+  'Amazon Shipping',
+  'Porter',
+  'DHL',
+  'FedEx',
+  'UPS',
+  'Aramex',
+  'AWS',
+  'Manual Delivery',
+];
 
 type AdminTabButton = { id: AdminTab; label: string; count?: number };
 type SidebarSubItem = { label: string; tab?: AdminTab; action?: () => void; count?: number };
@@ -494,11 +514,7 @@ const orchardModuleChildRoutes: Partial<Record<AdminTab, Record<string, AdminTab
     'Returns / Refunds': 'billing',
   },
   logistics: {
-    eFruitMandi: 'logistics',
-    'India Post': 'logistics',
-    Delivery: 'logistics',
-    AWS: 'logistics',
-    Potter: 'logistics',
+    ...Object.fromEntries(logisticsCourierPartners.map((partner) => [partner, 'logistics' as AdminTab])),
   },
   financials: {
     Expenses: 'expenses',
@@ -2509,13 +2525,7 @@ function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: (
           icon: 'purchase',
           tab: 'logistics',
           count: counts.logistics,
-          children: [
-            { label: 'eFruitMandi', tab: 'logistics' },
-            { label: 'India Post', tab: 'logistics' },
-            { label: 'Delivery', tab: 'logistics' },
-            { label: 'AWS', tab: 'logistics' },
-            { label: 'Potter', tab: 'logistics' },
-          ],
+          children: logisticsCourierPartners.map((partner) => ({ label: partner, tab: 'logistics' as AdminTab })),
         },
         {
           label: 'Financials',
@@ -5208,7 +5218,7 @@ function LogisticsControlPanel({
   return (
     <RequestSection title="Logistics Control Panel" count={orders.length}>
       {notice && <div className="rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm font-bold text-emerald-300">{notice}</div>}
-      <LogisticsProviderPanel activePage={activePage} orders={orders} />
+      <LogisticsProviderPanel activePage={activePage} orders={orders} onBookOrder={updateLogistics} />
       {orders.map((order) => (
         <article key={order._id} className="rounded-xl border border-slate-800 bg-slate-950 p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -5265,61 +5275,207 @@ function LogisticsControlPanel({
   );
 }
 
-function LogisticsProviderPanel({ activePage, orders }: { activePage: string; orders: AdminOrder[] }) {
-  const providerConfig: Record<string, { text: string; metrics: string[]; actions: string[] }> = {
-    eFruitMandi: {
-      text: 'Marketplace logistics desk for eFruitMandi deals, buyer/grower dispatch coordination, and delivery escalation.',
-      metrics: ['Open Deals', 'Assigned Drivers', 'Escrow Holds', 'Pending Proof'],
-      actions: ['Assign Driver', 'Review Deal', 'Notify Buyer', 'Escalate'],
-    },
-    'India Post': {
-      text: 'India Post booking, test tracking, PIN-based dispatch review, and postal status reconciliation.',
-      metrics: ['Booked', 'Pending Booking', 'Tracking Issued', 'Failed'],
-      actions: ['Book Consignment', 'Retry Booking', 'Update Tracking', 'Print Label'],
-    },
-    Delivery: {
-      text: 'Operational delivery queue for manual updates, in-transit consignments, buyer confirmation, and settlement unlock.',
-      metrics: ['Placed', 'In Transit', 'Delivered', 'Closed'],
-      actions: ['Start Delivery', 'Manual Update', 'Confirm OTP', 'Close Deal'],
-    },
-    AWS: {
-      text: 'AWS integration placeholder for storage, events, notifications, or future logistics automation jobs.',
-      metrics: ['Events', 'Jobs', 'Webhook', 'Storage'],
-      actions: ['Configure Endpoint', 'Test Event', 'View Logs', 'Retry Job'],
-    },
-    Potter: {
-      text: 'Potter partner placeholder for local delivery partner mapping, manual booking, and fallback tracking.',
-      metrics: ['Partner Mode', 'Manual Orders', 'Coverage', 'SLA'],
-      actions: ['Map Area', 'Manual Booking', 'Update SLA', 'Contact Partner'],
-    },
+function getLogisticsProviderText(provider: string) {
+  if (provider === 'eFruitMandi') {
+    return 'Own eFruitMandi transporter onboarding, driver assignment, marketplace dispatch, proof collection, and auto-updated order visibility.';
+  }
+  if (provider === 'India Post') {
+    return 'India Post parcel booking workspace with manual entry today and API-ready setup for automatic postal booking and tracking.';
+  }
+  if (provider === 'AWS') {
+    return 'AWS event, storage, webhook, and notification workflow for logistics automation jobs and partner callbacks.';
+  }
+  if (provider === 'Manual Delivery') {
+    return 'Manual local delivery desk for staff, field dispatch, customer confirmation, and non-integrated courier handling.';
+  }
+  return `${provider} courier workspace for manual order placement, automatic API setup, tracking updates, labels, manifests, and COD/service configuration.`;
+}
+
+function getProviderStorageKey(provider: string) {
+  return `orchard_logistics_provider_${provider.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`;
+}
+
+type LogisticsProviderSetup = {
+  mode: 'AUTOMATIC' | 'MANUAL';
+  apiKey: string;
+  accountCode: string;
+  pickupPincode: string;
+  serviceType: string;
+  codEnabled: boolean;
+};
+
+const defaultProviderSetup = (provider: string): LogisticsProviderSetup => ({
+  mode: provider === 'eFruitMandi' ? 'AUTOMATIC' : 'MANUAL',
+  apiKey: '',
+  accountCode: '',
+  pickupPincode: '175029',
+  serviceType: provider === 'India Post' ? 'Speed Post Parcel' : provider === 'eFruitMandi' ? 'Own Transport' : 'Surface',
+  codEnabled: false,
+});
+
+function readProviderSetup(provider: string): LogisticsProviderSetup {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(getProviderStorageKey(provider)) || 'null');
+    return { ...defaultProviderSetup(provider), ...(parsed || {}) };
+  } catch {
+    return defaultProviderSetup(provider);
+  }
+}
+
+function LogisticsProviderPanel({
+  activePage,
+  orders,
+  onBookOrder,
+}: {
+  activePage: string;
+  orders: AdminOrder[];
+  onBookOrder: (order: AdminOrder, payload: Partial<AdminOrder>) => void;
+}) {
+  const provider = logisticsCourierPartners.includes(activePage) ? activePage : 'eFruitMandi';
+  const providerOrders = orders.filter((order) => (order.courierPartner || 'India Post') === provider);
+  const pendingOrders = orders.filter((order) => !order.trackingNumber || ['PENDING', 'PLACED'].includes(order.deliveryStatus || 'PLACED'));
+  const [setup, setSetup] = useState<LogisticsProviderSetup>(() => readProviderSetup(provider));
+  const [selectedOrderId, setSelectedOrderId] = useState(pendingOrders[0]?._id || orders[0]?._id || '');
+  const [bookingDraft, setBookingDraft] = useState({
+    weightKg: '1',
+    declaredValue: '',
+    packageType: 'Parcel',
+    note: '',
+  });
+  const [localNotice, setLocalNotice] = useState('');
+
+  useEffect(() => {
+    setSetup(readProviderSetup(provider));
+    setSelectedOrderId(pendingOrders[0]?._id || orders[0]?._id || '');
+    setLocalNotice('');
+  }, [provider, orders.length]);
+
+  const selectedOrder = orders.find((order) => order._id === selectedOrderId);
+  const updateSetup = (field: keyof LogisticsProviderSetup, value: string | boolean) =>
+    setSetup((current) => ({ ...current, [field]: value }));
+  const saveSetup = () => {
+    localStorage.setItem(getProviderStorageKey(provider), JSON.stringify(setup));
+    setLocalNotice(`${provider} setup saved.`);
   };
-  const config = providerConfig[activePage] || providerConfig.eFruitMandi;
+  const bookSelectedOrder = () => {
+    if (!selectedOrder) {
+      setLocalNotice('Select an order before booking.');
+      return;
+    }
+    const trackingPrefix = provider === 'India Post' ? 'IP' : provider === 'eFruitMandi' ? 'EFM' : provider.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4) || 'SHIP';
+    const trackingNumber = `${trackingPrefix}${Date.now().toString().slice(-10)}`;
+    onBookOrder(selectedOrder, {
+      courierPartner: provider,
+      deliveryPartnerSelection: setup.mode,
+      courierBookingStatus: setup.mode === 'AUTOMATIC' ? 'API_BOOKED' : 'MANUAL_BOOKED',
+      trackingNumber,
+      deliveryStatus: 'IN_TRANSIT',
+    });
+    setLocalNotice(`${provider} booking created for ${selectedOrder.invoiceNumber || selectedOrder._id}.`);
+  };
+  const printLabel = () => {
+    if (!selectedOrder) {
+      setLocalNotice('Select an order before printing label.');
+      return;
+    }
+    const label = [
+      `${provider} Shipping Label`,
+      `Invoice: ${selectedOrder.invoiceNumber || selectedOrder._id}`,
+      `Customer: ${selectedOrder.customer?.name || 'Customer'} ${selectedOrder.customer?.phone || ''}`,
+      `To: ${selectedOrder.shippingAddress?.city || ''}, ${selectedOrder.shippingAddress?.state || ''} ${selectedOrder.shippingAddress?.pinCode || ''}`,
+      `Service: ${setup.serviceType}`,
+      `Weight: ${bookingDraft.weightKg} kg`,
+      `Tracking: ${selectedOrder.trackingNumber || 'Generated after booking'}`,
+    ].join('\n');
+    const printable = window.open('', '_blank', 'width=720,height=560');
+    if (!printable) return;
+    printable.document.write(`<pre style="font:15px/1.5 system-ui;white-space:pre-wrap">${label}</pre>`);
+    printable.document.close();
+    printable.print();
+  };
+  const createManifest = () => {
+    const manifest = providerOrders.map((order) => ({
+      invoiceNumber: order.invoiceNumber || order._id,
+      customer: order.customer?.name || 'Customer',
+      trackingNumber: order.trackingNumber || '',
+      status: order.deliveryStatus || 'PLACED',
+    }));
+    const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${provider.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-manifest.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setLocalNotice(`${provider} manifest exported.`);
+  };
+  const bookedCount = providerOrders.filter((order) => order.trackingNumber).length;
+  const autoReady = provider === 'eFruitMandi' || (setup.mode === 'AUTOMATIC' && (setup.apiKey || provider === 'AWS'));
 
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-950 p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-black uppercase tracking-wide text-emerald-300">Logistics Sub Option</p>
-          <h3 className="mt-1 text-lg font-black text-white">{activePage}</h3>
-          <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-400">{config.text}</p>
+          <h3 className="mt-1 text-lg font-black text-white">{provider}</h3>
+          <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-400">{getLogisticsProviderText(provider)}</p>
         </div>
-        <span className="rounded-full bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-300">{orders.length} orders</span>
+        <span className="rounded-full bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-300">{providerOrders.length} mapped orders</span>
       </div>
       <div className="mt-4 grid gap-3 md:grid-cols-4">
-        {config.metrics.map((metric, index) => (
+        {[
+          ['Open Orders', pendingOrders.length],
+          ['Provider Booked', bookedCount],
+          ['Setup Mode', setup.mode],
+          ['Auto Ready', autoReady ? 'Yes' : 'No'],
+        ].map(([metric, value]) => (
           <div key={metric} className="rounded-lg border border-slate-800 bg-slate-900 p-3">
             <p className="text-xs font-bold text-slate-500">{metric}</p>
-            <p className="mt-1 text-xl font-black text-white">{index === 0 ? orders.length : 0}</p>
+            <p className="mt-1 text-xl font-black text-white">{value}</p>
           </div>
         ))}
       </div>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {config.actions.map((action) => (
-          <button key={action} type="button" className="rounded-lg bg-slate-800 px-3 py-2 text-xs font-bold text-white hover:bg-slate-700">
-            {action}
-          </button>
-        ))}
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        <div className="rounded-xl border border-slate-800 bg-slate-900 p-3">
+          <p className="text-sm font-black text-white">{provider === 'eFruitMandi' ? 'Own Transport Auto Sync' : 'Partner Setup'}</p>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <AdminSelect label="Booking Mode" value={setup.mode} options={['AUTOMATIC', 'MANUAL']} onChange={(value) => updateSetup('mode', value)} disabled={provider === 'eFruitMandi'} />
+            <AdminInput label="Pickup PIN" value={setup.pickupPincode} onChange={(value) => updateSetup('pickupPincode', value)} placeholder="175029" />
+            {provider !== 'eFruitMandi' && <AdminInput label="API Key / Token" value={setup.apiKey} onChange={(value) => updateSetup('apiKey', value)} placeholder={`${provider} API token`} />}
+            {provider !== 'eFruitMandi' && <AdminInput label="Account Code" value={setup.accountCode} onChange={(value) => updateSetup('accountCode', value)} placeholder="Partner account code" />}
+            <AdminInput label="Service Type" value={setup.serviceType} onChange={(value) => updateSetup('serviceType', value)} placeholder="Surface / Express / Speed Post" />
+            <label className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm font-bold text-slate-300">
+              <input type="checkbox" checked={setup.codEnabled} onChange={(event) => updateSetup('codEnabled', event.target.checked)} />
+              COD enabled
+            </label>
+          </div>
+          <button type="button" onClick={saveSetup} className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-500">Save Setup</button>
+        </div>
+        <div className="rounded-xl border border-slate-800 bg-slate-900 p-3">
+          <p className="text-sm font-black text-white">Manual / API Booking</p>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <label className="block text-sm font-bold text-slate-300 md:col-span-2">
+              Order
+              <select value={selectedOrderId} onChange={(event) => setSelectedOrderId(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400">
+                <option value="">Select order</option>
+                {orders.map((order) => (
+                  <option key={order._id} value={order._id}>{order.invoiceNumber || order._id} - {order.customer?.name || 'Customer'}</option>
+                ))}
+              </select>
+            </label>
+            <AdminInput label="Weight kg" value={bookingDraft.weightKg} onChange={(value) => setBookingDraft((current) => ({ ...current, weightKg: value }))} placeholder="1" type="number" />
+            <AdminInput label="Declared Value" value={bookingDraft.declaredValue} onChange={(value) => setBookingDraft((current) => ({ ...current, declaredValue: value }))} placeholder="Order value" type="number" />
+            <AdminInput label="Package Type" value={bookingDraft.packageType} onChange={(value) => setBookingDraft((current) => ({ ...current, packageType: value }))} placeholder="Parcel" />
+            <AdminInput label="Booking Note" value={bookingDraft.note} onChange={(value) => setBookingDraft((current) => ({ ...current, note: value }))} placeholder="Optional note" />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" onClick={bookSelectedOrder} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500">{setup.mode === 'AUTOMATIC' ? 'Place API Order' : 'Save Manual Booking'}</button>
+            <button type="button" onClick={printLabel} className="rounded-lg bg-slate-800 px-3 py-2 text-xs font-bold text-white hover:bg-slate-700">Print Label</button>
+            <button type="button" onClick={createManifest} className="rounded-lg bg-slate-800 px-3 py-2 text-xs font-bold text-white hover:bg-slate-700">Export Manifest</button>
+          </div>
+        </div>
       </div>
+      {localNotice && <div className="mt-3 rounded-lg border border-emerald-900 bg-emerald-950 px-3 py-2 text-xs font-bold text-emerald-200">{localNotice}</div>}
     </section>
   );
 }
