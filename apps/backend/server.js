@@ -19,6 +19,7 @@ import mandiRatesRoutes from "./routes/mandiRatesRoutes.js";
 import verificationRoutes from "./routes/verificationRoutes.js";
 import hsnRoutes from "./routes/hsnRoutes.js";
 import debugRoutes from "./routes/debugRoutes.js";
+import logisticsRoutes from "./routes/logisticsRoutes.js";
 
 import Auction from "./models/Auction.js";
 import Order from "./models/Order.js";
@@ -168,6 +169,7 @@ app.use("/api/mandi-rates", mandiRatesRoutes);
 app.use("/api/verification-requests", verificationRoutes);
 app.use("/api/hsn", hsnRoutes);
 app.use("/api/debug", debugRoutes);
+app.use("/api/logistics", logisticsRoutes);
 
 app.get("/", (req, res) => {
   res.send("API Running...");

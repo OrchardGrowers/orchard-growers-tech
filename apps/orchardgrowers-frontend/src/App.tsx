@@ -2997,17 +2997,27 @@ function AuthPage() {
     try {
       setLoading(true);
       const mobile = normalizeIndianMobile(form.identifier);
-      const res = await API.post<{ message?: string }>("/auth/forgot-password", {
+      const res = await API.post<{ message?: string; requestId?: string; reqId?: string; otpFlow?: string }>("/auth/forgot-password", {
         identifier: mobile || form.identifier,
         platform: "orchardgrowers",
+        ...(mobile ? { recordOnly: true } : {}),
       });
+      if (mobile) {
+        const widgetId = getOrchardWidgetId();
+        const tokenAuth = getOrchardTokenAuth();
+        const result = await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone: mobile });
+        setOtpReqId(result.reqId || res.data.requestId || res.data.reqId || "");
+        setOtpProviderData((result.data as Record<string, unknown>) || null);
+      } else {
+        setOtpReqId(res.data.requestId || res.data.reqId || "");
+        setOtpProviderData(null);
+      }
       setResetMode(true);
       setOtpSent(true);
       setOtpCooldown(60);
-      setOtpReqId("");
       setMessage(res.data.message || "If the account exists, an OTP has been sent.");
     } catch (err: any) {
-      setMessage(err?.response?.data?.msg || err?.message || "Could not send password reset OTP.");
+      setMessage(getMsg91SafeErrorMessage(err, err?.response?.data?.msg || err?.message || "Could not send password reset OTP."));
     } finally {
       setLoading(false);
     }
@@ -3113,11 +3123,27 @@ function AuthPage() {
       try {
         setLoading(true);
         const mobile = normalizeIndianMobile(form.identifier);
+        let resetOtpVerificationToken = "";
+        if (mobile) {
+          if (!otpSent || !otpReqId) {
+            setMessage("Request phone OTP first.");
+            return;
+          }
+          const verified = await API.post<{ otpVerificationToken?: string }>("/auth/verify-mobile-widget-otp", {
+            identifier: mobile,
+            otp: form.otp,
+            reqId: otpReqId,
+            platform: "orchardgrowers",
+            purpose: "forgot-password",
+          });
+          resetOtpVerificationToken = verified.data.otpVerificationToken || "";
+        }
         const res = await API.post("/auth/reset-password", {
           identifier: mobile || form.identifier,
-          otp: form.otp,
+          otp: mobile ? "" : form.otp,
           password: form.password,
           platform: "orchardgrowers",
+          otpVerificationToken: resetOtpVerificationToken,
         });
         setResetMode(false);
         setOtpSent(false);

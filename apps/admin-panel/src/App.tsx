@@ -5192,93 +5192,482 @@ function LogisticsControlPanel({
   onUpdated: () => void;
   activePage: string;
 }) {
-  const [savingId, setSavingId] = useState('');
-  const [notice, setNotice] = useState('');
+  type LogisticsMode = 'manual' | 'automatic';
+  type LogisticsDraft = {
+    _id?: string;
+    orderId: string;
+    platform: string;
+    courierMode: string;
+    selectedCourier: string;
+    courierPriority: string;
+    serviceType: string;
+    pickupDate: string;
+    pickupTimeSlot: string;
+    expectedDeliveryDate: string;
+    awbNumber: string;
+    trackingUrl: string;
+    labelUrl: string;
+    invoiceUrl: string;
+    shipmentStatus: string;
+    customerDetails: Record<string, string>;
+    pickupDetails: Record<string, string>;
+    packageDetails: Record<string, string | boolean>;
+    plantDetails: Record<string, string | boolean>;
+    fruitLotDetails: Record<string, string | boolean>;
+    invoiceDetails: Record<string, string | boolean>;
+    serviceabilityResults: LogisticsRateResult[];
+    rateResults: LogisticsRateResult[];
+  };
+  type LogisticsRateResult = { courier: string; serviceable: boolean; estimatedCost?: number; eta?: string; reason?: string };
 
-  const updateLogistics = async (order: AdminOrder, payload: Partial<AdminOrder>) => {
-    setSavingId(order._id);
+  const platform = activePage === 'eFruitMandi' ? 'efruitmandi' : 'orchardgrowers';
+  const [logisticsOrders, setLogisticsOrders] = useState<LogisticsDraft[]>([]);
+  const [draft, setDraft] = useState<LogisticsDraft>(() => makeLogisticsDraft(platform));
+  const [notice, setNotice] = useState('');
+  const [loadingAction, setLoadingAction] = useState('');
+
+  useEffect(() => {
+    let ignore = false;
+    const loadLogisticsOrders = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/logistics/orders`, { headers: authHeaders });
+        const data = await readResponseJson(res);
+        if (!res.ok) throw new Error(data.msg || 'Could not load logistics orders');
+        if (ignore) return;
+        const nextOrders = (data.orders || []).map((item: Record<string, unknown>) => normalizeLogisticsDraft(item, platform));
+        setLogisticsOrders(nextOrders);
+        const selected = nextOrders.find((item: LogisticsDraft) => item.platform === platform) || nextOrders[0];
+        if (selected) setDraft(selected);
+      } catch (err) {
+        if (!ignore) {
+          const fallback = orders.map((order) => logisticsDraftFromAdminOrder(order, platform));
+          setLogisticsOrders(fallback);
+          setDraft(fallback.find((item) => item.platform === platform) || makeLogisticsDraft(platform));
+          setNotice(err instanceof Error ? err.message : 'Could not load logistics orders');
+        }
+      }
+    };
+    loadLogisticsOrders();
+    return () => {
+      ignore = true;
+    };
+  }, [authHeaders, orders, platform]);
+
+  useEffect(() => {
+    if (draft.platform !== platform) {
+      const selected = logisticsOrders.find((item) => item.platform === platform);
+      setDraft(selected || makeLogisticsDraft(platform));
+    }
+  }, [platform, draft.platform, logisticsOrders]);
+
+  const visibleOrders = logisticsOrders.filter((item) => item.platform === platform);
+  const volumetricWeightKg = calculateVolumetricWeight(draft.packageDetails.lengthCm, draft.packageDetails.widthCm, draft.packageDetails.heightCm);
+
+  const updateRoot = (field: keyof LogisticsDraft, value: string | LogisticsRateResult[]) =>
+    setDraft((current) => ({ ...current, [field]: value }));
+  const updateGroup = (group: 'customerDetails' | 'pickupDetails' | 'packageDetails' | 'plantDetails' | 'fruitLotDetails' | 'invoiceDetails', field: string, value: string | boolean) =>
+    setDraft((current) => ({ ...current, [group]: { ...current[group], [field]: value } }));
+  const updateMode = (mode: LogisticsMode) => {
+    setDraft((current) => ({
+      ...current,
+      courierMode: mode,
+      selectedCourier: mode === 'automatic' ? '' : current.selectedCourier || 'India Post',
+      courierPriority: mode === 'automatic' ? current.courierPriority || 'Cheapest' : 'Manual',
+    }));
+  };
+  const logisticsRequest = async (path: string, payload?: Record<string, unknown>, method = 'POST') => {
+    const res = await fetch(`${API_BASE}/logistics${path}`, {
+      method,
+      headers: { ...authHeaders, 'Content-Type': 'application/json' },
+      body: method === 'GET' ? undefined : JSON.stringify(payload || draft),
+    });
+    const data = await readResponseJson(res);
+    if (!res.ok) throw new Error(data.msg || 'Logistics request failed');
+    return data;
+  };
+  const runAction = async (action: string, task: () => Promise<void>) => {
+    setLoadingAction(action);
     setNotice('');
     try {
-      const res = await fetch(`${API_BASE}/admin/orders/${order._id}/logistics`, {
-        method: 'PATCH',
-        headers: { ...authHeaders, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await readResponseJson(res);
-      if (!res.ok) throw new Error(data.msg || 'Could not update logistics');
-      setNotice('Logistics updated.');
+      await task();
       onUpdated();
     } catch (err) {
-      setNotice(err instanceof Error ? err.message : 'Could not update logistics');
+      setNotice(err instanceof Error ? err.message : 'Logistics action failed');
     } finally {
-      setSavingId('');
+      setLoadingAction('');
     }
+  };
+  const syncShipment = (shipment: Record<string, unknown>) => {
+    const normalized = normalizeLogisticsDraft(shipment, platform);
+    setDraft(normalized);
+    setLogisticsOrders((current) => {
+      const key = `${normalized.platform}:${normalized.orderId}`;
+      const without = current.filter((item) => `${item.platform}:${item.orderId}` !== key);
+      return [normalized, ...without];
+    });
+  };
+  const validateDraft = () => {
+    const checks = [
+      [draft.orderId, 'Order ID'],
+      [draft.customerDetails.customerName, 'Customer name'],
+      [draft.customerDetails.phone, 'Mobile'],
+      [draft.customerDetails.addressLine1, 'Full address'],
+      [draft.customerDetails.city, 'City'],
+      [draft.customerDetails.state, 'State'],
+      [draft.customerDetails.pincode, 'Pincode'],
+      [draft.pickupDetails.pickupAddress, 'Pickup address'],
+      [draft.pickupDetails.pickupPincode, 'Pickup pincode'],
+      [draft.packageDetails.productName, 'Product name'],
+      [draft.packageDetails.quantity, 'Quantity'],
+      [draft.packageDetails.deadWeightKg, 'Weight'],
+      [draft.packageDetails.lengthCm, 'Length'],
+      [draft.packageDetails.widthCm, 'Width'],
+      [draft.packageDetails.heightCm, 'Height'],
+      [draft.invoiceDetails.orderAmount, 'Order value'],
+      [draft.invoiceDetails.paymentMode, 'Payment mode'],
+    ];
+    const missing = checks.filter(([value]) => !String(value || '').trim()).map(([, label]) => label);
+    if (draft.courierMode === 'manual' && !draft.selectedCourier) missing.push('Courier partner');
+    return missing;
+  };
+  const checkServiceability = () => runAction('serviceability', async () => {
+    const data = await logisticsRequest('/serviceability', { ...draft, packageDetails: { ...draft.packageDetails, volumetricWeightKg } });
+    updateRoot('serviceabilityResults', data.results || []);
+    syncShipment(data.shipment);
+    setNotice('Serviceability checked.');
+  });
+  const estimateCost = () => runAction('rates', async () => {
+    const data = await logisticsRequest('/rates', { ...draft, packageDetails: { ...draft.packageDetails, volumetricWeightKg } });
+    setDraft((current) => ({ ...normalizeLogisticsDraft(data.shipment, platform), rateResults: data.results || [], selectedCourier: data.selectedCourier || current.selectedCourier }));
+    setNotice('Courier rates estimated.');
+  });
+  const bookShipment = () => runAction('book', async () => {
+    const missing = validateDraft();
+    if (missing.length) throw new Error(`Required before booking: ${missing.join(', ')}`);
+    const data = await logisticsRequest(draft.courierMode === 'manual' ? '/manual-book' : '/book', { ...draft, packageDetails: { ...draft.packageDetails, volumetricWeightKg } });
+    syncShipment(data.shipment);
+    setNotice(`Shipment booked. AWB: ${data.shipment?.awbNumber || data.booking?.awbNumber || 'Generated'}`);
+  });
+  const generateLabel = () => runAction('label', async () => {
+    const id = draft._id || draft.awbNumber;
+    if (!id) throw new Error('Book shipment before generating label.');
+    const data = await logisticsRequest(`/label/${encodeURIComponent(id)}`, undefined, 'GET');
+    setDraft((current) => ({ ...current, labelUrl: data.labelUrl || data.label?.labelUrl || current.labelUrl, shipmentStatus: 'Label Generated' }));
+    setNotice('Label generated.');
+  });
+  const trackShipment = () => runAction('track', async () => {
+    const id = draft._id || draft.awbNumber;
+    if (!id) throw new Error('Book shipment before tracking.');
+    const data = await logisticsRequest(`/track/${encodeURIComponent(id)}`, undefined, 'GET');
+    setDraft((current) => ({ ...current, shipmentStatus: data.tracking?.status || current.shipmentStatus }));
+    setNotice(`Tracking status: ${data.tracking?.status || 'Updated'}`);
+  });
+  const cancelShipment = () => runAction('cancel', async () => {
+    const id = draft._id || draft.awbNumber;
+    if (!id) throw new Error('Book shipment before cancellation.');
+    await logisticsRequest(`/cancel/${encodeURIComponent(id)}`, {});
+    setDraft((current) => ({ ...current, shipmentStatus: 'Cancelled' }));
+    setNotice('Shipment cancelled.');
+  });
+  const saveDraft = () => runAction('draft', async () => {
+    const data = await logisticsRequest('/manual-book', { ...draft, courierMode: 'manual' });
+    syncShipment(data.shipment);
+    setNotice('Draft saved.');
+  });
+  const printUrl = (url: string, title: string) => {
+    const printable = window.open('', '_blank', 'width=720,height=560');
+    if (!printable) return;
+    printable.document.write(`<pre style="font:15px/1.5 system-ui;white-space:pre-wrap">${title}\n${url || 'Mock document will be generated after booking.'}</pre>`);
+    printable.document.close();
+    printable.print();
   };
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-bold text-white">Logistics Control Panel</h2>
-        <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-bold text-emerald-300">{orders.length}</span>
+    <section className="rounded-2xl border border-slate-800 bg-slate-900">
+      <div className="border-b border-slate-800 px-4 py-3">
+        <h2 className="text-lg font-bold text-white">Action Panel</h2>
       </div>
-      <div className="space-y-4">
-      {notice && <div className="rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm font-bold text-emerald-300">{notice}</div>}
-      <LogisticsProviderPanel activePage={activePage} orders={orders} onBookOrder={updateLogistics} />
-      {orders.length > 0 ? orders.map((order) => (
-        <article key={order._id} className="rounded-xl border border-slate-800 bg-slate-950 p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <div className="space-y-4 p-4">
+        {notice && <div className={`rounded-xl border p-3 text-sm font-bold ${/failed|required|could not|no serviceable/i.test(notice) ? 'border-red-900 bg-red-950 text-red-200' : 'border-emerald-900 bg-emerald-950 text-emerald-200'}`}>{notice}</div>}
+        <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h3 className="text-base font-bold text-white">{order.invoiceNumber || order._id}</h3>
-              <p className="mt-1 text-sm font-semibold text-slate-400">
-                {order.customer?.name || 'Customer'} - {order.customer?.phone || 'No phone'}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                {order.shippingAddress?.city || 'City'}, {order.shippingAddress?.state || 'State'} {order.shippingAddress?.pinCode || ''}
-              </p>
+              <p className="text-xs font-black uppercase text-emerald-300">Order Details</p>
+              <h3 className="mt-1 text-xl font-black text-white">{activePage}</h3>
             </div>
-            <div className="text-left lg:text-right">
-              <p className="text-xs font-bold text-slate-400">Payment</p>
-              <p className="text-sm font-black text-emerald-300">{order.paymentStatus || 'PENDING'}</p>
+            <div className="flex flex-wrap gap-4 text-sm font-bold text-slate-300">
+              <label className="flex items-center gap-2"><input type="radio" checked={draft.courierMode === 'manual'} onChange={() => updateMode('manual')} /> Manual</label>
+              <label className="flex items-center gap-2"><input type="radio" checked={draft.courierMode === 'automatic'} onChange={() => updateMode('automatic')} /> Automatic</label>
+              <StatusBadge status={draft.shipmentStatus || 'Draft'} />
             </div>
           </div>
-          <div className="mt-4 grid gap-3 lg:grid-cols-4">
-            <AdminSelect
-              label="Delivery Mode"
-              value={order.deliveryPartnerSelection || 'AUTOMATIC'}
-              options={['AUTOMATIC', 'MANUAL']}
-              onChange={(value) => updateLogistics(order, { deliveryPartnerSelection: value })}
-              disabled={savingId === order._id}
-            />
-            <AdminSelect
-              label="Courier Partner"
-              value={order.courierPartner || 'India Post'}
-              options={logisticsCourierPartners}
-              onChange={(value) => updateLogistics(order, { courierPartner: value })}
-              disabled={savingId === order._id}
-            />
-            <AdminInlineInput
-              label="Tracking Number"
-              value={order.trackingNumber || ''}
-              onSave={(value) => updateLogistics(order, { trackingNumber: value })}
-              disabled={savingId === order._id}
-            />
-            <AdminSelect
-              label="Delivery Status"
-              value={order.deliveryStatus || 'PLACED'}
-              options={['PLACED', 'PENDING', 'IN_TRANSIT', 'DELIVERED']}
-              onChange={(value) => updateLogistics(order, { deliveryStatus: value })}
-              disabled={savingId === order._id}
-            />
+          <div className="mt-4 overflow-x-auto rounded-lg border border-slate-800">
+            <table className="min-w-[1400px] w-full text-left text-xs">
+              <thead className="bg-black text-white">
+                <tr>{['Order ID', 'Platform', 'Customer Name', 'Mobile', 'Pincode', 'City', 'State', 'Product Type', 'Weight', 'Package Size', 'Payment Mode', 'Order Value', 'Courier', 'AWB', 'Status', 'Action'].map((head) => <th key={head} className="px-3 py-2">{head}</th>)}</tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {visibleOrders.length ? visibleOrders.map((item) => (
+                  <tr key={`${item.platform}-${item.orderId}`} onClick={() => setDraft(item)} className={`cursor-pointer text-slate-300 hover:bg-slate-900 ${draft.orderId === item.orderId ? 'bg-emerald-950/40' : 'bg-slate-950'}`}>
+                    <td className="px-3 py-2 font-bold text-white">{item.orderId}</td>
+                    <td className="px-3 py-2">{formatLogisticsPlatform(item.platform)}</td>
+                    <td className="px-3 py-2">{item.customerDetails.customerName || '-'}</td>
+                    <td className="px-3 py-2">{item.customerDetails.phone || '-'}</td>
+                    <td className="px-3 py-2">{item.customerDetails.pincode || '-'}</td>
+                    <td className="px-3 py-2">{item.customerDetails.city || '-'}</td>
+                    <td className="px-3 py-2">{item.customerDetails.state || '-'}</td>
+                    <td className="px-3 py-2">{item.packageDetails.productCategory || item.packageDetails.productName || '-'}</td>
+                    <td className="px-3 py-2">{String(item.packageDetails.deadWeightKg || '-')}</td>
+                    <td className="px-3 py-2">{packageSizeLabel(item)}</td>
+                    <td className="px-3 py-2">{String(item.invoiceDetails.paymentMode || '-')}</td>
+                    <td className="px-3 py-2">Rs. {String(item.invoiceDetails.orderAmount || item.invoiceDetails.totalInvoiceValue || 0)}</td>
+                    <td className="px-3 py-2">{item.selectedCourier || '-'}</td>
+                    <td className="px-3 py-2">{item.awbNumber || '-'}</td>
+                    <td className="px-3 py-2"><StatusBadge status={item.shipmentStatus || 'Draft'} /></td>
+                    <td className="px-3 py-2"><button type="button" className="rounded bg-emerald-600 px-2 py-1 text-white">Create Shipment</button></td>
+                  </tr>
+                )) : (
+                  <tr><td colSpan={16} className="px-3 py-6 text-center font-bold text-slate-400">No logistics orders found for this platform.</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
-          <div className="mt-3 grid gap-2 text-sm text-slate-300 md:grid-cols-3">
-            <Info label="Booking" value={order.courierBookingStatus || 'PENDING'} />
-            <Info label="Platform" value={(order.courierPartner || '').toLowerCase() === 'efruitmandi' ? 'eFruitMandi' : 'Orchard Growers'} />
-            <Info label="Tracking" value={order.trackingNumber || 'Not assigned'} />
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          <FormGroup title="Customer / Consignee Details">
+            {renderInputs(['customerName', 'phone', 'alternatePhone', 'email', 'addressLine1', 'addressLine2', 'landmark', 'city', 'district', 'state', 'pincode', 'country'], draft.customerDetails, (field, value) => updateGroup('customerDetails', field, value))}
+          </FormGroup>
+          <FormGroup title="Seller / Pickup Details">
+            {renderInputs(['sellerName', 'pickupContactName', 'pickupPhone', 'pickupEmail', 'pickupAddress', 'pickupCity', 'pickupDistrict', 'pickupState', 'pickupPincode', 'gstNumber', 'warehouseName'], draft.pickupDetails, (field, value) => updateGroup('pickupDetails', field, value))}
+          </FormGroup>
+          <FormGroup title="Shipment / Package Details">
+            <AdminInput label="Product Name" value={String(draft.packageDetails.productName || '')} onChange={(value) => updateGroup('packageDetails', 'productName', value)} placeholder="Product name" />
+            {renderInputs(['sku', 'hsn', 'quantity', 'productCategory'], draft.packageDetails, (field, value) => updateGroup('packageDetails', field, value))}
+            <AdminSelect label="Package Type" value={String(draft.packageDetails.packageType || 'Box')} options={['Box', 'Bag', 'Crate', 'Bundle']} onChange={(value) => updateGroup('packageDetails', 'packageType', value)} />
+            {renderInputs(['deadWeightKg', 'lengthCm', 'widthCm', 'heightCm'], draft.packageDetails, (field, value) => updateGroup('packageDetails', field, value), 'number')}
+            <AdminInput label="Volumetric Weight kg" value={volumetricWeightKg} onChange={() => undefined} placeholder="auto" disabled />
+            {renderChecks(['fragile', 'perishable', 'temperatureSensitive'], draft.packageDetails, (field, value) => updateGroup('packageDetails', field, value))}
+            <AdminInput label="Special Handling Instructions" value={String(draft.packageDetails.specialHandlingInstructions || '')} onChange={(value) => updateGroup('packageDetails', 'specialHandlingInstructions', value)} placeholder="Instructions" />
+          </FormGroup>
+          <FormGroup title={platform === 'efruitmandi' ? 'eFruitMandi Fruit Lot Extra Fields' : 'Orchard Growers Plant Shipment Extra Fields'}>
+            {platform === 'efruitmandi' ? (
+              <>
+                {renderInputs(['lotId', 'crateCount', 'netWeight', 'grossWeight', 'harvestDate', 'grade', 'temperatureRequirement'], draft.fruitLotDetails, (field, value) => updateGroup('fruitLotDetails', field, value))}
+                {renderChecks(['completeLotOnly'], draft.fruitLotDetails, (field, value) => updateGroup('fruitLotDetails', field, value))}
+              </>
+            ) : (
+              <>
+                {renderInputs(['plantType', 'plantAge', 'potSize', 'bareRootOrPotted'], draft.plantDetails, (field, value) => updateGroup('plantDetails', field, value))}
+                {renderChecks(['wateredBeforeDispatch', 'plantHealthVerified', 'phytosanitaryRequired'], draft.plantDetails, (field, value) => updateGroup('plantDetails', field, value))}
+              </>
+            )}
+          </FormGroup>
+          <FormGroup title="Invoice / Value / Payment">
+            {renderInputs(['orderAmount', 'shippingCharge', 'codAmount', 'prepaidAmount', 'gstAmount', 'totalInvoiceValue', 'invoiceNumber', 'invoiceDate'], draft.invoiceDetails, (field, value) => updateGroup('invoiceDetails', field, value))}
+            <AdminSelect label="Payment Mode" value={String(draft.invoiceDetails.paymentMode || 'Prepaid')} options={['Prepaid', 'COD', 'Escrow', 'Manual']} onChange={(value) => updateGroup('invoiceDetails', 'paymentMode', value)} />
+            {renderChecks(['insuranceRequired'], draft.invoiceDetails, (field, value) => updateGroup('invoiceDetails', field, value))}
+            <AdminInput label="Insurance Value" value={String(draft.invoiceDetails.insuranceValue || '')} onChange={(value) => updateGroup('invoiceDetails', 'insuranceValue', value)} placeholder="0" type="number" />
+          </FormGroup>
+          <FormGroup title="Courier Selection">
+            <AdminSelect label="Courier Partner" value={draft.selectedCourier || ''} options={['', 'India Post', 'Delhivery', 'Porter', 'DTDC', 'Blue Dart', 'Xpressbees', 'Shadowfax', 'Ecom Express', 'Shiprocket', 'Manual Other']} onChange={(value) => updateRoot('selectedCourier', value)} disabled={draft.courierMode === 'automatic'} />
+            <AdminSelect label="Service Type" value={draft.serviceType || 'Standard'} options={['Standard', 'Express', 'Same Day', 'Surface', 'Air', 'Local Delivery']} onChange={(value) => updateRoot('serviceType', value)} />
+            <AdminInput label="Pickup Date" value={draft.pickupDate || ''} onChange={(value) => updateRoot('pickupDate', value)} placeholder="YYYY-MM-DD" type="date" />
+            <AdminInput label="Pickup Time Slot" value={draft.pickupTimeSlot || ''} onChange={(value) => updateRoot('pickupTimeSlot', value)} placeholder="10:00-14:00" />
+            <AdminInput label="Expected Delivery Date" value={draft.expectedDeliveryDate || ''} onChange={(value) => updateRoot('expectedDeliveryDate', value)} placeholder="YYYY-MM-DD" type="date" />
+            <AdminSelect label="Courier Priority" value={draft.courierPriority || 'Cheapest'} options={['Cheapest', 'Fastest', 'Best Rated', 'Manual']} onChange={(value) => updateRoot('courierPriority', value)} disabled={draft.courierMode === 'manual'} />
+            {draft.courierMode === 'manual' && <AdminInput label="Manual AWB" value={draft.awbNumber || ''} onChange={(value) => updateRoot('awbNumber', value)} placeholder="External AWB" />}
+            {draft.courierMode === 'manual' && <AdminInput label="Manual Tracking URL" value={draft.trackingUrl || ''} onChange={(value) => updateRoot('trackingUrl', value)} placeholder="https://..." />}
+          </FormGroup>
+        </div>
+
+        {draft.courierMode === 'automatic' && (
+          <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+            <p className="text-sm font-black text-white">Automatic Courier Comparison</p>
+            <div className="mt-3 overflow-x-auto">
+              <table className="min-w-[680px] w-full text-left text-xs">
+                <thead className="bg-slate-900 text-slate-300"><tr>{['Courier', 'Serviceable', 'Estimated Cost', 'ETA', 'Reason if unavailable'].map((head) => <th key={head} className="px-3 py-2">{head}</th>)}</tr></thead>
+                <tbody className="divide-y divide-slate-800">
+                  {(draft.rateResults.length ? draft.rateResults : draft.serviceabilityResults).map((result) => (
+                    <tr key={result.courier} className="text-slate-300">
+                      <td className="px-3 py-2 font-bold text-white">{result.courier}</td>
+                      <td className="px-3 py-2">{result.serviceable ? 'Yes' : 'No'}</td>
+                      <td className="px-3 py-2">{result.estimatedCost ? `Rs. ${result.estimatedCost}` : '-'}</td>
+                      <td className="px-3 py-2">{result.eta || '-'}</td>
+                      <td className="px-3 py-2">{result.reason || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </article>
-      )) : <EmptyState label="No orders yet. Courier setup, eFruitMandi driver tracking, and India Post pickup controls are still available above." />}
+        )}
+
+        <div className="sticky bottom-0 z-10 rounded-xl border border-slate-800 bg-slate-950 p-3">
+          <p className="mb-3 text-sm font-black text-white">Buttons Tab</p>
+          <div className="flex flex-wrap gap-2">
+            <LogisticsButton label="Check Serviceability" loading={loadingAction === 'serviceability'} onClick={checkServiceability} />
+            <LogisticsButton label="Estimate Cost" loading={loadingAction === 'rates'} onClick={estimateCost} />
+            <LogisticsButton label="Book Shipment" loading={loadingAction === 'book'} onClick={bookShipment} />
+            <LogisticsButton label="Generate Label" loading={loadingAction === 'label'} onClick={generateLabel} />
+            <LogisticsButton label="Generate Invoice" onClick={() => setDraft((current) => ({ ...current, invoiceUrl: `/api/logistics/invoice/${current._id || current.orderId}` }))} />
+            <LogisticsButton label="Track Shipment" loading={loadingAction === 'track'} onClick={trackShipment} />
+            <LogisticsButton label="Cancel Shipment" loading={loadingAction === 'cancel'} onClick={cancelShipment} />
+            <LogisticsButton label="Reassign Courier" onClick={() => updateMode('manual')} />
+            <LogisticsButton label="Print Label" onClick={() => printUrl(draft.labelUrl, 'Shipping Label')} />
+            <LogisticsButton label="Print Invoice" onClick={() => printUrl(draft.invoiceUrl, 'Invoice')} />
+            <LogisticsButton label="Save Draft" loading={loadingAction === 'draft'} onClick={saveDraft} />
+          </div>
+          {(draft.awbNumber || draft.trackingUrl || draft.labelUrl) && (
+            <div className="mt-3 grid gap-2 text-xs text-slate-300 md:grid-cols-3">
+              <Info label="AWB" value={draft.awbNumber || 'Pending'} />
+              <Info label="Tracking URL" value={draft.trackingUrl || 'Pending'} />
+              <Info label="Label" value={draft.labelUrl || 'Pending'} />
+            </div>
+          )}
+        </div>
       </div>
     </section>
+  );
+}
+
+function makeLogisticsDraft(platform: string) {
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    orderId: `DRAFT-${Date.now().toString().slice(-6)}`,
+    platform: platform === 'efruitmandi' ? 'efruitmandi' : 'orchardgrowers',
+    courierMode: 'manual',
+    selectedCourier: 'India Post',
+    courierPriority: 'Manual',
+    serviceType: 'Standard',
+    pickupDate: today,
+    pickupTimeSlot: '10:00-14:00',
+    expectedDeliveryDate: '',
+    awbNumber: '',
+    trackingUrl: '',
+    labelUrl: '',
+    invoiceUrl: '',
+    shipmentStatus: 'Draft',
+    customerDetails: { customerName: '', phone: '', alternatePhone: '', email: '', addressLine1: '', addressLine2: '', landmark: '', city: '', district: '', state: '', pincode: '', country: 'India' },
+    pickupDetails: { sellerName: 'Orchard Growers', pickupContactName: 'Dispatch Desk', pickupPhone: '', pickupEmail: '', pickupAddress: '', pickupCity: '', pickupDistrict: '', pickupState: '', pickupPincode: '', gstNumber: '', warehouseName: 'Main Warehouse' },
+    packageDetails: { productName: '', sku: '', hsn: '', quantity: '1', productCategory: '', packageType: 'Box', deadWeightKg: '', lengthCm: '', widthCm: '', heightCm: '', volumetricWeightKg: '', fragile: false, perishable: false, temperatureSensitive: false, specialHandlingInstructions: '' },
+    plantDetails: { plantType: '', plantAge: '', potSize: '', bareRootOrPotted: '', wateredBeforeDispatch: false, plantHealthVerified: false, phytosanitaryRequired: false },
+    fruitLotDetails: { lotId: '', crateCount: '', netWeight: '', grossWeight: '', harvestDate: '', grade: '', completeLotOnly: true, temperatureRequirement: '' },
+    invoiceDetails: { orderAmount: '', shippingCharge: '', codAmount: '', prepaidAmount: '', gstAmount: '', totalInvoiceValue: '', invoiceNumber: '', invoiceDate: today, paymentMode: 'Prepaid', insuranceRequired: false, insuranceValue: '' },
+    serviceabilityResults: [],
+    rateResults: [],
+  };
+}
+
+function normalizeLogisticsDraft(item: Record<string, any>, fallbackPlatform: string) {
+  const base = makeLogisticsDraft(item.platform || fallbackPlatform);
+  return {
+    ...base,
+    ...item,
+    _id: item._id || '',
+    platform: item.platform === 'efruitmandi' ? 'efruitmandi' : 'orchardgrowers',
+    courierMode: item.courierMode === 'automatic' ? 'automatic' : 'manual',
+    selectedCourier: item.selectedCourier || item.courierPartner || base.selectedCourier,
+    customerDetails: { ...base.customerDetails, ...(item.customerDetails || {}) },
+    pickupDetails: { ...base.pickupDetails, ...(item.pickupDetails || {}) },
+    packageDetails: { ...base.packageDetails, ...(item.packageDetails || {}) },
+    plantDetails: { ...base.plantDetails, ...(item.plantDetails || {}) },
+    fruitLotDetails: { ...base.fruitLotDetails, ...(item.fruitLotDetails || {}) },
+    invoiceDetails: { ...base.invoiceDetails, ...(item.invoiceDetails || {}) },
+    serviceabilityResults: item.serviceabilityResults || [],
+    rateResults: item.rateResults || [],
+  };
+}
+
+function logisticsDraftFromAdminOrder(order: AdminOrder, fallbackPlatform: string) {
+  const base = makeLogisticsDraft((order.courierPartner || '').toLowerCase() === 'efruitmandi' ? 'efruitmandi' : fallbackPlatform);
+  const item = order.items?.[0] || {};
+  return normalizeLogisticsDraft({
+    orderId: order.invoiceNumber || order._id,
+    platform: base.platform,
+    customerDetails: {
+      customerName: order.customer?.name || '',
+      phone: order.customer?.phone || '',
+      email: order.customer?.email || '',
+      city: order.shippingAddress?.city || '',
+      state: order.shippingAddress?.state || '',
+      pincode: order.shippingAddress?.pinCode || '',
+      country: 'India',
+    },
+    packageDetails: { productName: item.title || '', quantity: String(item.quantity || 1), packageType: 'Box' },
+    invoiceDetails: { orderAmount: String(order.totalAmount || 0), totalInvoiceValue: String(order.totalAmount || 0), invoiceNumber: order.invoiceNumber || '', paymentMode: order.paymentStatus === 'ESCROW' ? 'Escrow' : 'Prepaid' },
+    selectedCourier: order.courierPartner || 'India Post',
+    courierMode: String(order.deliveryPartnerSelection || '').toLowerCase() === 'manual' ? 'manual' : 'automatic',
+    awbNumber: order.trackingNumber || '',
+    shipmentStatus: order.trackingNumber ? 'Booked' : 'Draft',
+  }, fallbackPlatform);
+}
+
+function calculateVolumetricWeight(length: unknown, width: unknown, height: unknown) {
+  const value = (Number(length) * Number(width) * Number(height)) / 5000;
+  return Number.isFinite(value) && value > 0 ? value.toFixed(2) : '';
+}
+
+function formatLogisticsPlatform(platform: string) {
+  return platform === 'efruitmandi' ? 'eFruitMandi' : 'Orchard Growers';
+}
+
+function packageSizeLabel(item: { packageDetails?: Record<string, string | boolean> }) {
+  const details = item.packageDetails || {};
+  const length = String(details.lengthCm || '');
+  const width = String(details.widthCm || '');
+  const height = String(details.heightCm || '');
+  return length && width && height ? `${length}x${width}x${height} cm` : '-';
+}
+
+function titleFromField(field: string) {
+  return field.replace(/([A-Z])/g, ' $1').replace(/^./, (char) => char.toUpperCase());
+}
+
+function renderInputs(
+  fields: string[],
+  values: Record<string, string | boolean>,
+  onChange: (field: string, value: string) => void,
+  type: string = 'text',
+) {
+  return fields.map((field) => (
+    <AdminInput key={field} label={titleFromField(field)} value={String(values[field] || '')} onChange={(value) => onChange(field, value)} placeholder={titleFromField(field)} type={type} />
+  ));
+}
+
+function renderChecks(fields: string[], values: Record<string, string | boolean>, onChange: (field: string, value: boolean) => void) {
+  return fields.map((field) => (
+    <label key={field} className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm font-bold text-slate-300">
+      <input type="checkbox" checked={Boolean(values[field])} onChange={(event) => onChange(field, event.target.checked)} />
+      {titleFromField(field)}
+    </label>
+  ));
+}
+
+function FormGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
+      <p className="mb-3 text-sm font-black text-white">{title}</p>
+      <div className="grid gap-3 md:grid-cols-2">{children}</div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const danger = ['Cancelled', 'Failed'].includes(status);
+  const success = ['Booked', 'Label Generated', 'Picked Up', 'In Transit', 'Delivered'].includes(status);
+  return (
+    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-black ${danger ? 'bg-red-950 text-red-200' : success ? 'bg-emerald-950 text-emerald-300' : 'bg-slate-800 text-slate-300'}`}>
+      {status}
+    </span>
+  );
+}
+
+function LogisticsButton({ label, loading, onClick }: { label: string; loading?: boolean; onClick: () => void }) {
+  return (
+    <button type="button" disabled={loading} onClick={onClick} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white hover:bg-emerald-500 disabled:opacity-60">
+      {loading ? 'Working...' : label}
+    </button>
   );
 }
 

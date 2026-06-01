@@ -170,6 +170,10 @@ export default function Profile() {
     login: "",
     signup: "",
   });
+  const [mobileOtpFlow, setMobileOtpFlow] = useState({
+    login: "",
+    signup: "",
+  });
   const [mobileOtpSent, setMobileOtpSent] = useState({
     login: false,
     signup: false,
@@ -252,6 +256,10 @@ export default function Profile() {
         login: expiredLogin ? "" : current.login,
         signup: expiredSignup ? "" : current.signup,
       }));
+      setMobileOtpFlow((current) => ({
+        login: expiredLogin ? "" : current.login,
+        signup: expiredSignup ? "" : current.signup,
+      }));
     }, 1000);
 
     return () => window.clearInterval(timer);
@@ -264,6 +272,7 @@ export default function Profile() {
     setVerifiedContact((current) => ({ ...current, [targetMode]: "" }));
     setOtpVerificationToken((current) => ({ ...current, [targetMode]: "" }));
     setMobileOtpReqId((current) => ({ ...current, [targetMode]: "" }));
+    setMobileOtpFlow((current) => ({ ...current, [targetMode]: "" }));
     setMobileOtpSent((current) => ({ ...current, [targetMode]: false }));
     setOtpExpiresAt((current) => ({ ...current, [targetMode]: 0 }));
     setOtpAttemptCount((current) => ({ ...current, [targetMode]: 0 }));
@@ -324,6 +333,7 @@ export default function Profile() {
     setVerifiedContact((current) => ({ ...current, [nextMode]: "" }));
     setOtpVerificationToken((current) => ({ ...current, [nextMode]: "" }));
     setMobileOtpReqId((current) => ({ ...current, [nextMode]: "" }));
+    setMobileOtpFlow((current) => ({ ...current, [nextMode]: "" }));
     setMobileOtpSent((current) => ({ ...current, [nextMode]: false }));
     setOtpExpiresAt((current) => ({ ...current, [nextMode]: 0 }));
     setOtpAttemptCount((current) => ({ ...current, [nextMode]: 0 }));
@@ -346,6 +356,9 @@ export default function Profile() {
       setResetMode(true);
       setVerifiedContact((current) => ({ ...current, login: "" }));
       setOtpVerificationToken((current) => ({ ...current, login: "" }));
+      setMobileOtpReqId((current) => ({ ...current, login: res.data?.reqId || res.data?.requestId || "" }));
+      setMobileOtpFlow((current) => ({ ...current, login: res.data?.otpFlow || "" }));
+      setMobileOtpSent((current) => ({ ...current, login: true }));
       setOtpExpiresAt((current) => ({ ...current, login: Date.now() + OTP_EXPIRY_SECONDS * 1000 }));
       setOtpAttemptCount((current) => ({ ...current, login: 0 }));
       setOtpCooldown((current) => ({ ...current, login: OTP_RESEND_SECONDS }));
@@ -383,6 +396,7 @@ export default function Profile() {
         const phone = normalizeIndianMobile(identifier);
         const result = await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone, mode: targetMode });
         setMobileOtpReqId((current) => ({ ...current, [targetMode]: result.reqId || "" }));
+        setMobileOtpFlow((current) => ({ ...current, [targetMode]: result.data?.otpFlow || "" }));
         setMobileOtpSent((current) => ({ ...current, [targetMode]: true }));
         setOtpCooldown((current) => ({ ...current, [targetMode]: OTP_RESEND_SECONDS }));
         setVerifiedContact((current) => ({ ...current, [targetMode]: "" }));
@@ -397,6 +411,7 @@ export default function Profile() {
       setVerifiedContact((current) => ({ ...current, [targetMode]: "" }));
       setOtpVerificationToken((current) => ({ ...current, [targetMode]: "" }));
       setMobileOtpSent((current) => ({ ...current, [targetMode]: false }));
+      setMobileOtpFlow((current) => ({ ...current, [targetMode]: res.data?.otpFlow || "" }));
       setOtpCooldown((current) => ({ ...current, [targetMode]: OTP_RESEND_SECONDS }));
       setOtpExpiresAt((current) => ({ ...current, [targetMode]: Date.now() + OTP_EXPIRY_SECONDS * 1000 }));
       setOtpAttemptCount((current) => ({ ...current, [targetMode]: 0 }));
@@ -437,7 +452,7 @@ export default function Profile() {
 
     try {
       setLoading(true);
-      if (isPhoneIdentifier(identifier) && otpPurpose === "auth") {
+      if (isPhoneIdentifier(identifier) && (otpPurpose === "auth" || mobileOtpFlow[targetMode] === "widget")) {
         const widgetId = getEfruitMandiWidgetId();
         const tokenAuth = getEfruitMandiTokenAuth();
         const reqId = mobileOtpReqId[targetMode];
@@ -446,7 +461,7 @@ export default function Profile() {
           return;
         }
 
-        const result = await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp: form.otp.trim(), reqId, phone: identifier, mode: targetMode });
+        const result = await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp: form.otp.trim(), reqId, phone: identifier, mode: otpPurpose === "forgot-password" ? "forgot-password" : targetMode });
         if (!result.data?.otpVerificationToken) {
           throw new Error("OTP verification failed.");
         }
