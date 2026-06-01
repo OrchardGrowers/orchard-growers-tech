@@ -31,6 +31,7 @@ const providers = {
 };
 
 export const getProvider = (courier = "") => providers[courier] || createMockProvider(courier || "Manual Other");
+export const getIndiaPostProvider = () => indiaPostProvider;
 
 export const checkAllServiceability = async (payload = {}) =>
   Promise.all(COURIER_PARTNERS.filter((partner) => partner !== "Manual Other").map((partner) => getProvider(partner).checkServiceability(payload)));

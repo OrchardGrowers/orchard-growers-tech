@@ -8,6 +8,7 @@ import {
   checkAllServiceability,
   estimateAllRates,
   generateLabelWithProvider,
+  getIndiaPostProvider,
   selectCourier,
   trackWithProvider,
 } from "../logistics/logisticsService.js";
@@ -56,8 +57,12 @@ const normalizePayload = (payload = {}) => ({
   fruitLotDetails: payload.fruitLotDetails || {},
   invoiceDetails: payload.invoiceDetails || {},
   selectedCourier: payload.selectedCourier || payload.courierPartner || "",
+  courierPartner: payload.courierPartner || payload.selectedCourier || "",
   courierMode: payload.courierMode === "automatic" ? "automatic" : "manual",
   courierPriority: payload.courierPriority || "Manual",
+  serviceType: payload.serviceType || payload.indiaPostServiceType || "",
+  pickupDate: payload.pickupDate || "",
+  pickupTimeSlot: payload.pickupTimeSlot || "",
 });
 
 const upsertShipment = async (payload, req, extra = {}) => {
@@ -180,11 +185,14 @@ export const bookShipment = async (req, res) => {
     serviceabilityResults,
     rateResults,
     awbNumber: booking.awbNumber,
+    articleNumber: booking.articleNumber || booking.awbNumber,
     trackingUrl: booking.trackingUrl,
     labelUrl: booking.labelUrl,
     manifestUrl: booking.manifestUrl,
     shipmentStatus: "Booked",
     bookingResponseRaw: booking.raw || booking,
+    indiaPostRequestRaw: booking.rawRequest || {},
+    indiaPostResponseRaw: booking.rawResponse || {},
   });
   res.json({ shipment, booking });
 };
@@ -237,4 +245,157 @@ export const getLabel = async (req, res) => {
 
 export const getInvoice = async (req, res) => {
   res.json({ invoiceUrl: `/api/logistics/invoice/${encodeURIComponent(req.params.shipmentId)}.pdf`, mock: true });
+};
+
+const validateIndiaPostPayload = (payload = {}) => {
+  const checks = [
+    ["orderId", "orderId"],
+    ["customerDetails.customerName", "buyer/customer name"],
+    ["customerDetails.phone", "buyer mobile"],
+    ["customerDetails.addressLine1", "buyer full address"],
+    ["customerDetails.pincode", "buyer pincode"],
+    ["pickupDetails.pickupContactName", "pickup name"],
+    ["pickupDetails.pickupPhone", "pickup mobile"],
+    ["pickupDetails.pickupAddress", "pickup address"],
+    ["pickupDetails.pickupPincode", "pickup pincode"],
+    ["packageDetails.productName", "product/fruit name"],
+    ["packageDetails.quantity", "number of crates/packages"],
+    ["packageDetails.deadWeightKg", "total weight"],
+    ["packageDetails.lengthCm", "package length"],
+    ["packageDetails.widthCm", "package width"],
+    ["packageDetails.heightCm", "package height"],
+    ["invoiceDetails.orderAmount", "invoice value"],
+    ["invoiceDetails.paymentMode", "payment mode"],
+    ["pickupDate", "pickup date"],
+    ["serviceType", "selected India Post service type"],
+  ];
+  const missing = checks.filter(([path]) => {
+    const value = get(payload, path);
+    return value === undefined || value === null || String(value).trim() === "";
+  });
+  return missing.map(([, label]) => label);
+};
+
+export const indiaPostPincodeCheck = async (req, res) => {
+  const payload = normalizePayload({ ...req.body, selectedCourier: "India Post", courierPartner: "india_post" });
+  const result = await getIndiaPostProvider().checkPincode(payload);
+  const shipment = await upsertShipment(payload, req, {
+    selectedCourier: "India Post",
+    courierPartner: "india_post",
+    serviceabilityResults: [result],
+    shipmentStatus: "Serviceability Checked",
+    indiaPostRequestRaw: result.rawRequest || {},
+    indiaPostResponseRaw: result.rawResponse || {},
+  });
+  res.json({ shipment, result, mode: process.env.INDIA_POST_MODE || "sandbox" });
+};
+
+export const indiaPostTariff = async (req, res) => {
+  const payload = normalizePayload({ ...req.body, selectedCourier: "India Post", courierPartner: "india_post" });
+  const result = await getIndiaPostProvider().estimateTariff(payload);
+  const shipment = await upsertShipment(payload, req, {
+    selectedCourier: "India Post",
+    courierPartner: "india_post",
+    rateResults: [result],
+    shipmentStatus: "Rate Estimated",
+    indiaPostRequestRaw: result.rawRequest || {},
+    indiaPostResponseRaw: result.rawResponse || {},
+  });
+  res.json({ shipment, result, mode: process.env.INDIA_POST_MODE || "sandbox" });
+};
+
+export const indiaPostBook = async (req, res) => {
+  const payload = normalizePayload({ ...req.body, selectedCourier: "India Post", courierPartner: "india_post" });
+  const missing = validateIndiaPostPayload(payload);
+  if (missing.length) return res.status(400).json({ msg: `Required before India Post booking: ${missing.join(", ")}` });
+  const booking = await getIndiaPostProvider().bookShipment(payload);
+  const articleNumber = booking.articleNumber || booking.awbNumber || "";
+  const shipment = await upsertShipment(payload, req, {
+    selectedCourier: "India Post",
+    courierPartner: "india_post",
+    awbNumber: articleNumber,
+    articleNumber,
+    trackingUrl: booking.trackingUrl,
+    labelUrl: booking.labelUrl,
+    manifestUrl: booking.manifestUrl,
+    shipmentStatus: "Booked",
+    bookingResponseRaw: booking,
+    indiaPostRequestRaw: booking.rawRequest || {},
+    indiaPostResponseRaw: booking.rawResponse || {},
+  });
+  res.json({ shipment, booking, mode: process.env.INDIA_POST_MODE || "sandbox" });
+};
+
+export const indiaPostTrack = async (req, res) => {
+  const tracking = await getIndiaPostProvider().trackShipment({ articleNumber: req.params.articleNumber });
+  await LogisticsShipment.findOneAndUpdate(
+    { $or: [{ articleNumber: req.params.articleNumber }, { awbNumber: req.params.articleNumber }] },
+    {
+      trackingHistory: tracking.trackingHistory || [],
+      shipmentStatus: tracking.status || "In Transit",
+      indiaPostRequestRaw: tracking.rawRequest || {},
+      indiaPostResponseRaw: tracking.rawResponse || {},
+    }
+  );
+  res.json({ tracking, mode: process.env.INDIA_POST_MODE || "sandbox" });
+};
+
+export const indiaPostCancel = async (req, res) => {
+  const shipment = await LogisticsShipment.findById(req.params.shipmentId).lean();
+  const result = await getIndiaPostProvider().cancelShipment({ ...(shipment || {}), shipmentId: req.params.shipmentId });
+  if (shipment?._id) {
+    await LogisticsShipment.findByIdAndUpdate(shipment._id, {
+      shipmentStatus: "Cancelled",
+      indiaPostRequestRaw: result.rawRequest || {},
+      indiaPostResponseRaw: result.rawResponse || {},
+    });
+  }
+  res.json({ result, mode: process.env.INDIA_POST_MODE || "sandbox" });
+};
+
+export const indiaPostLabel = async (req, res) => {
+  const shipment = await LogisticsShipment.findById(req.params.shipmentId).lean();
+  const label = await getIndiaPostProvider().generateLabel({ ...(shipment || {}), shipmentId: req.params.shipmentId });
+  if (shipment?._id) {
+    await LogisticsShipment.findByIdAndUpdate(shipment._id, {
+      labelUrl: label.labelUrl || shipment.labelUrl,
+      shipmentStatus: "Label Generated",
+      indiaPostRequestRaw: label.rawRequest || {},
+      indiaPostResponseRaw: label.rawResponse || {},
+    });
+  }
+  res.json({ labelUrl: label.labelUrl, label, mode: process.env.INDIA_POST_MODE || "sandbox" });
+};
+
+export const indiaPostEvents = async (req, res) => {
+  const events = await getIndiaPostProvider().getEvents({ articleNumber: req.params.articleNumber });
+  res.json({ events, mode: process.env.INDIA_POST_MODE || "sandbox" });
+};
+
+export const listEfruitMandiOrdersForAdmin = async (req, res) => {
+  const orders = await Order.find().sort({ createdAt: -1 }).limit(80).lean();
+  const efruitOrders = orders
+    .filter((order) => (order.courierPartner || "").toLowerCase() === "efruitmandi" || order.paymentStatus === "ESCROW")
+    .map((order) => ({ ...mapOrderToLogistics(order), platform: "efruitmandi" }));
+  res.json({ orders: efruitOrders });
+};
+
+export const getEfruitMandiOrderForAdmin = async (req, res) => {
+  const orderQuery = mongoose.isValidObjectId(req.params.orderId)
+    ? { $or: [{ _id: req.params.orderId }, { invoiceNumber: req.params.orderId }] }
+    : { invoiceNumber: req.params.orderId };
+  const order = await Order.findOne(orderQuery).lean();
+  if (!order) return res.status(404).json({ msg: "eFruitMandi order not found" });
+  res.json({ order: { ...mapOrderToLogistics(order), platform: "efruitmandi" } });
+};
+
+export const createShipmentFromEfruitMandiOrder = async (req, res) => {
+  const orderQuery = mongoose.isValidObjectId(req.params.orderId)
+    ? { $or: [{ _id: req.params.orderId }, { invoiceNumber: req.params.orderId }] }
+    : { invoiceNumber: req.params.orderId };
+  const order = await Order.findOne(orderQuery).lean();
+  if (!order) return res.status(404).json({ msg: "eFruitMandi order not found" });
+  const payload = { ...mapOrderToLogistics(order), platform: "efruitmandi", ...(req.body || {}) };
+  const shipment = await upsertShipment(payload, req, { shipmentStatus: "Draft", courierPartner: "india_post", selectedCourier: "India Post" });
+  res.json({ shipment });
 };

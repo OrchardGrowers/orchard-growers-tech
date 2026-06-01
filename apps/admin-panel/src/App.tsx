@@ -3163,7 +3163,7 @@ function getAdminTabTitle(activeTab: AdminTab, activePlatform: AdminPlatform) {
   if (activeTab === 'purchase') return 'Purchase Entry';
   if (activeTab === 'billing') return 'Orchard Growers Billing';
   if (activeTab === 'sales') return 'Sales History';
-  if (activeTab === 'logistics') return 'Orchard Growers Logistics';
+  if (activeTab === 'logistics') return 'Logistics Control';
   if (activeTab === 'unitsOutlets') return 'Orchard Growers Units / Outlets';
   if (activeTab === 'expenses') return 'Orchard Growers Expenses';
   if (activeTab === 'financials') return 'Orchard Growers Financials';
@@ -5234,7 +5234,19 @@ function LogisticsControlPanel({
         const data = await readResponseJson(res);
         if (!res.ok) throw new Error(data.msg || 'Could not load logistics orders');
         if (ignore) return;
-        const nextOrders = (data.orders || []).map((item: Record<string, unknown>) => normalizeLogisticsDraft(item, platform));
+        let sourceOrders = data.orders || [];
+        if (platform === 'efruitmandi') {
+          const efruitRes = await fetch(`${API_BASE}/admin/efruitmandi/orders`, { headers: authHeaders });
+          const efruitData = await readResponseJson(efruitRes);
+          if (efruitRes.ok) {
+            const existingKeys = new Set(sourceOrders.map((item: Record<string, unknown>) => `${item.platform}:${item.orderId}`));
+            sourceOrders = [
+              ...sourceOrders,
+              ...(efruitData.orders || []).filter((item: Record<string, unknown>) => !existingKeys.has(`${item.platform}:${item.orderId}`)),
+            ];
+          }
+        }
+        const nextOrders = sourceOrders.map((item: Record<string, unknown>) => normalizeLogisticsDraft(item, platform));
         setLogisticsOrders(nextOrders);
         const selected = nextOrders.find((item: LogisticsDraft) => item.platform === platform) || nextOrders[0];
         if (selected) setDraft(selected);
@@ -5285,6 +5297,7 @@ function LogisticsControlPanel({
     if (!res.ok) throw new Error(data.msg || 'Logistics request failed');
     return data;
   };
+  const isIndiaPost = (draft.selectedCourier || '').toLowerCase() === 'india post';
   const runAction = async (action: string, task: () => Promise<void>) => {
     setLoadingAction(action);
     setNotice('');
@@ -5331,41 +5344,41 @@ function LogisticsControlPanel({
     return missing;
   };
   const checkServiceability = () => runAction('serviceability', async () => {
-    const data = await logisticsRequest('/serviceability', { ...draft, packageDetails: { ...draft.packageDetails, volumetricWeightKg } });
-    updateRoot('serviceabilityResults', data.results || []);
+    const data = await logisticsRequest(isIndiaPost ? '/india-post/pincode-check' : '/serviceability', { ...draft, packageDetails: { ...draft.packageDetails, volumetricWeightKg } });
+    updateRoot('serviceabilityResults', data.results || (data.result ? [data.result] : []));
     syncShipment(data.shipment);
-    setNotice('Serviceability checked.');
+    setNotice(`${isIndiaPost ? 'India Post pincode' : 'Serviceability'} checked.`);
   });
   const estimateCost = () => runAction('rates', async () => {
-    const data = await logisticsRequest('/rates', { ...draft, packageDetails: { ...draft.packageDetails, volumetricWeightKg } });
-    setDraft((current) => ({ ...normalizeLogisticsDraft(data.shipment, platform), rateResults: data.results || [], selectedCourier: data.selectedCourier || current.selectedCourier }));
-    setNotice('Courier rates estimated.');
+    const data = await logisticsRequest(isIndiaPost ? '/india-post/tariff' : '/rates', { ...draft, packageDetails: { ...draft.packageDetails, volumetricWeightKg } });
+    setDraft((current) => ({ ...normalizeLogisticsDraft(data.shipment, platform), rateResults: data.results || (data.result ? [data.result] : []), selectedCourier: data.selectedCourier || current.selectedCourier }));
+    setNotice(`${isIndiaPost ? 'India Post tariff' : 'Courier rates'} estimated.`);
   });
   const bookShipment = () => runAction('book', async () => {
     const missing = validateDraft();
     if (missing.length) throw new Error(`Required before booking: ${missing.join(', ')}`);
-    const data = await logisticsRequest(draft.courierMode === 'manual' ? '/manual-book' : '/book', { ...draft, packageDetails: { ...draft.packageDetails, volumetricWeightKg } });
+    const data = await logisticsRequest(isIndiaPost ? '/india-post/book' : draft.courierMode === 'manual' ? '/manual-book' : '/book', { ...draft, packageDetails: { ...draft.packageDetails, volumetricWeightKg } });
     syncShipment(data.shipment);
     setNotice(`Shipment booked. AWB: ${data.shipment?.awbNumber || data.booking?.awbNumber || 'Generated'}`);
   });
   const generateLabel = () => runAction('label', async () => {
     const id = draft._id || draft.awbNumber;
     if (!id) throw new Error('Book shipment before generating label.');
-    const data = await logisticsRequest(`/label/${encodeURIComponent(id)}`, undefined, 'GET');
+    const data = await logisticsRequest(isIndiaPost ? `/india-post/label/${encodeURIComponent(id)}` : `/label/${encodeURIComponent(id)}`, undefined, 'GET');
     setDraft((current) => ({ ...current, labelUrl: data.labelUrl || data.label?.labelUrl || current.labelUrl, shipmentStatus: 'Label Generated' }));
     setNotice('Label generated.');
   });
   const trackShipment = () => runAction('track', async () => {
     const id = draft._id || draft.awbNumber;
     if (!id) throw new Error('Book shipment before tracking.');
-    const data = await logisticsRequest(`/track/${encodeURIComponent(id)}`, undefined, 'GET');
+    const data = await logisticsRequest(isIndiaPost && draft.awbNumber ? `/india-post/track/${encodeURIComponent(draft.awbNumber)}` : `/track/${encodeURIComponent(id)}`, undefined, 'GET');
     setDraft((current) => ({ ...current, shipmentStatus: data.tracking?.status || current.shipmentStatus }));
     setNotice(`Tracking status: ${data.tracking?.status || 'Updated'}`);
   });
   const cancelShipment = () => runAction('cancel', async () => {
     const id = draft._id || draft.awbNumber;
     if (!id) throw new Error('Book shipment before cancellation.');
-    await logisticsRequest(`/cancel/${encodeURIComponent(id)}`, {});
+    await logisticsRequest(isIndiaPost ? `/india-post/cancel/${encodeURIComponent(id)}` : `/cancel/${encodeURIComponent(id)}`, {});
     setDraft((current) => ({ ...current, shipmentStatus: 'Cancelled' }));
     setNotice('Shipment cancelled.');
   });
@@ -5380,6 +5393,14 @@ function LogisticsControlPanel({
     printable.document.write(`<pre style="font:15px/1.5 system-ui;white-space:pre-wrap">${title}\n${url || 'Mock document will be generated after booking.'}</pre>`);
     printable.document.close();
     printable.print();
+  };
+  const viewLogs = () => {
+    const requestLog = (draft as Record<string, unknown>).indiaPostRequestRaw || {};
+    const responseLog = (draft as Record<string, unknown>).indiaPostResponseRaw || (draft as Record<string, unknown>).bookingResponseRaw || {};
+    const printable = window.open('', '_blank', 'width=900,height=650');
+    if (!printable) return;
+    printable.document.write(`<pre style="font:13px/1.5 ui-monospace,Consolas,monospace;white-space:pre-wrap">India Post Logs\n\nRequest:\n${JSON.stringify(requestLog, null, 2)}\n\nResponse:\n${JSON.stringify(responseLog, null, 2)}</pre>`);
+    printable.document.close();
   };
 
   return (
@@ -5399,32 +5420,53 @@ function LogisticsControlPanel({
               <label className="flex items-center gap-2"><input type="radio" checked={draft.courierMode === 'manual'} onChange={() => updateMode('manual')} /> Manual</label>
               <label className="flex items-center gap-2"><input type="radio" checked={draft.courierMode === 'automatic'} onChange={() => updateMode('automatic')} /> Automatic</label>
               <StatusBadge status={draft.shipmentStatus || 'Draft'} />
+              <span className="rounded-full bg-slate-800 px-2 py-1 text-xs font-black text-slate-200">India Post {import.meta.env.VITE_INDIA_POST_MODE || 'sandbox'}</span>
             </div>
           </div>
           <div className="mt-4 overflow-x-auto rounded-lg border border-slate-800">
             <table className="min-w-[1400px] w-full text-left text-xs">
               <thead className="bg-black text-white">
-                <tr>{['Order ID', 'Platform', 'Customer Name', 'Mobile', 'Pincode', 'City', 'State', 'Product Type', 'Weight', 'Package Size', 'Payment Mode', 'Order Value', 'Courier', 'AWB', 'Status', 'Action'].map((head) => <th key={head} className="px-3 py-2">{head}</th>)}</tr>
+                <tr>{(platform === 'efruitmandi' ? ['Order ID', 'Lot ID', 'Buyer Name', 'Buyer Mobile', 'Buyer Pincode', 'Seller/Pickup Pincode', 'Fruit Name', 'Crates', 'Weight', 'Invoice Value', 'Shipment Status', 'Courier', 'Action'] : ['Order ID', 'Platform', 'Customer Name', 'Mobile', 'Pincode', 'City', 'State', 'Product Type', 'Weight', 'Package Size', 'Payment Mode', 'Order Value', 'Courier', 'AWB', 'Status', 'Action']).map((head) => <th key={head} className="px-3 py-2">{head}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
                 {visibleOrders.length ? visibleOrders.map((item) => (
                   <tr key={`${item.platform}-${item.orderId}`} onClick={() => setDraft(item)} className={`cursor-pointer text-slate-300 hover:bg-slate-900 ${draft.orderId === item.orderId ? 'bg-emerald-950/40' : 'bg-slate-950'}`}>
-                    <td className="px-3 py-2 font-bold text-white">{item.orderId}</td>
-                    <td className="px-3 py-2">{formatLogisticsPlatform(item.platform)}</td>
-                    <td className="px-3 py-2">{item.customerDetails.customerName || '-'}</td>
-                    <td className="px-3 py-2">{item.customerDetails.phone || '-'}</td>
-                    <td className="px-3 py-2">{item.customerDetails.pincode || '-'}</td>
-                    <td className="px-3 py-2">{item.customerDetails.city || '-'}</td>
-                    <td className="px-3 py-2">{item.customerDetails.state || '-'}</td>
-                    <td className="px-3 py-2">{item.packageDetails.productCategory || item.packageDetails.productName || '-'}</td>
-                    <td className="px-3 py-2">{String(item.packageDetails.deadWeightKg || '-')}</td>
-                    <td className="px-3 py-2">{packageSizeLabel(item)}</td>
-                    <td className="px-3 py-2">{String(item.invoiceDetails.paymentMode || '-')}</td>
-                    <td className="px-3 py-2">Rs. {String(item.invoiceDetails.orderAmount || item.invoiceDetails.totalInvoiceValue || 0)}</td>
-                    <td className="px-3 py-2">{item.selectedCourier || '-'}</td>
-                    <td className="px-3 py-2">{item.awbNumber || '-'}</td>
-                    <td className="px-3 py-2"><StatusBadge status={item.shipmentStatus || 'Draft'} /></td>
-                    <td className="px-3 py-2"><button type="button" className="rounded bg-emerald-600 px-2 py-1 text-white">Create Shipment</button></td>
+                    {platform === 'efruitmandi' ? (
+                      <>
+                        <td className="px-3 py-2 font-bold text-white">{item.orderId}</td>
+                        <td className="px-3 py-2">{String(item.fruitLotDetails.lotId || '-')}</td>
+                        <td className="px-3 py-2">{item.customerDetails.customerName || '-'}</td>
+                        <td className="px-3 py-2">{item.customerDetails.phone || '-'}</td>
+                        <td className="px-3 py-2">{item.customerDetails.pincode || '-'}</td>
+                        <td className="px-3 py-2">{item.pickupDetails.pickupPincode || '-'}</td>
+                        <td className="px-3 py-2">{item.packageDetails.productName || '-'}</td>
+                        <td className="px-3 py-2">{String(item.fruitLotDetails.crateCount || item.packageDetails.quantity || '-')}</td>
+                        <td className="px-3 py-2">{String(item.fruitLotDetails.grossWeight || item.packageDetails.deadWeightKg || '-')}</td>
+                        <td className="px-3 py-2">Rs. {String(item.invoiceDetails.orderAmount || item.invoiceDetails.totalInvoiceValue || 0)}</td>
+                        <td className="px-3 py-2"><StatusBadge status={item.shipmentStatus || 'Draft'} /></td>
+                        <td className="px-3 py-2">{item.selectedCourier || 'India Post'}</td>
+                        <td className="px-3 py-2"><button type="button" className="rounded bg-emerald-600 px-2 py-1 text-white">Create Shipment</button></td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-3 py-2 font-bold text-white">{item.orderId}</td>
+                        <td className="px-3 py-2">{formatLogisticsPlatform(item.platform)}</td>
+                        <td className="px-3 py-2">{item.customerDetails.customerName || '-'}</td>
+                        <td className="px-3 py-2">{item.customerDetails.phone || '-'}</td>
+                        <td className="px-3 py-2">{item.customerDetails.pincode || '-'}</td>
+                        <td className="px-3 py-2">{item.customerDetails.city || '-'}</td>
+                        <td className="px-3 py-2">{item.customerDetails.state || '-'}</td>
+                        <td className="px-3 py-2">{item.packageDetails.productCategory || item.packageDetails.productName || '-'}</td>
+                        <td className="px-3 py-2">{String(item.packageDetails.deadWeightKg || '-')}</td>
+                        <td className="px-3 py-2">{packageSizeLabel(item)}</td>
+                        <td className="px-3 py-2">{String(item.invoiceDetails.paymentMode || '-')}</td>
+                        <td className="px-3 py-2">Rs. {String(item.invoiceDetails.orderAmount || item.invoiceDetails.totalInvoiceValue || 0)}</td>
+                        <td className="px-3 py-2">{item.selectedCourier || '-'}</td>
+                        <td className="px-3 py-2">{item.awbNumber || '-'}</td>
+                        <td className="px-3 py-2"><StatusBadge status={item.shipmentStatus || 'Draft'} /></td>
+                        <td className="px-3 py-2"><button type="button" className="rounded bg-emerald-600 px-2 py-1 text-white">Create Shipment</button></td>
+                      </>
+                    )}
                   </tr>
                 )) : (
                   <tr><td colSpan={16} className="px-3 py-6 text-center font-bold text-slate-400">No logistics orders found for this platform.</td></tr>
@@ -5513,6 +5555,7 @@ function LogisticsControlPanel({
             <LogisticsButton label="Generate Invoice" onClick={() => setDraft((current) => ({ ...current, invoiceUrl: `/api/logistics/invoice/${current._id || current.orderId}` }))} />
             <LogisticsButton label="Track Shipment" loading={loadingAction === 'track'} onClick={trackShipment} />
             <LogisticsButton label="Cancel Shipment" loading={loadingAction === 'cancel'} onClick={cancelShipment} />
+            <LogisticsButton label="View Logs" onClick={viewLogs} />
             <LogisticsButton label="Reassign Courier" onClick={() => updateMode('manual')} />
             <LogisticsButton label="Print Label" onClick={() => printUrl(draft.labelUrl, 'Shipping Label')} />
             <LogisticsButton label="Print Invoice" onClick={() => printUrl(draft.invoiceUrl, 'Invoice')} />

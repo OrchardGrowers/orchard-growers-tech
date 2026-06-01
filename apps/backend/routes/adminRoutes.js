@@ -39,6 +39,11 @@ import {
 } from "../controllers/adminController.js";
 import protect, { authorize } from "../middleware/authMiddleware.js";
 import { createRateLimiter } from "../middleware/rateLimit.js";
+import {
+  createShipmentFromEfruitMandiOrder,
+  getEfruitMandiOrderForAdmin,
+  listEfruitMandiOrdersForAdmin,
+} from "../controllers/logisticsController.js";
 
 const router = express.Router();
 const wrapAsync = (handler) => (req, res, next) =>
@@ -163,5 +168,8 @@ router.get("/kyc-requests", ...adminOnly, requireRoles(...VERIFICATION_READ_ROLE
 router.post("/kyc-requests/:userId/review", ...adminOnly, requireRoles(...VERIFICATION_WRITE_ROLES), wrapAsync(reviewKycRequest));
 router.get("/orders", ...adminOnly, requireRoles(...ORDER_READ_ROLES), wrapAsync(listOrders));
 router.patch("/orders/:id/logistics", ...adminOnly, requireRoles(...ORDER_READ_ROLES), wrapAsync(updateOrderLogistics));
+router.get("/efruitmandi/orders", ...adminOnly, requireRoles(...ORDER_READ_ROLES), wrapAsync(listEfruitMandiOrdersForAdmin));
+router.get("/efruitmandi/orders/:orderId", ...adminOnly, requireRoles(...ORDER_READ_ROLES), wrapAsync(getEfruitMandiOrderForAdmin));
+router.post("/efruitmandi/orders/:orderId/create-shipment", ...adminOnly, requireRoles(...ORDER_READ_ROLES), wrapAsync(createShipmentFromEfruitMandiOrder));
 
 export default router;

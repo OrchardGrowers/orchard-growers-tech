@@ -9,6 +9,13 @@ import {
   getInvoice,
   getLabel,
   getLogisticsOrder,
+  indiaPostBook,
+  indiaPostCancel,
+  indiaPostEvents,
+  indiaPostLabel,
+  indiaPostPincodeCheck,
+  indiaPostTariff,
+  indiaPostTrack,
   listLogisticsOrders,
   manualBookShipment,
   reassignShipment,
@@ -48,6 +55,13 @@ router.post("/serviceability", wrapAsync(checkServiceability));
 router.post("/rates", wrapAsync(estimateRates));
 router.post("/book", wrapAsync(bookShipment));
 router.post("/manual-book", wrapAsync(manualBookShipment));
+router.post("/india-post/pincode-check", wrapAsync(indiaPostPincodeCheck));
+router.post("/india-post/tariff", wrapAsync(indiaPostTariff));
+router.post("/india-post/book", wrapAsync(indiaPostBook));
+router.get("/india-post/track/:articleNumber", wrapAsync(indiaPostTrack));
+router.post("/india-post/cancel/:shipmentId", wrapAsync(indiaPostCancel));
+router.get("/india-post/label/:shipmentId", wrapAsync(indiaPostLabel));
+router.get("/india-post/events/:articleNumber", wrapAsync(indiaPostEvents));
 router.get("/track/:shipmentId", wrapAsync(trackShipment));
 router.post("/cancel/:shipmentId", wrapAsync(cancelShipment));
 router.post("/reassign/:shipmentId", wrapAsync(reassignShipment));
