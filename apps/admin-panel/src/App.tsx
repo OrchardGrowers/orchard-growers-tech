@@ -1953,7 +1953,7 @@ function App() {
   const actionTabs = [
     {
       id: activeTab,
-      label: actionTab?.label || getAdminTabTitle(activeTab, activePlatform),
+      label: activeTab === 'logistics' ? 'Logistics Control' : actionTab?.label || getAdminTabTitle(activeTab, activePlatform),
       count: countByTab[activeTab],
     },
   ];
@@ -2330,11 +2330,13 @@ function App() {
               onChange={openTab}
             />
             <main className="flex-1 min-h-0 overflow-y-auto border-x border-slate-700 bg-slate-950 p-4 text-slate-100">
-              <div className="mb-3 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-500">
-                <span>{activePlatform === 'orchard' ? 'Orchard Growers' : getAdminTabTitle(getDefaultTabForPlatform(activePlatform, adminRole), activePlatform)}</span>
-                <span>/</span>
-                <span className="text-emerald-300">{activeTitle}</span>
-              </div>
+              {activeTab !== 'logistics' && (
+                <div className="mb-3 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-500">
+                  <span>{activePlatform === 'orchard' ? 'Orchard Growers' : getAdminTabTitle(getDefaultTabForPlatform(activePlatform, adminRole), activePlatform)}</span>
+                  <span>/</span>
+                  <span className="text-emerald-300">{activeTitle}</span>
+                </div>
+              )}
               {message && (
                 <p className="mb-4 rounded-lg border border-emerald-600 bg-emerald-950 px-4 py-3 text-sm font-bold text-emerald-100">
                   {message}
