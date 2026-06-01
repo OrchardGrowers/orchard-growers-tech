@@ -3693,11 +3693,38 @@ function CreateUnitPanel() {
           <FormSelect label="Stock Mapping" value={draft.openingStockTag} onChange={(value) => update('openingStockTag', value)} options={['Online stock pool', 'Offline only', 'Purchase receiving', 'Production nursery']} />
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          {['Save Unit', 'Map Inventory', 'Assign Manager', 'Export'].map((action) => (
-            <button key={action} type="button" className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">
-              {action}
-            </button>
-          ))}
+          <button
+            type="button"
+            onClick={() => {
+              try {
+                const stored = JSON.parse(localStorage.getItem('orchard_units') || '[]');
+                const next = [
+                  ...stored,
+                  { ...draft, id: `unit-${Date.now()}` },
+                ];
+                localStorage.setItem('orchard_units', JSON.stringify(next));
+                setMessage('Unit saved.');
+                setDraft({
+                  unitName: '',
+                  unitType: 'Nursery Unit',
+                  manager: '',
+                  phone: '',
+                  gstin: '',
+                  address: '',
+                  city: '',
+                  state: '',
+                  pinCode: '',
+                  openingStockTag: 'Online stock pool',
+                  status: 'Active',
+                });
+              } catch (err) {
+                setMessage(err instanceof Error ? err.message : 'Save failed');
+              }
+            }}
+            className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-600"
+          >
+            Save Unit
+          </button>
         </div>
       </PanelShell>
     </section>
@@ -3707,7 +3734,7 @@ function CreateUnitPanel() {
 function PartyVendorPanel() {
   const [draft, setDraft] = useState({
     partyName: '',
-    partyType: 'Supplier',
+    partyType: 'Supplier/Seller',
     contactPerson: '',
     phone: '',
     email: '',
@@ -3726,7 +3753,7 @@ function PartyVendorPanel() {
       <PanelShell title="Create Party / Vendor / Supplier" text="Maintain purchase parties, vendors, suppliers, transport vendors, and ledger-ready vendor records.">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <AdminInput label="Party / Firm Name" value={draft.partyName} onChange={(value) => update('partyName', value)} placeholder="Vendor or supplier name" />
-          <FormSelect label="Party Type" value={draft.partyType} onChange={(value) => update('partyType', value)} options={['Supplier', 'Vendor', 'Transport Vendor', 'Nursery Partner', 'Service Provider']} />
+          <FormSelect label="Party Type" value={draft.partyType} onChange={(value) => update('partyType', value)} options={['Supplier/Seller', 'Vendor', 'Dealer/Bulk Buyer', 'Transport Vendor', 'Nursery Partner', 'Service Provider']} />
           <AdminInput label="Contact Person" value={draft.contactPerson} onChange={(value) => update('contactPerson', value)} placeholder="Contact name" />
           <AdminInput label="Phone" value={draft.phone} onChange={(value) => update('phone', value)} placeholder="Phone number" />
           <AdminInput label="Email" value={draft.email} onChange={(value) => update('email', value)} placeholder="email@example.com" type="email" />
@@ -3884,6 +3911,7 @@ function NewInvoicePanel({ products, invoiceNumber }: { products: AdminProduct[]
     paymentMethod: 'Cash',
     billingAddress: '',
   });
+  const [customerType, setCustomerType] = useState<'Retail Customer' | 'Dealer/Firm/Company'>('Retail Customer');
   const [row, setRow] = useState({
     productId: firstProduct?._id || '',
     quantity: '1',
@@ -3906,7 +3934,14 @@ function NewInvoicePanel({ products, invoiceNumber }: { products: AdminProduct[]
         <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-bold text-slate-300">Draft</span>
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <AdminInput label="Customer Name" value={customer.name} onChange={(value) => updateCustomer('name', value)} placeholder="Customer / firm name" />
+        <label className="block text-sm font-bold text-slate-300">
+          Customer Type
+          <select value={customerType} onChange={(e) => setCustomerType(e.target.value as any)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400">
+            <option>Retail Customer</option>
+            <option>Dealer/Firm/Company</option>
+          </select>
+        </label>
+        <AdminInput label={customerType === 'Retail Customer' ? 'Customer Name' : 'Dealer / Firm / Company'} value={customer.name} onChange={(value) => updateCustomer('name', value)} placeholder={customerType === 'Retail Customer' ? 'Customer / firm name' : 'Dealer / Firm / Company name'} />
         <AdminInput label="Contact Number" value={customer.phone} onChange={(value) => updateCustomer('phone', value)} placeholder="Phone number" />
         <AdminInput label="GST No. optional" value={customer.gstin} onChange={(value) => updateCustomer('gstin', value.toUpperCase())} placeholder="GSTIN" />
         <FormSelect label="Payment Method" value={customer.paymentMethod} onChange={(value) => updateCustomer('paymentMethod', value)} options={['Cash', 'UPI', 'Card', 'Bank', 'COD']} />
@@ -3927,12 +3962,26 @@ function NewInvoicePanel({ products, invoiceNumber }: { products: AdminProduct[]
           <tbody>
             <tr className="text-slate-300">
               <td className="px-3 py-3">
-                <select value={row.productId} onChange={(event) => updateRow('productId', event.target.value)} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400">
-                  <option value="">Select product</option>
-                  {products.map((product) => (
-                    <option key={product._id} value={product._id}>{product.title || product.fruitName || 'Untitled product'}</option>
-                  ))}
-                </select>
+                <div className="flex items-center gap-2">
+                  <select value={row.productId} onChange={(event) => updateRow('productId', event.target.value)} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400">
+                    <option value="">Select product</option>
+                    {products.map((product) => (
+                      <option key={product._id} value={product._id}>{product.title || product.fruitName || 'Untitled product'}</option>
+                    ))}
+                  </select>
+                  <button type="button" onClick={() => {
+                    const title = window.prompt('New product title');
+                    if (!title) return;
+                    const newProduct = { _id: `p-${Date.now()}`, title, slug: '', active: true, status: 'AVAILABLE', basePrice: 0 } as AdminProduct;
+                    try {
+                      setProducts((current) => [newProduct, ...current]);
+                      updateRow('productId', newProduct._id);
+                      setMessage('Product added locally.');
+                    } catch (err) {
+                      setMessage(err instanceof Error ? err.message : 'Add product failed');
+                    }
+                  }} className="rounded px-2 py-1 text-xs bg-slate-800 text-white">Add</button>
+                </div>
               </td>
               <td className="px-3 py-3"><input value={row.quantity} onChange={(event) => updateRow('quantity', event.target.value)} type="number" className="h-10 w-24 rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400" /></td>
               <td className="px-3 py-3"><input value={row.rate} onChange={(event) => updateRow('rate', event.target.value)} type="number" className="h-10 w-28 rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400" /></td>
@@ -3950,11 +3999,30 @@ function NewInvoicePanel({ products, invoiceNumber }: { products: AdminProduct[]
         <MetricCard label="Grand Total" value={Math.round(total)} />
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
-        {['Save Invoice', 'Print', 'Generate PDF', 'SMS Summary', 'WhatsApp Share'].map((action) => (
-          <button key={action} type="button" className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">
-            {action}
-          </button>
-        ))}
+        <button type="button" onClick={() => {
+          try {
+            const stored = JSON.parse(localStorage.getItem('orchard_invoices') || '[]');
+            const invoice = {
+              id: `inv-${Date.now()}`,
+              invoiceNumber,
+              customerType,
+              customer: { ...customer },
+              row: { ...row },
+              createdAt: new Date().toISOString(),
+            };
+            const next = [invoice, ...stored];
+            localStorage.setItem('orchard_invoices', JSON.stringify(next));
+            setMessage('Invoice saved locally.');
+            setCustomer({ name: '', phone: '', gstin: '', paymentMethod: 'Cash', billingAddress: '' });
+            setRow({ productId: firstProduct?._id || '', quantity: '1', rate: String(firstProduct?.basePrice || ''), discountPercent: String(firstProduct?.discountPercent || 0), gstRate: String(firstProduct?.gstRate || 5) });
+          } catch (err) {
+            setMessage(err instanceof Error ? err.message : 'Save failed');
+          }
+        }} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-600">Save Invoice</button>
+        <button type="button" className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">Print</button>
+        <button type="button" className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">Generate PDF</button>
+        <button type="button" className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">SMS Summary</button>
+        <button type="button" className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">WhatsApp Share</button>
       </div>
     </PanelShell>
   );
