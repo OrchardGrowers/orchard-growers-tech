@@ -471,7 +471,6 @@ const logisticsCourierPartners = [
   'UPS',
   'Aramex',
   'AWS',
-  'Manual Delivery',
 ];
 
 type AdminTabButton = { id: AdminTab; label: string; count?: number };
@@ -806,8 +805,8 @@ const modulePlans: Partial<Record<AdminTab, ModulePlan>> = {
   },
   logistics: {
     title: 'Logistics Control',
-    text: 'Control eFruitMandi, India Post, delivery, AWS, and Potter logistics integrations from one operational panel.',
-    pages: ['eFruitMandi', 'India Post', 'Delivery', 'AWS', 'Potter'],
+    text: 'Control eFruitMandi, India Post, major courier partners, and AWS logistics automation from one operational panel.',
+    pages: logisticsCourierPartners,
     fields: ['Partner', 'Mode', 'Booking Status', 'Tracking', 'Webhook / API Status', 'Fallback Action'],
     rules: ['Use eFruitMandi for marketplace dispatch coordination.', 'Use India Post for postal booking and tracking.', 'Use manual providers when automatic partner integration is pending.'],
   },
@@ -5275,20 +5274,118 @@ function LogisticsControlPanel({
   );
 }
 
-function getLogisticsProviderText(provider: string) {
-  if (provider === 'eFruitMandi') {
-    return 'Own eFruitMandi transporter onboarding, driver assignment, marketplace dispatch, proof collection, and auto-updated order visibility.';
-  }
-  if (provider === 'India Post') {
-    return 'India Post parcel booking workspace with manual entry today and API-ready setup for automatic postal booking and tracking.';
-  }
-  if (provider === 'AWS') {
-    return 'AWS event, storage, webhook, and notification workflow for logistics automation jobs and partner callbacks.';
-  }
-  if (provider === 'Manual Delivery') {
-    return 'Manual local delivery desk for staff, field dispatch, customer confirmation, and non-integrated courier handling.';
-  }
-  return `${provider} courier workspace for manual order placement, automatic API setup, tracking updates, labels, manifests, and COD/service configuration.`;
+const logisticsProviderProfiles: Record<string, { text: string; defaultService: string; apiLabel: string; accountLabel: string }> = {
+  eFruitMandi: {
+    text: 'Own eFruitMandi transporter onboarding, driver assignment, marketplace dispatch, proof collection, and auto-updated order visibility.',
+    defaultService: 'Own Transport',
+    apiLabel: 'Auto Sync Channel',
+    accountLabel: 'Transport Fleet Code',
+  },
+  'India Post': {
+    text: 'India Post parcel booking workspace with manual entry today and API-ready setup for automatic postal booking and tracking.',
+    defaultService: 'Speed Post Parcel',
+    apiLabel: 'India Post API Token',
+    accountLabel: 'Postal Customer ID',
+  },
+  Delhivery: {
+    text: 'Delhivery surface/express booking, pickup account setup, waybill generation, and shipment tracking.',
+    defaultService: 'Surface',
+    apiLabel: 'Delhivery API Token',
+    accountLabel: 'Client Warehouse Code',
+  },
+  'Blue Dart': {
+    text: 'Blue Dart domestic express setup for pickup registration, airway bill booking, label printing, and premium tracking.',
+    defaultService: 'Domestic Priority',
+    apiLabel: 'Blue Dart API Key',
+    accountLabel: 'Customer Code',
+  },
+  DTDC: {
+    text: 'DTDC courier booking for express, surface, COD configuration, consignment tracking, and manifest export.',
+    defaultService: 'DTDC Express',
+    apiLabel: 'DTDC API Key',
+    accountLabel: 'DTDC Account No.',
+  },
+  Shiprocket: {
+    text: 'Shiprocket aggregator setup for rate selection, courier assignment, pickup scheduling, AWB generation, and labels.',
+    defaultService: 'Aggregator Surface',
+    apiLabel: 'Shiprocket Token',
+    accountLabel: 'Channel ID',
+  },
+  Xpressbees: {
+    text: 'Xpressbees shipment desk for e-commerce parcels, COD support, pickup PIN serviceability, and tracking sync.',
+    defaultService: 'Xpressbees Surface',
+    apiLabel: 'Xpressbees Token',
+    accountLabel: 'Business Account',
+  },
+  'Ecom Express': {
+    text: 'Ecom Express parcel workflow for marketplace delivery, pickup registration, AWB booking, and reverse-ready manifests.',
+    defaultService: 'Ecom Express Surface',
+    apiLabel: 'Ecom Express Token',
+    accountLabel: 'Customer Code',
+  },
+  Ekart: {
+    text: 'Ekart logistics setup for local and national parcel movement, assignment, tracking updates, and shipment labels.',
+    defaultService: 'Ekart Surface',
+    apiLabel: 'Ekart API Key',
+    accountLabel: 'Seller Code',
+  },
+  Shadowfax: {
+    text: 'Shadowfax hyperlocal and city delivery setup for quick dispatch, rider allocation, COD, and proof of delivery.',
+    defaultService: 'Hyperlocal',
+    apiLabel: 'Shadowfax Token',
+    accountLabel: 'Merchant ID',
+  },
+  'Amazon Shipping': {
+    text: 'Amazon Shipping setup for seller pickup, parcel booking, tracking, labels, and SLA-based shipment handling.',
+    defaultService: 'Amazon Shipping Standard',
+    apiLabel: 'Amazon Shipping Token',
+    accountLabel: 'Seller / Shipper ID',
+  },
+  Porter: {
+    text: 'Porter local delivery page for city dispatch, vehicle booking, driver coordination, and manual/partner tracking.',
+    defaultService: 'Two Wheeler / Mini Truck',
+    apiLabel: 'Porter API Token',
+    accountLabel: 'Porter Account ID',
+  },
+  DHL: {
+    text: 'DHL international and premium parcel desk for account setup, express booking, commercial labels, and tracking.',
+    defaultService: 'DHL Express',
+    apiLabel: 'DHL API Key',
+    accountLabel: 'DHL Account No.',
+  },
+  FedEx: {
+    text: 'FedEx express and international booking page for account setup, package declaration, label creation, and tracking.',
+    defaultService: 'FedEx Express',
+    apiLabel: 'FedEx API Key',
+    accountLabel: 'FedEx Account No.',
+  },
+  UPS: {
+    text: 'UPS shipment setup for express parcels, pickup account configuration, label generation, and tracking sync.',
+    defaultService: 'UPS Express',
+    apiLabel: 'UPS Access Key',
+    accountLabel: 'UPS Account No.',
+  },
+  Aramex: {
+    text: 'Aramex domestic/international logistics setup for waybill booking, pickup, customs-ready labels, and tracking.',
+    defaultService: 'Aramex Parcel',
+    apiLabel: 'Aramex API Key',
+    accountLabel: 'Aramex Account No.',
+  },
+  AWS: {
+    text: 'AWS event, storage, webhook, and notification workflow for logistics automation jobs and partner callbacks.',
+    defaultService: 'Webhook Automation',
+    apiLabel: 'AWS Access Key / Webhook Secret',
+    accountLabel: 'Event Bus / Queue Name',
+  },
+};
+
+function getLogisticsProviderProfile(provider: string) {
+  return logisticsProviderProfiles[provider] || {
+    text: `${provider} courier workspace for manual order placement, automatic API setup, tracking updates, labels, manifests, and COD/service configuration.`,
+    defaultService: 'Surface',
+    apiLabel: `${provider} API Token`,
+    accountLabel: 'Partner Account Code',
+  };
 }
 
 function getProviderStorageKey(provider: string) {
@@ -5309,7 +5406,7 @@ const defaultProviderSetup = (provider: string): LogisticsProviderSetup => ({
   apiKey: '',
   accountCode: '',
   pickupPincode: '175029',
-  serviceType: provider === 'India Post' ? 'Speed Post Parcel' : provider === 'eFruitMandi' ? 'Own Transport' : 'Surface',
+  serviceType: getLogisticsProviderProfile(provider).defaultService,
   codEnabled: false,
 });
 
@@ -5332,6 +5429,7 @@ function LogisticsProviderPanel({
   onBookOrder: (order: AdminOrder, payload: Partial<AdminOrder>) => void;
 }) {
   const provider = logisticsCourierPartners.includes(activePage) ? activePage : 'eFruitMandi';
+  const providerProfile = getLogisticsProviderProfile(provider);
   const providerOrders = orders.filter((order) => (order.courierPartner || 'India Post') === provider);
   const pendingOrders = orders.filter((order) => !order.trackingNumber || ['PENDING', 'PLACED'].includes(order.deliveryStatus || 'PLACED'));
   const [setup, setSetup] = useState<LogisticsProviderSetup>(() => readProviderSetup(provider));
@@ -5418,7 +5516,7 @@ function LogisticsProviderPanel({
         <div>
           <p className="text-xs font-black uppercase tracking-wide text-emerald-300">Logistics Sub Option</p>
           <h3 className="mt-1 text-lg font-black text-white">{provider}</h3>
-          <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-400">{getLogisticsProviderText(provider)}</p>
+          <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-400">{providerProfile.text}</p>
         </div>
         <span className="rounded-full bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-300">{providerOrders.length} mapped orders</span>
       </div>
@@ -5441,8 +5539,8 @@ function LogisticsProviderPanel({
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             <AdminSelect label="Booking Mode" value={setup.mode} options={['AUTOMATIC', 'MANUAL']} onChange={(value) => updateSetup('mode', value)} disabled={provider === 'eFruitMandi'} />
             <AdminInput label="Pickup PIN" value={setup.pickupPincode} onChange={(value) => updateSetup('pickupPincode', value)} placeholder="175029" />
-            {provider !== 'eFruitMandi' && <AdminInput label="API Key / Token" value={setup.apiKey} onChange={(value) => updateSetup('apiKey', value)} placeholder={`${provider} API token`} />}
-            {provider !== 'eFruitMandi' && <AdminInput label="Account Code" value={setup.accountCode} onChange={(value) => updateSetup('accountCode', value)} placeholder="Partner account code" />}
+            {provider !== 'eFruitMandi' && <AdminInput label={providerProfile.apiLabel} value={setup.apiKey} onChange={(value) => updateSetup('apiKey', value)} placeholder={providerProfile.apiLabel} />}
+            {provider !== 'eFruitMandi' && <AdminInput label={providerProfile.accountLabel} value={setup.accountCode} onChange={(value) => updateSetup('accountCode', value)} placeholder={providerProfile.accountLabel} />}
             <AdminInput label="Service Type" value={setup.serviceType} onChange={(value) => updateSetup('serviceType', value)} placeholder="Surface / Express / Speed Post" />
             <label className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm font-bold text-slate-300">
               <input type="checkbox" checked={setup.codEnabled} onChange={(event) => updateSetup('codEnabled', event.target.checked)} />
