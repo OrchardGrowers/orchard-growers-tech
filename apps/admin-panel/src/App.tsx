@@ -5215,10 +5215,15 @@ function LogisticsControlPanel({
   };
 
   return (
-    <RequestSection title="Logistics Control Panel" count={orders.length}>
+    <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-lg font-bold text-white">Logistics Control Panel</h2>
+        <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-bold text-emerald-300">{orders.length}</span>
+      </div>
+      <div className="space-y-4">
       {notice && <div className="rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm font-bold text-emerald-300">{notice}</div>}
       <LogisticsProviderPanel activePage={activePage} orders={orders} onBookOrder={updateLogistics} />
-      {orders.map((order) => (
+      {orders.length > 0 ? orders.map((order) => (
         <article key={order._id} className="rounded-xl border border-slate-800 bg-slate-950 p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
@@ -5269,8 +5274,9 @@ function LogisticsControlPanel({
             <Info label="Tracking" value={order.trackingNumber || 'Not assigned'} />
           </div>
         </article>
-      ))}
-    </RequestSection>
+      )) : <EmptyState label="No orders yet. Courier setup, eFruitMandi driver tracking, and India Post pickup controls are still available above." />}
+      </div>
+    </section>
   );
 }
 
@@ -5440,6 +5446,19 @@ function LogisticsProviderPanel({
     packageType: 'Parcel',
     note: '',
   });
+  const [driverDraft, setDriverDraft] = useState({
+    name: 'eFruitMandi Driver',
+    phone: '',
+    vehicle: '',
+    location: 'GPS pending',
+    status: 'AVAILABLE',
+  });
+  const [indiaPostPickup, setIndiaPostPickup] = useState({
+    pickupDate: new Date().toISOString().slice(0, 10),
+    pickupSlot: '10:00-14:00',
+    maxWeightKg: '2',
+    directConsumerDelivery: true,
+  });
   const [localNotice, setLocalNotice] = useState('');
 
   useEffect(() => {
@@ -5507,6 +5526,14 @@ function LogisticsProviderPanel({
     URL.revokeObjectURL(url);
     setLocalNotice(`${provider} manifest exported.`);
   };
+  const saveDriverUpdate = () => {
+    localStorage.setItem('orchard_efruitmandi_driver_tracking', JSON.stringify(driverDraft));
+    setLocalNotice('eFruitMandi driver GPS/status update saved for action panel tracking.');
+  };
+  const scheduleIndiaPostPickup = () => {
+    localStorage.setItem('orchard_india_post_pickup', JSON.stringify(indiaPostPickup));
+    setLocalNotice('India Post small-consignment pickup setup saved.');
+  };
   const bookedCount = providerOrders.filter((order) => order.trackingNumber).length;
   const autoReady = provider === 'eFruitMandi' || (setup.mode === 'AUTOMATIC' && (setup.apiKey || provider === 'AWS'));
 
@@ -5533,6 +5560,43 @@ function LogisticsProviderPanel({
           </div>
         ))}
       </div>
+      {provider === 'eFruitMandi' && (
+        <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900 p-3">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-black text-white">eFruitMandi Driver GPS Desk</p>
+              <p className="mt-1 text-xs font-semibold text-slate-400">Drivers registered on efruitmandi.live update GPS and delivery status; this desk reflects and controls that dispatch state.</p>
+            </div>
+            <span className="rounded-full bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-300">{driverDraft.status}</span>
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-5">
+            <AdminInput label="Driver Name" value={driverDraft.name} onChange={(value) => setDriverDraft((current) => ({ ...current, name: value }))} placeholder="Driver name" />
+            <AdminInput label="Phone" value={driverDraft.phone} onChange={(value) => setDriverDraft((current) => ({ ...current, phone: value }))} placeholder="Driver phone" />
+            <AdminInput label="Vehicle" value={driverDraft.vehicle} onChange={(value) => setDriverDraft((current) => ({ ...current, vehicle: value }))} placeholder="Vehicle no." />
+            <AdminInput label="GPS Location" value={driverDraft.location} onChange={(value) => setDriverDraft((current) => ({ ...current, location: value }))} placeholder="Lat,Lng / area" />
+            <AdminSelect label="Driver Status" value={driverDraft.status} options={['AVAILABLE', 'ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED']} onChange={(value) => setDriverDraft((current) => ({ ...current, status: value }))} />
+          </div>
+          <button type="button" onClick={saveDriverUpdate} className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-500">Save Driver GPS Update</button>
+        </div>
+      )}
+      {provider === 'India Post' && (
+        <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900 p-3">
+          <div>
+            <p className="text-sm font-black text-white">India Post Small Consignment Pickup</p>
+            <p className="mt-1 text-xs font-semibold text-slate-400">Use India Post for small Orchard Growers consignments picked up from unit/outlet and delivered directly to the end consumer.</p>
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-4">
+            <AdminInput label="Pickup Date" value={indiaPostPickup.pickupDate} onChange={(value) => setIndiaPostPickup((current) => ({ ...current, pickupDate: value }))} placeholder="YYYY-MM-DD" type="date" />
+            <AdminInput label="Pickup Slot" value={indiaPostPickup.pickupSlot} onChange={(value) => setIndiaPostPickup((current) => ({ ...current, pickupSlot: value }))} placeholder="10:00-14:00" />
+            <AdminInput label="Max Weight kg" value={indiaPostPickup.maxWeightKg} onChange={(value) => setIndiaPostPickup((current) => ({ ...current, maxWeightKg: value }))} placeholder="2" type="number" />
+            <label className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm font-bold text-slate-300">
+              <input type="checkbox" checked={indiaPostPickup.directConsumerDelivery} onChange={(event) => setIndiaPostPickup((current) => ({ ...current, directConsumerDelivery: event.target.checked }))} />
+              Direct to consumer
+            </label>
+          </div>
+          <button type="button" onClick={scheduleIndiaPostPickup} className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-500">Save Pickup Setup</button>
+        </div>
+      )}
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-800 bg-slate-900 p-3">
           <p className="text-sm font-black text-white">{provider === 'eFruitMandi' ? 'Own Transport Auto Sync' : 'Partner Setup'}</p>
