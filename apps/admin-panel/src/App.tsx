@@ -453,6 +453,7 @@ const orchardProductCategories = [
 
 const orchardSeasonalCategories = ['Spring', 'Summer', 'Monsoon', 'Winter'];
 const rawMaterialCategories = ['Growing Media', 'Organic Manure', 'Fertilizer', 'Packaging', 'Pots / Containers', 'Irrigation Material', 'Plant Protection', 'Tools Consumable', 'Other'];
+const logisticsPlatformPages = ['eFruitMandi', 'Orchard Growers'];
 const logisticsCourierPartners = [
   'eFruitMandi',
   'India Post',
@@ -513,7 +514,7 @@ const orchardModuleChildRoutes: Partial<Record<AdminTab, Record<string, AdminTab
     'Returns / Refunds': 'billing',
   },
   logistics: {
-    ...Object.fromEntries(logisticsCourierPartners.map((partner) => [partner, 'logistics' as AdminTab])),
+    ...Object.fromEntries(logisticsPlatformPages.map((platform) => [platform, 'logistics' as AdminTab])),
   },
   financials: {
     Expenses: 'expenses',
@@ -805,10 +806,10 @@ const modulePlans: Partial<Record<AdminTab, ModulePlan>> = {
   },
   logistics: {
     title: 'Logistics Control',
-    text: 'Control eFruitMandi, India Post, major courier partners, and AWS logistics automation from one operational panel.',
-    pages: logisticsCourierPartners,
-    fields: ['Partner', 'Mode', 'Booking Status', 'Tracking', 'Webhook / API Status', 'Fallback Action'],
-    rules: ['Use eFruitMandi for marketplace dispatch coordination.', 'Use India Post for postal booking and tracking.', 'Use manual providers when automatic partner integration is pending.'],
+    text: 'Control eFruitMandi marketplace transport and Orchard Growers courier dispatch from one operational panel.',
+    pages: logisticsPlatformPages,
+    fields: ['Platform', 'Courier Partner', 'Booking Status', 'Tracking', 'Webhook / API Status', 'Fallback Action'],
+    rules: ['Use eFruitMandi for registered driver tracking, GPS/manual updates, and escrow reflection.', 'Use Orchard Growers for direct consumer consignments, India Post API booking, and courier assignment.', 'Only India Post and eFruitMandi are API/custom-system ready today; other couriers remain setup-ready until integration is added.'],
   },
   efruitDashboard: {
     title: 'eFruitMandi Dashboard',
@@ -2524,7 +2525,7 @@ function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: (
           icon: 'purchase',
           tab: 'logistics',
           count: counts.logistics,
-          children: logisticsCourierPartners.map((partner) => ({ label: partner, tab: 'logistics' as AdminTab })),
+          children: logisticsPlatformPages.map((platform) => ({ label: platform, tab: 'logistics' as AdminTab })),
         },
         {
           label: 'Financials',
@@ -5248,10 +5249,11 @@ function LogisticsControlPanel({
               onChange={(value) => updateLogistics(order, { deliveryPartnerSelection: value })}
               disabled={savingId === order._id}
             />
-            <AdminInlineInput
+            <AdminSelect
               label="Courier Partner"
               value={order.courierPartner || 'India Post'}
-              onSave={(value) => updateLogistics(order, { courierPartner: value })}
+              options={logisticsCourierPartners}
+              onChange={(value) => updateLogistics(order, { courierPartner: value })}
               disabled={savingId === order._id}
             />
             <AdminInlineInput
@@ -5270,7 +5272,7 @@ function LogisticsControlPanel({
           </div>
           <div className="mt-3 grid gap-2 text-sm text-slate-300 md:grid-cols-3">
             <Info label="Booking" value={order.courierBookingStatus || 'PENDING'} />
-            <Info label="Selection" value={order.deliveryPartnerSelection || 'AUTOMATIC'} />
+            <Info label="Platform" value={(order.courierPartner || '').toLowerCase() === 'efruitmandi' ? 'eFruitMandi' : 'Orchard Growers'} />
             <Info label="Tracking" value={order.trackingNumber || 'Not assigned'} />
           </div>
         </article>
@@ -5434,8 +5436,12 @@ function LogisticsProviderPanel({
   orders: AdminOrder[];
   onBookOrder: (order: AdminOrder, payload: Partial<AdminOrder>) => void;
 }) {
-  const provider = logisticsCourierPartners.includes(activePage) ? activePage : 'eFruitMandi';
+  const platform = logisticsPlatformPages.includes(activePage) ? activePage : 'eFruitMandi';
+  const defaultCourierPartner = platform === 'eFruitMandi' ? 'eFruitMandi' : 'India Post';
+  const [selectedCourierPartner, setSelectedCourierPartner] = useState(defaultCourierPartner);
+  const provider = platform === 'eFruitMandi' ? 'eFruitMandi' : selectedCourierPartner;
   const providerProfile = getLogisticsProviderProfile(provider);
+  const platformOrders = orders.filter((order) => ((order.courierPartner || '').toLowerCase() === 'efruitmandi') === (platform === 'eFruitMandi'));
   const providerOrders = orders.filter((order) => (order.courierPartner || 'India Post') === provider);
   const pendingOrders = orders.filter((order) => !order.trackingNumber || ['PENDING', 'PLACED'].includes(order.deliveryStatus || 'PLACED'));
   const [setup, setSetup] = useState<LogisticsProviderSetup>(() => readProviderSetup(provider));
@@ -5452,6 +5458,8 @@ function LogisticsProviderPanel({
     vehicle: '',
     location: 'GPS pending',
     status: 'AVAILABLE',
+    escrowStatus: 'BILLDESK_PENDING',
+    billDeskRef: '',
   });
   const [indiaPostPickup, setIndiaPostPickup] = useState({
     pickupDate: new Date().toISOString().slice(0, 10),
@@ -5460,6 +5468,10 @@ function LogisticsProviderPanel({
     directConsumerDelivery: true,
   });
   const [localNotice, setLocalNotice] = useState('');
+
+  useEffect(() => {
+    setSelectedCourierPartner(defaultCourierPartner);
+  }, [defaultCourierPartner]);
 
   useEffect(() => {
     setSetup(readProviderSetup(provider));
@@ -5536,21 +5548,24 @@ function LogisticsProviderPanel({
   };
   const bookedCount = providerOrders.filter((order) => order.trackingNumber).length;
   const autoReady = provider === 'eFruitMandi' || (setup.mode === 'AUTOMATIC' && (setup.apiKey || provider === 'AWS'));
+  const platformText = platform === 'eFruitMandi'
+    ? 'eFruitMandi transport reflects registered drivers from efruitmandi.live, live/manual location updates, destination status, and escrow payment visibility.'
+    : 'Orchard Growers dispatch shows direct customer orders, courier assignment, India Post pickup/API setup, labels, and tracking controls.';
 
   return (
     <section className="rounded-xl border border-slate-800 bg-slate-950 p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-wide text-emerald-300">Logistics Sub Option</p>
-          <h3 className="mt-1 text-lg font-black text-white">{provider}</h3>
-          <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-400">{providerProfile.text}</p>
+          <p className="text-xs font-black uppercase tracking-wide text-emerald-300">Logistics Platform</p>
+          <h3 className="mt-1 text-lg font-black text-white">{platform}</h3>
+          <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-400">{platformText}</p>
         </div>
-        <span className="rounded-full bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-300">{providerOrders.length} mapped orders</span>
+        <span className="rounded-full bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-300">{platformOrders.length} platform orders</span>
       </div>
       <div className="mt-4 grid gap-3 md:grid-cols-4">
         {[
           ['Open Orders', pendingOrders.length],
-          ['Provider Booked', bookedCount],
+          ['Partner Booked', bookedCount],
           ['Setup Mode', setup.mode],
           ['Auto Ready', autoReady ? 'Yes' : 'No'],
         ].map(([metric, value]) => (
@@ -5560,7 +5575,7 @@ function LogisticsProviderPanel({
           </div>
         ))}
       </div>
-      {provider === 'eFruitMandi' && (
+      {platform === 'eFruitMandi' && (
         <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900 p-3">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -5576,10 +5591,14 @@ function LogisticsProviderPanel({
             <AdminInput label="GPS Location" value={driverDraft.location} onChange={(value) => setDriverDraft((current) => ({ ...current, location: value }))} placeholder="Lat,Lng / area" />
             <AdminSelect label="Driver Status" value={driverDraft.status} options={['AVAILABLE', 'ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED']} onChange={(value) => setDriverDraft((current) => ({ ...current, status: value }))} />
           </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <AdminSelect label="Escrow / BillDesk Status" value={driverDraft.escrowStatus} options={['BILLDESK_PENDING', 'ESCROW_HOLD', 'DESTINATION_REACHED', 'RELEASE_READY', 'SETTLED']} onChange={(value) => setDriverDraft((current) => ({ ...current, escrowStatus: value }))} />
+            <AdminInput label="BillDesk Reference" value={driverDraft.billDeskRef} onChange={(value) => setDriverDraft((current) => ({ ...current, billDeskRef: value }))} placeholder="Payment / escrow ref" />
+          </div>
           <button type="button" onClick={saveDriverUpdate} className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-500">Save Driver GPS Update</button>
         </div>
       )}
-      {provider === 'India Post' && (
+      {platform === 'Orchard Growers' && (
         <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900 p-3">
           <div>
             <p className="text-sm font-black text-white">India Post Small Consignment Pickup</p>
@@ -5599,18 +5618,25 @@ function LogisticsProviderPanel({
       )}
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-800 bg-slate-900 p-3">
-          <p className="text-sm font-black text-white">{provider === 'eFruitMandi' ? 'Own Transport Auto Sync' : 'Partner Setup'}</p>
+          <p className="text-sm font-black text-white">{platform === 'eFruitMandi' ? 'Own Transport Auto Sync' : 'Courier Partner Setup'}</p>
+          <p className="mt-1 text-xs font-semibold text-slate-400">{providerProfile.text}</p>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
-            <AdminSelect label="Booking Mode" value={setup.mode} options={['AUTOMATIC', 'MANUAL']} onChange={(value) => updateSetup('mode', value)} disabled={provider === 'eFruitMandi'} />
+            {platform === 'Orchard Growers' && (
+              <AdminSelect label="Courier Partner" value={selectedCourierPartner} options={logisticsCourierPartners.filter((partner) => partner !== 'eFruitMandi')} onChange={setSelectedCourierPartner} />
+            )}
+            <AdminSelect label="Booking Mode" value={setup.mode} options={['AUTOMATIC', 'MANUAL']} onChange={(value) => updateSetup('mode', value)} disabled={platform === 'eFruitMandi'} />
             <AdminInput label="Pickup PIN" value={setup.pickupPincode} onChange={(value) => updateSetup('pickupPincode', value)} placeholder="175029" />
-            {provider !== 'eFruitMandi' && <AdminInput label={providerProfile.apiLabel} value={setup.apiKey} onChange={(value) => updateSetup('apiKey', value)} placeholder={providerProfile.apiLabel} />}
-            {provider !== 'eFruitMandi' && <AdminInput label={providerProfile.accountLabel} value={setup.accountCode} onChange={(value) => updateSetup('accountCode', value)} placeholder={providerProfile.accountLabel} />}
+            {platform !== 'eFruitMandi' && <AdminInput label={providerProfile.apiLabel} value={setup.apiKey} onChange={(value) => updateSetup('apiKey', value)} placeholder={providerProfile.apiLabel} />}
+            {platform !== 'eFruitMandi' && <AdminInput label={providerProfile.accountLabel} value={setup.accountCode} onChange={(value) => updateSetup('accountCode', value)} placeholder={providerProfile.accountLabel} />}
             <AdminInput label="Service Type" value={setup.serviceType} onChange={(value) => updateSetup('serviceType', value)} placeholder="Surface / Express / Speed Post" />
             <label className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm font-bold text-slate-300">
               <input type="checkbox" checked={setup.codEnabled} onChange={(event) => updateSetup('codEnabled', event.target.checked)} />
               COD enabled
             </label>
           </div>
+          {platform === 'Orchard Growers' && provider !== 'India Post' && (
+            <p className="mt-3 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-xs font-bold text-slate-400">API integration is setup-ready for {provider}; live automatic booking is enabled first for India Post.</p>
+          )}
           <button type="button" onClick={saveSetup} className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-500">Save Setup</button>
         </div>
         <div className="rounded-xl border border-slate-800 bg-slate-900 p-3">

@@ -121,6 +121,7 @@ const initialLogin = {
   identifier: "",
   otp: "",
   password: "",
+  confirmPassword: "",
 };
 
 const initialSignup = {
@@ -502,6 +503,10 @@ export default function Profile() {
         showError("Enter email/phone, OTP, and new password.");
         return;
       }
+      if (loginForm.password !== loginForm.confirmPassword) {
+        showError("Passwords do not match.");
+        return;
+      }
       if (loginForm.password.length < 8 || !/[A-Za-z]/.test(loginForm.password) || !/\d/.test(loginForm.password)) {
         showError("Password must be at least 8 characters and include a letter and a number.");
         return;
@@ -631,7 +636,7 @@ export default function Profile() {
   const loginIdentifier = getAuthIdentifier(loginForm.identifier);
   const signupIdentifier = getAuthIdentifier(signupForm.identifier);
   const loginCanSubmit = resetMode
-    ? Boolean(loginIdentifier && loginForm.otp.trim() && loginForm.password)
+    ? Boolean(loginIdentifier && loginForm.otp.trim() && loginForm.password && loginForm.confirmPassword)
     : Boolean(loginIdentifier && loginForm.password && activeVerified);
   const signupCanSubmit = Boolean(
     signupForm.name.trim() &&
@@ -727,7 +732,7 @@ export default function Profile() {
             <div className="pt-3 lg:pt-2">
               <p className="text-xs font-bold text-green-700">E-Fruit Mandi</p>
               <h2 className="mt-1 text-xl font-black leading-tight text-gray-950 sm:text-2xl lg:text-xl">
-                {mode === "login" ? "Welcome back" : "Create your account"}
+                {resetMode ? "Reset your password" : mode === "login" ? "Welcome back" : "Create your account"}
               </h2>
               {mode === "login" && (
                 <p className="mt-1 text-xs text-gray-500 sm:text-sm lg:text-xs">
@@ -760,13 +765,13 @@ export default function Profile() {
                     loading={loading}
                     otpCooldown={otpCooldown.login}
                     otpSent={hasOtpRequest("login")}
-                    onSendOtp={() => handleSendOtp("login")}
+                    onSendOtp={() => (resetMode ? requestPasswordResetOtp() : handleSendOtp("login"))}
                     onVerifyOtp={() => handleVerifyOtp("login")}
                     disableAutofill
                   />
 
                   <PasswordField
-                    label="Password"
+                    label={resetMode ? "New Password" : "Password"}
                     value={loginForm.password}
                     onChange={(value) =>
                       setLoginForm({ ...loginForm, password: value })
@@ -777,12 +782,30 @@ export default function Profile() {
                     name="efruitmandi-login-passcode"
                   />
 
+                  {resetMode && (
+                    <PasswordField
+                      label="Confirm Password"
+                      value={loginForm.confirmPassword}
+                      onChange={(value) =>
+                        setLoginForm({ ...loginForm, confirmPassword: value })
+                      }
+                      visible={showLoginPassword}
+                      onToggle={() => setShowLoginPassword((value) => !value)}
+                      autoComplete="new-password"
+                      name="efruitmandi-reset-confirm-passcode"
+                    />
+                  )}
+
                   <button
                     type="button"
-                    onClick={requestPasswordResetOtp}
+                    onClick={resetMode ? () => {
+                      setResetMode(false);
+                      setLoginForm(initialLogin);
+                      setMessage({ type: "", text: "" });
+                    } : requestPasswordResetOtp}
                     className="mb-3 block w-full text-left text-xs font-semibold text-green-700 lg:mb-2"
                   >
-                    Forgot password?
+                    {resetMode ? "Back to login" : "Forgot password?"}
                   </button>
 
                   <SubmitButton loading={loading} disabled={!loginCanSubmit} label={resetMode ? "Reset password" : "Login"} loadingLabel="Please wait..." />

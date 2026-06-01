@@ -3097,8 +3097,12 @@ function AuthPage() {
     }
 
     if (resetMode) {
-      if (!form.identifier || !form.otp || !form.password) {
-        setMessage("Enter your email/phone, OTP, and new password.");
+      if (!form.identifier || !form.otp || !form.password || !form.confirmPassword) {
+        setMessage("Enter your email/phone, OTP, new password, and confirm password.");
+        return;
+      }
+      if (form.password !== form.confirmPassword) {
+        setMessage("Passwords do not match.");
         return;
       }
       if (form.password.length < 8 || !/[A-Za-z]/.test(form.password) || !/\d/.test(form.password)) {
@@ -3118,7 +3122,7 @@ function AuthPage() {
         setResetMode(false);
         setOtpSent(false);
         setOtpReqId("");
-        setForm((current) => ({ ...current, otp: "", password: "" }));
+        setForm((current) => ({ ...current, otp: "", password: "", confirmPassword: "" }));
         setMessage(res.data.message || "Password reset successful. Please login.");
       } catch (err: any) {
         setMessage(err?.response?.data?.msg || err?.message || "Could not reset password.");
@@ -3235,7 +3239,7 @@ function AuthPage() {
             </div>
 
             <h1 className="text-center text-2xl font-semibold leading-tight text-black md:text-[28px]">
-              {mode === "login" ? "Sign in to your account" : "Create your account"}
+              {resetMode ? "Reset your password" : mode === "login" ? "Sign in to your account" : "Create your account"}
             </h1>
 
             {message && (
@@ -3266,7 +3270,7 @@ function AuthPage() {
                 />
                 <button
                   type="button"
-                  onClick={sendLoginOtp}
+                  onClick={resetMode ? requestPasswordResetOtp : sendLoginOtp}
                   disabled={loading || otpCooldown > 0}
                   className="rounded-md border border-green-700 px-4 text-sm font-medium text-green-800 hover:bg-green-50"
                 >
@@ -3292,7 +3296,7 @@ function AuthPage() {
                   {showPassword ? <FaEyeSlash /> : <FaEye />}
                 </button>
               </div>
-              {mode === "signup" && (
+              {(mode === "signup" || resetMode) && (
                 <div className="relative">
                   <input
                     type={showConfirmPassword ? "text" : "password"}
@@ -3326,9 +3330,16 @@ function AuthPage() {
                 <button
                   type="button"
                   className="text-sm font-medium text-green-800 hover:text-green-900"
-                  onClick={requestPasswordResetOtp}
+                  onClick={resetMode ? () => {
+                    setResetMode(false);
+                    setOtpSent(false);
+                    setOtpCooldown(0);
+                    setOtpReqId("");
+                    setForm({ name: "", identifier: "", password: "", confirmPassword: "", otp: "" });
+                    setMessage("");
+                  } : requestPasswordResetOtp}
                 >
-                  Forgot password?
+                  {resetMode ? "Back to login" : "Forgot password?"}
                 </button>
               )}
               {mode === "signup" && (
