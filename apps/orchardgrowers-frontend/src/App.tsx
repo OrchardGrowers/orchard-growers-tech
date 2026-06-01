@@ -484,7 +484,7 @@ function Home() {
           API.get<Product[]>("/products").catch(() => ({ data: [] as Product[] })),
           API.get<Auction[]>("/auctions").catch(() => ({ data: [] as Auction[] })),
         ]);
-        setProducts(productRes.data || []);
+        setProducts((productRes.data || []).filter((product) => product.inventoryType !== "raw_material"));
         setAuctions(auctionRes.data || []);
       } finally {
         setLoading(false);
@@ -2757,7 +2757,7 @@ function ProfilePage() {
                 <img
                   src={user.avatarUrl}
                   alt={userName}
-                  className="-mt-12 h-24 w-24 rounded-full border-4 border-white/60 object-cover shadow-lg"
+                  className="-mt-12 h-24 w-24 rounded-full border-4 border-white/60 bg-white object-contain object-center shadow-lg"
                 />
               ) : (
                 <div className="-mt-12 flex h-24 w-24 items-center justify-center rounded-full border-4 border-white/50 bg-white/15 text-4xl font-bold">
@@ -4059,7 +4059,7 @@ function AccountProfileMediaPanel({ initialUser }: { initialUser: UserProfile })
       <div className="flex flex-col gap-4 px-4 pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="-mt-10 flex items-end gap-3">
           {user.avatarUrl ? (
-            <img src={user.avatarUrl} alt={displayName} className="h-20 w-20 rounded-full border-4 border-white object-cover shadow" />
+            <img src={user.avatarUrl} alt={displayName} className="h-20 w-20 rounded-full border-4 border-white bg-white object-contain object-center shadow" />
           ) : (
             <div className="flex h-20 w-20 items-center justify-center rounded-full border-4 border-white bg-green-700 text-2xl font-bold text-white shadow">
               {displayName.slice(0, 1).toUpperCase()}
@@ -4573,6 +4573,9 @@ function getProductSearchText(product: Product) {
     product.fruitName,
     product.variety,
     product.description,
+    product.seoMetaTitle,
+    product.seoMetaDescription,
+    ...(Array.isArray(product.seoKeywords) ? product.seoKeywords : []),
     product.location,
   ]
     .filter(Boolean)

@@ -130,6 +130,21 @@ body {
   color: #ffffff !important;
 }
 
+.admin-theme-light button.bg-slate-700,
+.admin-theme-light button.bg-slate-800,
+.admin-theme-light a.bg-slate-700,
+.admin-theme-light a.bg-slate-800 {
+  background-color: #334155 !important;
+  color: #ffffff !important;
+}
+
+.admin-theme-light button.bg-slate-700:hover,
+.admin-theme-light button.bg-slate-800:hover,
+.admin-theme-light a.bg-slate-700:hover,
+.admin-theme-light a.bg-slate-800:hover {
+  background-color: #1e293b !important;
+}
+
 .admin-theme-light .admin-theme-control {
   background-color: #e2e8f0 !important;
   border-color: #94a3b8 !important;

@@ -257,9 +257,11 @@ type AdminProduct = {
   productCategory?: string;
   seasonalCategory?: string;
   productType?: string;
+  inventoryType?: string;
   unit?: string;
   seoMetaTitle?: string;
   seoMetaDescription?: string;
+  seoKeywords?: string[];
   featured?: boolean;
   active?: boolean;
   description?: string;
@@ -328,9 +330,11 @@ type ProductDraft = {
   productCategory: string;
   seasonalCategory: string;
   productType: string;
+  inventoryType: string;
   unit: string;
   seoMetaTitle: string;
   seoMetaDescription: string;
+  seoKeywords: string;
   featured: boolean;
   active: boolean;
   description: string;
@@ -397,9 +401,11 @@ const emptyProductDraft: ProductDraft = {
   productCategory: '',
   seasonalCategory: '',
   productType: 'Plant',
+  inventoryType: 'finished_product',
   unit: 'Plant',
   seoMetaTitle: '',
   seoMetaDescription: '',
+  seoKeywords: '',
   featured: false,
   active: true,
   description: '',
@@ -468,6 +474,7 @@ type ModulePlan = {
 const orchardModuleChildRoutes: Partial<Record<AdminTab, Record<string, AdminTab>>> = {
   master: {
     'Add Product': 'productAdmin',
+    'Add Raw Material': 'productAdmin',
     'Units / Outlets': 'unitsOutlets',
     'Vendors / Parties': 'master',
     Categories: 'master',
@@ -723,7 +730,7 @@ const modulePlans: Partial<Record<AdminTab, ModulePlan>> = {
   productAdmin: {
     title: 'Product Master',
     text: 'Create and maintain Orchard Growers catalog records that feed inventory, billing, SEO, and storefront listing data.',
-    fields: ['Product Name', 'Slug', 'SKU', 'HSN Code', 'CGST', 'SGST', 'Category', 'Type', 'Unit', 'SEO', 'Featured', 'Active', 'Images 1-5'],
+    fields: ['Product Name', 'Slug', 'SKU', 'HSN Code', 'CGST', 'SGST', 'Category', 'Type', 'Unit', 'SEO Keywords', 'Featured', 'Active', 'Images 1-5'],
   },
   purchase: {
     title: 'Purchase Entry',
@@ -1943,9 +1950,6 @@ function App() {
         ...current,
         [options.parentTab as AdminTab]: options.childLabel as string,
       }));
-    } else {
-      const lastChildLabel = getOrchardModulePage(tab);
-      nextTab = orchardModuleChildRoutes[tab]?.[lastChildLabel] || tab;
     }
 
     if (!canAccessAdminTab(adminRole, nextTab)) {
@@ -1975,6 +1979,18 @@ function App() {
     if (tab === 'master') {
       const activeMasterPage = getOrchardModulePage('master');
       if (activeMasterPage === 'Vendors / Parties') return <PartyVendorPanel />;
+      if (activeMasterPage === 'Add Raw Material') {
+        return <ProductAdminPanel
+          draft={{ ...productDraft, inventoryType: 'raw_material', productType: productDraft.productType === 'Plant' ? 'Raw Material' : productDraft.productType }}
+          onChange={setProductDraft}
+          onSubmit={saveOrchardProduct}
+          saving={productSaving}
+          uploadAuthHeaders={uploadAuthHeaders}
+          editing={Boolean(editingProductId)}
+          onCancelEdit={cancelProductEdit}
+          modeLabel="Raw Material"
+        />;
+      }
       return <OrchardSubOptionPanel module="master" activePage={activeMasterPage} />;
     }
 
@@ -1990,16 +2006,21 @@ function App() {
       );
     }
     if (tab === 'productAdmin') {
+      const productModeLabel = getOrchardModulePage('master') === 'Add Raw Material' ? 'Raw Material' : 'Product';
+      const productPanelDraft = productModeLabel === 'Raw Material'
+        ? { ...productDraft, inventoryType: 'raw_material', productType: productDraft.productType === 'Plant' ? 'Raw Material' : productDraft.productType }
+        : { ...productDraft, inventoryType: productDraft.inventoryType || 'finished_product' };
       return (
         <section className="space-y-4">
           <ProductAdminPanel
-            draft={productDraft}
+            draft={productPanelDraft}
             onChange={setProductDraft}
             onSubmit={saveOrchardProduct}
             saving={productSaving}
             uploadAuthHeaders={uploadAuthHeaders}
             editing={Boolean(editingProductId)}
             onCancelEdit={cancelProductEdit}
+            modeLabel={productModeLabel}
           />
           <OrchardProductsTable products={searchedProducts} onEdit={editOrchardProduct} onDelete={deleteOrchardProduct} />
         </section>
@@ -2437,6 +2458,7 @@ function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: (
           tab: 'master',
           children: [
             { label: 'Add Product', tab: 'productAdmin' },
+            { label: 'Add Raw Material', tab: 'productAdmin' },
             { label: 'Units / Outlets', tab: 'unitsOutlets' },
             { label: 'Vendors / Parties', tab: 'master' },
             { label: 'Categories', tab: 'master' },
@@ -2592,7 +2614,7 @@ function isSidebarChildActive(
     return activePage === child.label;
   }
 
-  return true;
+  return Boolean(item.tab && activePages[item.tab] === child.label);
 }
 
 type MenuIconName =
@@ -3703,7 +3725,7 @@ function CreateUnitPanel() {
                   { ...draft, id: `unit-${Date.now()}` },
                 ];
                 localStorage.setItem('orchard_units', JSON.stringify(next));
-                setMessage('Unit saved.');
+                notifyLocalAction('Unit saved.');
                 setDraft({
                   unitName: '',
                   unitType: 'Nursery Unit',
@@ -3718,7 +3740,7 @@ function CreateUnitPanel() {
                   status: 'Active',
                 });
               } catch (err) {
-                setMessage(err instanceof Error ? err.message : 'Save failed');
+                notifyLocalAction(err instanceof Error ? err.message : 'Save failed');
               }
             }}
             className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-600"
@@ -3747,6 +3769,51 @@ function PartyVendorPanel() {
     status: 'Active',
   });
   const update = (field: keyof typeof draft, value: string) => setDraft((current) => ({ ...current, [field]: value }));
+  const saveParty = () => {
+    if (!draft.partyName.trim()) {
+      notifyLocalAction('Enter party / firm name before saving.');
+      return;
+    }
+
+    try {
+      const stored = JSON.parse(localStorage.getItem('orchard_parties') || '[]');
+      localStorage.setItem('orchard_parties', JSON.stringify([{ ...draft, id: `party-${Date.now()}` }, ...stored]));
+      notifyLocalAction('Party / vendor saved.');
+      setDraft({
+        partyName: '',
+        partyType: 'Supplier/Seller',
+        contactPerson: '',
+        phone: '',
+        email: '',
+        gstin: '',
+        pan: '',
+        paymentTerms: 'Immediate',
+        creditLimit: '',
+        address: '',
+        productMapping: '',
+        status: 'Active',
+      });
+    } catch (err) {
+      notifyLocalAction(err instanceof Error ? err.message : 'Save failed');
+    }
+  };
+  const verifyGst = () => {
+    notifyLocalAction(draft.gstin.trim() ? `GST verification queued for ${draft.gstin}.` : 'Enter GSTIN before verification.');
+  };
+  const openLedger = () => {
+    const stored = JSON.parse(localStorage.getItem('orchard_parties') || '[]');
+    notifyLocalAction(`Local vendor ledger has ${Array.isArray(stored) ? stored.length : 0} saved parties.`);
+  };
+  const exportParties = () => {
+    const stored = localStorage.getItem('orchard_parties') || '[]';
+    const blob = new Blob([stored], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'orchard-parties.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <section className="space-y-4">
@@ -3766,11 +3833,10 @@ function PartyVendorPanel() {
           <FormSelect label="Status" value={draft.status} onChange={(value) => update('status', value)} options={['Active', 'Inactive', 'Blacklisted']} />
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          {['Save Party', 'Verify GST', 'Open Ledger', 'Export'].map((action) => (
-            <button key={action} type="button" className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">
-              {action}
-            </button>
-          ))}
+          <button type="button" onClick={saveParty} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-600">Save Party</button>
+          <button type="button" onClick={verifyGst} className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">Verify GST</button>
+          <button type="button" onClick={openLedger} className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">Open Ledger</button>
+          <button type="button" onClick={exportParties} className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">Export</button>
         </div>
       </PanelShell>
     </section>
@@ -3843,7 +3909,9 @@ function PurchaseEntryPanel({ products }: { products: AdminProduct[] }) {
     vendor: '',
     invoiceNo: '',
     invoiceDate: new Date().toISOString().slice(0, 10),
+    purchaseItemType: 'Finished Product',
     productId: products[0]?._id || '',
+    rawMaterialName: '',
     quantity: '',
     rate: '',
     gstRate: '5',
@@ -3870,15 +3938,20 @@ function PurchaseEntryPanel({ products }: { products: AdminProduct[] }) {
           <AdminInput label="Vendor / Supplier" value={draft.vendor} onChange={(value) => update('vendor', value)} placeholder="Supplier name" />
           <AdminInput label="Invoice No." value={draft.invoiceNo} onChange={(value) => update('invoiceNo', value.toUpperCase())} placeholder="Purchase invoice no." />
           <AdminInput label="Invoice Date" value={draft.invoiceDate} onChange={(value) => update('invoiceDate', value)} placeholder="YYYY-MM-DD" type="date" />
-          <label className="block text-sm font-bold text-slate-300">
-            Product
-            <select value={draft.productId} onChange={(event) => update('productId', event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400">
-              <option value="">Select product</option>
-              {products.map((product) => (
-                <option key={product._id} value={product._id}>{product.title || product.fruitName || 'Untitled product'}</option>
-              ))}
-            </select>
-          </label>
+          <FormSelect label="Purchase Item Type" value={draft.purchaseItemType} onChange={(value) => update('purchaseItemType', value)} options={['Finished Product', 'Raw Material']} />
+          {draft.purchaseItemType === 'Finished Product' ? (
+            <label className="block text-sm font-bold text-slate-300">
+              Product
+              <select value={draft.productId} onChange={(event) => update('productId', event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400">
+                <option value="">Select product</option>
+                {products.filter((product) => product.inventoryType !== 'raw_material').map((product) => (
+                  <option key={product._id} value={product._id}>{product.title || product.fruitName || 'Untitled product'}</option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <AdminInput label="Raw Material" value={draft.rawMaterialName} onChange={(value) => update('rawMaterialName', value)} placeholder="Cocopeat, compost, grafting tape" />
+          )}
           <AdminInput label="Quantity" value={draft.quantity} onChange={(value) => update('quantity', value)} placeholder="0" type="number" />
           <AdminInput label="Rate" value={draft.rate} onChange={(value) => update('rate', value)} placeholder="0" type="number" />
           <FormSelect label="GST %" value={draft.gstRate} onChange={(value) => update('gstRate', value)} options={['0', '5', '12', '18', '28']} />
@@ -3907,25 +3980,81 @@ function NewInvoicePanel({ products, invoiceNumber }: { products: AdminProduct[]
   const [customer, setCustomer] = useState({
     name: '',
     phone: '',
+    email: '',
     gstin: '',
     paymentMethod: 'Cash',
     billingAddress: '',
   });
   const [customerType, setCustomerType] = useState<'Retail Customer' | 'Dealer/Firm/Company'>('Retail Customer');
-  const [row, setRow] = useState({
+  const createInvoiceRow = () => ({
+    id: `row-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     productId: firstProduct?._id || '',
     quantity: '1',
     rate: String(firstProduct?.basePrice || ''),
     discountPercent: String(firstProduct?.discountPercent || 0),
     gstRate: String(firstProduct?.gstRate || 5),
   });
+  const [rows, setRows] = useState([createInvoiceRow()]);
   const updateCustomer = (field: keyof typeof customer, value: string) => setCustomer((current) => ({ ...current, [field]: value }));
-  const updateRow = (field: keyof typeof row, value: string) => setRow((current) => ({ ...current, [field]: value }));
-  const subtotal = Number(row.quantity || 0) * Number(row.rate || 0);
-  const discount = subtotal * (Number(row.discountPercent || 0) / 100);
-  const taxable = Math.max(0, subtotal - discount);
-  const tax = taxable * (Number(row.gstRate || 0) / 100);
-  const total = taxable + tax;
+  const updateRow = (id: string, field: keyof ReturnType<typeof createInvoiceRow>, value: string) =>
+    setRows((current) => current.map((row) => (row.id === id ? { ...row, [field]: value } : row)));
+  const addRow = () => setRows((current) => [...current, createInvoiceRow()]);
+  const removeRow = (id: string) => setRows((current) => (current.length > 1 ? current.filter((row) => row.id !== id) : current));
+  const rowTotals = rows.map((row) => {
+    const subtotal = Number(row.quantity || 0) * Number(row.rate || 0);
+    const discount = subtotal * (Number(row.discountPercent || 0) / 100);
+    const taxable = Math.max(0, subtotal - discount);
+    const tax = taxable * (Number(row.gstRate || 0) / 100);
+    return { subtotal, discount, tax, total: taxable + tax };
+  });
+  const subtotal = rowTotals.reduce((sum, item) => sum + item.subtotal, 0);
+  const discount = rowTotals.reduce((sum, item) => sum + item.discount, 0);
+  const tax = rowTotals.reduce((sum, item) => sum + item.tax, 0);
+  const total = rowTotals.reduce((sum, item) => sum + item.total, 0);
+  const getInvoiceSummary = () => {
+    const productLines = rows.map((row, index) => {
+      const product = products.find((item) => item._id === row.productId);
+      return `${index + 1}. ${product?.title || 'Product'} x ${row.quantity || 0} = Rs. ${Math.round(rowTotals[index]?.total || 0)}`;
+    });
+    return [`Invoice ${invoiceNumber}`, `Customer: ${customer.name || 'Walk-in customer'}`, ...productLines, `Grand Total: Rs. ${Math.round(total)}`].join('\n');
+  };
+  const saveInvoice = () => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('orchard_invoices') || '[]');
+      const invoice = {
+        id: `inv-${Date.now()}`,
+        invoiceNumber,
+        customerType,
+        customer: { ...customer },
+        rows: rows.map(({ id, ...row }) => row),
+        totals: { subtotal, discount, tax, total },
+        createdAt: new Date().toISOString(),
+      };
+      localStorage.setItem('orchard_invoices', JSON.stringify([invoice, ...stored]));
+      notifyLocalAction('Invoice saved locally.');
+      setCustomer({ name: '', phone: '', email: '', gstin: '', paymentMethod: 'Cash', billingAddress: '' });
+      setRows([createInvoiceRow()]);
+    } catch (err) {
+      notifyLocalAction(err instanceof Error ? err.message : 'Save failed');
+    }
+  };
+  const generatePdf = () => {
+    const printable = window.open('', '_blank', 'width=900,height=700');
+    if (!printable) return;
+    printable.document.write(`<pre style="font:14px/1.5 system-ui;white-space:pre-wrap">${getInvoiceSummary()}</pre>`);
+    printable.document.close();
+    printable.print();
+  };
+  const sendWhatsapp = () => {
+    const phone = customer.phone.replace(/\D/g, '');
+    const url = `https://wa.me/${phone ? `91${phone.slice(-10)}` : ''}?text=${encodeURIComponent(getInvoiceSummary())}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+  const sendEmail = () => {
+    const subject = encodeURIComponent(`Invoice ${invoiceNumber}`);
+    const body = encodeURIComponent(getInvoiceSummary());
+    window.location.href = `mailto:${customer.email || ''}?subject=${subject}&body=${body}`;
+  };
 
   return (
     <PanelShell title="New Invoice" text="Create offline invoices with the same sequence logic used for Orchard Growers billing.">
@@ -3943,6 +4072,7 @@ function NewInvoicePanel({ products, invoiceNumber }: { products: AdminProduct[]
         </label>
         <AdminInput label={customerType === 'Retail Customer' ? 'Customer Name' : 'Dealer / Firm / Company'} value={customer.name} onChange={(value) => updateCustomer('name', value)} placeholder={customerType === 'Retail Customer' ? 'Customer / firm name' : 'Dealer / Firm / Company name'} />
         <AdminInput label="Contact Number" value={customer.phone} onChange={(value) => updateCustomer('phone', value)} placeholder="Phone number" />
+        <AdminInput label="Email" value={customer.email} onChange={(value) => updateCustomer('email', value)} placeholder="customer@example.com" type="email" />
         <AdminInput label="GST No. optional" value={customer.gstin} onChange={(value) => updateCustomer('gstin', value.toUpperCase())} placeholder="GSTIN" />
         <FormSelect label="Payment Method" value={customer.paymentMethod} onChange={(value) => updateCustomer('paymentMethod', value)} options={['Cash', 'UPI', 'Card', 'Bank', 'COD']} />
         <AdminInput label="Billing Address" value={customer.billingAddress} onChange={(value) => updateCustomer('billingAddress', value)} placeholder="Billing address" />
@@ -3957,38 +4087,35 @@ function NewInvoicePanel({ products, invoiceNumber }: { products: AdminProduct[]
               <th className="px-3 py-3">Discount %</th>
               <th className="px-3 py-3">GST %</th>
               <th className="px-3 py-3">Total</th>
+              <th className="px-3 py-3">Action</th>
             </tr>
           </thead>
           <tbody>
-            <tr className="text-slate-300">
+            {rows.map((row, index) => (
+            <tr key={row.id} className="text-slate-300">
               <td className="px-3 py-3">
                 <div className="flex items-center gap-2">
-                  <select value={row.productId} onChange={(event) => updateRow('productId', event.target.value)} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400">
+                  <select value={row.productId} onChange={(event) => updateRow(row.id, 'productId', event.target.value)} className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400">
                     <option value="">Select product</option>
                     {products.map((product) => (
                       <option key={product._id} value={product._id}>{product.title || product.fruitName || 'Untitled product'}</option>
                     ))}
                   </select>
-                  <button type="button" onClick={() => {
-                    const title = window.prompt('New product title');
-                    if (!title) return;
-                    const newProduct = { _id: `p-${Date.now()}`, title, slug: '', active: true, status: 'AVAILABLE', basePrice: 0 } as AdminProduct;
-                    try {
-                      setProducts((current) => [newProduct, ...current]);
-                      updateRow('productId', newProduct._id);
-                      setMessage('Product added locally.');
-                    } catch (err) {
-                      setMessage(err instanceof Error ? err.message : 'Add product failed');
-                    }
-                  }} className="rounded px-2 py-1 text-xs bg-slate-800 text-white">Add</button>
                 </div>
               </td>
-              <td className="px-3 py-3"><input value={row.quantity} onChange={(event) => updateRow('quantity', event.target.value)} type="number" className="h-10 w-24 rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400" /></td>
-              <td className="px-3 py-3"><input value={row.rate} onChange={(event) => updateRow('rate', event.target.value)} type="number" className="h-10 w-28 rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400" /></td>
-              <td className="px-3 py-3"><input value={row.discountPercent} onChange={(event) => updateRow('discountPercent', event.target.value)} type="number" className="h-10 w-24 rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400" /></td>
-              <td className="px-3 py-3"><input value={row.gstRate} onChange={(event) => updateRow('gstRate', event.target.value)} type="number" className="h-10 w-24 rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400" /></td>
-              <td className="px-3 py-3 font-bold text-white">Rs. {Math.round(total)}</td>
+              <td className="px-3 py-3"><input value={row.quantity} onChange={(event) => updateRow(row.id, 'quantity', event.target.value)} type="number" className="h-10 w-24 rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400" /></td>
+              <td className="px-3 py-3"><input value={row.rate} onChange={(event) => updateRow(row.id, 'rate', event.target.value)} type="number" className="h-10 w-28 rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400" /></td>
+              <td className="px-3 py-3"><input value={row.discountPercent} onChange={(event) => updateRow(row.id, 'discountPercent', event.target.value)} type="number" className="h-10 w-24 rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400" /></td>
+              <td className="px-3 py-3"><input value={row.gstRate} onChange={(event) => updateRow(row.id, 'gstRate', event.target.value)} type="number" className="h-10 w-24 rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400" /></td>
+              <td className="px-3 py-3 font-bold text-white">Rs. {Math.round(rowTotals[index]?.total || 0)}</td>
+              <td className="px-3 py-3">
+                <div className="flex gap-2">
+                  <button type="button" onClick={addRow} aria-label="Add next product" title="Add next product" className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-600 text-lg font-black text-white hover:bg-emerald-500">+</button>
+                  <button type="button" onClick={() => removeRow(row.id)} disabled={rows.length === 1} aria-label="Remove product row" title="Remove product row" className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-800 text-sm font-black text-white hover:bg-slate-700 disabled:opacity-50">x</button>
+                </div>
+              </td>
             </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -3999,30 +4126,12 @@ function NewInvoicePanel({ products, invoiceNumber }: { products: AdminProduct[]
         <MetricCard label="Grand Total" value={Math.round(total)} />
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
-        <button type="button" onClick={() => {
-          try {
-            const stored = JSON.parse(localStorage.getItem('orchard_invoices') || '[]');
-            const invoice = {
-              id: `inv-${Date.now()}`,
-              invoiceNumber,
-              customerType,
-              customer: { ...customer },
-              row: { ...row },
-              createdAt: new Date().toISOString(),
-            };
-            const next = [invoice, ...stored];
-            localStorage.setItem('orchard_invoices', JSON.stringify(next));
-            setMessage('Invoice saved locally.');
-            setCustomer({ name: '', phone: '', gstin: '', paymentMethod: 'Cash', billingAddress: '' });
-            setRow({ productId: firstProduct?._id || '', quantity: '1', rate: String(firstProduct?.basePrice || ''), discountPercent: String(firstProduct?.discountPercent || 0), gstRate: String(firstProduct?.gstRate || 5) });
-          } catch (err) {
-            setMessage(err instanceof Error ? err.message : 'Save failed');
-          }
-        }} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-600">Save Invoice</button>
-        <button type="button" className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">Print</button>
-        <button type="button" className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">Generate PDF</button>
-        <button type="button" className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">SMS Summary</button>
-        <button type="button" className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">WhatsApp Share</button>
+        <button type="button" onClick={saveInvoice} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-600">Save Invoice</button>
+        <button type="button" onClick={() => window.print()} className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">Print</button>
+        <button type="button" onClick={generatePdf} className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">Generate PDF</button>
+        <button type="button" onClick={() => window.open(`sms:${customer.phone}?body=${encodeURIComponent(getInvoiceSummary())}`, '_self')} className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">SMS Summary</button>
+        <button type="button" onClick={sendWhatsapp} className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">WhatsApp Share</button>
+        <button type="button" onClick={sendEmail} className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">Email PDF</button>
       </div>
     </PanelShell>
   );
@@ -4056,6 +4165,7 @@ function getProductPayload(draft: ProductDraft) {
     location: draft.location || 'Orchard Growers',
     variety: draft.variety || draft.productCategory || draft.fruitName,
     productType: draft.productType,
+    inventoryType: draft.inventoryType,
     unit: draft.unit,
     packingType: getPackSizeLabel(draft),
     packShape: draft.packShape,
@@ -4069,6 +4179,10 @@ function getProductPayload(draft: ProductDraft) {
     chargeableWeightKg,
     seoMetaTitle: draft.seoMetaTitle,
     seoMetaDescription: draft.seoMetaDescription,
+    seoKeywords: draft.seoKeywords
+      .split(',')
+      .map((keyword) => keyword.trim())
+      .filter(Boolean),
     featured: draft.featured,
     images: draft.uploadedImages.map((image) => image.url),
     imagePublicIds: draft.uploadedImages.map((image) => image.publicId),
@@ -4100,9 +4214,11 @@ function getProductDraftFromProduct(product: AdminProduct): ProductDraft {
     productCategory: product.productCategory || product.fruitName || '',
     seasonalCategory: product.seasonalCategory || '',
     productType: product.productType || 'Plant',
+    inventoryType: product.inventoryType || 'finished_product',
     unit: product.unit || 'Plant',
     seoMetaTitle: product.seoMetaTitle || '',
     seoMetaDescription: product.seoMetaDescription || '',
+    seoKeywords: Array.isArray(product.seoKeywords) ? product.seoKeywords.join(', ') : '',
     featured: Boolean(product.featured),
     active: product.active !== false && product.status !== 'SOLD',
     description: product.description || '',
@@ -4170,6 +4286,7 @@ function ProductAdminPanel({
   uploadAuthHeaders,
   editing,
   onCancelEdit,
+  modeLabel = 'Product',
 }: {
   draft: ProductDraft;
   onChange: (draft: ProductDraft) => void;
@@ -4178,6 +4295,7 @@ function ProductAdminPanel({
   uploadAuthHeaders: Record<string, string>;
   editing: boolean;
   onCancelEdit: () => void;
+  modeLabel?: string;
 }) {
   const update = (field: keyof ProductDraft, value: string | boolean | ProductImageUpload[]) => {
     const nextDraft = { ...draft, [field]: value };
@@ -4309,11 +4427,13 @@ function ProductAdminPanel({
     <form onSubmit={onSubmit} className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
       <div className="mb-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-lg font-bold text-white">{editing ? 'Edit Product' : 'Create Product'}</h2>
-          <span className="rounded-full bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-300">{editing ? 'Edit Mode' : 'Product Master'}</span>
+          <h2 className="text-lg font-bold text-white">{editing ? `Edit ${modeLabel}` : `Create ${modeLabel}`}</h2>
+          <span className="rounded-full bg-emerald-950 px-3 py-1 text-xs font-bold text-emerald-300">{editing ? 'Edit Mode' : `${modeLabel} Master`}</span>
         </div>
         <p className="mt-1 text-sm font-semibold text-slate-400">
-          Create own-brand product records for inventory, SEO, storefront sync, and billing.
+          {draft.inventoryType === 'raw_material'
+            ? 'Create raw-material records for purchase, stock, and production. Raw materials stay out of the storefront showcase.'
+            : 'Create own-brand product records for inventory, SEO, storefront sync, and billing.'}
         </p>
       </div>
       <div className="mb-4 flex flex-wrap gap-2">
@@ -4395,13 +4515,24 @@ function ProductAdminPanel({
           </select>
         </label>
         <label className="block text-sm font-bold text-slate-300">
+          Inventory Type
+          <select
+            value={draft.inventoryType}
+            onChange={(event) => update('inventoryType', event.target.value)}
+            className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400"
+          >
+            <option value="finished_product">Finished Product</option>
+            <option value="raw_material">Raw Material</option>
+          </select>
+        </label>
+        <label className="block text-sm font-bold text-slate-300">
           Product Type
           <select
             value={draft.productType}
             onChange={(event) => update('productType', event.target.value)}
             className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400"
           >
-            {['Plant', 'Seeds', 'Tools', 'Fertilizer', 'Equipment', 'Other'].map((type) => (
+            {['Plant', 'Seeds', 'Tools', 'Fertilizer', 'Equipment', 'Raw Material', 'Growing Media', 'Packaging', 'Other'].map((type) => (
               <option key={type} value={type}>{type}</option>
             ))}
           </select>
@@ -4495,6 +4626,9 @@ function ProductAdminPanel({
         <AdminInput label="SEO Meta Title" value={draft.seoMetaTitle} onChange={(value) => update('seoMetaTitle', value)} placeholder="Buy Avocado Plant Online" />
         <AdminInput label="SEO Meta Description" value={draft.seoMetaDescription} onChange={(value) => update('seoMetaDescription', value)} placeholder="Healthy grafted plants from Orchard Growers." />
       </div>
+      <div className="mt-3">
+        <AdminInput label="SEO Keywords" value={draft.seoKeywords} onChange={(value) => update('seoKeywords', value)} placeholder="avocado plant, grafted fruit plant, orchard growers" />
+      </div>
       <div className="mt-3 flex flex-wrap gap-3">
         <label className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm font-bold text-slate-300">
           <input type="checkbox" checked={draft.featured} onChange={(event) => update('featured', event.target.checked)} />
@@ -4550,7 +4684,7 @@ function ProductAdminPanel({
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         <button disabled={saving} className="rounded-lg bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-500 disabled:opacity-60">
-          {saving ? 'Saving...' : editing ? 'Update Product' : 'Save Product'}
+          {saving ? 'Saving...' : editing ? `Update ${modeLabel}` : `Save ${modeLabel}`}
         </button>
         {editing && (
           <button type="button" onClick={onCancelEdit} className="rounded-lg bg-slate-800 px-5 py-3 text-sm font-bold text-white hover:bg-slate-700">
@@ -5589,6 +5723,10 @@ function confirmTwice(actionLabel: string) {
     window.confirm(`Confirm you want to ${actionLabel}.`) &&
     window.confirm(`Final confirmation: ${actionLabel} will be applied now.`)
   );
+}
+
+function notifyLocalAction(message: string) {
+  window.alert(message);
 }
 
 export default App;

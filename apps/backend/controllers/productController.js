@@ -258,7 +258,7 @@ export const createProduct = async (req, res) => {
 // GET PRODUCTS
 export const getProducts = async (req, res) => {
   try {
-    const products = await Product.find({ active: { $ne: false } })
+    const products = await Product.find({ active: { $ne: false }, inventoryType: { $ne: "raw_material" } })
       .populate("createdBy", "name orchardName businessName role")
       .sort({ createdAt: -1 });
     res.json(products.map((product) => serializeProduct(product, req.user)));
@@ -275,7 +275,7 @@ export const getProductById = async (req, res) => {
       "name orchardName businessName role location"
     );
 
-    if (!product) {
+    if (!product || product.inventoryType === "raw_material") {
       return res.status(404).json({ msg: "Product not found" });
     }
 

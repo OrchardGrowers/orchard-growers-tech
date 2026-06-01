@@ -1439,10 +1439,12 @@ const PRODUCT_ADMIN_FIELDS = [
   "productCategory",
   "seasonalCategory",
   "productType",
+  "inventoryType",
   "unit",
   "description",
   "seoMetaTitle",
   "seoMetaDescription",
+  "seoKeywords",
   "featured",
   "active",
   "quantity",
@@ -1656,6 +1658,24 @@ const normalizeProductAdminPayload = (body = {}) => {
         payload.imagePublicIds = String(payload.imagePublicIds || "")
           .split(/\r?\n|,/)
           .map((id) => id.trim())
+          .filter(Boolean);
+      }
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, "seoKeywords")) {
+    if (Array.isArray(payload.seoKeywords)) {
+      payload.seoKeywords = payload.seoKeywords.map((keyword) => String(keyword).trim().toLowerCase()).filter(Boolean);
+    } else {
+      try {
+        const parsedKeywords = JSON.parse(String(payload.seoKeywords || "[]"));
+        payload.seoKeywords = Array.isArray(parsedKeywords)
+          ? parsedKeywords.map((keyword) => String(keyword).trim().toLowerCase()).filter(Boolean)
+          : [];
+      } catch {
+        payload.seoKeywords = String(payload.seoKeywords || "")
+          .split(/\r?\n|,/)
+          .map((keyword) => keyword.trim().toLowerCase())
           .filter(Boolean);
       }
     }

@@ -5,6 +5,10 @@ export interface Product {
   variety: string;
   productCategory?: string;
   seasonalCategory?: string;
+  inventoryType?: string;
+  seoMetaTitle?: string;
+  seoMetaDescription?: string;
+  seoKeywords?: string[];
   description: string;
   location: string;
   quantity: number;

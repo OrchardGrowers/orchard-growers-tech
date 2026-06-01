@@ -15,10 +15,17 @@ const productSchema = new mongoose.Schema(
     productCategory: String,
     seasonalCategory: String,
     productType: String,
+    inventoryType: {
+      type: String,
+      enum: ["finished_product", "raw_material"],
+      default: "finished_product",
+      index: true,
+    },
     unit: String,
     description: String,
     seoMetaTitle: String,
     seoMetaDescription: String,
+    seoKeywords: [{ type: String, trim: true, lowercase: true }],
     featured: { type: Boolean, default: false },
     active: { type: Boolean, default: true },
 
@@ -84,5 +91,15 @@ productSchema.index(
     partialFilterExpression: { sku: { $type: "string", $gt: "" } },
   }
 );
+productSchema.index({
+  title: "text",
+  fruitName: "text",
+  variety: "text",
+  productCategory: "text",
+  description: "text",
+  seoMetaTitle: "text",
+  seoMetaDescription: "text",
+  seoKeywords: "text",
+});
 
 export default mongoose.model("Product", productSchema);

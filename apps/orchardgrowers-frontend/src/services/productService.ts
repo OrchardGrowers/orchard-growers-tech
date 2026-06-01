@@ -3,7 +3,7 @@ import type { Product } from "../types";
 
 export const fetchProducts = async (): Promise<Product[]> => {
   const response = await API.get<Product[]>("/products");
-  return response.data;
+  return response.data.filter((product) => product.inventoryType !== "raw_material");
 };
 
 export const fetchProductById = async (id: string): Promise<Product> => {
