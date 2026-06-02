@@ -139,15 +139,16 @@ export default function Navbar() {
             runSearch={runSearch}
             isListening={isListening}
             startVoiceSearch={startVoiceSearch}
+            mobile
           />
 
-          <div className="flex shrink-0 items-center gap-1">
-            <div className="flex h-8 items-center gap-1 rounded-full bg-white px-2">
+          <div className="flex shrink-0 items-center gap-0.5">
+            <div className="flex h-7 items-center gap-0.5 rounded-full bg-white px-1.5">
               <img src={selected.flag} className="h-3 w-4 rounded-[2px]" alt="" />
               <select
                 value={selected.code}
                 onChange={(event) => handleChange(event.target.value)}
-                className="w-8 bg-white text-[10px] font-semibold outline-none"
+                className="w-7 bg-white text-[10px] font-semibold outline-none"
               >
                 {countries.map((country) => (
                   <option key={country.code} value={country.code}>
@@ -161,7 +162,7 @@ export default function Navbar() {
               href="https://www.youtube.com/results?search_query=Efruit+Mandi"
               target="_blank"
               rel="noreferrer"
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-red-600"
+              className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-red-600"
               aria-label="Learn us on YouTube"
               title="YouTube"
             >
@@ -172,13 +173,32 @@ export default function Navbar() {
               to="/notifications"
               aria-label="Notifications"
               title="Notifications"
-              className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-green-700"
+              className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-green-700"
             >
               <FaBell className="text-sm" />
               <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" />
             </Link>
+            <button
+              type="button"
+              onClick={() => (hasUser ? setProfileMenuOpen((open) => !open) : navigate("/profile"))}
+              aria-label="Profile"
+              title="Profile"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-green-700"
+            >
+              <FaUser className="text-sm" />
+            </button>
           </div>
         </div>
+        {profileMenuOpen && hasUser && (
+          <div ref={profileMenuRef}>
+            <ProfileAccountMenu
+              user={currentUser}
+              onAction={openProfileAction}
+              onLogout={logoutUser}
+              mobile
+            />
+          </div>
+        )}
       </div>
 
       <header className="fixed left-0 right-0 top-0 z-50 hidden bg-green-700 shadow-sm md:block">
@@ -193,7 +213,6 @@ export default function Navbar() {
             runSearch={runSearch}
             isListening={isListening}
             startVoiceSearch={startVoiceSearch}
-            mobile
           />
 
           <div className="ml-auto flex h-full items-center gap-3">
@@ -329,7 +348,7 @@ function SearchForm({
       }}
       className={
         mobile
-          ? "flex min-w-0 flex-1 items-center rounded-full bg-white px-2.5 py-1.5"
+          ? "flex min-w-[92px] flex-1 items-center rounded-full bg-white px-2 py-1.5"
           : "flex h-9 w-full max-w-[360px] items-center gap-2 rounded-full border border-green-300 bg-green-50 px-4 text-green-800"
       }
     >

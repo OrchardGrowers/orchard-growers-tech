@@ -8,6 +8,7 @@ const isStandaloneApp = () =>
   window.navigator.standalone === true;
 
 const isIosDevice = () => /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+const isAndroidDevice = () => /android/i.test(window.navigator.userAgent);
 
 const wasDismissed = () => {
   try {
@@ -66,7 +67,11 @@ export default function InstallAppPrompt() {
 
   const installApp = async () => {
     const promptEvent = deferredPromptRef.current;
-    if (!promptEvent) return;
+    if (!promptEvent) {
+      setCanInstall(false);
+      setShowPrompt(true);
+      return;
+    }
 
     deferredPromptRef.current = null;
     setCanInstall(false);
@@ -87,11 +92,15 @@ export default function InstallAppPrompt() {
             <p className="mt-2 text-sm font-semibold text-gray-600">
               {canInstall
                 ? "Install eFruitMandi on this device for quick access."
-                : "On iPhone/iPad, tap Share, then Add to Home Screen."}
+                : isIosDevice()
+                  ? "On iPhone/iPad, tap Share, then Add to Home Screen."
+                  : isAndroidDevice()
+                    ? "If Android shows only a shortcut, open Chrome menu and choose Install app when available."
+                    : "Use your browser menu and choose Install app or Add to Home Screen."}
             </p>
-            {!isIosDevice() && !canInstall && (
+            {!canInstall && (
               <p className="mt-1 text-xs font-semibold text-gray-500">
-                If the install prompt is unavailable, use your browser menu and choose install app.
+                Some mobile browsers support only a home-screen shortcut. Chrome/Edge usually provide full PWA install when the browser allows it.
               </p>
             )}
           </div>
@@ -109,9 +118,8 @@ export default function InstallAppPrompt() {
             type="button"
             onClick={installApp}
             className="flex-1 rounded-full bg-green-700 px-4 py-2 text-sm font-bold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={!canInstall}
           >
-            Download App
+            {canInstall ? "Download App" : "How to Install"}
           </button>
           <button
             type="button"

@@ -717,8 +717,8 @@ export default function Profile() {
           </div>
         </section>
 
-        <main className="flex h-full min-h-0 justify-center overflow-y-auto bg-white px-5 py-3 sm:px-7 lg:overflow-hidden lg:px-6 lg:py-2">
-          <div className="grid h-full w-full max-w-[390px] grid-rows-[auto_auto_minmax(0,1fr)_auto] lg:max-w-[360px]">
+        <main className="flex h-full min-h-0 justify-center overflow-y-auto bg-white px-4 py-3 sm:px-7 lg:overflow-hidden lg:px-6 lg:py-2">
+          <div className="flex min-h-full w-full max-w-[390px] flex-col lg:max-w-[360px]">
             <div className="grid grid-cols-2 rounded-lg bg-gray-100 p-1">
             <button
               type="button"
@@ -768,7 +768,7 @@ export default function Profile() {
               )}
             </div>
 
-            <div className="min-h-0 pt-3 lg:pt-2">
+            <div className="shrink-0 pt-3 lg:pt-2">
               {mode === "login" ? (
                 <form onSubmit={handleLogin} autoComplete="off">
                   <ContactOtpFields
@@ -872,10 +872,10 @@ export default function Profile() {
               )}
             </div>
 
-            <div className="pb-1">
+            <div className="shrink-0 pb-2 pt-3">
               <div className="flex items-center gap-3 text-xs text-gray-400">
                 <span className="h-px flex-1 bg-gray-200" />
-                <span>or continue using</span>
+                <span className="shrink-0">or continue using</span>
                 <span className="h-px flex-1 bg-gray-200" />
               </div>
 
@@ -995,20 +995,20 @@ function ContactOtpFields({
             </span>
           )}
         </div>
-        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-1.5 sm:gap-2">
           <input
             value={form.otp}
             onChange={(e) => setForm({ ...form, otp: e.target.value })}
             placeholder={otpSent ? "Enter OTP" : "Request OTP first"}
             inputMode="numeric"
             disabled={loading || verified}
-            className="min-w-0 rounded-md border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-green-600 lg:py-1"
+            className="min-w-0 rounded-md border border-gray-200 px-2.5 py-1.5 text-sm outline-none focus:border-green-600 lg:py-1"
           />
           <button
             type="button"
             disabled={loading || otpCooldown > 0}
             onClick={onSendOtp}
-            className="rounded-md bg-green-50 px-3 py-1.5 text-xs font-bold text-green-700 disabled:opacity-50 lg:py-1"
+            className="rounded-md bg-green-50 px-2 py-1.5 text-[11px] font-bold text-green-700 disabled:opacity-50 sm:px-3 sm:text-xs lg:py-1"
           >
             <FaPaperPlane className="inline-block" /> {otpCooldown > 0 ? `${otpCooldown}s` : "Send"}
           </button>
@@ -1016,7 +1016,7 @@ function ContactOtpFields({
             type="button"
             disabled={loading || verified || !otpSent || !form.otp.trim()}
             onClick={onVerifyOtp}
-            className="rounded-md bg-[#15883f] px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50 lg:py-1"
+            className="rounded-md bg-[#15883f] px-2 py-1.5 text-[11px] font-bold text-white disabled:opacity-50 sm:px-3 sm:text-xs lg:py-1"
           >
             {verified ? "Verified" : "Verify"}
           </button>
