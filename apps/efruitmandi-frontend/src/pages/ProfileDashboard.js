@@ -421,7 +421,9 @@ export default function ProfileDashboard() {
     entries.forEach(([field, file]) => {
       formData.append(fieldMap[field] || field, file);
     });
-    const res = await API.patch("/user/profile/media", formData);
+    const res = await API.patch("/user/profile/media", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
     return res.data;
   };
 
@@ -608,20 +610,40 @@ export default function ProfileDashboard() {
         ...(emailChanged ? { email: nextEmail } : {}),
         socialLinks: socialDraft,
       });
-      const profileUser = res.data || user;
-      const mediaUser = await uploadProfileMedia({
+      const profileUser = {
+        ...user,
+        ...(res.data || {}),
+      };
+      let savedUser = profileUser;
+      const mediaFiles = {
         avatarUrl: mediaDraft.avatarUrlFile,
         bannerUrl: mediaDraft.bannerUrlFile,
         companyLogoUrl: mediaDraft.companyLogoUrlFile,
-      });
-      const savedUser = mediaUser || profileUser;
+      };
+      const hasMediaChanges = Object.values(mediaFiles).some(Boolean);
+
+      if (hasMediaChanges) {
+        const mediaUser = await uploadProfileMedia(mediaFiles);
+        savedUser = {
+          ...profileUser,
+          ...(mediaUser || {}),
+          avatarUrl: mediaUser?.avatarUrl || profileUser.avatarUrl || user.avatarUrl || "",
+          bannerUrl: mediaUser?.bannerUrl || profileUser.bannerUrl || user.bannerUrl || "",
+          companyLogoUrl:
+            mediaUser?.companyLogoUrl || profileUser.companyLogoUrl || user.companyLogoUrl || "",
+        };
+      }
+
       setProfile(savedUser);
       saveUserToStorage(savedUser);
       setNotice("Profile updated.");
-    } catch {
-      setNotice("Profile could not be saved. Please verify contact and try again.");
-    } finally {
       closeEditProfile();
+    } catch (err) {
+      setNotice(
+        err.response?.data?.msg ||
+          err.response?.data?.message ||
+          "Profile could not be saved. Please verify contact and try again."
+      );
     }
   };
 

@@ -26,6 +26,26 @@ import {
   hasDriverProfile,
   hasGrowerProfile,
 } from "../utils/auth";
+import { FILE_BASE_URL } from "../services/api";
+
+const resolveProfileMediaUrl = (value = "") => {
+  const url = String(value || "").trim();
+  if (!url) return "";
+  if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+  if (/^https?:\/\//i.test(url)) {
+    if (
+      window.location.protocol === "https:" &&
+      url.startsWith("http://") &&
+      !/localhost|127\.0\.0\.1/i.test(url)
+    ) {
+      return url.replace(/^http:\/\//i, "https://");
+    }
+    return url;
+  }
+  const cleanPath = url.replace(/^\/+/, "");
+  if (cleanPath.startsWith("uploads/")) return `${FILE_BASE_URL}/${cleanPath}`;
+  return url.startsWith("/") ? url : `/${url}`;
+};
 
 export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobile = false }) {
   const [activeGrowerMenuItem, setActiveGrowerMenuItem] = useState(
@@ -40,7 +60,7 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
   const handle = `@${String(displayName)
     .replace(/[^a-z0-9]+/gi, "")
     .slice(0, 24) || "OrchardGrowers"}`;
-  const avatarUrl = user.avatarUrl;
+  const avatarUrl = resolveProfileMediaUrl(user.avatarUrl);
   const isGrower = hasGrowerProfile(user);
   const isBuyer = hasBuyerProfile(user);
   const isDriver = hasDriverProfile(user);

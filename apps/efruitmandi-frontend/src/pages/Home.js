@@ -80,6 +80,25 @@ const fallbackLotImage =
   "https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?auto=format&fit=crop&w=1200&q=80";
 const logoUrl = `${process.env.PUBLIC_URL || ""}/logo.png`;
 
+const resolveProfileMediaUrl = (value = "") => {
+  const url = String(value || "").trim();
+  if (!url) return "";
+  if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+  if (/^https?:\/\//i.test(url)) {
+    if (
+      window.location.protocol === "https:" &&
+      url.startsWith("http://") &&
+      !/localhost|127\.0\.0\.1/i.test(url)
+    ) {
+      return url.replace(/^http:\/\//i, "https://");
+    }
+    return url;
+  }
+  const cleanPath = url.replace(/^\/+/, "");
+  if (cleanPath.startsWith("uploads/")) return `${FILE_BASE_URL}/${cleanPath}`;
+  return url.startsWith("/") ? url : `/${url}`;
+};
+
 const newsItems = [
   "Fresh apple lots opening in Himachal mandis",
   "Verified growers can list new lots in minutes",
@@ -806,8 +825,8 @@ function ProfileCard({ user, onOpen }) {
   const ownerName = user.name || "Guest User";
   const location = user.location || (firmName ? "Mandi, Himachal Pradesh" : "Location not available");
   const joinedLabel = formatJoinDate(user.createdAt);
-  const bannerUrl = hasProfileSession ? user.bannerUrl || orchardCover : "";
-  const avatarUrl = hasProfileSession ? user.avatarUrl : "";
+  const bannerUrl = hasProfileSession ? resolveProfileMediaUrl(user.bannerUrl) || orchardCover : "";
+  const avatarUrl = hasProfileSession ? resolveProfileMediaUrl(user.avatarUrl) : "";
   const accountLabel = isGrower
     ? "Growers Profile Dashboard"
     : isBuyer

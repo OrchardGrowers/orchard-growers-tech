@@ -9,6 +9,10 @@ export const sanitizeUserForStorage = (user = {}) => {
     delete safeUser.bannerUrl;
   }
 
+  if (typeof safeUser.companyLogoUrl === "string" && safeUser.companyLogoUrl.startsWith("data:")) {
+    delete safeUser.companyLogoUrl;
+  }
+
   return safeUser;
 };
 

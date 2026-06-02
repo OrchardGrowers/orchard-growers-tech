@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  FaTimes,
   FaImage,
   FaMapMarkerAlt,
   FaMoneyBillWave,
@@ -674,6 +675,7 @@ export default function ListNewLot() {
               placeholder="Kafal"
               onChange={setCustomValue}
               onSave={saveCustomValue}
+              onCancel={() => setCustomPanel(null)}
             />
           )}
 
@@ -693,6 +695,7 @@ export default function ListNewLot() {
               placeholder="Local"
               onChange={setCustomValue}
               onSave={saveCustomValue}
+              onCancel={() => setCustomPanel(null)}
             />
           )}
 
@@ -892,7 +895,7 @@ function SelectorWithAdd({ label, value, placeholder, options, onChange, onAdd }
   return (
     <div>
       <label className="block text-sm font-bold text-gray-700">{label}</label>
-      <div className="mt-1 grid grid-cols-[1fr_64px] gap-1">
+      <div className="mt-1">
         <select
           value={value}
           onChange={(e) => {
@@ -912,14 +915,6 @@ function SelectorWithAdd({ label, value, placeholder, options, onChange, onAdd }
           ))}
           <option value={addNewValue}>+ New</option>
         </select>
-        <button
-          type="button"
-          onClick={onAdd}
-          className="rounded bg-green-100 text-xs font-extrabold text-green-800"
-          aria-label={`Add new ${label}`}
-        >
-          + New
-        </button>
       </div>
     </div>
   );
@@ -945,9 +940,17 @@ function SimpleSelect({ label, value, placeholder, options, onChange }) {
   );
 }
 
-function CustomEntryPanel({ title, value, placeholder, onChange, onSave }) {
+function CustomEntryPanel({ title, value, placeholder, onChange, onSave, onCancel }) {
   return (
-    <div className="rounded-md bg-green-800 px-4 py-5 text-white">
+    <div className="relative rounded-md bg-green-800 px-4 py-5 text-white">
+      <button
+        type="button"
+        onClick={onCancel}
+        className="absolute right-3 top-3 inline-flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm text-green-800"
+        aria-label="Cancel"
+      >
+        <FaTimes />
+      </button>
       <label className="block">
         <span className="mb-3 block text-sm font-bold">{title}</span>
         <input
