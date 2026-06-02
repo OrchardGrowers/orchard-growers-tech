@@ -178,27 +178,8 @@ export default function Navbar() {
               <FaBell className="text-sm" />
               <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" />
             </Link>
-            <button
-              type="button"
-              onClick={() => (hasUser ? setProfileMenuOpen((open) => !open) : navigate("/profile"))}
-              aria-label="Profile"
-              title="Profile"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-green-700"
-            >
-              <FaUser className="text-sm" />
-            </button>
           </div>
         </div>
-        {profileMenuOpen && hasUser && (
-          <div ref={profileMenuRef}>
-            <ProfileAccountMenu
-              user={currentUser}
-              onAction={openProfileAction}
-              onLogout={logoutUser}
-              mobile
-            />
-          </div>
-        )}
       </div>
 
       <header className="fixed left-0 right-0 top-0 z-50 hidden bg-green-700 shadow-sm md:block">

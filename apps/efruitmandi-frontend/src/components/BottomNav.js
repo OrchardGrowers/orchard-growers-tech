@@ -56,6 +56,7 @@ export default function BottomNav() {
           const baseClass = `relative flex h-11 w-11 items-center justify-center rounded-full border-[3px] border-yellow-400 text-lg text-yellow-400 transition ${
             isActive ? "scale-105 bg-green-800" : ""
           }`;
+          const profileClass = "relative flex h-11 w-11 items-center justify-center rounded-full bg-white text-xl text-green-700 shadow-sm transition";
 
           if (item.isProfile && hasUser) {
             return (
@@ -65,7 +66,7 @@ export default function BottomNav() {
                   aria-label="Profile menu"
                   aria-expanded={profileMenuOpen}
                   onClick={() => setProfileMenuOpen((open) => !open)}
-                  className={`${baseClass} ${profileMenuOpen ? "scale-105 bg-green-800" : ""}`}
+                  className={`${profileClass} ${profileMenuOpen || isActive ? "scale-105 ring-2 ring-yellow-400" : ""}`}
                 >
                   {item.icon}
                 </button>
@@ -84,7 +85,7 @@ export default function BottomNav() {
 
           return (
             <Link key={i} to={item.path} aria-label={item.label}>
-              <div className={baseClass}>
+              <div className={item.isProfile ? profileClass : baseClass}>
                 <span>{item.icon}</span>
                 {item.isLiveLots && (
                   <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-extrabold leading-none text-white">
