@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { FaEye, FaSeedling } from "react-icons/fa";
+import { FaCertificate, FaEye, FaSeedling } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import API, { FILE_BASE_URL } from "../services/api";
 import socket from "../services/socket";
@@ -190,6 +190,10 @@ function LiveLotCard({
   const quantity = product.quantity || 0;
   const currentBid = auction.currentBid || auction.startingPrice || 0;
   const highestGrade = auction.highestGrade || dealPreview?.highestGrade || getHighestGrade(product);
+  const isOrganicCertified = isOrganicCertifiedProduct(product);
+  const certificateUrl = product.organicCertificateUrl
+    ? toAssetUrl(product.organicCertificateUrl)
+    : "";
 
   return (
     <article className="rounded-md border border-gray-200 bg-white p-2">
@@ -226,6 +230,12 @@ function LiveLotCard({
       <p className="text-[10px] font-bold text-black">
         Current deal price: Rs. {currentBid}
       </p>
+      {isOrganicCertified && (
+        <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-1 text-[9px] font-extrabold text-green-800 ring-1 ring-green-200">
+          <FaCertificate />
+          <span>Organic Certified</span>
+        </div>
+      )}
 
       {auction.endTime && (
         <div className="mt-1 text-[10px] font-bold text-red-600">
@@ -242,6 +252,17 @@ function LiveLotCard({
           <FaEye />
           View Listing
         </button>
+        {certificateUrl && (
+          <a
+            href={certificateUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-[9px] font-bold text-green-800"
+          >
+            <FaCertificate />
+            Certificate
+          </a>
+        )}
       </div>
 
       {canDeal ? (
@@ -316,8 +337,19 @@ function EmptyState() {
 
 function getImageUrl(product) {
   const image = Array.isArray(product.images) ? product.images[0] : "";
-  const normalizedImage = image ? image.replace(/\\/g, "/") : "";
+  return toAssetUrl(image);
+}
 
-  if (/^https?:\/\//i.test(normalizedImage)) return normalizedImage;
-  return normalizedImage ? `${FILE_BASE_URL}/${normalizedImage}` : "";
+function toAssetUrl(path) {
+  const normalizedPath = path ? path.replace(/\\/g, "/") : "";
+  if (/^https?:\/\//i.test(normalizedPath)) return normalizedPath;
+  return normalizedPath ? `${FILE_BASE_URL}/${normalizedPath}` : "";
+}
+
+function isOrganicCertifiedProduct(product = {}) {
+  const quality = String(product.quality || "").toLowerCase();
+  return (
+    quality.includes("certified organic") ||
+    Boolean(product.organicCertificationNo || product.organicCertificateUrl)
+  );
 }

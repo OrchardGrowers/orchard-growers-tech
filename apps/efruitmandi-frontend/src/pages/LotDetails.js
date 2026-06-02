@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   FaArrowLeft,
+  FaCertificate,
   FaMapMarkerAlt,
   FaSeedling,
   FaUser,
@@ -46,6 +47,7 @@ export default function LotDetails() {
   const ownerId = createdBy._id || createdBy.id;
   const currentUserId = user._id || user.id;
   const canSeeBasePrice = ownerId && currentUserId && ownerId === currentUserId;
+  const isOrganicCertified = isOrganicCertifiedProduct(product);
 
   if (loading) {
     return (
@@ -136,10 +138,34 @@ export default function LotDetails() {
             {product.status || "AVAILABLE"}
           </span>
         </div>
+        {isOrganicCertified && (
+          <div className="mt-3 rounded-md border border-green-200 bg-green-50 p-3">
+            <div className="flex items-center gap-2 text-xs font-extrabold text-green-900">
+              <FaCertificate />
+              <span>Organic Certified</span>
+            </div>
+            {product.organicCertificationNo && (
+              <p className="mt-1 text-[10px] font-bold text-green-800">
+                Certificate No: {product.organicCertificationNo}
+              </p>
+            )}
+            {product.organicCertificateUrl && (
+              <a
+                href={toAssetUrl(product.organicCertificateUrl)}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex rounded-full bg-green-700 px-3 py-1 text-[10px] font-extrabold text-white"
+              >
+                View Certificate
+              </a>
+            )}
+          </div>
+        )}
 
         <div className="mt-3 grid grid-cols-2 gap-2">
           <InfoTile label="Fruit" value={product.fruitName || product.title} />
           <InfoTile label="Variety" value={product.variety || "Not set"} />
+          <InfoTile label="Quality" value={product.quality || "Not set"} />
           <InfoTile label="Lot No." value={product.lotNo || "Not set"} />
           <InfoTile label="Total boxes" value={product.quantity || 0} />
           <InfoTile label="Packing" value={product.packingType || "Not set"} />
@@ -312,6 +338,14 @@ function toAssetUrl(path) {
   const normalizedPath = path ? path.replace(/\\/g, "/") : "";
   if (/^https?:\/\//i.test(normalizedPath)) return normalizedPath;
   return normalizedPath ? `${FILE_BASE_URL}/${normalizedPath}` : "";
+}
+
+function isOrganicCertifiedProduct(product = {}) {
+  const quality = String(product.quality || "").toLowerCase();
+  return (
+    quality.includes("certified organic") ||
+    Boolean(product.organicCertificationNo || product.organicCertificateUrl)
+  );
 }
 
 function formatDate(value) {

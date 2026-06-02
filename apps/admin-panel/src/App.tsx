@@ -282,6 +282,14 @@ type AdminProduct = {
   chargeableWeightKg?: number;
   images?: string[];
   imagePublicIds?: string[];
+  quality?: string;
+  lotNo?: string;
+  gradeLots?: { grade?: string; boxes?: number; weightKg?: number; images?: string[] }[];
+  organicCertificationNo?: string;
+  organicCertificateUrl?: string;
+  organicCertificatePublicId?: string;
+  createdSource?: string;
+  createdBy?: { name?: string; orchardName?: string; businessName?: string } | string;
   createdAt?: string;
 };
 type AdminUser = {
@@ -2060,7 +2068,7 @@ function App() {
             onCancelEdit={cancelProductEdit}
             modeLabel={productModeLabel}
           />
-          <OrchardProductsTable products={searchedProducts} onEdit={editOrchardProduct} onDelete={deleteOrchardProduct} />
+          <OrchardProductsTable products={searchedProducts} onEdit={editOrchardProduct} onDelete={deleteOrchardProduct} onViewFile={setViewingFile} />
         </section>
       );
     }
@@ -2157,7 +2165,15 @@ function App() {
         />
       );
     }
-    if (['produceLots', 'quotes', 'deals', 'transactions', 'supportDisputes', 'analytics', 'efruitSettings'].includes(tab)) {
+    if (tab === 'produceLots') {
+      return (
+        <section className="space-y-4">
+          <ModulePlanPanel plan={modulePlans.produceLots} />
+          <EfruitMandiLotsPanel products={searchedProducts} onViewFile={setViewingFile} />
+        </section>
+      );
+    }
+    if (['quotes', 'deals', 'transactions', 'supportDisputes', 'analytics', 'efruitSettings'].includes(tab)) {
       return <ModulePlanPanel plan={modulePlans[tab]} />;
     }
     if (tab === 'staffUsers' || tab === 'customers') return <ModulePlanPanel plan={modulePlans[tab]} />;
@@ -4814,10 +4830,12 @@ function OrchardProductsTable({
   products,
   onEdit,
   onDelete,
+  onViewFile,
 }: {
   products: AdminProduct[];
   onEdit: (product: AdminProduct) => void;
   onDelete: (product: AdminProduct) => void;
+  onViewFile: (file: UploadedFile) => void;
 }) {
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
@@ -4837,6 +4855,7 @@ function OrchardProductsTable({
               <th className="px-4 py-3">Price</th>
               <th className="px-4 py-3">Discount</th>
               <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Certification</th>
               <th className="px-4 py-3">Images</th>
               <th className="px-4 py-3">Actions</th>
             </tr>
@@ -4855,6 +4874,9 @@ function OrchardProductsTable({
                   <span className={`rounded-full px-2 py-1 text-xs font-bold ${product.status === 'AVAILABLE' && product.active !== false ? 'bg-emerald-950 text-emerald-300' : 'bg-slate-800 text-slate-400'}`}>
                     {formatProductStatus(product.status || 'SOLD')}
                   </span>
+                </td>
+                <td className="px-4 py-3">
+                  <OrganicCertificationCell product={product} onViewFile={onViewFile} />
                 </td>
                 <td className="px-4 py-3 text-slate-400">{product.images?.length || 0}</td>
                 <td className="px-4 py-3">
@@ -5585,6 +5607,118 @@ function LogisticsControlPanel({
             </div>
           )}
         </div>
+      </div>
+    </section>
+  );
+}
+
+function OrganicCertificationCell({
+  product,
+  onViewFile,
+}: {
+  product: AdminProduct;
+  onViewFile: (file: UploadedFile) => void;
+}) {
+  const certified = isOrganicCertifiedProduct(product);
+
+  if (!certified) {
+    return <span className="text-xs font-bold text-slate-500">-</span>;
+  }
+
+  return (
+    <div className="space-y-2">
+      <span className="inline-flex rounded-full bg-emerald-950 px-2 py-1 text-xs font-black text-emerald-300">
+        Organic Certified
+      </span>
+      <p className="text-xs font-bold text-slate-300">
+        Cert No: {product.organicCertificationNo || 'Not entered'}
+      </p>
+      {product.organicCertificateUrl ? (
+        <button
+          type="button"
+          onClick={() =>
+            onViewFile({
+              label: 'View Organic Certificate',
+              path: product.organicCertificateUrl,
+              fileName: `${product.title || product.lotNo || 'Organic'} certificate`,
+            })
+          }
+          className="rounded-lg bg-emerald-600 px-2 py-1 text-xs font-bold text-white hover:bg-emerald-500"
+        >
+          View Certificate
+        </button>
+      ) : (
+        <span className="text-xs font-bold text-amber-300">Certificate missing</span>
+      )}
+    </div>
+  );
+}
+
+function EfruitMandiLotsPanel({
+  products,
+  onViewFile,
+}: {
+  products: AdminProduct[];
+  onViewFile: (file: UploadedFile) => void;
+}) {
+  const lots = products.filter((product) =>
+    product.createdSource === 'grower' ||
+    Boolean(product.lotNo) ||
+    Array.isArray(product.gradeLots)
+  );
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
+      <div className="flex flex-col gap-2 border-b border-slate-800 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-lg font-bold text-white">eFruitMandi Listed Lots</h2>
+        <span className="text-xs font-bold text-slate-400">{lots.length} lots</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-[1050px] w-full text-left text-sm">
+          <thead className="bg-slate-950 text-xs uppercase text-slate-400">
+            <tr>
+              <th className="px-4 py-3">Lot</th>
+              <th className="px-4 py-3">Grower</th>
+              <th className="px-4 py-3">Fruit / Variety</th>
+              <th className="px-4 py-3">Quality</th>
+              <th className="px-4 py-3">Quantity</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Organic Certificate</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800">
+            {lots.map((product) => (
+              <tr key={product._id} className="text-slate-200">
+                <td className="px-4 py-3">
+                  <p className="font-black text-white">{product.title || 'Fruit lot'}</p>
+                  <p className="text-xs font-bold text-slate-400">{product.lotNo || '-'}</p>
+                </td>
+                <td className="px-4 py-3 text-slate-300">{getProductGrowerName(product)}</td>
+                <td className="px-4 py-3 text-slate-300">
+                  {product.fruitName || '-'} / {product.variety || '-'}
+                </td>
+                <td className="px-4 py-3 text-slate-300">{product.quality || '-'}</td>
+                <td className="px-4 py-3 text-slate-300">
+                  {product.quantity || 0} boxes
+                  {product.gradeLots?.length ? (
+                    <p className="text-xs text-slate-500">
+                      {product.gradeLots.map((lot) => `${lot.grade}: ${lot.boxes || 0}`).join(', ')}
+                    </p>
+                  ) : null}
+                </td>
+                <td className="px-4 py-3">
+                  <span className="rounded-full bg-slate-800 px-2 py-1 text-xs font-bold text-slate-300">
+                    {formatProductStatus(product.status || 'SOLD')}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  <OrganicCertificationCell product={product} onViewFile={onViewFile} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!lots.length && <EmptyState label="No eFruitMandi listed lots found." />}
       </div>
     </section>
   );
@@ -6592,6 +6726,23 @@ function normalizeFileUrl(path?: string) {
   if (!path) return '';
   if (/^https?:\/\//.test(path)) return path;
   return `${FILE_BASE}/${path.replace(/\\/g, '/')}`;
+}
+
+function isOrganicCertifiedProduct(product: AdminProduct) {
+  const quality = String(product.quality || '').toLowerCase();
+  return (
+    quality.includes('certified organic') ||
+    Boolean(product.organicCertificationNo || product.organicCertificateUrl)
+  );
+}
+
+function getProductGrowerName(product: AdminProduct) {
+  const createdBy = product.createdBy;
+  if (createdBy && typeof createdBy === 'object') {
+    return createdBy.orchardName || createdBy.businessName || createdBy.name || 'Grower';
+  }
+
+  return 'Grower';
 }
 
 function confirmTwice(actionLabel: string) {
