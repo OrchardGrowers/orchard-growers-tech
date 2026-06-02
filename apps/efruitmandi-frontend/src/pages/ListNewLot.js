@@ -7,6 +7,7 @@ import {
   FaMapMarkerAlt,
   FaMoneyBillWave,
   FaPlus,
+  FaSpinner,
   FaVideo,
   FaWarehouse,
   FaWeightHanging,
@@ -442,6 +443,7 @@ export default function ListNewLot() {
   const [organicCertificate, setOrganicCertificate] = useState(null);
   const [loading, setLoading] = useState(false);
   const [recognizing, setRecognizing] = useState(false);
+  const [uploadingImageSlot, setUploadingImageSlot] = useState(null);
   const [message, setMessage] = useState("");
   const localLotNoPreview = useMemo(() => getLotNoPreview(), []);
   const [lotNoPreview, setLotNoPreview] = useState(localLotNoPreview);
@@ -521,33 +523,40 @@ export default function ListNewLot() {
   const updateGradeImage = async (gradeKey, index, file) => {
     if (!file) return;
 
+    const slotKey = `${gradeKey}-${index}`;
     setMessage("");
+    setUploadingImageSlot(slotKey);
     setRecognizing(true);
-    const recognition = await recognizeFruitImage(file).catch(() => ({
-      accepted: false,
-      label: "unrecognized image",
-    }));
-    setRecognizing(false);
 
-    if (!recognition.accepted) {
-      setMessage(
-        `Image rejected. Fruit was not recognized. Detected: ${recognition.label}.`
-      );
-      return;
+    try {
+      const recognition = await recognizeFruitImage(file).catch(() => ({
+        accepted: false,
+        label: "unrecognized image",
+      }));
+
+      if (!recognition.accepted) {
+        setMessage(
+          `Image rejected. Fruit was not recognized. Detected: ${recognition.label}.`
+        );
+        return;
+      }
+
+      const platformFile = await cropImageToPlatformFrame(file);
+      const images = [...(gradeLots[gradeKey].images || Array(5).fill(null))];
+      while (images.length < 5) images.push(null);
+      images[index] = platformFile || null;
+
+      setGradeLots({
+        ...gradeLots,
+        [gradeKey]: {
+          ...gradeLots[gradeKey],
+          images,
+        },
+      });
+    } finally {
+      setRecognizing(false);
+      setUploadingImageSlot(null);
     }
-
-    const platformFile = await cropImageToPlatformFrame(file);
-    const images = [...(gradeLots[gradeKey].images || Array(5).fill(null))];
-    while (images.length < 5) images.push(null);
-    images[index] = platformFile || null;
-
-    setGradeLots({
-      ...gradeLots,
-      [gradeKey]: {
-        ...gradeLots[gradeKey],
-        images,
-      },
-    });
   };
 
   const updateSampleVideo = async (file) => {
@@ -904,13 +913,21 @@ export default function ListNewLot() {
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {SAMPLE_IMAGE_SLOTS.map((index) => {
                         const image = gradeLots[grade.key].images?.[index];
+                        const slotKey = `${grade.key}-${index}`;
+                        const isUploading = uploadingImageSlot === slotKey;
 
                         return (
                         <label key={`${grade.key}-${index}`} className="block">
-                          <span className="flex min-h-[44px] items-center gap-3 rounded-md border border-dashed border-green-300 bg-green-50 px-3 py-3 text-green-700">
-                            <FaImage />
+                          <span className={`flex min-h-[44px] items-center gap-3 rounded-md border border-dashed px-3 py-3 ${
+                            isUploading
+                              ? "cursor-wait border-orange-300 bg-orange-50 text-orange-700"
+                              : "border-green-300 bg-green-50 text-green-700"
+                          }`}>
+                            {isUploading ? <FaSpinner className="animate-spin" /> : <FaImage />}
                             <span className="text-xs font-semibold">
-                              {image
+                              {isUploading
+                                ? "Uploading..."
+                                : image
                                 ? `Sample ${grade.label} pic ${index + 1} selected`
                                 : `Take live sample pic ${grade.label} ${index + 1}`}
                             </span>
@@ -919,6 +936,7 @@ export default function ListNewLot() {
                               accept="image/*"
                               capture="environment"
                               multiple={false}
+                              disabled={isUploading}
                               onChange={(e) =>
                                 updateGradeImage(
                                   grade.key,
