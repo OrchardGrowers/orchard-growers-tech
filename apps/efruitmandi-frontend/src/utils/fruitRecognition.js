@@ -2,6 +2,7 @@ import * as mobilenet from "@tensorflow-models/mobilenet";
 import "@tensorflow/tfjs";
 
 const FRUIT_WORDS = [
+  "almond",
   "apple",
   "apricot",
   "avocado",
@@ -14,6 +15,7 @@ const FRUIT_WORDS = [
   "coconut",
   "currant",
   "date",
+  "dried fruit",
   "dragon fruit",
   "durian",
   "elderberry",
@@ -26,13 +28,18 @@ const FRUIT_WORDS = [
   "lime",
   "mango",
   "melon",
+  "nut",
   "orange",
   "peach",
+  "peanut",
   "pear",
+  "pecan",
   "persimmon",
+  "pistachio",
   "pineapple",
   "plum",
   "pomegranate",
+  "raisin",
   "strawberry",
   "walnut",
 ];

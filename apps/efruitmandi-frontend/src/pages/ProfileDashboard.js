@@ -1836,7 +1836,9 @@ function MarketLotCard({ item }) {
   const image = Array.isArray(product.images) ? product.images[0] : "";
   const normalizedImage = image ? image.replace(/\\/g, "/") : "";
   const imageUrl = normalizedImage
-    ? `${FILE_BASE_URL}/${normalizedImage}`
+    ? /^https?:\/\//i.test(normalizedImage)
+      ? normalizedImage
+      : `${FILE_BASE_URL}/${normalizedImage}`
     : "";
   const amount = item.currentBid || product.basePrice || item.auctionPrice || 0;
 

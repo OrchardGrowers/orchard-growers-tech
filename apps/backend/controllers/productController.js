@@ -1,3 +1,5 @@
+import fs from "fs/promises";
+import { v2 as cloudinary } from "cloudinary";
 import Product from "../models/Product.js";
 import Auction from "../models/Auction.js";
 import User from "../models/User.js";
@@ -51,6 +53,55 @@ const generateLotNo = async (userId) => {
   const sequence = String(firmLotCount + 1).padStart(3, "0");
 
   return `${makeFirmPrefix(user)}/${year}/${sequence}`;
+};
+
+const isCloudinaryConfigured = () =>
+  Boolean(
+    process.env.CLOUDINARY_CLOUD_NAME &&
+      process.env.CLOUDINARY_API_KEY &&
+      process.env.CLOUDINARY_API_SECRET
+  );
+
+const configureCloudinary = () => {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+    secure: true,
+  });
+};
+
+const deleteLocalFileQuietly = async (filePath = "") => {
+  if (!filePath) return;
+  await fs.unlink(filePath).catch(() => {});
+};
+
+const uploadLotFile = async (file, resourceType = "image") => {
+  if (!file) return null;
+
+  if (!isCloudinaryConfigured()) {
+    return {
+      url: file.path,
+      publicId: "",
+    };
+  }
+
+  configureCloudinary();
+  const result = await cloudinary.uploader.upload(file.path, {
+    folder: process.env.CLOUDINARY_LOT_FOLDER || process.env.CLOUDINARY_PRODUCT_FOLDER || "efruitmandi/lots",
+    resource_type: resourceType,
+  });
+  await deleteLocalFileQuietly(file.path);
+
+  return {
+    url: result.secure_url,
+    publicId: result.public_id,
+  };
+};
+
+const uploadLotFiles = async (files = [], resourceType = "image") => {
+  const uploaded = await Promise.all(files.map((file) => uploadLotFile(file, resourceType)));
+  return uploaded.filter(Boolean);
 };
 
 export const getNextLotNo = async (req, res) => {
@@ -197,16 +248,29 @@ export const createProduct = async (req, res) => {
       return res.status(400).json({ msg: "Invalid grade lot details" });
     }
 
-    const gradeLots = requestedGradeLots.map((lot) => {
-      const files = getUploadedFiles(req, lot.fieldName).slice(0, 5);
+    const gradeLotFiles = requestedGradeLots.map((lot) => ({
+      lot,
+      files: getUploadedFiles(req, lot.fieldName).slice(0, 5),
+    }));
+
+    const uploadedGradeLots = await Promise.all(
+      gradeLotFiles.map(async ({ lot, files }) => ({
+        lot,
+        uploadedFiles: await uploadLotFiles(files, "image"),
+      }))
+    );
+
+    const uploadedPublicIds = [];
+    const gradeLots = uploadedGradeLots.map(({ lot, uploadedFiles }) => {
       const boxes = Number(lot.boxes || 0);
       const weightKg = Number(lot.weightKg || 0);
+      uploadedPublicIds.push(...uploadedFiles.map((file) => file.publicId).filter(Boolean));
 
       return {
         grade: lot.grade,
         boxes,
         weightKg,
-        images: files.map((file) => file.path),
+        images: uploadedFiles.map((file) => file.url),
       };
     });
 
@@ -220,7 +284,12 @@ export const createProduct = async (req, res) => {
     }
 
     const imagePaths = gradeLots.flatMap((lot) => lot.images);
-    const sampleVideo = getUploadedFiles(req, "sampleVideo")[0]?.path || "";
+    const sampleVideoFile = getUploadedFiles(req, "sampleVideo")[0];
+    const uploadedSampleVideo = sampleVideoFile
+      ? await uploadLotFile(sampleVideoFile, "video")
+      : null;
+    const sampleVideo = uploadedSampleVideo?.url || "";
+    if (uploadedSampleVideo?.publicId) uploadedPublicIds.push(uploadedSampleVideo.publicId);
     const auctionStartAt = new Date(Date.now() + AUCTION_DELAY_MS);
     const auctionEndAt = new Date(auctionStartAt.getTime() + AUCTION_DURATION_MS);
 
@@ -241,6 +310,7 @@ export const createProduct = async (req, res) => {
       auctionStartTime: auctionStartAt,
       location,
       images: imagePaths,
+      imagePublicIds: uploadedPublicIds,
       gradeLots,
       sampleVideo,
       createdBy: req.user.id,

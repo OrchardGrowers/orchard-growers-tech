@@ -154,5 +154,6 @@ function getImageUrl(product) {
     : gradeImage;
   const normalizedImage = image ? image.replace(/\\/g, "/") : "";
 
+  if (/^https?:\/\//i.test(normalizedImage)) return normalizedImage;
   return normalizedImage ? `${FILE_BASE_URL}/${normalizedImage}` : "";
 }

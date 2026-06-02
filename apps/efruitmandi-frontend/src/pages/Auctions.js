@@ -318,5 +318,6 @@ function getImageUrl(product) {
   const image = Array.isArray(product.images) ? product.images[0] : "";
   const normalizedImage = image ? image.replace(/\\/g, "/") : "";
 
+  if (/^https?:\/\//i.test(normalizedImage)) return normalizedImage;
   return normalizedImage ? `${FILE_BASE_URL}/${normalizedImage}` : "";
 }

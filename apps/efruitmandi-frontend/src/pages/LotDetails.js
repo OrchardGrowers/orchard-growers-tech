@@ -310,6 +310,7 @@ function getAllImages(product) {
 
 function toAssetUrl(path) {
   const normalizedPath = path ? path.replace(/\\/g, "/") : "";
+  if (/^https?:\/\//i.test(normalizedPath)) return normalizedPath;
   return normalizedPath ? `${FILE_BASE_URL}/${normalizedPath}` : "";
 }
 

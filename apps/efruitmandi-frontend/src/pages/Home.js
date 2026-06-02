@@ -496,7 +496,9 @@ function MarketCard({ item, amount, badge, buttonLabel, icon, onView, showPrice 
   const image = Array.isArray(item.images) ? item.images[0] : "";
   const normalizedImage = image ? image.replace(/\\/g, "/") : "";
   const imageUrl = normalizedImage
-    ? `${FILE_BASE_URL}/${normalizedImage}`
+    ? /^https?:\/\//i.test(normalizedImage)
+      ? normalizedImage
+      : `${FILE_BASE_URL}/${normalizedImage}`
     : "";
 
   return (
@@ -1141,6 +1143,7 @@ function getProductImage(product) {
   const image = Array.isArray(product.images) ? product.images[0] : "";
   const normalized = image ? image.replace(/\\/g, "/") : "";
 
+  if (/^https?:\/\//i.test(normalized)) return normalized;
   return normalized
     ? `${FILE_BASE_URL}/${normalized}`
     : "";
