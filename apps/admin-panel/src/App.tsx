@@ -5406,11 +5406,8 @@ function LogisticsControlPanel({
   };
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900">
-      <div className="border-b border-slate-800 px-4 py-3">
-        <h2 className="text-lg font-bold text-white">Action Panel</h2>
-      </div>
-      <div className="space-y-4 p-4">
+    <section className="flex min-h-full flex-col rounded-2xl border border-slate-800 bg-slate-900">
+      <div className="flex flex-1 flex-col gap-4 p-4">
         {notice && <div className={`rounded-xl border p-3 text-sm font-bold ${/failed|required|could not|no serviceable/i.test(notice) ? 'border-red-900 bg-red-950 text-red-200' : 'border-emerald-900 bg-emerald-950 text-emerald-200'}`}>{notice}</div>}
         <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -5547,8 +5544,7 @@ function LogisticsControlPanel({
           </div>
         )}
 
-        <div className="sticky bottom-0 z-10 rounded-xl border border-slate-800 bg-slate-950 p-3">
-          <p className="mb-3 text-sm font-black text-white">Buttons Tab</p>
+        <div className="mt-auto rounded-xl border border-slate-800 bg-slate-950 p-3">
           <div className="flex flex-wrap gap-2">
             <LogisticsButton label="Check Serviceability" loading={loadingAction === 'serviceability'} onClick={checkServiceability} />
             <LogisticsButton label="Estimate Cost" loading={loadingAction === 'rates'} onClick={estimateCost} />
