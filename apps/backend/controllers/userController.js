@@ -36,7 +36,13 @@ export const setUserRole = async (req, res) => {
       vehicleNumber,
       licenseNumber,
       location,
+      addressLine1,
+      addressLine2,
+      addressLine3,
       pinCode,
+      mapLatitude,
+      mapLongitude,
+      googleMapUrl,
       contact,
     } = req.body;
 
@@ -126,7 +132,19 @@ export const setUserRole = async (req, res) => {
 
     // ✅ Optional fields (only update if provided)
     if (location) user.location = location.trim();
+    if (addressLine1) user.addressLine1 = addressLine1.trim();
+    if (addressLine2) user.addressLine2 = addressLine2.trim();
+    if (addressLine3) user.addressLine3 = addressLine3.trim();
     if (pinCode) user.pinCode = pinCode.trim();
+    if (mapLatitude !== undefined && mapLatitude !== null && mapLatitude !== "") {
+      const latitude = Number(mapLatitude);
+      if (Number.isFinite(latitude)) user.mapLatitude = latitude;
+    }
+    if (mapLongitude !== undefined && mapLongitude !== null && mapLongitude !== "") {
+      const longitude = Number(mapLongitude);
+      if (Number.isFinite(longitude)) user.mapLongitude = longitude;
+    }
+    if (googleMapUrl) user.googleMapUrl = googleMapUrl.trim();
 
     await user.save();
 

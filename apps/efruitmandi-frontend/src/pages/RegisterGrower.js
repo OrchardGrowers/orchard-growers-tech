@@ -25,6 +25,13 @@ export default function RegisterGrower() {
     orchardName: "",
     designation: "",
     location: "",
+    addressLine1: "",
+    addressLine2: "",
+    addressLine3: "",
+    pinCode: "",
+    mapLatitude: "",
+    mapLongitude: "",
+    googleMapUrl: "",
     contact: "",
   });
   const [loading, setLoading] = useState(false);
@@ -54,6 +61,40 @@ export default function RegisterGrower() {
 
   const contactValue = form.contact.trim();
   const phoneVerified = contactValue && verifiedPhone === contactValue;
+  const fullAddress = [form.addressLine1, form.addressLine2, form.addressLine3, form.location, form.pinCode]
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .join(", ");
+  const googleMapUrl =
+    form.googleMapUrl ||
+    (form.mapLatitude && form.mapLongitude
+      ? `https://www.google.com/maps?q=${encodeURIComponent(`${form.mapLatitude},${form.mapLongitude}`)}`
+      : fullAddress
+        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`
+        : "");
+
+  const captureMapPoint = () => {
+    setMessage("");
+    if (!navigator.geolocation) {
+      setMessage("Location capture is not supported in this browser.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const latitude = position.coords.latitude.toFixed(6);
+        const longitude = position.coords.longitude.toFixed(6);
+        setForm((current) => ({
+          ...current,
+          mapLatitude: latitude,
+          mapLongitude: longitude,
+          googleMapUrl: `https://www.google.com/maps?q=${latitude},${longitude}`,
+        }));
+        setMessage("Google map point captured.");
+      },
+      () => setMessage("Could not capture map point. Please allow location permission or open map manually."),
+      { enableHighAccuracy: true, timeout: 12000 }
+    );
+  };
 
   const sendPhoneOtp = async () => {
     setMessage("");
@@ -130,7 +171,14 @@ export default function RegisterGrower() {
         role: "grower",
         orchardName: form.orchardName.trim(),
         designation: form.designation.trim(),
-        location: form.location.trim(),
+        location: fullAddress || form.location.trim(),
+        addressLine1: form.addressLine1.trim(),
+        addressLine2: form.addressLine2.trim(),
+        addressLine3: form.addressLine3.trim(),
+        pinCode: form.pinCode.trim(),
+        mapLatitude: form.mapLatitude,
+        mapLongitude: form.mapLongitude,
+        googleMapUrl,
         contact: form.contact.trim(),
       });
 
@@ -189,6 +237,62 @@ export default function RegisterGrower() {
             placeholder="Shimla"
             onChange={(value) => updateForm("location", value)}
           />
+          <Field
+            icon={<FaMapMarkerAlt />}
+            label="Full address"
+            value={form.addressLine1}
+            placeholder="Village / street / orchard road"
+            onChange={(value) => updateForm("addressLine1", value)}
+          />
+          <Field
+            icon={<FaMapMarkerAlt />}
+            label="Address line 2"
+            value={form.addressLine2}
+            placeholder="Post office / tehsil / landmark"
+            onChange={(value) => updateForm("addressLine2", value)}
+          />
+          <Field
+            icon={<FaMapMarkerAlt />}
+            label="District / State"
+            value={form.addressLine3}
+            placeholder="District, State"
+            onChange={(value) => updateForm("addressLine3", value)}
+          />
+          <Field
+            icon={<FaMapMarkerAlt />}
+            label="PIN Code"
+            value={form.pinCode}
+            placeholder="Enter PIN code"
+            inputMode="numeric"
+            onChange={(value) => updateForm("pinCode", value)}
+          />
+          <div className="rounded-md border border-gray-200 bg-white p-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-gray-700">Google map pointing</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  {form.mapLatitude && form.mapLongitude ? `Lat ${form.mapLatitude}, Lng ${form.mapLongitude}` : "Capture orchard point for transport fare calculation."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={captureMapPoint}
+                className="rounded-md bg-green-50 px-3 py-2 text-sm font-bold text-green-700 transition hover:bg-green-100"
+              >
+                Use map point
+              </button>
+            </div>
+            {googleMapUrl && (
+              <a
+                href={googleMapUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 block truncate rounded-md bg-gray-50 px-3 py-2 text-xs font-semibold text-green-700 underline"
+              >
+                Open Google Map location
+              </a>
+            )}
+          </div>
           <Field
             icon={<FaPhoneAlt />}
             label="Contact number"

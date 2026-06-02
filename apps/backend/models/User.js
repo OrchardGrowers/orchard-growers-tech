@@ -212,6 +212,19 @@ const userSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    mapLatitude: {
+      type: Number,
+      default: null,
+    },
+    mapLongitude: {
+      type: Number,
+      default: null,
+    },
+    googleMapUrl: {
+      type: String,
+      trim: true,
+      default: "",
+    },
 
     contact: {
       type: String,
