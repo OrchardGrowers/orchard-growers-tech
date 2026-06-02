@@ -16,6 +16,7 @@ import API from "../services/api";
 import {
   recognizeFruitImage,
   recognizeFruitVideo,
+  warmUpFruitRecognition,
 } from "../utils/fruitRecognition";
 import { getCurrentUser } from "../utils/auth";
 
@@ -319,6 +320,9 @@ const initialGradeLots = GRADES.reduce((lots, grade) => {
 }, {});
 
 const SAMPLE_IMAGE_SLOTS = [0, 1, 2, 3, 4];
+const SAMPLE_IMAGE_WIDTH = 800;
+const SAMPLE_IMAGE_HEIGHT = 600;
+const SAMPLE_IMAGE_QUALITY = 0.72;
 
 const makeFirmPrefix = (user) => {
   const source =
@@ -360,8 +364,8 @@ const cropImageToPlatformFrame = (file) => {
     const url = URL.createObjectURL(file);
 
     image.onload = () => {
-      const targetWidth = 1200;
-      const targetHeight = 900;
+      const targetWidth = SAMPLE_IMAGE_WIDTH;
+      const targetHeight = SAMPLE_IMAGE_HEIGHT;
       const targetRatio = targetWidth / targetHeight;
       const sourceRatio = image.width / image.height;
       let sourceWidth = image.width;
@@ -409,7 +413,7 @@ const cropImageToPlatformFrame = (file) => {
           );
         },
         "image/jpeg",
-        0.9
+        SAMPLE_IMAGE_QUALITY
       );
     };
 
@@ -442,6 +446,7 @@ export default function ListNewLot() {
   const [sampleVideo, setSampleVideo] = useState(null);
   const [organicCertificate, setOrganicCertificate] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [recognizing, setRecognizing] = useState(false);
   const [uploadingImageSlot, setUploadingImageSlot] = useState(null);
   const [message, setMessage] = useState("");
@@ -474,6 +479,10 @@ export default function ListNewLot() {
     };
   }, [gradeLots, selectedPacking, visibleGrades]);
   const needsOrganicCertificate = ORGANIC_CERTIFIED_QUALITIES.has(form.quality);
+
+  useEffect(() => {
+    warmUpFruitRecognition();
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -645,6 +654,7 @@ export default function ListNewLot() {
 
     try {
       setLoading(true);
+      setUploadProgress(0);
 
       const title = `${form.fruitName} ${form.variety}`.trim();
       const data = new FormData();
@@ -673,8 +683,13 @@ export default function ListNewLot() {
 
       await API.post("/products", data, {
         headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (event) => {
+          if (!event.total) return;
+          setUploadProgress(Math.min(99, Math.round((event.loaded * 100) / event.total)));
+        },
       });
 
+      setUploadProgress(100);
       navigate("/profile-dashboard");
     } catch (err) {
       setMessage(
@@ -685,6 +700,7 @@ export default function ListNewLot() {
       );
     } finally {
       setLoading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -711,6 +727,20 @@ export default function ListNewLot() {
         {recognizing && (
           <div className="mb-4 rounded-md bg-green-50 px-3 py-2 text-xs font-semibold text-green-800">
             Checking media for fruit recognition...
+          </div>
+        )}
+        {loading && (
+          <div className="mb-4 rounded-md bg-green-50 px-3 py-2 text-xs font-semibold text-green-800">
+            <div className="flex items-center justify-between gap-3">
+              <span>Uploading lot...</span>
+              <span>{uploadProgress || 1}%</span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-green-100">
+              <div
+                className="h-full rounded-full bg-green-700 transition-all"
+                style={{ width: `${Math.max(uploadProgress, 5)}%` }}
+              />
+            </div>
           </div>
         )}
 

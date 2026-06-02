@@ -54,6 +54,10 @@ const getModel = () => {
   return modelPromise;
 };
 
+export const warmUpFruitRecognition = () => {
+  getModel().catch(() => undefined);
+};
+
 export const recognizeFruitImage = async (file) => {
   if (!file?.type?.startsWith("image/")) {
     return { accepted: false, label: "not an image" };
