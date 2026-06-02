@@ -133,7 +133,7 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
     ...(!isBuyer
       ? [
           {
-            label: isDriver ? "Update Driver Profile" : "Register as Driver",
+            label: isDriver ? "Update Logistic Partner Profile" : "Register as Logistic Partner",
             icon: <FaTruck />,
             path: "/register-driver",
             hasChevron: true,

@@ -352,21 +352,23 @@ export default function ProfileDashboard() {
           },
         ]
       : []),
-    {
-      title: isGrower ? "Update Grower Profile" : "Register as Grower",
-      description: isGrower
-        ? "Update orchard address, contact, and transport map point."
-        : "Create a grower profile and list fruit lots for verified buyers.",
-      icon: <FaSeedling />,
-      path: "/register-grower",
-    },
+    ...(!isGrower
+      ? [
+          {
+            title: "Register as Grower",
+            description: "Create a grower profile and list fruit lots for verified buyers.",
+            icon: <FaSeedling />,
+            path: "/register-grower",
+          },
+        ]
+      : []),
     ...(!isBuyer
       ? [
           {
-            title: isDriver ? "Update Driver Profile" : "Register as Driver",
+            title: isDriver ? "Update Logistic Partner Profile" : "Register as Logistic Partner",
             description: isDriver
-              ? "Update logistics profile and vehicle details."
-              : "Create a logistics profile and manage fruit lot deliveries.",
+              ? "Update logistic partner profile and vehicle details."
+              : "Create a logistic partner profile and manage fruit lot deliveries.",
             icon: <FaTruck />,
             path: "/register-driver",
           },

@@ -95,7 +95,7 @@ export default function RegisterDriver() {
               Logistics profile
             </p>
             <h2 className="mt-1 text-2xl font-bold text-gray-950">
-              {isUpdate ? "Update Driver Profile" : "Register as Driver"}
+              {isUpdate ? "Update Logistic Partner Profile" : "Register as Logistic Partner"}
             </h2>
             <p className="mt-2 text-sm leading-6 text-gray-500">
               Deliver consignments, update delivery status, and manage transport details.
@@ -196,7 +196,7 @@ export default function RegisterDriver() {
             disabled={loading || hasBlockedBuyerProfile}
             className="mt-6 w-full rounded-md bg-orange-500 py-3 text-sm font-bold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-gray-300"
           >
-            {loading ? "Saving..." : isUpdate ? "Update Driver Profile" : "Register as Driver"}
+            {loading ? "Saving..." : isUpdate ? "Update Logistic Partner Profile" : "Register as Logistic Partner"}
           </button>
         </form>
       </div>
