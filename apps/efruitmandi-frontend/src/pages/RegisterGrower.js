@@ -44,6 +44,7 @@ export default function RegisterGrower() {
   const [otpSent, setOtpSent] = useState(false);
   const [otpCooldown, setOtpCooldown] = useState(0);
   const [verifiedPhone, setVerifiedPhone] = useState(isUpdate ? savedContact : "");
+  const [otpVerificationToken, setOtpVerificationToken] = useState("");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -60,6 +61,7 @@ export default function RegisterGrower() {
       setOtpSent(false);
       setOtpCooldown(0);
       setVerifiedPhone("");
+      setOtpVerificationToken("");
     }
   };
 
@@ -120,7 +122,7 @@ export default function RegisterGrower() {
 
       const result = otpSent
         ? await retryMsg91WidgetOtp({ widgetId, tokenAuth, reqId: otpReqId })
-        : await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone, mode: "signup" });
+        : await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone, mode: "profile" });
       setOtpReqId(result.reqId || "");
       setOtpSent(true);
       setOtpCooldown(60);
@@ -146,8 +148,9 @@ export default function RegisterGrower() {
         return;
       }
 
-      await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp: otp.trim(), reqId: otpReqId, phone: normalizeIndianMobile(contactValue) || contactValue, mode: "signup" });
+      const result = await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp: otp.trim(), reqId: otpReqId, phone: normalizeIndianMobile(contactValue) || contactValue, mode: "profile" });
       setVerifiedPhone(contactValue);
+      setOtpVerificationToken(result.data?.otpVerificationToken || "");
       setMessage("Contact number verified.");
     } catch (err) {
       setVerifiedPhone("");
@@ -184,6 +187,9 @@ export default function RegisterGrower() {
         mapLongitude: form.mapLongitude,
         googleMapUrl,
         contact: form.contact.trim(),
+        otpVerificationToken,
+        platform: "efruitmandi",
+        allowUpdate: isUpdate,
       });
 
       localStorage.setItem("user", JSON.stringify(res.data.user));

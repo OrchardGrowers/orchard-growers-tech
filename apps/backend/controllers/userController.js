@@ -5,7 +5,7 @@ import {
   parseIdentifier,
 } from "./authController.js";
 
-const getVerifiedPhone = (contact, user = null) => {
+const getVerifiedPhone = (contact, user = null, otpVerificationToken = "", platform = "efruitmandi") => {
   const parsed = parseIdentifier(contact);
 
   if (!parsed || parsed.type !== "phone") {
@@ -19,7 +19,12 @@ const getVerifiedPhone = (contact, user = null) => {
 
   if (trustedPhones.includes(parsed.value)) return parsed;
 
-  if (!isOtpVerified(parsed)) return null;
+  const verified =
+    isOtpVerified(parsed, platform, "auth", otpVerificationToken) ||
+    isOtpVerified(parsed, "efruitmandi", "auth", otpVerificationToken) ||
+    isOtpVerified(parsed, "orchardgrowers", "auth", otpVerificationToken);
+
+  if (!verified) return null;
 
   return parsed;
 };
@@ -64,6 +69,9 @@ export const setUserRole = async (req, res) => {
       mapLongitude,
       googleMapUrl,
       contact,
+      otpVerificationToken = "",
+      platform = "efruitmandi",
+      allowUpdate = false,
     } = req.body;
 
     // ✅ Validate role
@@ -80,6 +88,18 @@ export const setUserRole = async (req, res) => {
 
     // 🔒 Prevent role change after set (important for integrity)
     const profileTypes = getUserProfileTypes(user);
+    const profileAlreadyExists = profileTypes.has(role);
+
+    if (profileAlreadyExists && !allowUpdate) {
+      const safeUser = await User.findById(userId).select("-password -__v");
+      return res.status(409).json({
+        success: false,
+        msg: "Profile already exists",
+        profileCreated: false,
+        role,
+        user: safeUser,
+      });
+    }
 
     if (role === "buyer" && profileTypes.has("driver")) {
       return res.status(400).json({
@@ -104,7 +124,7 @@ export const setUserRole = async (req, res) => {
         });
       }
 
-      verifiedPhone = getVerifiedPhone(contact, profileTypes.has("grower") ? user : null);
+      verifiedPhone = getVerifiedPhone(contact, profileAlreadyExists ? user : null, otpVerificationToken, platform);
       if (!verifiedPhone) {
         return res.status(400).json({
           msg: "Verify contact number OTP before grower registration",
@@ -124,7 +144,7 @@ export const setUserRole = async (req, res) => {
         });
       }
 
-      verifiedPhone = getVerifiedPhone(contact, profileTypes.has("buyer") ? user : null);
+      verifiedPhone = getVerifiedPhone(contact, profileAlreadyExists ? user : null, otpVerificationToken, platform);
       if (!verifiedPhone) {
         return res.status(400).json({
           msg: "Verify contact number OTP before buyer registration",
@@ -181,13 +201,18 @@ export const setUserRole = async (req, res) => {
 
     await user.save();
 
-    if (verifiedPhone) consumeOtpVerification(verifiedPhone);
+    if (verifiedPhone && otpVerificationToken) {
+      consumeOtpVerification(verifiedPhone, platform, "auth", otpVerificationToken);
+    }
 
     // 🔐 Return safe user data only
     const safeUser = await User.findById(userId).select("-password -__v");
 
     res.json({
-      message: "Role updated successfully",
+      success: true,
+      profileCreated: !profileAlreadyExists,
+      role,
+      message: profileAlreadyExists ? "Profile updated successfully" : "Profile created successfully",
       user: safeUser,
     });
 

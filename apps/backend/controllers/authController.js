@@ -513,8 +513,8 @@ export const sendOtp = async (req, res) => {
   try {
     const mode = String(req.body.mode || "").trim().toLowerCase();
     // By default require the account to exist before sending auth OTPs.
-    // Allow sending OTP for signup flows when mode=signup.
-    const requireExisting = mode !== "signup";
+    // Allow sending OTP for signup/profile registration flows without account lookup.
+    const requireExisting = !["signup", "profile", "role", "profile-registration"].includes(mode);
     return sendOtpForPurpose({ req, res, purpose: "auth", requireExistingUser: requireExisting });
   } catch (err) {
     logOtpError("OTP request failed:", err);
@@ -526,7 +526,7 @@ export const resendOtp = async (req, res) => {
   try {
     const purpose = getOtpPurpose(req.body.purpose || "auth");
     const mode = String(req.body.mode || "").trim().toLowerCase();
-    const requireExisting = purpose === "auth" ? mode !== "signup" : true;
+    const requireExisting = purpose === "auth" ? !["signup", "profile", "role", "profile-registration"].includes(mode) : true;
     return sendOtpForPurpose({ req, res, purpose, requireExistingUser: requireExisting });
   } catch (err) {
     logOtpError("OTP resend failed:", err);

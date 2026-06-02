@@ -67,6 +67,8 @@ export default function RegisterDriver() {
         licenseNumber: form.licenseNumber.trim(),
         location: form.location.trim(),
         contact: form.contact.trim(),
+        platform: "efruitmandi",
+        allowUpdate: isUpdate,
       });
 
       localStorage.setItem("user", JSON.stringify(res.data.user));
