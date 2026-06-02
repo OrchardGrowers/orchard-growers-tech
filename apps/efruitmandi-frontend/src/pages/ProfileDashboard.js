@@ -40,6 +40,25 @@ const orchardCover = assetUrl("/profile-banners/efruitmandi-profile-cover.png");
 const buyerLogoUrl = assetUrl("/profile-images/green-valley-fruit-traders-logo.svg");
 const youtubeUrl = "https://www.youtube.com/results?search_query=Efruit+Mandi";
 
+const resolveProfileMediaUrl = (value = "") => {
+  const url = String(value || "").trim();
+  if (!url) return "";
+  if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+  if (/^https?:\/\//i.test(url)) {
+    if (
+      window.location.protocol === "https:" &&
+      url.startsWith("http://") &&
+      !/localhost|127\.0\.0\.1/i.test(url)
+    ) {
+      return url.replace(/^http:\/\//i, "https://");
+    }
+    return url;
+  }
+  const cleanPath = url.replace(/^\/+/, "");
+  if (cleanPath.startsWith("uploads/")) return `${FILE_BASE_URL}/${cleanPath}`;
+  return url.startsWith("/") ? url : `/${url}`;
+};
+
 const mandiRates = [
   {
     id: "shimla-apple",
@@ -381,9 +400,9 @@ export default function ProfileDashboard() {
   const organizationLogo = isBuyer
     ? buyerLogoUrl
     : logoUrl;
-  const companyLogoUrl = user.companyLogoUrl || organizationLogo;
-  const bannerUrl = user.bannerUrl || orchardCover;
-  const avatarUrl = user.avatarUrl;
+  const companyLogoUrl = resolveProfileMediaUrl(user.companyLogoUrl) || organizationLogo;
+  const bannerUrl = resolveProfileMediaUrl(user.bannerUrl) || orchardCover;
+  const avatarUrl = resolveProfileMediaUrl(user.avatarUrl);
   const lockedAmount = Number(user.lockedAmount || 0);
   const lockedAmountLabel = formatCurrency(lockedAmount);
 
