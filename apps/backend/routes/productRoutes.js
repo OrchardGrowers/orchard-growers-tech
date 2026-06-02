@@ -3,6 +3,7 @@ import {
   createProduct,
   deleteProduct,
   generateSku,
+  getNextLotNo,
   getProductById,
   getProducts,
 } from "../controllers/productController.js";
@@ -23,6 +24,7 @@ router.post(
 
 router.get("/", optionalProtect, getProducts);
 router.get("/generate-sku", protect, generateSku);
+router.get("/next-lot-no", protect, authorize("grower"), getNextLotNo);
 router.get("/:id", optionalProtect, getProductById);
 router.delete("/:id", protect, authorize("grower"), deleteProduct);
 

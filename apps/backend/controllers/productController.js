@@ -53,6 +53,15 @@ const generateLotNo = async (userId) => {
   return `${makeFirmPrefix(user)}/${year}/${sequence}`;
 };
 
+export const getNextLotNo = async (req, res) => {
+  try {
+    const lotNo = await generateLotNo(req.user.id);
+    res.json({ lotNo });
+  } catch (err) {
+    res.status(500).json({ msg: err.message || "Could not generate lot number" });
+  }
+};
+
 const getUploadedFiles = (req, fieldName) => {
   if (Array.isArray(req.files)) {
     return req.files.filter((file) => file.fieldname === fieldName);

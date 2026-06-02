@@ -397,7 +397,9 @@ export default function ProfileDashboard() {
   const organizationLabel = displayName;
   const trustedLabel = isTrustedAccount
     ? "Orchard Growers Verified"
-    : "Verification requires Orchard Growers Team approval and fee.";
+    : isBuyer
+      ? "Get Verified to attract more Growers"
+      : "Get verified to attract more Buyers";
   const trustedActionLabel = isBuyer ? "Visit Buyers Space" : "Visit Growers Orchard";
   const organizationLogo = isBuyer
     ? buyerLogoUrl

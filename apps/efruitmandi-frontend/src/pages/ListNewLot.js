@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaTimes,
@@ -435,7 +435,8 @@ export default function ListNewLot() {
   const [loading, setLoading] = useState(false);
   const [recognizing, setRecognizing] = useState(false);
   const [message, setMessage] = useState("");
-  const lotNoPreview = useMemo(() => getLotNoPreview(), []);
+  const localLotNoPreview = useMemo(() => getLotNoPreview(), []);
+  const [lotNoPreview, setLotNoPreview] = useState(localLotNoPreview);
 
   const selectedPacking = PACKING_TYPES[Number(form.packingIndex)] || PACKING_TYPES[0];
   const packingUnit = selectedPacking.unit || "units";
@@ -462,6 +463,24 @@ export default function ListNewLot() {
       totalWeightKg: gradeRows.reduce((total, row) => total + row.weightKg, 0),
     };
   }, [gradeLots, selectedPacking, visibleGrades]);
+
+  useEffect(() => {
+    let active = true;
+
+    API.get("/products/next-lot-no")
+      .then((res) => {
+        if (active && res.data?.lotNo) {
+          setLotNoPreview(res.data.lotNo);
+        }
+      })
+      .catch(() => {
+        if (active) setLotNoPreview(localLotNoPreview);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [localLotNoPreview]);
 
   const updateForm = (field, value) => {
     setForm({ ...form, [field]: value });
