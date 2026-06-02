@@ -39,7 +39,11 @@ export default function Orders() {
       {orders.map((order) => (
         <div key={order._id} className="border p-4 mb-3 rounded">
           <p>Product: {order.product?.title || "Fruit lot"}</p>
-          <p>Amount: Rs. {order.finalPrice || order.auctionPrice || 0}</p>
+          {isGrower ? (
+            <p>You Will Receive: Rs. {order.sellerReceivable || order.growerPayout || order.auctionPrice || 0}</p>
+          ) : (
+            <p>Amount Payable: Rs. {order.finalPrice || order.totalAmount || order.auctionPrice || 0}</p>
+          )}
           <p>Status: {order.paymentStatus}</p>
           <p>Delivery: {order.deliveryStatus || "PENDING"}</p>
 

@@ -7,6 +7,32 @@ const router = express.Router();
 const ensureOwnBuyerOrder = (order, userId) =>
   order.buyer?.toString() === userId?.toString();
 
+const hasProfile = (user, profileType) =>
+  user?.role === profileType ||
+  (Array.isArray(user?.profileTypes) && user.profileTypes.includes(profileType));
+
+const sanitizeEscrowOrder = (order, user) => {
+  const data = order?.toObject ? order.toObject() : { ...order };
+  const userId = user?.id?.toString();
+  const isGrowerView =
+    hasProfile(user, "grower") && (data.grower?._id || data.grower)?.toString() === userId;
+  const isBuyerView =
+    hasProfile(user, "buyer") && (data.buyer?._id || data.buyer)?.toString() === userId;
+
+  if (isGrowerView && !isBuyerView) {
+    data.sellerReceivable = data.growerPayout || data.dealBreakdown?.sellerReceivable || data.auctionPrice || 0;
+    delete data.dealBreakdown;
+    delete data.driverPayment;
+    delete data.platformCommission;
+    delete data.shippingCharge;
+    delete data.taxAmount;
+    delete data.finalPrice;
+    delete data.totalAmount;
+  }
+
+  return data;
+};
+
 router.post("/pay", protect, authorize("buyer"), async (req, res) => {
   try {
     const { orderId } = req.body;
@@ -82,7 +108,7 @@ router.get("/escrow/:orderId", protect, async (req, res) => {
     if (!canView) return res.status(403).json({ msg: "You cannot view this escrow workflow" });
 
     res.json({
-      order,
+      order: sanitizeEscrowOrder(order, req.user),
       steps: [
         { key: "DEAL_CONFIRMED", label: "Winning deal confirmed by grower", complete: Boolean(order.auction) },
         { key: "HELD_BY_BILLDESK", label: "Buyer payment held by BillDesk escrow", complete: ["ESCROW", "RELEASED"].includes(order.paymentStatus) },

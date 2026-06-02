@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import API from "../services/api";
+import { isGrowerAccount } from "../utils/auth";
 
 export default function EscrowWorkflow() {
   const { orderId } = useParams();
@@ -19,6 +20,7 @@ export default function EscrowWorkflow() {
   }, [orderId]);
 
   const order = workflow?.order;
+  const isGrower = isGrowerAccount();
 
   return (
     <div className="mx-auto max-w-2xl space-y-4 rounded bg-white p-4 shadow">
@@ -30,11 +32,18 @@ export default function EscrowWorkflow() {
           <div className="rounded border border-gray-200 p-4 text-sm">
             <p className="font-semibold">Order ID</p>
             <p className="font-mono text-xs">{order._id}</p>
-            <p className="mt-3">Amount: Rs. {order.finalPrice || order.auctionPrice || 0}</p>
+            {isGrower ? (
+              <p className="mt-3">You Will Receive: Rs. {order.sellerReceivable || order.growerPayout || order.auctionPrice || 0}</p>
+            ) : (
+              <p className="mt-3">Amount Payable: Rs. {order.finalPrice || order.auctionPrice || 0}</p>
+            )}
             <p>Status: {order.paymentStatus} / {order.deliveryStatus}</p>
-            <p>Driver Payment: Rs. {order.driverPayment || 0}</p>
-            <p>Platform Commission: Rs. {order.platformCommission || 0}</p>
-            <p>Grower Payout: Rs. {order.growerPayout || 0}</p>
+            {!isGrower && (
+              <>
+                <p>Driver Charges: Rs. {order.driverPayment || 0}</p>
+                <p>Platform Commission: Rs. {order.platformCommission || 0}</p>
+              </>
+            )}
           </div>
 
           <div className="space-y-2">

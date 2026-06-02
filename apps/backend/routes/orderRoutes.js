@@ -27,6 +27,28 @@ const populateOrder = (query) =>
     .populate("grower", "name orchardName")
     .populate("driver", "name logisticsName");
 
+const sanitizeOrderForUser = (order, user) => {
+  const data = order?.toObject ? order.toObject() : { ...order };
+  const userId = user?.id?.toString();
+  const isGrowerView =
+    hasProfile(user, "grower") && (data.grower?._id || data.grower)?.toString() === userId;
+  const isBuyerView =
+    hasProfile(user, "buyer") && (data.buyer?._id || data.buyer)?.toString() === userId;
+
+  if (isGrowerView && !isBuyerView) {
+    data.sellerReceivable = data.growerPayout || data.dealBreakdown?.sellerReceivable || data.auctionPrice || 0;
+    delete data.dealBreakdown;
+    delete data.driverPayment;
+    delete data.platformCommission;
+    delete data.shippingCharge;
+    delete data.taxAmount;
+    delete data.finalPrice;
+    delete data.totalAmount;
+  }
+
+  return data;
+};
+
 const INDIA_POST_TEST_KEY = process.env.INDIA_POST_TEST_KEY || "INDIA_POST_TEST_KEY";
 
 const getFinancialYearStart = () => {
@@ -199,7 +221,7 @@ router.get("/", protect, async (req, res) => {
       Order.find(getOrderVisibilityFilter(req.user)).sort({ createdAt: -1 })
     );
 
-    res.json(orders);
+    res.json(orders.map((order) => sanitizeOrderForUser(order, req.user)));
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }
@@ -224,7 +246,7 @@ router.get("/:id", protect, async (req, res) => {
       return res.status(403).json({ msg: "You cannot view this order" });
     }
 
-    res.json(order);
+    res.json(sanitizeOrderForUser(order, req.user));
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }

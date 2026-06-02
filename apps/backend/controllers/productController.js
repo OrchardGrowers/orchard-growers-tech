@@ -152,6 +152,7 @@ export const createProduct = async (req, res) => {
     const title = String(req.body.title || "").trim();
     const fruitName = String(req.body.fruitName || "").trim();
     const variety = String(req.body.variety || "").trim();
+    const quality = String(req.body.quality || "").trim();
     const description = String(req.body.description || "").trim();
     const packingType = String(req.body.packingType || "").trim();
     const location = String(req.body.location || "").trim();
@@ -160,8 +161,8 @@ export const createProduct = async (req, res) => {
     const totalWeightKg = Number(req.body.totalWeightKg || 0);
     const basePrice = Number(req.body.basePrice || 0);
 
-    if (!title || !fruitName || !variety || !packingType || !location) {
-      return res.status(400).json({ msg: "Title, fruit, variety, packing, and location are required" });
+    if (!title || !fruitName || !variety || !quality || !packingType || !location) {
+      return res.status(400).json({ msg: "Title, fruit, variety, quality, packing, and location are required" });
     }
 
     if (!Number.isFinite(basePrice) || basePrice <= 0) {
@@ -220,6 +221,7 @@ export const createProduct = async (req, res) => {
       title,
       fruitName,
       variety,
+      quality,
       description,
       quantity,
       lotNo: generatedLotNo,

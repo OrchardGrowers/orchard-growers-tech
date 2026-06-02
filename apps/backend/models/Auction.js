@@ -11,6 +11,16 @@ const auctionSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    highestGrade: String,
+    highestGradeRate: {
+      type: Number,
+      default: 0,
+    },
+    distanceKm: {
+      type: Number,
+      default: 0,
+    },
+    dealBreakdown: mongoose.Schema.Types.Mixed,
     highestBidder: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

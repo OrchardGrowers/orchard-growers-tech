@@ -6,14 +6,16 @@ import protect, { authorize } from "../middleware/authMiddleware.js";
 const router = express.Router();
 
 const genOTP = () => Math.floor(1000 + Math.random() * 9000).toString();
-const calculateSettlement = (amount = 0) => {
+const calculateSettlement = (amount = 0, order = {}) => {
   const finalAmount = Number(amount || 0);
-  const driverPayment = Math.round(finalAmount * Number(process.env.DRIVER_PAYMENT_PERCENT || 5) / 100);
-  const platformCommission = Math.round(finalAmount * Number(process.env.PLATFORM_COMMISSION_PERCENT || 3) / 100);
+  const driverPayment = Number(order.dealBreakdown?.driverCharge || order.driverPayment || 0);
+  const platformCommission = Math.round(
+    (finalAmount + driverPayment) * Number(process.env.PLATFORM_COMMISSION_PERCENT || 5) / 100
+  );
   return {
     driverPayment,
     platformCommission,
-    growerPayout: Math.max(0, finalAmount - driverPayment - platformCommission),
+    growerPayout: Math.max(0, finalAmount - platformCommission),
   };
 };
 
@@ -179,7 +181,7 @@ router.post("/confirm-settlement", protect, authorize("grower"), async (req, res
     const finalAmount = delivery.isNegotiated
       ? delivery.negotiatedAmount
       : order.auctionPrice;
-    const settlement = calculateSettlement(finalAmount);
+    const settlement = calculateSettlement(finalAmount, order);
 
     order.paymentStatus = "RELEASED";
     order.finalPrice = finalAmount;
@@ -195,8 +197,7 @@ router.post("/confirm-settlement", protect, authorize("grower"), async (req, res
 
     res.json({
       msg: "Payment released successfully",
-      finalAmount,
-      ...settlement,
+      finalReceivableAmount: settlement.growerPayout,
     });
   } catch (err) {
     res.status(500).json({ msg: err.message });

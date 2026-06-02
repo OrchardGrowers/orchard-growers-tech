@@ -2,7 +2,14 @@ import express from "express";
 import Auction from "../models/Auction.js";
 import Product from "../models/Product.js";
 import Order from "../models/Order.js";
+import DealSettings from "../models/DealSettings.js";
 import protect, { authorize, optionalProtect } from "../middleware/authMiddleware.js";
+import {
+  buildGradeQuantitiesFromProduct,
+  calculateDealBreakdown,
+  getHighestAvailableGrade,
+  mergeDealSettings,
+} from "../services/dealCalculationService.js";
 
 const router = express.Router();
 
@@ -29,6 +36,44 @@ const canSeeProductBasePrice = (product, user) =>
   product?.createdBy &&
   (product.createdBy._id || product.createdBy)?.toString() === user.id?.toString();
 
+const canSeeBuyerDealBreakdown = (auction, user) => {
+  const bidderId = auction?.highestBidder?._id || auction?.highestBidder;
+  return user?.role === "SUPER_ADMIN" || bidderId?.toString() === user?.id?.toString();
+};
+
+const loadDealSettings = async () =>
+  mergeDealSettings((await DealSettings.findOne({ key: "default" }).lean()) || {});
+
+const calculateProductDeal = async (product, baseRate, distanceKm = 0) => {
+  const gradeQuantities = buildGradeQuantitiesFromProduct(product);
+  const highestGrade = getHighestAvailableGrade(gradeQuantities);
+  const settings = await loadDealSettings();
+
+  return calculateDealBreakdown({
+    highestGrade,
+    baseRate,
+    gradeQuantities,
+    distanceKm,
+    ...settings,
+  });
+};
+
+const buildOrderFromAuction = (auction, product) => ({
+  auction: auction._id,
+  product: auction.product,
+  buyer: auction.highestBidder,
+  grower: product?.createdBy,
+  auctionPrice: auction.dealBreakdown?.dealAmount ?? auction.currentBid,
+  finalPrice: auction.dealBreakdown?.buyerPayable ?? auction.currentBid,
+  highestGrade: auction.highestGrade,
+  highestGradeRate: auction.highestGradeRate,
+  dealBreakdown: auction.dealBreakdown,
+  driverPayment: auction.dealBreakdown?.driverCharge || 0,
+  platformCommission: auction.dealBreakdown?.commissionAmount || 0,
+  growerPayout: auction.dealBreakdown?.sellerReceivable || 0,
+  paymentStatus: "PENDING",
+});
+
 const serializeAuction = (auction, user) => {
   const data = auction.toObject ? auction.toObject() : { ...auction };
 
@@ -37,13 +82,18 @@ const serializeAuction = (auction, user) => {
     delete data.startingPrice;
   }
 
+  if (data.dealBreakdown && !canSeeBuyerDealBreakdown(data, user)) {
+    data.sellerReceivable = data.dealBreakdown.sellerReceivable;
+    delete data.dealBreakdown;
+  }
+
   return data;
 };
 
 // ================= CREATE DEAL =================
 router.post("/", protect, authorize("grower"), async (req, res) => {
   try {
-    const { product, startingPrice, currentBid, startTime } = req.body;
+    const { product, startingPrice, currentBid, startTime, distanceKm = 0 } = req.body;
 
     console.log("Incoming product:", product);
 
@@ -66,11 +116,18 @@ router.post("/", protect, authorize("grower"), async (req, res) => {
         ? "SCHEDULED"
         : "ACTIVE";
     const openingPrice = Number(startingPrice || productExists.basePrice || 0);
+    const openingBreakdown = calculateProductDeal
+      ? await calculateProductDeal(productExists, Number(currentBid || openingPrice), distanceKm)
+      : null;
 
     const auction = await Auction.create({
       product,
       startingPrice: openingPrice,
-      currentBid: Number(currentBid || openingPrice),
+      currentBid: openingBreakdown?.dealAmount ?? Number(currentBid || openingPrice),
+      highestGrade: openingBreakdown?.highestGrade,
+      highestGradeRate: Number(currentBid || openingPrice),
+      distanceKm: Number(distanceKm || 0),
+      dealBreakdown: openingBreakdown,
       status,
       startTime: auctionStartTime,
       endTime: auctionEndTime,
@@ -81,6 +138,31 @@ router.post("/", protect, authorize("grower"), async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ msg: "Server Error" });
+  }
+});
+
+// ================= PREVIEW COMPLETE LOT CALCULATION =================
+router.post("/:id/calculate", protect, authorize("buyer"), async (req, res) => {
+  try {
+    const { baseRate, distanceKm = 0 } = req.body;
+    const auction = await Auction.findById(req.params.id).populate("product");
+
+    if (!auction) {
+      return res.status(404).json({ msg: "Deal not found" });
+    }
+
+    if (!auction.product) {
+      return res.status(404).json({ msg: "Lot not found" });
+    }
+
+    const breakdown = await calculateProductDeal(auction.product, baseRate, distanceKm);
+
+    res.json({
+      completeLotOnly: true,
+      ...breakdown,
+    });
+  } catch (err) {
+    res.status(400).json({ msg: err.message });
   }
 });
 
@@ -165,14 +247,7 @@ router.post("/end/:id", protect, authorize("grower"), async (req, res) => {
 
     const order = await Order.findOneAndUpdate(
       { auction: auction._id },
-      {
-        auction: auction._id,
-        product: auction.product,
-        buyer: auction.highestBidder,
-        grower: product.createdBy,
-        auctionPrice: auction.currentBid,
-        paymentStatus: "PENDING",
-      },
+      buildOrderFromAuction(auction, product),
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
 

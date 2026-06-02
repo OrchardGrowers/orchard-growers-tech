@@ -1,6 +1,7 @@
 import express from "express";
 import multer from "multer";
 import Admin from "../models/Admin.js";
+import DealSettings from "../models/DealSettings.js";
 import {
   createAdmin,
   activateAdmin,
@@ -44,6 +45,11 @@ import {
   getEfruitMandiOrderForAdmin,
   listEfruitMandiOrdersForAdmin,
 } from "../controllers/logisticsController.js";
+import {
+  DEFAULT_DRIVER_CHARGE_SLABS,
+  DEFAULT_GRADE_RATE_RULES,
+  mergeDealSettings,
+} from "../services/dealCalculationService.js";
 
 const router = express.Router();
 const wrapAsync = (handler) => (req, res, next) =>
@@ -109,6 +115,7 @@ const USER_WRITE_ROLES = ["SUPER_ADMIN", "ADMIN", "VERIFICATION_OFFICER", "SUPPO
 const PRODUCT_READ_ROLES = ADMIN_ACCESS_ROLES;
 const PRODUCT_WRITE_ROLES = ["SUPER_ADMIN", "ADMIN", "INVENTORY_MANAGER", "EMPLOYEE"];
 const ORDER_READ_ROLES = ADMIN_ACCESS_ROLES;
+const SETTINGS_WRITE_ROLES = ["SUPER_ADMIN", "ADMIN", "FINANCE_MANAGER"];
 const VERIFICATION_READ_ROLES = ADMIN_ACCESS_ROLES;
 const VERIFICATION_WRITE_ROLES = ["SUPER_ADMIN", "ADMIN", "VERIFICATION_OFFICER", "EMPLOYEE"];
 const requireRoles = (...roles) => authorize(...roles);
@@ -168,6 +175,53 @@ router.get("/kyc-requests", ...adminOnly, requireRoles(...VERIFICATION_READ_ROLE
 router.post("/kyc-requests/:userId/review", ...adminOnly, requireRoles(...VERIFICATION_WRITE_ROLES), wrapAsync(reviewKycRequest));
 router.get("/orders", ...adminOnly, requireRoles(...ORDER_READ_ROLES), wrapAsync(listOrders));
 router.patch("/orders/:id/logistics", ...adminOnly, requireRoles(...ORDER_READ_ROLES), wrapAsync(updateOrderLogistics));
+
+router.get("/deal-settings", ...adminOnly, requireRoles(...ORDER_READ_ROLES), wrapAsync(async (req, res) => {
+  const settings = await DealSettings.findOne({ key: "default" }).lean();
+  res.json({
+    key: "default",
+    ...mergeDealSettings(settings || {}),
+    updatedAt: settings?.updatedAt,
+  });
+}));
+
+router.patch("/deal-settings", ...adminOnly, requireRoles(...SETTINGS_WRITE_ROLES), wrapAsync(async (req, res) => {
+  const currentSettings = mergeDealSettings((await DealSettings.findOne({ key: "default" }).lean()) || {});
+  const commissionPercent =
+    req.body.commissionPercent === undefined
+      ? currentSettings.commissionPercent
+      : Number(req.body.commissionPercent);
+  const driverChargeSlabs = Array.isArray(req.body.driverChargeSlabs)
+    ? req.body.driverChargeSlabs
+    : currentSettings.driverChargeSlabs || DEFAULT_DRIVER_CHARGE_SLABS;
+  const gradeRateRules =
+    req.body.gradeRateRules && typeof req.body.gradeRateRules === "object"
+      ? req.body.gradeRateRules
+      : currentSettings.gradeRateRules || DEFAULT_GRADE_RATE_RULES;
+
+  if (!Number.isFinite(commissionPercent) || commissionPercent < 0) {
+    return res.status(400).json({ msg: "Commission percent must be greater than or equal to 0" });
+  }
+
+  const settings = await DealSettings.findOneAndUpdate(
+    { key: "default" },
+    {
+      commissionPercent,
+      driverChargeSlabs,
+      gradeRateRules,
+      updatedBy: req.user.id,
+    },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  ).lean();
+
+  res.json({
+    success: true,
+    key: "default",
+    ...mergeDealSettings(settings),
+    updatedAt: settings?.updatedAt,
+  });
+}));
+
 router.get("/efruitmandi/orders", ...adminOnly, requireRoles(...ORDER_READ_ROLES), wrapAsync(listEfruitMandiOrdersForAdmin));
 router.get("/efruitmandi/orders/:orderId", ...adminOnly, requireRoles(...ORDER_READ_ROLES), wrapAsync(getEfruitMandiOrderForAdmin));
 router.post("/efruitmandi/orders/:orderId/create-shipment", ...adminOnly, requireRoles(...ORDER_READ_ROLES), wrapAsync(createShipmentFromEfruitMandiOrder));

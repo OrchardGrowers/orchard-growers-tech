@@ -12,6 +12,7 @@ const productSchema = new mongoose.Schema(
     sgst: { type: Number, default: 0 },
     fruitName: String,
     variety: String,
+    quality: String,
     productCategory: String,
     seasonalCategory: String,
     productType: String,

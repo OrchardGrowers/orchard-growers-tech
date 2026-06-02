@@ -50,35 +50,43 @@ const DEFAULT_VARIETIES = [
   "Golden",
   "Red Delicious",
   "Gala",
+];
+
+const QUALITY_OPTIONS = [
+  "Premium Certified Organic Export Quality",
+  "Premium Export Quality",
   "Export Quality",
-  "Organic",
+  "Certified Organic",
+  "Premium Quality",
+  "A Grade Fresh",
+  "Natural / Farm Fresh",
 ];
 
 const PACKING_TYPES = [
-  { label: "Unpacked / Crates / 18KG", kg: 18, unpacked: true },
-  { label: "Unpacked / Crates / 20KG", kg: 20, unpacked: true },
-  { label: "Unpacked / Crates / 25KG", kg: 25, unpacked: true },
-  { label: "400gms carton", kg: 0.4 },
-  { label: "500gms carton", kg: 0.5 },
-  { label: "800gms carton", kg: 0.8 },
-  { label: "1 KG carton", kg: 1 },
-  { label: "4 KG carton", kg: 4 },
-  { label: "5 KG carton", kg: 5 },
-  { label: "10 KG carton", kg: 10 },
-  { label: "15 KG carton", kg: 15 },
-  { label: "Universal Carton 20KG Aprox", kg: 20 },
-  { label: "25 KG Carton Aprox", kg: 25 },
-  { label: "30 KG Carton Aprox", kg: 30 },
-  { label: "28 KG Carton Aprox", kg: 28 },
-  { label: "14 KG Crates Aprox", kg: 14 },
-  { label: "18 KG Crates Aprox", kg: 18 },
-  { label: "20 KG Crates Aprox", kg: 20 },
-  { label: "22 KG Crate Aprox", kg: 22 },
-  { label: "25 KG Crate Aprox", kg: 25 },
-  { label: "28 KG Crate Aprox", kg: 28 },
-  { label: "30 KG Crate Aprox", kg: 30 },
-  { label: "32 KG Crate Aprox", kg: 32 },
-  { label: "35 KG Crate Aprox", kg: 35 },
+  { label: "Unpacked / Crates / 18KG", kg: 18, unpacked: true, unit: "crates" },
+  { label: "Unpacked / Crates / 20KG", kg: 20, unpacked: true, unit: "crates" },
+  { label: "Unpacked / Crates / 25KG", kg: 25, unpacked: true, unit: "crates" },
+  { label: "400gms carton", kg: 0.4, unit: "cartons" },
+  { label: "500gms carton", kg: 0.5, unit: "cartons" },
+  { label: "800gms carton", kg: 0.8, unit: "cartons" },
+  { label: "1 KG carton", kg: 1, unit: "cartons" },
+  { label: "4 KG carton", kg: 4, unit: "cartons" },
+  { label: "5 KG carton", kg: 5, unit: "cartons" },
+  { label: "10 KG carton", kg: 10, unit: "cartons" },
+  { label: "15 KG carton", kg: 15, unit: "cartons" },
+  { label: "Universal Carton 20KG Aprox", kg: 20, unit: "cartons" },
+  { label: "25 KG Carton Aprox", kg: 25, unit: "cartons" },
+  { label: "30 KG Carton Aprox", kg: 30, unit: "cartons" },
+  { label: "28 KG Carton Aprox", kg: 28, unit: "cartons" },
+  { label: "14 KG Crates Aprox", kg: 14, unit: "crates" },
+  { label: "18 KG Crates Aprox", kg: 18, unit: "crates" },
+  { label: "20 KG Crates Aprox", kg: 20, unit: "crates" },
+  { label: "22 KG Crate Aprox", kg: 22, unit: "crates" },
+  { label: "25 KG Crate Aprox", kg: 25, unit: "crates" },
+  { label: "28 KG Crate Aprox", kg: 28, unit: "crates" },
+  { label: "30 KG Crate Aprox", kg: 30, unit: "crates" },
+  { label: "32 KG Crate Aprox", kg: 32, unit: "crates" },
+  { label: "35 KG Crate Aprox", kg: 35, unit: "crates" },
 ];
 
 const GRADES = [
@@ -86,6 +94,7 @@ const GRADES = [
   { label: "A", key: "A" },
   { label: "B+", key: "B_PLUS" },
   { label: "B", key: "B" },
+  { label: "C+", key: "C_PLUS" },
   { label: "C", key: "C" },
   { label: "D", key: "D" },
   { label: "Ungraded", key: "UN_GRADED", unpackedOnly: true },
@@ -200,6 +209,7 @@ export default function ListNewLot() {
   const [form, setForm] = useState({
     fruitName: "",
     variety: "",
+    quality: "",
     description: "",
     basePrice: "",
     location: "",
@@ -213,6 +223,7 @@ export default function ListNewLot() {
   const lotNoPreview = useMemo(() => getLotNoPreview(), []);
 
   const selectedPacking = PACKING_TYPES[Number(form.packingIndex)] || PACKING_TYPES[0];
+  const packingUnit = selectedPacking.unit || "units";
   const visibleGrades = useMemo(
     () =>
       GRADES.filter(
@@ -339,13 +350,13 @@ export default function ListNewLot() {
       weightKg: Number(gradeLots[grade.key].boxes || 0) * selectedPacking.kg,
     }));
 
-    if (!form.fruitName || !form.variety || !form.basePrice) {
-      setMessage("Fruit, variety, and base price are required.");
+    if (!form.fruitName || !form.variety || !form.quality || !form.basePrice) {
+      setMessage("Fruit, variety, quality, and base price are required.");
       return;
     }
 
     if (calculations.totalBoxes <= 0) {
-      setMessage("Add cartons or crates for at least one grade.");
+      setMessage(`Add ${packingUnit} for at least one grade.`);
       return;
     }
 
@@ -357,6 +368,7 @@ export default function ListNewLot() {
       data.append("title", title);
       data.append("fruitName", form.fruitName);
       data.append("variety", form.variety);
+      data.append("quality", form.quality);
       data.append("description", form.description);
       data.append("basePrice", form.basePrice);
       data.append("location", form.location);
@@ -456,6 +468,14 @@ export default function ListNewLot() {
             />
           )}
 
+          <SimpleSelect
+            label="Quality"
+            value={form.quality}
+            placeholder="Select quality"
+            options={QUALITY_OPTIONS}
+            onChange={(value) => updateForm("quality", value)}
+          />
+
           <ReadOnlyInfo
             icon={<FaWarehouse />}
             label="Lot No."
@@ -503,7 +523,7 @@ export default function ListNewLot() {
                   <input
                     value={gradeLots[grade.key].boxes}
                     inputMode="numeric"
-                    placeholder="0 Carton"
+                    placeholder={`0 ${singularizeUnit(packingUnit)}`}
                     onChange={(e) => updateGradeBoxes(grade.key, e.target.value)}
                     className="rounded bg-white px-2 py-1 text-right text-[10px] font-bold outline-none"
                   />
@@ -514,7 +534,7 @@ export default function ListNewLot() {
               ))}
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <SummaryTile label="Total Qty" value={`${calculations.totalBoxes} cartons`} />
+              <SummaryTile label="Total Qty" value={`${calculations.totalBoxes} ${packingUnit}`} />
               <SummaryTile label="Total Weight" value={formatWeight(calculations.totalWeightKg)} />
             </div>
           </div>
@@ -529,9 +549,9 @@ export default function ListNewLot() {
           />
           <Field
             icon={<FaMapMarkerAlt />}
-            label="Mandi / Location"
+            label="Packing hall / Farm location"
             value={form.location}
-            placeholder="Dhanotu Mandi"
+            placeholder="Packing hall or farm location"
             onChange={(value) => updateForm("location", value)}
           />
           <label className="block">
@@ -668,6 +688,26 @@ function SelectorWithAdd({ label, value, placeholder, options, onChange, onAdd }
   );
 }
 
+function SimpleSelect({ label, value, placeholder, options, onChange }) {
+  return (
+    <label className="block">
+      <span className="block text-sm font-bold text-gray-700">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-1 w-full rounded bg-gray-100 px-3 py-2 text-sm font-semibold outline-none"
+      >
+        <option value="">{placeholder}</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function CustomEntryPanel({ title, value, placeholder, onChange, onSave }) {
   return (
     <div className="rounded-md bg-green-800 px-4 py-5 text-white">
@@ -757,4 +797,10 @@ function formatWeight(value) {
   if (!number) return "0 KG";
   if (number < 1) return `${number.toFixed(1)} KG`;
   return `${Math.round(number * 10) / 10} KG`;
+}
+
+function singularizeUnit(unit = "units") {
+  if (unit === "cartons") return "Carton";
+  if (unit === "crates") return "Crate";
+  return "Unit";
 }

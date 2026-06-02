@@ -11,6 +11,8 @@ export default function Auctions() {
   const navigate = useNavigate();
   const [auctions, setAuctions] = useState([]);
   const [dealAmounts, setDealAmounts] = useState({});
+  const [distanceByAuction, setDistanceByAuction] = useState({});
+  const [dealPreviews, setDealPreviews] = useState({});
   const initialUser = useMemo(() => getCurrentUser(), []);
   const [profile, setProfile] = useState(initialUser);
   const isBuyer = isBuyerAccount(profile);
@@ -68,6 +70,34 @@ export default function Auctions() {
   );
 
   useEffect(() => {
+    const timeout = setTimeout(() => {
+      liveAuctions.forEach((auction) => {
+        const baseRate = Number(dealAmounts[auction._id] || 0);
+        if (!baseRate || !canDeal) return;
+
+        API.post(`/auctions/${auction._id}/calculate`, {
+          baseRate,
+          distanceKm: Number(distanceByAuction[auction._id] || 0),
+        })
+          .then((res) =>
+            setDealPreviews((current) => ({
+              ...current,
+              [auction._id]: res.data,
+            }))
+          )
+          .catch(() =>
+            setDealPreviews((current) => ({
+              ...current,
+              [auction._id]: null,
+            }))
+          );
+      });
+    }, 350);
+
+    return () => clearTimeout(timeout);
+  }, [canDeal, dealAmounts, distanceByAuction, liveAuctions]);
+
+  useEffect(() => {
     liveAuctions.forEach((auction) => {
       socket.emit("joinAuction", auction._id);
     });
@@ -89,6 +119,7 @@ export default function Auctions() {
     socket.emit("placeDeal", {
       auctionId,
       dealAmount,
+      distanceKm: Number(distanceByAuction[auctionId] || 0),
       userId: profile._id || profile.id,
       token: localStorage.getItem("accessToken"),
     });
@@ -112,6 +143,8 @@ export default function Auctions() {
               key={auction._id}
               auction={auction}
               dealAmount={dealAmounts[auction._id] || ""}
+              distanceKm={distanceByAuction[auction._id] || ""}
+              dealPreview={dealPreviews[auction._id]}
               canDeal={canDeal}
               isBuyer={isBuyer}
               onView={() => {
@@ -121,6 +154,12 @@ export default function Auctions() {
               }}
               onDealChange={(value) =>
                 setDealAmounts((current) => ({
+                  ...current,
+                  [auction._id]: value,
+                }))
+              }
+              onDistanceChange={(value) =>
+                setDistanceByAuction((current) => ({
                   ...current,
                   [auction._id]: value,
                 }))
@@ -137,16 +176,20 @@ export default function Auctions() {
 function LiveLotCard({
   auction,
   dealAmount,
+  distanceKm,
+  dealPreview,
   canDeal,
   isBuyer,
   onView,
   onDealChange,
+  onDistanceChange,
   onDeal,
 }) {
   const product = auction.product || {};
   const imageUrl = getImageUrl(product);
   const quantity = product.quantity || 0;
   const currentBid = auction.currentBid || auction.startingPrice || 0;
+  const highestGrade = auction.highestGrade || dealPreview?.highestGrade || getHighestGrade(product);
 
   return (
     <article className="rounded-md border border-gray-200 bg-white p-2">
@@ -202,15 +245,34 @@ function LiveLotCard({
       </div>
 
       {canDeal ? (
-        <div className="mt-2 flex gap-1">
-          <input
-            className="min-w-0 flex-1 rounded border border-gray-200 px-2 py-1 text-[10px] font-bold"
-            placeholder="Deal Price"
-            value={dealAmount}
-            type="number"
-            min="1"
-            onChange={(e) => onDealChange(e.target.value)}
-          />
+        <div className="mt-2 space-y-2">
+          <div className="grid grid-cols-2 gap-1">
+            <input
+              className="min-w-0 rounded border border-gray-200 px-2 py-1 text-[10px] font-bold"
+              placeholder={`${highestGrade || "Highest"} rate`}
+              value={dealAmount}
+              type="number"
+              min="1"
+              onChange={(e) => onDealChange(e.target.value)}
+            />
+            <input
+              className="min-w-0 rounded border border-gray-200 px-2 py-1 text-[10px] font-bold"
+              placeholder="Distance km"
+              value={distanceKm}
+              type="number"
+              min="0"
+              onChange={(e) => onDistanceChange(e.target.value)}
+            />
+          </div>
+          {dealPreview && (
+            <div className="rounded bg-green-50 p-2 text-[9px] font-bold text-green-900">
+              <p>Complete lot only</p>
+              <p>Deal: Rs. {dealPreview.dealAmount || 0}</p>
+              <p>Driver: Rs. {dealPreview.driverCharge || 0}</p>
+              <p>Commission: Rs. {dealPreview.commissionAmount || 0}</p>
+              <p>Total payable: Rs. {dealPreview.buyerPayable || 0}</p>
+            </div>
+          )}
           <button
             type="button"
             onClick={onDeal}
@@ -228,6 +290,14 @@ function LiveLotCard({
         </p>
       )}
     </article>
+  );
+}
+
+function getHighestGrade(product) {
+  const order = ["A+", "A", "B+", "B", "C+", "C", "D", "Ungraded"];
+  const lots = Array.isArray(product.gradeLots) ? product.gradeLots : [];
+  return order.find((grade) =>
+    lots.some((lot) => lot.grade === grade && Number(lot.boxes || 0) > 0)
   );
 }
 

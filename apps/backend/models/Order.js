@@ -11,6 +11,9 @@ const orderSchema = new mongoose.Schema(
 
     auctionPrice: Number,
     finalPrice: Number,
+    highestGrade: String,
+    highestGradeRate: Number,
+    dealBreakdown: mongoose.Schema.Types.Mixed,
     buyerProposedPrice: Number,
     items: [
       {

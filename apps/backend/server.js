@@ -25,8 +25,15 @@ import Auction from "./models/Auction.js";
 import Order from "./models/Order.js";
 import Product from "./models/Product.js";
 import User from "./models/User.js";
+import DealSettings from "./models/DealSettings.js";
 import { seedHsnMaster } from "./models/HsnMaster.js";
 import { seedAdminFromEnv } from "./services/adminSeedService.js";
+import {
+  buildGradeQuantitiesFromProduct,
+  calculateDealBreakdown,
+  getHighestAvailableGrade,
+  mergeDealSettings,
+} from "./services/dealCalculationService.js";
 
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -233,6 +240,46 @@ const io = new Server(server, {
   },
 });
 
+const userHasProfile = (user, profileType) =>
+  user?.role === profileType ||
+  (Array.isArray(user?.profileTypes) && user.profileTypes.includes(profileType));
+
+const loadDealSettings = async () =>
+  mergeDealSettings((await DealSettings.findOne({ key: "default" }).lean()) || {});
+
+const calculateAuctionDeal = async (auction, baseRate, distanceKm = 0) => {
+  const product = auction.product?.gradeLots
+    ? auction.product
+    : await Product.findById(auction.product);
+  const gradeQuantities = buildGradeQuantitiesFromProduct(product);
+  const highestGrade = getHighestAvailableGrade(gradeQuantities);
+  const settings = await loadDealSettings();
+
+  return calculateDealBreakdown({
+    highestGrade,
+    baseRate,
+    gradeQuantities,
+    distanceKm,
+    ...settings,
+  });
+};
+
+const buildOrderFromAuction = (auction, product) => ({
+  auction: auction._id,
+  product: auction.product?._id || auction.product,
+  buyer: auction.highestBidder,
+  grower: product?.createdBy,
+  auctionPrice: auction.dealBreakdown?.dealAmount ?? auction.currentBid,
+  finalPrice: auction.dealBreakdown?.buyerPayable ?? auction.currentBid,
+  highestGrade: auction.highestGrade,
+  highestGradeRate: auction.highestGradeRate,
+  dealBreakdown: auction.dealBreakdown,
+  driverPayment: auction.dealBreakdown?.driverCharge || 0,
+  platformCommission: auction.dealBreakdown?.commissionAmount || 0,
+  growerPayout: auction.dealBreakdown?.sellerReceivable || 0,
+  paymentStatus: "PENDING",
+});
+
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
@@ -247,7 +294,7 @@ io.on("connection", (socket) => {
     console.log("Joined deal (alias):", auctionId);
   });
 
-  socket.on("placeDeal", async ({ auctionId, dealAmount, userId, token }) => {
+  socket.on("placeDeal", async ({ auctionId, dealAmount, userId, token, distanceKm = 0 }) => {
     try {
       if (!isDealOpen()) {
         socket.emit("dealRejected", {
@@ -262,9 +309,9 @@ io.on("connection", (socket) => {
       }
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const dealBuyer = await User.findById(decoded.id).select("_id role kyc");
+      const dealBuyer = await User.findById(decoded.id).select("_id role profileTypes kyc");
 
-      if (!dealBuyer || dealBuyer.role !== "buyer") {
+      if (!dealBuyer || !userHasProfile(dealBuyer, "buyer")) {
         socket.emit("dealRejected", {
           msg: "Only buyer accounts can make a deal or buy fruit lots.",
         });
@@ -278,7 +325,7 @@ io.on("connection", (socket) => {
         return;
       }
 
-      const auction = await Auction.findById(auctionId);
+      const auction = await Auction.findById(auctionId).populate("product");
       if (!auction) return;
 
       if (auction.status !== "ACTIVE") return;
@@ -290,26 +337,33 @@ io.on("connection", (socket) => {
       }
 
       const amount = Number(dealAmount);
+      const breakdown = await calculateAuctionDeal(auction, amount, distanceKm);
 
-      if (amount > auction.currentBid) {
-        auction.currentBid = amount;
+      if (amount > Number(auction.highestGradeRate || auction.startingPrice || 0)) {
+        auction.currentBid = breakdown.dealAmount;
+        auction.highestGrade = breakdown.highestGrade;
+        auction.highestGradeRate = amount;
+        auction.distanceKm = Number(distanceKm || 0);
+        auction.dealBreakdown = breakdown;
         auction.highestBidder = dealBuyer.id || dealBuyer._id || userId;
 
         await auction.save();
 
           io.to(auctionId).emit("dealUpdate", {
-            dealAmount: amount,
+            dealAmount: breakdown.dealAmount,
+            highestGradeRate: amount,
+            dealBreakdown: breakdown,
             userId,
             auctionId,
           });
           // Also emit quote-aliased update for migrating clients
           io.to(auctionId).emit("quoteUpdate", {
-            quotedPrice: amount,
+            quotedPrice: breakdown.dealAmount,
             buyerId: userId,
             dealId: auctionId,
           });
 
-        console.log("New highest deal price:", amount);
+        console.log("New highest deal price:", breakdown.dealAmount);
       } else {
         console.log("Deal price too low");
       }
@@ -319,7 +373,7 @@ io.on("connection", (socket) => {
   });
 
   // Accept new client event names that use business terms
-  socket.on("submitQuote", async ({ auctionId, quotedPrice, buyerId, token }) => {
+  socket.on("submitQuote", async ({ auctionId, quotedPrice, buyerId, token, distanceKm = 0 }) => {
     try {
       // reuse same validation and update logic as placeDeal
       if (!isDealOpen()) {
@@ -335,9 +389,9 @@ io.on("connection", (socket) => {
       }
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const dealBuyer = await User.findById(decoded.id).select("_id role kyc");
+      const dealBuyer = await User.findById(decoded.id).select("_id role profileTypes kyc");
 
-      if (!dealBuyer || dealBuyer.role !== "buyer") {
+      if (!dealBuyer || !userHasProfile(dealBuyer, "buyer")) {
         socket.emit("dealRejected", {
           msg: "Only buyer accounts can make a deal or buy fruit lots.",
         });
@@ -351,7 +405,7 @@ io.on("connection", (socket) => {
         return;
       }
 
-      const auction = await Auction.findById(auctionId);
+      const auction = await Auction.findById(auctionId).populate("product");
       if (!auction) return;
 
       if (auction.status !== "ACTIVE") return;
@@ -363,25 +417,32 @@ io.on("connection", (socket) => {
       }
 
       const amount = Number(quotedPrice);
+      const breakdown = await calculateAuctionDeal(auction, amount, distanceKm);
 
-      if (amount > auction.currentBid) {
-        auction.currentBid = amount;
+      if (amount > Number(auction.highestGradeRate || auction.startingPrice || 0)) {
+        auction.currentBid = breakdown.dealAmount;
+        auction.highestGrade = breakdown.highestGrade;
+        auction.highestGradeRate = amount;
+        auction.distanceKm = Number(distanceKm || 0);
+        auction.dealBreakdown = breakdown;
         auction.highestBidder = dealBuyer.id || dealBuyer._id || buyerId;
 
         await auction.save();
 
         io.to(auctionId).emit("dealUpdate", {
-          dealAmount: amount,
+          dealAmount: breakdown.dealAmount,
+          highestGradeRate: amount,
+          dealBreakdown: breakdown,
           userId: buyerId,
           auctionId,
         });
         io.to(auctionId).emit("quoteUpdate", {
-          quotedPrice: amount,
+          quotedPrice: breakdown.dealAmount,
           buyerId: buyerId,
           dealId: auctionId,
         });
 
-        console.log("New highest deal price:", amount);
+        console.log("New highest deal price:", breakdown.dealAmount);
       } else {
         console.log("Deal price too low");
       }
@@ -455,14 +516,7 @@ setInterval(async () => {
         if (!existingOrder) {
           const product = await Product.findById(auction.product).select("createdBy");
 
-          const order = await Order.create({
-            auction: auction._id,
-            product: auction.product,
-            buyer: auction.highestBidder,
-            grower: product?.createdBy,
-            auctionPrice: auction.currentBid,
-            paymentStatus: "PENDING",
-          });
+          const order = await Order.create(buildOrderFromAuction(auction, product));
 
           io.to(auction._id.toString()).emit("auctionEnded", {
             winner: auction.highestBidder,
