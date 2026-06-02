@@ -178,6 +178,7 @@ export default function ProfileDashboard() {
   const [profileDraft, setProfileDraft] = useState(createProfileDraft());
   const [addressDraft, setAddressDraft] = useState(createAddressDraft());
   const [businessAddressDraft, setBusinessAddressDraft] = useState(createBusinessAddressDraft());
+  const [mediaDraft, setMediaDraft] = useState(createMediaDraft());
   const [contactDraft, setContactDraft] = useState({
     phone: "",
     otp: "",
@@ -304,8 +305,9 @@ export default function ProfileDashboard() {
         ? user.logisticsName || user.name || "Logistics Partner"
         : user.businessName || user.name || "Visitor";
   const location = businessAddress || user.location || profileAddress || "Shilhi Bagi, Thunag, Mandi, H.P.";
+  const profileDesignation = String(user.designation || "").trim();
   const headline = isGrower
-    ? `Founder @ ${displayName} | Fruit grower`
+    ? `${profileDesignation || "Fruit grower"} @ ${displayName} | Fruit grower`
     : isBuyer
       ? `Buyer @ ${displayName} | Fruit trading partner`
       : isDriver
@@ -387,32 +389,45 @@ export default function ProfileDashboard() {
 
   if (!hasAccessToken) return null;
 
-  const updateMedia = async (field, file) => {
+  const uploadProfileMedia = async (mediaFiles = {}) => {
+    const entries = Object.entries(mediaFiles).filter(([, file]) => Boolean(file));
+    if (!entries.length) return null;
+
+    const fieldMap = {
+      avatarUrl: "avatar",
+      bannerUrl: "banner",
+      companyLogoUrl: "companyLogo",
+    };
+    const formData = new FormData();
+    entries.forEach(([field, file]) => {
+      formData.append(fieldMap[field] || field, file);
+    });
+    const res = await API.patch("/user/profile/media", formData);
+    return res.data;
+  };
+
+  const updateMediaDraft = (field, file) => {
     if (!file) return;
 
     const previewUrl = URL.createObjectURL(file);
-    const updatedUser = { ...user, [field]: previewUrl };
-    setProfile(updatedUser);
-
-    try {
-      const formData = new FormData();
-      const fieldMap = {
-        avatarUrl: "avatar",
-        bannerUrl: "banner",
-        companyLogoUrl: "companyLogo",
+    setMediaDraft((current) => {
+      if (current[`${field}Preview`]) URL.revokeObjectURL(current[`${field}Preview`]);
+      return {
+        ...current,
+        [`${field}File`]: file,
+        [`${field}Preview`]: previewUrl,
       };
-      formData.append(fieldMap[field] || field, file);
-      const res = await API.patch("/user/profile/media", formData);
-      const savedUser = res.data || updatedUser;
-      setProfile(savedUser);
-      saveUserToStorage(savedUser);
-      setNotice("Profile image updated.");
-    } catch {
-      setProfile(user);
-      setNotice("Image could not be saved. Please try again with an image under 5 MB.");
-    } finally {
-      URL.revokeObjectURL(previewUrl);
-    }
+    });
+  };
+
+  const closeEditProfile = () => {
+    setMediaDraft((current) => {
+      Object.keys(current)
+        .filter((key) => key.endsWith("Preview") && current[key])
+        .forEach((key) => URL.revokeObjectURL(current[key]));
+      return createMediaDraft(user);
+    });
+    setShowEditProfile(false);
   };
 
   const openEditProfile = () => {
@@ -436,6 +451,7 @@ export default function ProfileDashboard() {
     });
     setEmailOtpCooldown(0);
     setSocialDraft(createSocialDraft(user));
+    setMediaDraft(createMediaDraft(user));
     setShowEditProfile(true);
   };
 
@@ -563,19 +579,6 @@ export default function ProfileDashboard() {
       return;
     }
 
-    const updatedUser = {
-      ...user,
-      ...profileDraft,
-      ...addressDraft,
-      ...businessAddressDraft,
-      location,
-      ...(contactChanged ? { phone: nextPhone } : {}),
-      ...(emailChanged ? { email: nextEmail } : {}),
-      socialLinks: socialDraft,
-    };
-    setProfile(updatedUser);
-    saveUserToStorage(updatedUser);
-
     try {
       const res = await API.patch("/user/profile", {
         ...profileDraft,
@@ -586,14 +589,20 @@ export default function ProfileDashboard() {
         ...(emailChanged ? { email: nextEmail } : {}),
         socialLinks: socialDraft,
       });
-      const savedUser = res.data || updatedUser;
+      const profileUser = res.data || user;
+      const mediaUser = await uploadProfileMedia({
+        avatarUrl: mediaDraft.avatarUrlFile,
+        bannerUrl: mediaDraft.bannerUrlFile,
+        companyLogoUrl: mediaDraft.companyLogoUrlFile,
+      });
+      const savedUser = mediaUser || profileUser;
       setProfile(savedUser);
       saveUserToStorage(savedUser);
       setNotice("Profile updated.");
     } catch {
       setNotice("Profile could not be saved. Please verify contact and try again.");
     } finally {
-      setShowEditProfile(false);
+      closeEditProfile();
     }
   };
 
@@ -680,20 +689,17 @@ export default function ProfileDashboard() {
               }
             }}
           >
-            <label
-              onClick={(event) => event.stopPropagation()}
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                openEditProfile();
+              }}
               className="absolute right-5 top-5 z-10 inline-flex cursor-pointer items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-xs font-extrabold text-gray-900 shadow hover:bg-white"
             >
               <FaPen />
               Update Banner
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onClick={(event) => event.stopPropagation()}
-                onChange={(event) => updateMedia("bannerUrl", event.target.files?.[0])}
-              />
-            </label>
+            </button>
           </div>
 
           <div className="relative px-6 pb-6 pt-16 md:px-8 md:pt-20">
@@ -715,15 +721,14 @@ export default function ProfileDashboard() {
                     className="h-32 w-32 border-4 border-white text-5xl md:h-40 md:w-40"
                   />
                 </button>
-                <label className="absolute bottom-2 right-2 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-green-700 text-white shadow">
+                <button
+                  type="button"
+                  onClick={openEditProfile}
+                  className="absolute bottom-2 right-2 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-green-700 text-white shadow"
+                  aria-label="Edit profile photo"
+                >
                   <FaCamera />
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(event) => updateMedia("avatarUrl", event.target.files?.[0])}
-                  />
-                </label>
+                </button>
               </div>
             </div>
 
@@ -1035,13 +1040,52 @@ export default function ProfileDashboard() {
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/45 px-4">
           <section className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-5 shadow-xl">
             <h2 className="text-lg font-bold text-gray-950">Edit Profile</h2>
+            <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3">
+              <p className="text-xs font-extrabold text-gray-800">Change banner</p>
+              <div
+                className="mt-3 h-28 rounded-md bg-gray-100 bg-cover bg-center"
+                style={{ backgroundImage: `url(${mediaDraft.bannerUrlPreview || bannerUrl})` }}
+              />
+              <label className="mt-3 inline-flex cursor-pointer items-center justify-center rounded-md bg-green-700 px-4 py-2 text-xs font-extrabold text-white hover:bg-green-800">
+                Upload banner
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) =>
+                    updateMediaDraft("bannerUrl", event.target.files?.[0])
+                  }
+                />
+              </label>
+            </div>
+            <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3">
+              <p className="text-xs font-extrabold text-gray-800">Profile photo</p>
+              <div className="mt-3 flex items-center gap-3">
+                <Avatar
+                  name={displayName}
+                  imageUrl={mediaDraft.avatarUrlPreview || avatarUrl}
+                  className="h-14 w-14 border border-gray-200 text-xl"
+                />
+                <label className="inline-flex cursor-pointer items-center justify-center rounded-md bg-green-700 px-4 py-2 text-xs font-extrabold text-white hover:bg-green-800">
+                  Upload photo
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(event) =>
+                      updateMediaDraft("avatarUrl", event.target.files?.[0])
+                    }
+                  />
+                </label>
+              </div>
+            </div>
             {!isVisitor && (
               <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3">
                 <p className="text-xs font-extrabold text-gray-800">Company logo</p>
                 <div className="mt-3 flex items-center gap-3">
                   <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 p-2">
                     <img
-                      src={companyLogoUrl}
+                      src={mediaDraft.companyLogoUrlPreview || companyLogoUrl}
                       alt=""
                       className="max-h-full max-w-full object-contain"
                     />
@@ -1053,7 +1097,7 @@ export default function ProfileDashboard() {
                       accept="image/*"
                       className="hidden"
                       onChange={(event) =>
-                        updateMedia("companyLogoUrl", event.target.files?.[0])
+                        updateMediaDraft("companyLogoUrl", event.target.files?.[0])
                       }
                     />
                   </label>
@@ -1362,7 +1406,7 @@ export default function ProfileDashboard() {
             <div className="mt-4 flex gap-2">
               <button
                 type="button"
-                onClick={() => setShowEditProfile(false)}
+                onClick={closeEditProfile}
                 className="flex-1 rounded-md bg-gray-100 py-2 text-sm font-bold text-gray-700"
               >
                 Cancel
@@ -1416,16 +1460,12 @@ function AddressInput({ label, value, placeholder, inputMode, onChange }) {
 function RoleRegistrationCards({ options, onSelect }) {
   return (
     <section className="mt-4 grid gap-3 rounded-lg border border-gray-200 bg-white p-3 md:grid-cols-3 md:p-5">
-      {options.map((option, index) => (
+      {options.map((option) => (
         <button
           key={option.title}
           type="button"
           onClick={() => onSelect(option.path)}
-          className={`rounded-lg border p-4 text-left transition hover:border-green-500 hover:bg-green-100 ${
-            index === 1
-              ? "border-green-500 bg-green-100"
-              : "border-green-100 bg-green-50"
-          }`}
+          className="rounded-lg border border-green-100 bg-green-50 p-4 text-left transition hover:border-green-500 hover:bg-green-100 focus-visible:border-green-500 focus-visible:bg-green-100 focus-visible:outline-none"
         >
           <span className="flex h-11 w-11 items-center justify-center rounded-full bg-green-700 text-lg text-white">
             {option.icon}
@@ -2010,6 +2050,17 @@ function createSocialDraft(user = {}) {
   return {
     google: user.socialLinks?.google || "",
     facebook: user.socialLinks?.facebook || "",
+  };
+}
+
+function createMediaDraft() {
+  return {
+    avatarUrlFile: null,
+    avatarUrlPreview: "",
+    bannerUrlFile: null,
+    bannerUrlPreview: "",
+    companyLogoUrlFile: null,
+    companyLogoUrlPreview: "",
   };
 }
 

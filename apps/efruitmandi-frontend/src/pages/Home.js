@@ -75,8 +75,7 @@ const mobileTabs = [
   { key: "organicFarms", label: "Organic Farms" },
 ];
 
-const orchardCover =
-  "https://images.unsplash.com/photo-1560807707-8cc77767d783?auto=format&fit=crop&w=900&q=80";
+const orchardCover = `${process.env.PUBLIC_URL || ""}/profile-banners/efruitmandi-profile-cover.png`;
 const fallbackLotImage =
   "https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?auto=format&fit=crop&w=1200&q=80";
 const logoUrl = `${process.env.PUBLIC_URL || ""}/logo.png`;
@@ -807,7 +806,7 @@ function ProfileCard({ user, onOpen }) {
   const ownerName = user.name || "Guest User";
   const location = user.location || (firmName ? "Mandi, Himachal Pradesh" : "Location not available");
   const joinedLabel = formatJoinDate(user.createdAt);
-  const bannerUrl = hasProfileSession ? user.bannerUrl : "";
+  const bannerUrl = hasProfileSession ? user.bannerUrl || orchardCover : "";
   const avatarUrl = hasProfileSession ? user.avatarUrl : "";
   const accountLabel = isGrower
     ? "Growers Profile Dashboard"
