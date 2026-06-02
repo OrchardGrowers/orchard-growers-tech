@@ -849,18 +849,21 @@ export default function ProfileDashboard() {
                     <span>{trustedActionLabel}</span>
                   </span>
                 )}
-                <div
-                  className={`flex items-center gap-2 ${
-                    isTrustedAccount ? "text-gray-900" : "text-gray-500"
-                  }`}
-                >
-                  {isTrustedAccount ? (
-                    <img src={companyLogoUrl} alt="" className="h-7 w-7 object-contain" />
-                  ) : (
-                    <span className="flex h-7 w-7 items-center justify-center rounded-sm bg-gray-100 text-xs text-gray-500">
-                      OG
-                    </span>
-                  )}
+                <div className="flex items-center gap-2 text-gray-900">
+                  {companyLogoUrl ? (
+                    <img
+                      src={companyLogoUrl}
+                      alt=""
+                      className="h-7 w-7 rounded-sm bg-gray-50 object-contain"
+                      onError={(event) => {
+                        event.currentTarget.style.display = "none";
+                        event.currentTarget.nextElementSibling?.classList.remove("hidden");
+                      }}
+                    />
+                  ) : null}
+                  <span className={`flex h-7 w-7 items-center justify-center rounded-sm bg-gray-100 text-xs text-gray-500 ${companyLogoUrl ? "hidden" : ""}`}>
+                    OG
+                  </span>
                   <span>{organizationLabel}</span>
                 </div>
                 <div
