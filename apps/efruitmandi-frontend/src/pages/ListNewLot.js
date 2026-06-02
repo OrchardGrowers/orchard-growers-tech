@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaTimes,
+  FaCertificate,
   FaImage,
   FaMapMarkerAlt,
   FaMoneyBillWave,
@@ -268,6 +269,11 @@ const QUALITY_OPTIONS = [
   "Natural / Farm Fresh",
 ];
 
+const ORGANIC_CERTIFIED_QUALITIES = new Set([
+  "Premium Certified Organic Export Quality",
+  "Certified Organic",
+]);
+
 const PACKING_TYPES = [
   { label: "Unpacked / Crates / 18KG", kg: 18, unpacked: true, unit: "crates" },
   { label: "Unpacked / Crates / 20KG", kg: 20, unpacked: true, unit: "crates" },
@@ -425,6 +431,7 @@ export default function ListNewLot() {
     fruitName: "",
     variety: "",
     quality: "",
+    organicCertificationNo: "",
     description: "",
     basePrice: "",
     location: "",
@@ -432,6 +439,7 @@ export default function ListNewLot() {
   });
   const [gradeLots, setGradeLots] = useState(initialGradeLots);
   const [sampleVideo, setSampleVideo] = useState(null);
+  const [organicCertificate, setOrganicCertificate] = useState(null);
   const [loading, setLoading] = useState(false);
   const [recognizing, setRecognizing] = useState(false);
   const [message, setMessage] = useState("");
@@ -463,6 +471,7 @@ export default function ListNewLot() {
       totalWeightKg: gradeRows.reduce((total, row) => total + row.weightKg, 0),
     };
   }, [gradeLots, selectedPacking, visibleGrades]);
+  const needsOrganicCertificate = ORGANIC_CERTIFIED_QUALITIES.has(form.quality);
 
   useEffect(() => {
     let active = true;
@@ -483,7 +492,14 @@ export default function ListNewLot() {
   }, [localLotNoPreview]);
 
   const updateForm = (field, value) => {
-    setForm({ ...form, [field]: value });
+    setForm((current) => {
+      if (field === "quality" && !ORGANIC_CERTIFIED_QUALITIES.has(value)) {
+        setOrganicCertificate(null);
+        return { ...current, [field]: value, organicCertificationNo: "" };
+      }
+
+      return { ...current, [field]: value };
+    });
   };
 
   const updateFruit = (value) => {
@@ -608,6 +624,16 @@ export default function ListNewLot() {
       return;
     }
 
+    if (needsOrganicCertificate && !form.organicCertificationNo.trim()) {
+      setMessage("Organic certification number is required for this quality.");
+      return;
+    }
+
+    if (needsOrganicCertificate && !organicCertificate) {
+      setMessage("Upload organic certificate for this certified organic lot.");
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -617,6 +643,7 @@ export default function ListNewLot() {
       data.append("fruitName", form.fruitName);
       data.append("variety", form.variety);
       data.append("quality", form.quality);
+      data.append("organicCertificationNo", form.organicCertificationNo);
       data.append("description", form.description);
       data.append("basePrice", form.basePrice);
       data.append("location", form.location);
@@ -633,6 +660,7 @@ export default function ListNewLot() {
       });
 
       if (sampleVideo) data.append("sampleVideo", sampleVideo);
+      if (organicCertificate) data.append("organicCertificate", organicCertificate);
 
       await API.post("/products", data, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -725,6 +753,41 @@ export default function ListNewLot() {
             options={QUALITY_OPTIONS}
             onChange={(value) => updateForm("quality", value)}
           />
+
+          {needsOrganicCertificate && (
+            <div className="rounded-md border border-green-200 bg-green-50 p-3">
+              <p className="text-sm font-extrabold text-green-900">
+                Organic certification required
+              </p>
+              <div className="mt-3">
+                <Field
+                  icon={<FaCertificate />}
+                  label="Certification No."
+                  value={form.organicCertificationNo}
+                  placeholder="Enter organic certification number"
+                  onChange={(value) => updateForm("organicCertificationNo", value)}
+                />
+              </div>
+              <label className="mt-3 flex cursor-pointer flex-col gap-1 rounded-md border border-dashed border-green-400 bg-white px-3 py-3 text-xs font-bold text-green-800">
+                <span>
+                  {organicCertificate
+                    ? organicCertificate.name
+                    : "Upload organic certificate"}
+                </span>
+                <span className="text-[10px] font-semibold text-gray-500">
+                  Image or PDF accepted
+                </span>
+                <input
+                  type="file"
+                  accept="image/*,.pdf,application/pdf"
+                  className="hidden"
+                  onChange={(event) =>
+                    setOrganicCertificate(event.target.files?.[0] || null)
+                  }
+                />
+              </label>
+            </div>
+          )}
 
           <ReadOnlyInfo
             icon={<FaWarehouse />}

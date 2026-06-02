@@ -14,6 +14,7 @@ const storage = multer.diskStorage({
 const fileFilter = (req, file, cb) => {
   const isImageField = file.fieldname.startsWith("gradeImages_");
   const isVideoField = file.fieldname === "sampleVideo";
+  const isCertificateField = file.fieldname === "organicCertificate";
 
   if (isImageField && file.mimetype.startsWith("image/")) {
     cb(null, true);
@@ -25,7 +26,15 @@ const fileFilter = (req, file, cb) => {
     return;
   }
 
-  cb(new Error("Only lot images and one sample lot video are allowed"));
+  if (
+    isCertificateField &&
+    (file.mimetype.startsWith("image/") || file.mimetype === "application/pdf")
+  ) {
+    cb(null, true);
+    return;
+  }
+
+  cb(new Error("Only lot images, one sample lot video, and organic certificate files are allowed"));
 };
 
 const upload = multer({

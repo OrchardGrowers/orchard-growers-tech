@@ -104,6 +104,14 @@ const uploadLotFiles = async (files = [], resourceType = "image") => {
   return uploaded.filter(Boolean);
 };
 
+const ORGANIC_CERTIFIED_QUALITIES = new Set([
+  "premium certified organic export quality",
+  "certified organic",
+]);
+
+const requiresOrganicCertificate = (quality = "") =>
+  ORGANIC_CERTIFIED_QUALITIES.has(String(quality || "").trim().toLowerCase());
+
 export const getNextLotNo = async (req, res) => {
   try {
     const lotNo = await generateLotNo(req.user.id);
@@ -213,6 +221,7 @@ export const createProduct = async (req, res) => {
     const fruitName = String(req.body.fruitName || "").trim();
     const variety = String(req.body.variety || "").trim();
     const quality = String(req.body.quality || "").trim();
+    const organicCertificationNo = String(req.body.organicCertificationNo || "").trim();
     const description = String(req.body.description || "").trim();
     const packingType = String(req.body.packingType || "").trim();
     const location = String(req.body.location || "").trim();
@@ -235,6 +244,17 @@ export const createProduct = async (req, res) => {
 
     if (!Number.isFinite(totalWeightKg) || totalWeightKg <= 0) {
       return res.status(400).json({ msg: "Total weight must be greater than zero" });
+    }
+
+    const organicCertificateFile = getUploadedFiles(req, "organicCertificate")[0];
+    if (requiresOrganicCertificate(quality)) {
+      if (!organicCertificationNo) {
+        return res.status(400).json({ msg: "Organic certification number is required for certified organic lots" });
+      }
+
+      if (!organicCertificateFile) {
+        return res.status(400).json({ msg: "Organic certificate upload is required for certified organic lots" });
+      }
     }
 
     let requestedGradeLots = [];
@@ -261,6 +281,16 @@ export const createProduct = async (req, res) => {
     );
 
     const uploadedPublicIds = [];
+    const uploadedOrganicCertificate = organicCertificateFile
+      ? await uploadLotFile(
+          organicCertificateFile,
+          organicCertificateFile.mimetype === "application/pdf" ? "raw" : "image"
+        )
+      : null;
+    if (uploadedOrganicCertificate?.publicId) {
+      uploadedPublicIds.push(uploadedOrganicCertificate.publicId);
+    }
+
     const gradeLots = uploadedGradeLots.map(({ lot, uploadedFiles }) => {
       const boxes = Number(lot.boxes || 0);
       const weightKg = Number(lot.weightKg || 0);
@@ -300,6 +330,9 @@ export const createProduct = async (req, res) => {
       fruitName,
       variety,
       quality,
+      organicCertificationNo,
+      organicCertificateUrl: uploadedOrganicCertificate?.url || "",
+      organicCertificatePublicId: uploadedOrganicCertificate?.publicId || "",
       description,
       quantity,
       lotNo: generatedLotNo,
