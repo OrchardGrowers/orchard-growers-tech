@@ -141,11 +141,121 @@ const DEFAULT_FRUITS = [
 
 const DEFAULT_VARIETIES = [
   "Local",
-  "Royal",
-  "Golden",
-  "Red Delicious",
-  "Gala",
+  "Desi",
+  "Hybrid",
+  "Imported",
+  "Other",
 ];
+
+const FRUIT_VARIETY_OPTIONS = {
+  Almond: [
+    "Nonpareil",
+    "Carmel",
+    "Monterey",
+    "Sonora",
+    "Butte",
+    "Padre",
+    "Independence",
+    "California",
+    "Mamra",
+    "Gurbandi",
+    "Kashmiri",
+  ],
+  Apple: [
+    "Red Delicious",
+    "Royal Delicious",
+    "Golden Delicious",
+    "Gala",
+    "Fuji",
+    "Granny Smith",
+    "Honeycrisp",
+    "Kinnaur Apple",
+    "McIntosh",
+    "Pink Lady",
+    "Ambri",
+    "Spur",
+  ],
+  Apricot: ["Halman", "Rakchaikarpo", "Moorpark", "Tilton", "Royal", "Blenheim"],
+  Banana: ["Cavendish", "Robusta", "Grand Naine", "Dwarf Cavendish", "Nendran", "Rasthali"],
+  Cashew: ["W-180", "W-210", "W-240", "W-320", "JH", "SW", "Splits", "Butts"],
+  Cherry: ["Bing", "Rainier", "Lapins", "Sweetheart", "Stella", "Van"],
+  Coconut: ["Tender Coconut", "Mature Coconut", "Tall", "Dwarf", "Hybrid"],
+  Dates: ["Medjool", "Ajwa", "Safawi", "Mabroom", "Sukkari", "Deglet Noor", "Zahidi", "Kimia"],
+  Fig: ["Brown Turkey", "Black Mission", "Kadota", "Calimyrna", "Anjeer"],
+  "Dried Fig": ["Anjeer", "Iranian", "Afghan", "Turkish", "Premium Dried"],
+  Grapes: ["Thompson Seedless", "Sonaka", "Sharad Seedless", "Flame Seedless", "Black Grapes", "Red Globe"],
+  Guava: ["Allahabad Safeda", "Lalit", "Lucknow 49", "Thai Guava", "Pink Guava"],
+  Hazelnut: ["Barcelona", "Tonda Gentile", "Ennis", "Jefferson"],
+  "Kishmish": ["Golden", "Black", "Green", "Afghan", "Indian"],
+  Litchi: ["Shahi", "China", "Bombai", "Early Bedana", "Late Bedana"],
+  Mango: ["Alphonso", "Kesar", "Dasheri", "Langra", "Banganapalli", "Totapuri", "Chaunsa", "Himsagar"],
+  Orange: ["Nagpur", "Kinnow", "Valencia", "Navel", "Blood Orange", "Mandarin"],
+  Papaya: ["Red Lady", "Pusa Delicious", "Pusa Nanha", "Taiwan", "Solo"],
+  Peach: ["July Elberta", "Redhaven", "Flordasun", "Shan-e-Punjab", "Prabhat"],
+  Peanut: ["Bold", "Java", "TJ", "Spanish", "Runner", "Virginia"],
+  Pear: ["Bartlett", "William", "Bosc", "Anjou", "Comice", "Patharnakh"],
+  Pecan: ["Western Schley", "Pawnee", "Wichita", "Desirable"],
+  Persimmon: ["Fuyu", "Hachiya", "Jiro", "Triumph"],
+  "Pine Nut": ["Chilgoza", "Korean Pine", "Italian Stone Pine"],
+  Pineapple: ["Queen", "Kew", "Mauritius", "MD2", "Jaldhup"],
+  Pistachio: ["Kerman", "Ahmad Aghaei", "Akbari", "Fandoghi", "Kaleh Ghouchi"],
+  Plum: ["Santa Rosa", "Black Amber", "Stanley", "Mariposa", "Kala Amritsari"],
+  Pomegranate: ["Bhagwa", "Ganesh", "Arakta", "Mridula", "Ruby"],
+  Prune: ["Dried Plum", "French Prune", "California Prune"],
+  Quince: ["Smyrna", "Champion", "Pineapple"],
+  Raisin: ["Golden", "Black", "Green", "Sultana", "Munakka"],
+  "Black Raisin": ["Black", "Seedless", "Munakka", "Afghan"],
+  "Golden Raisin": ["Golden", "Sultana", "Seedless", "Afghan"],
+  "White Raisin": ["White", "Green", "Seedless", "Sultana"],
+  Strawberry: ["Chandler", "Sweet Charlie", "Camarosa", "Festival", "Winter Dawn"],
+  Walnut: ["Chandler", "Franquette", "Hartley", "Kashmiri", "Chilgoza Type", "Tulare"],
+  Watermelon: ["Sugar Baby", "Kiran", "Arka Manik", "Crimson Sweet", "Charleston Gray"],
+};
+
+const DRY_FRUIT_VARIETIES = [
+  "Premium",
+  "Regular",
+  "Whole",
+  "Split",
+  "Raw",
+  "Roasted",
+  "Salted",
+  "Unsalted",
+  "Seedless",
+  "With Seed",
+];
+
+const DRY_FRUIT_NAMES = new Set([
+  "Almond",
+  "Anjeer",
+  "Black Raisin",
+  "Brazil Nut",
+  "Cashew",
+  "Chestnut",
+  "Dates",
+  "Dried Apricot",
+  "Dried Berries",
+  "Dried Fig",
+  "Dried Kiwi",
+  "Dried Mango",
+  "Dried Papaya",
+  "Dried Pineapple",
+  "Dried Plum",
+  "Fox Nut",
+  "Golden Raisin",
+  "Hazelnut",
+  "Kishmish",
+  "Lotus Seed",
+  "Makhana",
+  "Peanut",
+  "Pecan",
+  "Pine Nut",
+  "Pistachio",
+  "Prune",
+  "Raisin",
+  "Walnut",
+  "White Raisin",
+]);
 
 const QUALITY_OPTIONS = [
   "Premium Certified Organic Export Quality",
@@ -221,6 +331,15 @@ const makeFirmPrefix = (user) => {
 const getLotNoPreview = () => {
   const year = new Date().getFullYear();
   return `${makeFirmPrefix(getCurrentUser())}/${year}/001`;
+};
+
+const getVarietiesForFruit = (fruitName) => {
+  const mappedOptions = FRUIT_VARIETY_OPTIONS[fruitName] || [];
+  const fallbackOptions = DRY_FRUIT_NAMES.has(fruitName)
+    ? DRY_FRUIT_VARIETIES
+    : DEFAULT_VARIETIES;
+
+  return Array.from(new Set([...mappedOptions, ...fallbackOptions]));
 };
 
 const cropImageToPlatformFrame = (file) => {
@@ -347,6 +466,15 @@ export default function ListNewLot() {
     setForm({ ...form, [field]: value });
   };
 
+  const updateFruit = (value) => {
+    setVarieties(getVarietiesForFruit(value));
+    setForm((current) => ({
+      ...current,
+      fruitName: value,
+      variety: "",
+    }));
+  };
+
   const updateGradeBoxes = (gradeKey, boxes) => {
     setGradeLots({
       ...gradeLots,
@@ -422,7 +550,12 @@ export default function ListNewLot() {
 
     if (customPanel === "fruit") {
       setFruits((current) => Array.from(new Set([...current, value])).sort());
-      updateForm("fruitName", value);
+      setVarieties(getVarietiesForFruit(value));
+      setForm((current) => ({
+        ...current,
+        fruitName: value,
+        variety: "",
+      }));
     }
 
     if (customPanel === "variety") {
@@ -530,7 +663,7 @@ export default function ListNewLot() {
             value={form.fruitName}
             placeholder="Select fruit to sell"
             options={fruits}
-            onChange={(value) => updateForm("fruitName", value)}
+            onChange={updateFruit}
             onAdd={() => openCustomPanel("fruit")}
           />
 
@@ -754,13 +887,21 @@ export default function ListNewLot() {
 }
 
 function SelectorWithAdd({ label, value, placeholder, options, onChange, onAdd }) {
+  const addNewValue = "__ADD_NEW__";
+
   return (
     <div>
       <label className="block text-sm font-bold text-gray-700">{label}</label>
-      <div className="mt-1 grid grid-cols-[1fr_42px] gap-1">
+      <div className="mt-1 grid grid-cols-[1fr_64px] gap-1">
         <select
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            if (e.target.value === addNewValue) {
+              onAdd();
+              return;
+            }
+            onChange(e.target.value);
+          }}
           className="rounded bg-gray-100 px-3 py-2 text-sm font-semibold outline-none"
         >
           <option value="">{placeholder}</option>
@@ -769,14 +910,15 @@ function SelectorWithAdd({ label, value, placeholder, options, onChange, onAdd }
               {option}
             </option>
           ))}
+          <option value={addNewValue}>+ New</option>
         </select>
         <button
           type="button"
           onClick={onAdd}
-          className="rounded bg-green-100 text-lg font-bold text-green-800"
+          className="rounded bg-green-100 text-xs font-extrabold text-green-800"
           aria-label={`Add new ${label}`}
         >
-          +
+          + New
         </button>
       </div>
     </div>
