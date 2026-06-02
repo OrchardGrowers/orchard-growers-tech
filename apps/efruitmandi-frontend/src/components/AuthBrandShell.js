@@ -35,13 +35,13 @@ export default function AuthBrandShell({ children, compact = false }) {
           <button
             type="button"
             onClick={() => navigate("/")}
-            className="absolute left-6 top-5 rounded-md p-1 sm:left-8 lg:left-8 lg:top-7"
+            className="absolute left-6 top-4 rounded-md p-1 sm:left-8 lg:left-8 lg:top-7"
             aria-label="Go to home"
           >
-            <img src={logoUrl} alt="E-Fruit Mandi" className="h-10 w-auto sm:h-11 lg:h-16 xl:h-20" />
+            <img src={logoUrl} alt="E-Fruit Mandi" className="h-8 w-auto sm:h-10 lg:h-16 xl:h-20" />
           </button>
 
-          <div className="max-w-2xl pt-5 sm:pt-6 lg:pt-0">
+          <div className="max-w-2xl pt-12 sm:pt-14 lg:pt-0">
             <p className="mb-2 text-[9px] font-bold uppercase tracking-[0.2em] sm:text-[10px] lg:mb-6 lg:text-xs">
               INDIA'S FIRST
             </p>

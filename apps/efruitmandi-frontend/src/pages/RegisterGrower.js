@@ -359,7 +359,7 @@ function PhoneOtpControl({ otp, verified, cooldown, onOtpChange, onSend, onVerif
           onClick={onSend}
           className="inline-flex items-center justify-center gap-1 rounded-md bg-green-50 px-3 py-3 text-sm font-bold text-green-700 transition hover:bg-green-100 disabled:opacity-50"
         >
-          <FaPaperPlane /> {cooldown > 0 ? `${cooldown}s` : "Send"}
+          <FaPaperPlane /> {cooldown > 0 ? `${cooldown}s` : "Request OTP"}
         </button>
         <button
           type="button"

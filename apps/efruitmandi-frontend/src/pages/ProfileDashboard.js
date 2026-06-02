@@ -1261,7 +1261,7 @@ export default function ProfileDashboard() {
                     disabled={contactDraft.loading || contactOtpCooldown > 0}
                     className="rounded-md bg-white px-3 py-2 text-xs font-extrabold text-green-800 disabled:opacity-60"
                   >
-                    {contactOtpCooldown > 0 ? `${contactOtpCooldown}s` : "Send"}
+                    {contactOtpCooldown > 0 ? `${contactOtpCooldown}s` : "Request OTP"}
                   </button>
                   <button
                     type="button"
@@ -1320,7 +1320,7 @@ export default function ProfileDashboard() {
                     disabled={emailDraft.loading || emailOtpCooldown > 0}
                     className="rounded-md bg-white px-3 py-2 text-xs font-extrabold text-blue-800 disabled:opacity-60"
                   >
-                    {emailOtpCooldown > 0 ? `${emailOtpCooldown}s` : "Send"}
+                    {emailOtpCooldown > 0 ? `${emailOtpCooldown}s` : "Request OTP"}
                   </button>
                   <button
                     type="button"

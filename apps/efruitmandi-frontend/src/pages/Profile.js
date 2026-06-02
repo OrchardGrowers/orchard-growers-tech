@@ -668,13 +668,13 @@ export default function Profile() {
           <button
             type="button"
             onClick={() => navigate("/")}
-            className="absolute left-6 top-5 rounded-md p-1 sm:left-8 lg:left-8 lg:top-7"
+            className="absolute left-6 top-4 rounded-md p-1 sm:left-8 lg:left-8 lg:top-7"
             aria-label="Go to home"
           >
-            <img src={logoUrl} alt="E-Fruit Mandi" className="h-10 w-auto sm:h-11 lg:h-16 xl:h-20" />
+            <img src={logoUrl} alt="E-Fruit Mandi" className="h-8 w-auto sm:h-10 lg:h-16 xl:h-20" />
           </button>
 
-          <div className="max-w-2xl pt-5 sm:pt-6 lg:pt-0">
+          <div className="max-w-2xl pt-12 sm:pt-14 lg:pt-0">
             <p className="mb-2 text-[9px] font-bold uppercase tracking-[0.2em] sm:text-[10px] lg:mb-6 lg:text-xs">
               INDIA'S FIRST
             </p>
@@ -1010,7 +1010,7 @@ function ContactOtpFields({
             onClick={onSendOtp}
             className="rounded-md bg-green-50 px-2 py-1.5 text-[11px] font-bold text-green-700 disabled:opacity-50 sm:px-3 sm:text-xs lg:py-1"
           >
-            <FaPaperPlane className="inline-block" /> {otpCooldown > 0 ? `${otpCooldown}s` : "Send"}
+            <FaPaperPlane className="inline-block" /> {otpCooldown > 0 ? `${otpCooldown}s` : "Request OTP"}
           </button>
           <button
             type="button"

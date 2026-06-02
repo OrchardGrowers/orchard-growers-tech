@@ -128,7 +128,7 @@ export default function Navbar() {
           <Link
             to="/"
             aria-label="Go to home"
-            className="shrink-0 rounded-full bg-white/10 p-1"
+            className="shrink-0 p-1"
           >
             <img src={logoUrl} className="h-7 w-auto" alt="Orchard Growers" />
           </Link>

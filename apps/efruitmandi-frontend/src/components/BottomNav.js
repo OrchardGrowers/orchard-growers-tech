@@ -11,9 +11,11 @@ export default function BottomNav() {
   const profileMenuRef = useRef(null);
   const currentUser = getCurrentUser();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState("");
 
   useEffect(() => {
     setProfileMenuOpen(false);
+    setSelectedItem("");
   }, [location.pathname]);
 
   useEffect(() => {
@@ -52,7 +54,9 @@ export default function BottomNav() {
     <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-green-800 bg-green-700 pb-[max(env(safe-area-inset-bottom),0.35rem)] pt-2 md:hidden">
       <nav className="mx-auto flex max-w-md items-center justify-around px-2">
         {navItems.map((item, i) => {
-          const isActive = location.pathname === item.path;
+          const isActive =
+            selectedItem === item.label ||
+            (!selectedItem && location.pathname === item.path && !(profileMenuOpen && item.path === "/"));
           const baseClass = `relative flex h-11 w-11 items-center justify-center rounded-full bg-white text-xl text-green-700 shadow-sm transition ${
             isActive ? "scale-105 ring-2 ring-yellow-400" : ""
           }`;
@@ -64,7 +68,10 @@ export default function BottomNav() {
                   type="button"
                   aria-label="Profile menu"
                   aria-expanded={profileMenuOpen}
-                  onClick={() => setProfileMenuOpen((open) => !open)}
+                  onClick={() => {
+                    setSelectedItem(item.label);
+                    setProfileMenuOpen((open) => !open);
+                  }}
                   className={`${baseClass} ${profileMenuOpen ? "scale-105 ring-2 ring-yellow-400" : ""}`}
                 >
                   {item.icon}
@@ -83,7 +90,12 @@ export default function BottomNav() {
           }
 
           return (
-            <Link key={i} to={item.path} aria-label={item.label}>
+            <Link
+              key={i}
+              to={item.path}
+              aria-label={item.label}
+              onClick={() => setSelectedItem(item.label)}
+            >
               <div className={baseClass}>
                 <span>{item.icon}</span>
                 {item.isLiveLots && (
