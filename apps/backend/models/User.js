@@ -76,6 +76,13 @@ const userSchema = new mongoose.Schema(
       default: null,
     },
 
+    profileTypes: [
+      {
+        type: String,
+        enum: ["grower", "buyer", "driver"],
+      },
+    ],
+
     // Grower profile
     orchardName: {
       type: String,
@@ -302,6 +309,7 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.index({ role: 1 });
+userSchema.index({ profileTypes: 1 });
 userSchema.index({ createdAt: -1 });
 userSchema.index({ provider: 1, providerId: 1 });
 

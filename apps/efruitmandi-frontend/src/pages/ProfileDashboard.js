@@ -18,6 +18,11 @@ import {
   FaYoutube,
 } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
+import {
+  hasBuyerProfile,
+  hasDriverProfile,
+  hasGrowerProfile,
+} from "../utils/auth";
 import { getEfruitMandiProducts } from "../utils/marketProducts";
 import { saveUserToStorage, sanitizeUserForStorage } from "../utils/userStorage";
 import {
@@ -286,9 +291,9 @@ export default function ProfileDashboard() {
     [orders, closedAuctions]
   );
 
-  const isGrower = user.role === "grower" || user.orchardName;
-  const isBuyer = user.role === "buyer" || user.businessName;
-  const isDriver = user.role === "driver" || user.logisticsName;
+  const isGrower = hasGrowerProfile(user);
+  const isBuyer = hasBuyerProfile(user);
+  const isDriver = hasDriverProfile(user);
   const isVisitor = !isGrower && !isBuyer && !isDriver;
   const profileAddress = formatProfileAddress(user);
   const businessAddress = formatBusinessAddress(user);
@@ -314,24 +319,38 @@ export default function ProfileDashboard() {
         ? "Logistic Partner Profile Dashboard"
         : "User Profile Dashboard";
   const registrationActions = [
+    ...(!isDriver
+      ? [
+          {
+            title: isBuyer ? "Update Buyer Profile" : "Register as Buyer",
+            description: isBuyer
+              ? "Update buyer details used for fruit deals and payments."
+              : "Create a buyer profile and participate in live fruit deals.",
+            icon: <FaHandshake />,
+            path: "/register-buyer",
+          },
+        ]
+      : []),
     {
-      title: "Register as Grower",
-      description: "Create a grower profile and list fruit lots for verified buyers.",
+      title: isGrower ? "Update Grower Profile" : "Register as Grower",
+      description: isGrower
+        ? "Update orchard address, contact, and transport map point."
+        : "Create a grower profile and list fruit lots for verified buyers.",
       icon: <FaSeedling />,
       path: "/register-grower",
     },
-    {
-      title: "Register as Fruit Buyer",
-      description: "Create a buyer profile and participate in live fruit deals.",
-      icon: <FaHandshake />,
-      path: "/register-buyer",
-    },
-    {
-      title: "Register as Logistic Partner",
-      description: "Create a logistics profile and manage fruit lot deliveries.",
-      icon: <FaTruck />,
-      path: "/register-driver",
-    },
+    ...(!isBuyer
+      ? [
+          {
+            title: isDriver ? "Update Driver Profile" : "Register as Driver",
+            description: isDriver
+              ? "Update logistics profile and vehicle details."
+              : "Create a logistics profile and manage fruit lot deliveries.",
+            icon: <FaTruck />,
+            path: "/register-driver",
+          },
+        ]
+      : []),
   ];
   const joinedLabel = formatJoinDate(user.createdAt);
   const profileContactNo = user.contact || user.phone || "";
@@ -864,7 +883,7 @@ export default function ProfileDashboard() {
           </div>
         </section>
 
-        {isVisitor && (
+        {registrationActions.length > 0 && (
           <RoleRegistrationCards
             options={registrationActions}
             onSelect={(path) => navigate(path)}

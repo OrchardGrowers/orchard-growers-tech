@@ -21,6 +21,11 @@ import {
   FaUserCircle,
 } from "react-icons/fa";
 import { openEFruitInstallPrompt } from "./InstallAppPrompt";
+import {
+  hasBuyerProfile,
+  hasDriverProfile,
+  hasGrowerProfile,
+} from "../utils/auth";
 
 export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobile = false }) {
   const [activeGrowerMenuItem, setActiveGrowerMenuItem] = useState(
@@ -36,8 +41,9 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
     .replace(/[^a-z0-9]+/gi, "")
     .slice(0, 24) || "OrchardGrowers"}`;
   const avatarUrl = user.avatarUrl;
-  const isGrower = user.role === "grower" || Boolean(user.orchardName);
-  const isBuyer = user.role === "buyer" || Boolean(user.businessName);
+  const isGrower = hasGrowerProfile(user);
+  const isBuyer = hasBuyerProfile(user);
+  const isDriver = hasDriverProfile(user);
   const lockedAmountLabel = formatCurrency(user.lockedAmount || 0);
 
   const growerMenuSections = [
@@ -82,31 +88,55 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
     ],
   ];
 
-  const menuItems = [
+  const profileActionItems = [
     {
       label: "Edit Profile",
       icon: <FaUserCircle />,
       path: "/profile-dashboard",
     },
+    ...(!isDriver
+      ? [
+          {
+            label: isBuyer ? "Update Buyer Profile" : "Register as Buyer",
+            icon: <FaHandshake />,
+            path: "/register-buyer",
+            hasChevron: true,
+          },
+        ]
+      : []),
     {
-      label: "Register as Grower",
+      label: isGrower ? "Update Grower Profile" : "Register as Grower",
       icon: <FaSeedling />,
       path: "/register-grower",
       hasChevron: true,
     },
-    {
-      label: "Register as Fruit Buyer",
-      icon: <FaHandshake />,
-      path: "/register-buyer",
-      hasChevron: true,
-    },
-    {
-      label: "Register as Logistic Partner",
-      icon: <FaTruck />,
-      path: "/register-driver",
-      hasChevron: true,
-    },
-  ];
+    ...(!isBuyer
+      ? [
+          {
+            label: isDriver ? "Update Driver Profile" : "Register as Driver",
+            icon: <FaTruck />,
+            path: "/register-driver",
+            hasChevron: true,
+          },
+        ]
+      : []),
+  ].filter((item) => item.path !== "/register-driver" || !isBuyer);
+
+  const renderMenuButton = (item, iconColor = "text-white") => (
+    <button
+      key={item.label}
+      type="button"
+      onClick={() => onAction(item.path)}
+      className="flex w-full items-center gap-4 px-4 py-2.5 text-left text-sm font-semibold text-white transition hover:bg-green-800"
+    >
+      <span className={`flex w-6 justify-center text-lg ${iconColor}`}>
+        {item.icon}
+      </span>
+      <span className="min-w-0 flex-1">{item.label}</span>
+      {item.hasChevron && <FaChevronRight className="text-white/75" />}
+    </button>
+  );
+
   const buyerMenuItems = [
     {
       label: "Make a Deal",
@@ -207,11 +237,15 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto border-t border-white/15 py-2 [scrollbar-color:#facc15_#15803d] [scrollbar-width:thin] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-yellow-400 [&::-webkit-scrollbar-track]:bg-green-700 [&::-webkit-scrollbar]:w-2">
+        <div className="border-b border-white/15 pb-2">
+          {profileActionItems.map((item) => renderMenuButton(item, "text-white"))}
+        </div>
+
         {isGrower ? (
           growerMenuSections.map((section, sectionIndex) => (
             <div
               key={sectionIndex}
-              className={sectionIndex > 0 ? "border-t border-white/15 py-2" : "pb-2"}
+              className={sectionIndex > 0 ? "border-t border-white/15 py-2" : "py-2"}
             >
               {section.map((item) => {
                 const isActive = activeGrowerMenuItem === item.label;
@@ -239,36 +273,10 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
             </div>
           ))
         ) : isBuyer ? (
-          buyerMenuItems.map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              onClick={() => onAction(item.path)}
-              className="flex w-full items-center gap-4 px-4 py-2.5 text-left text-sm font-semibold text-white transition hover:bg-green-800"
-            >
-              <span className="flex w-6 justify-center text-lg text-yellow-300">
-                {item.icon}
-              </span>
-              <span className="min-w-0 flex-1">{item.label}</span>
-              <FaChevronRight className="text-white/75" />
-            </button>
-          ))
-        ) : (
-          menuItems.map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              onClick={() => onAction(item.path)}
-              className="flex w-full items-center gap-4 px-4 py-2.5 text-left text-sm font-semibold text-white transition hover:bg-green-800"
-            >
-              <span className="flex w-6 justify-center text-lg text-white">
-                {item.icon}
-              </span>
-              <span className="min-w-0 flex-1">{item.label}</span>
-              {item.hasChevron && <FaChevronRight className="text-white/75" />}
-            </button>
-          ))
-        )}
+          <div className="py-2">
+            {buyerMenuItems.map((item) => renderMenuButton(item, "text-yellow-300"))}
+          </div>
+        ) : null}
       </div>
 
       <div className="shrink-0 border-t border-white/15 py-2">

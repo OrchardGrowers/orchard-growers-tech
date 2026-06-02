@@ -18,8 +18,15 @@ const ADMIN_ROLES = new Set([
 const getTokenFromHeader = (authHeader = "") =>
   authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : authHeader;
 
+const getProfileTypes = (user = {}) => {
+  const profiles = new Set(Array.isArray(user.profileTypes) ? user.profileTypes : []);
+  if (user.role) profiles.add(user.role);
+
+  return Array.from(profiles);
+};
+
 const loadUserContext = async (decodedId) => {
-  const user = await User.findById(decodedId).select("_id role accountStatus");
+  const user = await User.findById(decodedId).select("_id role profileTypes accountStatus");
 
   if (!user) return null;
 
@@ -27,7 +34,7 @@ const loadUserContext = async (decodedId) => {
     return { blocked: true, status: user.accountStatus };
   }
 
-  return { id: user._id, role: user.role };
+  return { id: user._id, role: user.role, profileTypes: getProfileTypes(user) };
 };
 
 // Protect route
@@ -106,11 +113,14 @@ export const optionalProtect = async (req, res, next) => {
 // Role-based access
 export const authorize = (...roles) => {
   return (req, res, next) => {
-    if (!req.user || !req.user.role) {
+    const profileTypes = new Set(req.user?.profileTypes || []);
+    if (req.user?.role) profileTypes.add(req.user.role);
+
+    if (!req.user || (!req.user.role && !profileTypes.size)) {
       return res.status(401).json({ msg: "Not authorized" });
     }
 
-    if (!roles.includes(req.user.role)) {
+    if (!roles.some((role) => req.user.role === role || profileTypes.has(role))) {
       return res.status(403).json({
         msg: `Access denied. Required role: ${roles.join(", ")}`,
       });

@@ -1,24 +1,39 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaIdCard, FaMapMarkerAlt, FaPhoneAlt, FaTruck } from "react-icons/fa";
 import API from "../services/api";
+import { getCurrentUser, hasBuyerProfile, hasDriverProfile } from "../utils/auth";
 
 export default function RegisterDriver() {
   const navigate = useNavigate();
+  const currentUser = getCurrentUser();
+  const [accountUser, setAccountUser] = useState(currentUser);
+  const isUpdate = hasDriverProfile(accountUser);
+  const hasBlockedBuyerProfile = hasBuyerProfile(accountUser);
   const [form, setForm] = useState({
-    logisticsName: "",
-    logisticsOwnerName: "",
-    logisticsOwnerContact: "",
-    ownerIsDriver: true,
-    driverName: "",
-    driverContact: "",
-    vehicleNumber: "",
-    licenseNumber: "",
-    location: "",
-    contact: "",
+    logisticsName: currentUser.logisticsName || "",
+    logisticsOwnerName: currentUser.logisticsOwnerName || "",
+    logisticsOwnerContact: currentUser.logisticsOwnerContact || "",
+    ownerIsDriver: currentUser.ownerIsDriver ?? true,
+    driverName: currentUser.driverName || "",
+    driverContact: currentUser.driverContact || "",
+    vehicleNumber: currentUser.vehicleNumber || "",
+    licenseNumber: currentUser.licenseNumber || "",
+    location: currentUser.location || "",
+    contact: currentUser.contact || currentUser.phone || "",
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    API.get("/user/profile")
+      .then((res) => {
+        const latestUser = res.data || currentUser;
+        setAccountUser(latestUser);
+        localStorage.setItem("user", JSON.stringify(latestUser));
+      })
+      .catch(() => {});
+  }, []);
 
   const updateForm = (field, value) => {
     setForm({ ...form, [field]: value });
@@ -27,6 +42,11 @@ export default function RegisterDriver() {
   const handleSubmit = async (event) => {
     event.preventDefault();
     setMessage("");
+
+    if (hasBlockedBuyerProfile) {
+      setMessage("Driver profile cannot be added because this account is already registered as Buyer.");
+      return;
+    }
 
     if (!form.logisticsName.trim() || !form.vehicleNumber.trim() || !form.contact.trim()) {
       setMessage("Logistics name, vehicle number, and contact number are required.");
@@ -73,16 +93,18 @@ export default function RegisterDriver() {
               Logistics profile
             </p>
             <h2 className="mt-1 text-2xl font-bold text-gray-950">
-              Register as Driver
+              {isUpdate ? "Update Driver Profile" : "Register as Driver"}
             </h2>
             <p className="mt-2 text-sm leading-6 text-gray-500">
               Deliver consignments, update delivery status, and manage transport details.
             </p>
           </div>
 
-          {message && (
+          {(hasBlockedBuyerProfile || message) && (
             <div className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-              {message}
+              {hasBlockedBuyerProfile
+                ? "Driver profile cannot be added because this account is already registered as Buyer."
+                : message}
             </div>
           )}
 
@@ -169,10 +191,10 @@ export default function RegisterDriver() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || hasBlockedBuyerProfile}
             className="mt-6 w-full rounded-md bg-orange-500 py-3 text-sm font-bold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-gray-300"
           >
-            {loading ? "Saving..." : "Register as Driver"}
+            {loading ? "Saving..." : isUpdate ? "Update Driver Profile" : "Register as Driver"}
           </button>
         </form>
       </div>

@@ -5,10 +5,17 @@ import protect, { optionalProtect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
+const hasProfile = (user, profileType) =>
+  user?.role === profileType ||
+  (Array.isArray(user?.profileTypes) && user.profileTypes.includes(profileType));
+
 const getOrderVisibilityFilter = (user) => {
-  if (user.role === "buyer") return { buyer: user.id };
-  if (user.role === "driver") return { driver: user.id };
-  if (user.role === "grower") return { grower: user.id };
+  const filters = [];
+  if (hasProfile(user, "buyer")) filters.push({ buyer: user.id });
+  if (hasProfile(user, "driver")) filters.push({ driver: user.id });
+  if (hasProfile(user, "grower")) filters.push({ grower: user.id });
+  if (filters.length === 1) return filters[0];
+  if (filters.length > 1) return { $or: filters };
   return {};
 };
 
@@ -112,7 +119,7 @@ router.post("/checkout", optionalProtect, async (req, res) => {
     const order = await Order.create({
       product: orderItems[0]?.product,
       grower: products[0]?.createdBy,
-      buyer: req.user?.role === "buyer" ? req.user.id : undefined,
+      buyer: hasProfile(req.user, "buyer") ? req.user.id : undefined,
       items: orderItems,
       customer,
       shippingAddress,
@@ -208,13 +215,10 @@ router.get("/:id", protect, async (req, res) => {
 
     const userId = req.user.id?.toString();
     const visible =
-      req.user.role === "buyer"
-        ? order.buyer?._id?.toString() === userId
-        : req.user.role === "grower"
-          ? order.grower?._id?.toString() === userId
-          : req.user.role === "driver"
-            ? !order.driver || order.driver?._id?.toString() === userId
-            : true;
+      (hasProfile(req.user, "buyer") && order.buyer?._id?.toString() === userId) ||
+      (hasProfile(req.user, "grower") && order.grower?._id?.toString() === userId) ||
+      (hasProfile(req.user, "driver") && (!order.driver || order.driver?._id?.toString() === userId)) ||
+      (!hasProfile(req.user, "buyer") && !hasProfile(req.user, "grower") && !hasProfile(req.user, "driver"));
 
     if (!visible) {
       return res.status(403).json({ msg: "You cannot view this order" });

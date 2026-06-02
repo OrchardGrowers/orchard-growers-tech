@@ -1,6 +1,11 @@
 import React, { useState } from "react";
 import API from "../services/api";
-import { getCurrentUser } from "../utils/auth";
+import {
+  getCurrentUser,
+  hasBuyerProfile,
+  hasDriverProfile,
+  hasGrowerProfile,
+} from "../utils/auth";
 import { useNavigate } from "react-router-dom";
 
 export default function Delivery() {
@@ -11,6 +16,9 @@ export default function Delivery() {
   const [settlementOtp, setSettlementOtp] = useState("");
   const [message, setMessage] = useState("");
   const user = getCurrentUser();
+  const isDriver = hasDriverProfile(user);
+  const isBuyer = hasBuyerProfile(user);
+  const isGrower = hasGrowerProfile(user);
 
   const runAction = async (action, successMessage) => {
     try {
@@ -68,7 +76,7 @@ export default function Delivery() {
         className="w-full rounded border border-gray-200 px-3 py-2 text-sm"
       />
 
-      {user.role === "driver" && (
+      {isDriver && (
         <>
           <button onClick={startDelivery} className="w-full rounded bg-green-700 py-2 text-white">
             Start Delivery
@@ -79,7 +87,7 @@ export default function Delivery() {
         </>
       )}
 
-      {user.role === "buyer" && (
+      {isBuyer && (
         <>
           <input
             value={otp}
@@ -110,7 +118,7 @@ export default function Delivery() {
         </>
       )}
 
-      {user.role === "grower" && (
+      {isGrower && (
         <>
           <input
             value={settlementOtp}
@@ -127,7 +135,7 @@ export default function Delivery() {
         </>
       )}
 
-      {!["buyer", "driver", "grower"].includes(user.role) && (
+      {!isBuyer && !isDriver && !isGrower && (
         <p className="text-sm font-semibold text-gray-600">
           Login with a buyer, grower, or driver account to manage delivery.
         </p>

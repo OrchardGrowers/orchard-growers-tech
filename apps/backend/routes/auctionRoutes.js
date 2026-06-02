@@ -24,7 +24,8 @@ const isDealOpen = (date = new Date()) => {
 };
 
 const canSeeProductBasePrice = (product, user) =>
-  user?.role === "grower" &&
+  (user?.role === "grower" ||
+    (Array.isArray(user?.profileTypes) && user.profileTypes.includes("grower"))) &&
   product?.createdBy &&
   (product.createdBy._id || product.createdBy)?.toString() === user.id?.toString();
 

@@ -12,7 +12,7 @@ import {
   FaVideo,
 } from "react-icons/fa";
 import API from "../services/api";
-import { getCurrentUser } from "../utils/auth";
+import { getCurrentUser, hasBuyerProfile } from "../utils/auth";
 import {
   getEfruitMandiWidgetId,
   getEfruitMandiTokenAuth,
@@ -25,7 +25,7 @@ import {
 export default function GetVerified() {
   const navigate = useNavigate();
   const user = useMemo(() => getCurrentUser() || {}, []);
-  const isBuyer = user.role === "buyer" || Boolean(user.businessName);
+  const isBuyer = hasBuyerProfile(user);
   const [form, setForm] = useState({
     orchardName: isBuyer ? user.businessName || "" : user.orchardName || "",
     ownerName: isBuyer ? user.buyerContactPerson || user.name || "" : user.name || "",

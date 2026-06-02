@@ -6,7 +6,8 @@ const AUCTION_DELAY_MS = 5 * 60 * 1000;
 const AUCTION_DURATION_MS = 5 * 60 * 1000;
 
 const canSeeBasePrice = (product, user) =>
-  user?.role === "grower" &&
+  (user?.role === "grower" ||
+    (Array.isArray(user?.profileTypes) && user.profileTypes.includes("grower"))) &&
   product?.createdBy &&
   (product.createdBy._id || product.createdBy)?.toString() === user.id?.toString();
 

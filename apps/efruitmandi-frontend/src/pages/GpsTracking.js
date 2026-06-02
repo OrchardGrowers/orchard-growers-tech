@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import API from "../services/api";
-import { getCurrentUser } from "../utils/auth";
+import { getCurrentUser, hasDriverProfile } from "../utils/auth";
 
 export default function GpsTracking() {
   const { orderId } = useParams();
   const user = getCurrentUser();
+  const isDriver = hasDriverProfile(user);
   const [manual, setManual] = useState({ lat: "", lng: "" });
   const [tracking, setTracking] = useState(null);
   const [message, setMessage] = useState("");
@@ -77,7 +78,7 @@ export default function GpsTracking() {
         </p>
       </div>
 
-      {user.role === "driver" && (
+      {isDriver && (
         <div className="space-y-3 rounded border border-gray-200 p-4">
           <button onClick={requestAutoLocation} className="w-full rounded bg-green-700 py-2 text-sm font-bold text-white">
             Allow Auto Location Tracking

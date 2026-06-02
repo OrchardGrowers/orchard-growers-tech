@@ -5,14 +5,34 @@ import {
   parseIdentifier,
 } from "./authController.js";
 
-const getVerifiedPhone = (contact) => {
+const getVerifiedPhone = (contact, user = null) => {
   const parsed = parseIdentifier(contact);
 
-  if (!parsed || parsed.type !== "phone" || !isOtpVerified(parsed)) {
+  if (!parsed || parsed.type !== "phone") {
     return null;
   }
 
+  const trustedPhones = [user?.contact, user?.phone]
+    .map((value) => parseIdentifier(value))
+    .filter((value) => value?.type === "phone")
+    .map((value) => value.value);
+
+  if (trustedPhones.includes(parsed.value)) return parsed;
+
+  if (!isOtpVerified(parsed)) return null;
+
   return parsed;
+};
+
+const getUserProfileTypes = (user) => {
+  const profiles = new Set(Array.isArray(user.profileTypes) ? user.profileTypes : []);
+
+  if (user.role) profiles.add(user.role);
+  if (user.orchardName) profiles.add("grower");
+  if (user.businessName || user.buyerContactPerson) profiles.add("buyer");
+  if (user.logisticsName || user.vehicleNumber || user.driverName) profiles.add("driver");
+
+  return profiles;
 };
 
 // ================= SET ROLE =================
@@ -59,8 +79,18 @@ export const setUserRole = async (req, res) => {
     }
 
     // 🔒 Prevent role change after set (important for integrity)
-    if (user.role) {
-      return res.status(400).json({ msg: "Role already assigned" });
+    const profileTypes = getUserProfileTypes(user);
+
+    if (role === "buyer" && profileTypes.has("driver")) {
+      return res.status(400).json({
+        msg: "Buyer profile cannot be added because this account is already registered as Driver.",
+      });
+    }
+
+    if (role === "driver" && profileTypes.has("buyer")) {
+      return res.status(400).json({
+        msg: "Driver profile cannot be added because this account is already registered as Buyer.",
+      });
     }
 
     // ✅ Assign role
@@ -74,14 +104,14 @@ export const setUserRole = async (req, res) => {
         });
       }
 
-      verifiedPhone = getVerifiedPhone(contact);
+      verifiedPhone = getVerifiedPhone(contact, profileTypes.has("grower") ? user : null);
       if (!verifiedPhone) {
         return res.status(400).json({
           msg: "Verify contact number OTP before grower registration",
         });
       }
 
-      user.role = role;
+      user.role = user.role || role;
       user.orchardName = orchardName.trim();
       user.contact = verifiedPhone.value;
       if (designation) user.designation = designation.trim();
@@ -94,14 +124,14 @@ export const setUserRole = async (req, res) => {
         });
       }
 
-      verifiedPhone = getVerifiedPhone(contact);
+      verifiedPhone = getVerifiedPhone(contact, profileTypes.has("buyer") ? user : null);
       if (!verifiedPhone) {
         return res.status(400).json({
           msg: "Verify contact number OTP before buyer registration",
         });
       }
 
-      user.role = role;
+      user.role = user.role || role;
       user.businessName = businessName.trim();
       user.buyerContactPerson = buyerContactPerson.trim();
       if (designation) user.designation = designation.trim();
@@ -118,7 +148,7 @@ export const setUserRole = async (req, res) => {
           msg: "Logistics name, vehicle number, and contact are required",
         });
       }
-      user.role = role;
+      user.role = user.role || role;
       user.logisticsName = logisticsName.trim();
       user.logisticsOwnerName = (logisticsOwnerName || logisticsName).trim();
       user.logisticsOwnerContact = (logisticsOwnerContact || contact).trim();
@@ -145,6 +175,9 @@ export const setUserRole = async (req, res) => {
       if (Number.isFinite(longitude)) user.mapLongitude = longitude;
     }
     if (googleMapUrl) user.googleMapUrl = googleMapUrl.trim();
+
+    profileTypes.add(role);
+    user.profileTypes = Array.from(profileTypes);
 
     await user.save();
 

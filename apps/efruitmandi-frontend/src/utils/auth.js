@@ -17,8 +17,28 @@ export const getCurrentUser = () => {
   }
 };
 
+export const getProfileTypes = (user = getCurrentUser()) => {
+  const profiles = new Set(Array.isArray(user.profileTypes) ? user.profileTypes : []);
+
+  if (user.role) profiles.add(user.role);
+  if (user.orchardName) profiles.add("grower");
+  if (user.businessName || user.buyerContactPerson) profiles.add("buyer");
+  if (user.logisticsName || user.vehicleNumber || user.driverName) profiles.add("driver");
+
+  return profiles;
+};
+
+export const hasGrowerProfile = (user = getCurrentUser()) =>
+  getProfileTypes(user).has("grower");
+
+export const hasBuyerProfile = (user = getCurrentUser()) =>
+  getProfileTypes(user).has("buyer");
+
+export const hasDriverProfile = (user = getCurrentUser()) =>
+  getProfileTypes(user).has("driver");
+
 export const isGrowerAccount = (user = getCurrentUser()) =>
-  user.role === "grower" || Boolean(user.orchardName);
+  hasGrowerProfile(user);
 
 export const isBuyerAccount = (user = getCurrentUser()) =>
-  user.role === "buyer" || Boolean(user.businessName);
+  hasBuyerProfile(user);

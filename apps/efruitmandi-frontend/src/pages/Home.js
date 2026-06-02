@@ -14,7 +14,13 @@ import {
 import BannerSlider from "../components/BannerSlider";
 import TopFilters from "../components/TopFilters";
 import API, { FILE_BASE_URL } from "../services/api";
-import { getCurrentUser, isGrowerAccount } from "../utils/auth";
+import {
+  getCurrentUser,
+  hasBuyerProfile,
+  hasDriverProfile,
+  hasGrowerProfile,
+  isGrowerAccount,
+} from "../utils/auth";
 import { getEfruitMandiProducts } from "../utils/marketProducts";
 import { saveUserToStorage } from "../utils/userStorage";
 
@@ -786,9 +792,9 @@ function ProfileCard({ user, onOpen }) {
       user &&
       (user._id || user.email || user.phone || user.name)
   );
-  const isGrower = user.role === "grower" || Boolean(user.orchardName);
-  const isBuyer = user.role === "buyer" || Boolean(user.businessName);
-  const isDriver = user.role === "driver" || Boolean(user.logisticsName);
+  const isGrower = hasGrowerProfile(user);
+  const isBuyer = hasBuyerProfile(user);
+  const isDriver = hasDriverProfile(user);
   const isTrustedAccount = Boolean(user.isVerified);
   const firmName = isGrower
     ? user.orchardName

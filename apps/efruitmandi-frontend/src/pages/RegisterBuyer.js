@@ -20,26 +20,42 @@ import {
   sendMsg91WidgetOtp,
   verifyMsg91WidgetOtp,
 } from "../utils/msg91OtpWidget";
+import { getCurrentUser, hasBuyerProfile, hasDriverProfile } from "../utils/auth";
 
 export default function RegisterBuyer() {
   const navigate = useNavigate();
+  const currentUser = getCurrentUser();
+  const [accountUser, setAccountUser] = useState(currentUser);
+  const isUpdate = hasBuyerProfile(accountUser);
+  const hasBlockedDriverProfile = hasDriverProfile(accountUser);
+  const savedContact = currentUser.contact || currentUser.phone || "";
   const [form, setForm] = useState({
-    businessName: "",
-    buyerContactPerson: "",
-    designation: "",
-    location: "",
-    pinCode: "",
-    contact: "",
-    gstNumber: "",
-    tradeLicenseNumber: "",
+    businessName: currentUser.businessName || "",
+    buyerContactPerson: currentUser.buyerContactPerson || currentUser.name || "",
+    designation: currentUser.designation || "",
+    location: currentUser.location || "",
+    pinCode: currentUser.pinCode || "",
+    contact: savedContact,
+    gstNumber: currentUser.gstNumber || "",
+    tradeLicenseNumber: currentUser.tradeLicenseNumber || "",
   });
   const [loading, setLoading] = useState(false);
   const [otp, setOtp] = useState("");
   const [otpReqId, setOtpReqId] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otpCooldown, setOtpCooldown] = useState(0);
-  const [verifiedPhone, setVerifiedPhone] = useState("");
+  const [verifiedPhone, setVerifiedPhone] = useState(isUpdate ? savedContact : "");
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    API.get("/user/profile")
+      .then((res) => {
+        const latestUser = res.data || currentUser;
+        setAccountUser(latestUser);
+        localStorage.setItem("user", JSON.stringify(latestUser));
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (otpCooldown <= 0) return undefined;
@@ -120,6 +136,11 @@ export default function RegisterBuyer() {
     event.preventDefault();
     setMessage("");
 
+    if (hasBlockedDriverProfile) {
+      setMessage("Buyer profile cannot be added because this account is already registered as Driver.");
+      return;
+    }
+
     if (
       !form.businessName.trim() ||
       !form.buyerContactPerson.trim() ||
@@ -162,11 +183,13 @@ export default function RegisterBuyer() {
     <AuthBrandShell compact>
       <form onSubmit={handleSubmit} className="w-full">
         <h2 className="mt-1 text-center text-xl font-extrabold text-black">
-          Buyer Registration
+          {isUpdate ? "Update Buyer Profile" : "Register as Buyer"}
         </h2>
-        {message && (
+        {(hasBlockedDriverProfile || message) && (
           <div className="mt-4 rounded-md bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
-            {message}
+            {hasBlockedDriverProfile
+              ? "Buyer profile cannot be added because this account is already registered as Driver."
+              : message}
           </div>
         )}
 
@@ -245,10 +268,10 @@ export default function RegisterBuyer() {
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || hasBlockedDriverProfile}
           className="mt-7 w-full rounded-md bg-green-700 py-3 text-sm font-bold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-300"
         >
-          {loading ? "Saving..." : "Register & Deal"}
+          {loading ? "Saving..." : isUpdate ? "Update Buyer Profile" : "Register & Deal"}
         </button>
       </form>
     </AuthBrandShell>

@@ -18,28 +18,32 @@ import {
   sendMsg91WidgetOtp,
   verifyMsg91WidgetOtp,
 } from "../utils/msg91OtpWidget";
+import { getCurrentUser, hasGrowerProfile } from "../utils/auth";
 
 export default function RegisterGrower() {
   const navigate = useNavigate();
+  const currentUser = getCurrentUser();
+  const isUpdate = hasGrowerProfile(currentUser);
+  const savedContact = currentUser.contact || currentUser.phone || "";
   const [form, setForm] = useState({
-    orchardName: "",
-    designation: "",
-    location: "",
-    addressLine1: "",
-    addressLine2: "",
-    addressLine3: "",
-    pinCode: "",
-    mapLatitude: "",
-    mapLongitude: "",
-    googleMapUrl: "",
-    contact: "",
+    orchardName: currentUser.orchardName || "",
+    designation: currentUser.designation || "",
+    location: currentUser.location || "",
+    addressLine1: currentUser.addressLine1 || "",
+    addressLine2: currentUser.addressLine2 || "",
+    addressLine3: currentUser.addressLine3 || "",
+    pinCode: currentUser.pinCode || "",
+    mapLatitude: currentUser.mapLatitude || "",
+    mapLongitude: currentUser.mapLongitude || "",
+    googleMapUrl: currentUser.googleMapUrl || "",
+    contact: savedContact,
   });
   const [loading, setLoading] = useState(false);
   const [otp, setOtp] = useState("");
   const [otpReqId, setOtpReqId] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otpCooldown, setOtpCooldown] = useState(0);
-  const [verifiedPhone, setVerifiedPhone] = useState("");
+  const [verifiedPhone, setVerifiedPhone] = useState(isUpdate ? savedContact : "");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -202,7 +206,7 @@ export default function RegisterGrower() {
             Grower profile
           </p>
           <h2 className="mt-1 text-2xl font-bold text-gray-950">
-            Register as Grower
+            {isUpdate ? "Update Grower Profile" : "Register as Grower"}
           </h2>
           <p className="mt-2 text-sm leading-6 text-gray-500">
             Add orchard details so buyers can trust your listings.
@@ -317,7 +321,7 @@ export default function RegisterGrower() {
           disabled={loading}
           className="mt-6 w-full rounded-md bg-green-700 py-3 text-sm font-bold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-300"
         >
-          {loading ? "Saving..." : "Register as Grower"}
+          {loading ? "Saving..." : isUpdate ? "Update Grower Profile" : "Register as Grower"}
         </button>
       </form>
     </AuthBrandShell>

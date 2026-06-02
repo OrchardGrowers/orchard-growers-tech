@@ -67,6 +67,7 @@ const safeUserPayload = (user) => ({
   bannerUrl: user.bannerUrl,
   companyLogoUrl: user.companyLogoUrl,
   role: user.role,
+  profileTypes: user.profileTypes || [],
   orchardName: user.orchardName,
   businessName: user.businessName,
   buyerContactPerson: user.buyerContactPerson,
@@ -86,6 +87,9 @@ const safeUserPayload = (user) => ({
   addressLine2: user.addressLine2,
   addressLine3: user.addressLine3,
   pinCode: user.pinCode,
+  mapLatitude: user.mapLatitude,
+  mapLongitude: user.mapLongitude,
+  googleMapUrl: user.googleMapUrl,
   contact: user.contact,
   socialLinks: user.socialLinks,
   kyc: user.kyc,
@@ -944,6 +948,7 @@ export const registerUser = async (req, res) => {
       [parsed.type]: parsed.value,
       password: hashedPassword,
       role: null,
+      profileTypes: [],
     });
 
     consumeOtpVerification(parsed, platform, "auth", otpVerificationToken);
@@ -1252,6 +1257,7 @@ const upsertOAuthUser = async ({ provider, providerId, email, name, avatarUrl, m
       providerId,
       oauthProviders: [{ provider, providerId }],
       role: null,
+      profileTypes: [],
     });
     return user;
   }
