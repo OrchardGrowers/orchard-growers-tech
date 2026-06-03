@@ -562,6 +562,7 @@ export const updateKyc = async (req, res) => {
       !kyc.ifscCode && "IFSC code",
       !kyc.bankAccountHolderName && "bank account holder name",
       !kyc.bankName && "bank name",
+      !kyc.passbookFileUrl && "bank proof/passbook file",
       roleType === "driver" && !kyc.vehicleNumber && "vehicle number",
       roleType === "driver" && !kyc.drivingLicenseNumber && "driving license number",
       roleType === "driver" && !kyc.drivingLicenseImage && "driving license image",

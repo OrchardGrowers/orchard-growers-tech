@@ -239,6 +239,7 @@ export default function Kyc() {
               <KycInput label="Account Number" value={form.accountNumber} disabled={!canEdit} onChange={(value) => updateForm("accountNumber", value)} />
               <KycInput label="IFSC Code" value={form.ifscCode} disabled={!canEdit} onChange={(value) => updateForm("ifscCode", value)} />
               <KycInput label="UPI ID optional" value={form.upiId} disabled={!canEdit} onChange={(value) => updateForm("upiId", value)} />
+              <FileField label="Upload Bank Proof / Passbook" disabled={!canEdit} onFileChange={(file) => updateFile("passbookFile", file)} />
             </div>
           </section>
 
