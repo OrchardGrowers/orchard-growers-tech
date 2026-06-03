@@ -347,13 +347,24 @@ export default function ProfileDashboard() {
   };
   const profileAddress = formatProfileAddress(user);
   const businessAddress = formatBusinessAddress(user);
+  const buyerAddress = [
+    user.buyerLocation || user.businessAddressLine1 || user.location,
+    user.buyerPinCode || user.businessPinCode || user.pinCode,
+  ].filter(Boolean).join(", ");
+  const growerAddress = profileAddress || user.location || "";
+  const driverAddress = businessAddress || user.location || profileAddress || "";
   const displayName =
     profileMode === "grower"
       ? user.orchardName || user.name || "Pawan Orchards"
       : profileMode === "driver"
         ? user.logisticsName || user.name || "Logistics Partner"
         : user.businessName || user.name || "Visitor";
-  const location = businessAddress || user.location || profileAddress || "Shilhi Bagi, Thunag, Mandi, H.P.";
+  const location =
+    profileMode === "grower"
+      ? growerAddress || "Grower orchard location not added"
+      : profileMode === "buyer"
+        ? buyerAddress || "Buyer business location not added"
+        : driverAddress || "Logistics location not added";
   const profileDesignation = String(user.designation || "").trim();
   const headline = profileMode === "grower"
     ? `${profileDesignation || "Fruit grower"} @ ${displayName} | Fruit grower`
@@ -370,36 +381,6 @@ export default function ProfileDashboard() {
         ? "Logistic Partner Profile Dashboard"
         : "User Profile Dashboard";
   const registrationActions = [
-    ...(isBuyer && profileMode !== "buyer"
-      ? [
-          {
-            title: "Switch to Buyer Dashboard",
-            description: "Open your buyer dashboard for fruit deals and payments.",
-            icon: <FaHandshake />,
-            mode: "buyer",
-          },
-        ]
-      : []),
-    ...(isGrower && profileMode !== "grower"
-      ? [
-          {
-            title: "Switch to Grower Dashboard",
-            description: "Open your grower dashboard for listings and orchard activity.",
-            icon: <FaSeedling />,
-            mode: "grower",
-          },
-        ]
-      : []),
-    ...(isDriver && profileMode !== "driver"
-      ? [
-          {
-            title: "Switch to Logistic Partner Dashboard",
-            description: "Open your logistic partner dashboard for delivery activity.",
-            icon: <FaTruck />,
-            mode: "driver",
-          },
-        ]
-      : []),
     ...(!isBuyer
       ? [
           {
@@ -453,16 +434,25 @@ export default function ProfileDashboard() {
   const organizationLabel = displayName;
   const trustedLabel = isTrustedAccount
     ? "Orchard Growers Verified"
-    : isBuyer
+    : profileMode === "buyer"
       ? "Get Verified to attract more Growers"
       : "Get verified to attract more Buyers";
-  const trustedActionLabel = isBuyer ? "Visit Buyers Space" : "Visit Growers Orchard";
-  const organizationLogo = isBuyer
-    ? buyerLogoUrl
-    : logoUrl;
-  const companyLogoUrl = resolveProfileMediaUrl(user.companyLogoUrl) || organizationLogo;
+  const trustedActionLabel = profileMode === "buyer" ? "Visit Buyers Space" : "Visit Growers Orchard";
+  const organizationLogo =
+    profileMode === "buyer"
+      ? buyerLogoUrl
+      : profileMode === "grower"
+        ? logoUrl
+        : logoUrl;
+  const companyLogoUrl =
+    profileMode === "buyer"
+      ? buyerLogoUrl
+      : resolveProfileMediaUrl(user.companyLogoUrl) || organizationLogo;
   const bannerUrl = resolveProfileMediaUrl(user.bannerUrl) || orchardCover;
-  const avatarUrl = resolveProfileMediaUrl(user.avatarUrl);
+  const avatarUrl =
+    profileMode === "buyer"
+      ? buyerLogoUrl
+      : resolveProfileMediaUrl(user.avatarUrl);
   const lockedAmount = Number(user.lockedAmount || 0);
   const lockedAmountLabel = formatCurrency(lockedAmount);
 
@@ -534,6 +524,25 @@ export default function ProfileDashboard() {
     setSocialDraft(createSocialDraft(user));
     setMediaDraft(createMediaDraft(user));
     setShowEditProfile(true);
+  };
+
+  const openEntityProfileEditor = () => {
+    if (profileMode === "buyer") {
+      navigate("/register-buyer", { state: { from: "/profile-dashboard" } });
+      return;
+    }
+
+    if (profileMode === "grower") {
+      navigate("/register-grower", { state: { from: "/profile-dashboard" } });
+      return;
+    }
+
+    if (profileMode === "driver") {
+      navigate("/register-driver", { state: { from: "/profile-dashboard" } });
+      return;
+    }
+
+    openEditProfile();
   };
 
   const sendContactOtp = async () => {
@@ -785,7 +794,7 @@ export default function ProfileDashboard() {
       return;
     }
 
-    navigate("/list-new-lot", { state: { productId } });
+    navigate(`/list-new-lot?edit=${productId}`, { state: { productId } });
   };
 
   const deleteLot = async (productId) => {
@@ -794,9 +803,16 @@ export default function ProfileDashboard() {
     try {
       await API.delete(`/products/${productId}`);
       setProducts((current) => current.filter((product) => product._id !== productId));
+      setAuctions((current) =>
+        current.filter((auction) => (auction.product?._id || auction.product)?.toString() !== productId)
+      );
       setNotice("Lot deleted.");
     } catch (err) {
-      setNotice(err.response?.data?.msg || "Lot could not be deleted.");
+      setNotice(
+        err.response?.data?.msg ||
+          err.response?.data?.message ||
+          "Lot could not be deleted. Please try again."
+      );
     }
   };
 
@@ -871,7 +887,7 @@ export default function ProfileDashboard() {
 
             <button
               type="button"
-              onClick={openEditProfile}
+              onClick={openEntityProfileEditor}
               className="absolute right-6 top-6 text-2xl text-gray-700 hover:text-green-700"
               aria-label="Edit profile"
             >
@@ -947,7 +963,7 @@ export default function ProfileDashboard() {
                       Since with us: {joinedLabel}
                       {isTrustedAccount && " - OG Verified"}
                     </p>
-                    {isGrower && (
+                    {profileMode === "grower" && (
                       <button
                         type="button"
                         onClick={openListLot}
@@ -1086,7 +1102,7 @@ export default function ProfileDashboard() {
           </section>
         )}
 
-        {isBuyer && (
+        {profileMode === "buyer" && (
           <BuyerLockedAmountCard amountLabel={lockedAmountLabel} />
         )}
 

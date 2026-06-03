@@ -1,82 +1,162 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { FaBuilding, FaCheckCircle, FaFileUpload, FaIdCard, FaUniversity } from "react-icons/fa";
+import { FaCheckCircle, FaFileUpload, FaIdCard, FaUniversity } from "react-icons/fa";
 import API from "../services/api";
+import { getKycStatusLabel, getProfileTypes } from "../utils/auth";
 import { saveUserToStorage } from "../utils/userStorage";
 
 const initialForm = {
-  udyanCardNo: "",
-  bankAccountNo: "",
+  roleType: "buyer",
+  fullName: "",
+  phone: "",
+  email: "",
+  address: "",
+  district: "",
+  state: "",
+  pinCode: "",
+  idProofType: "Aadhaar",
+  idProofNumber: "",
+  panNumber: "",
+  gstNumber: "",
+  bankAccountHolderName: "",
+  bankName: "",
+  accountNumber: "",
   ifscCode: "",
-  aadhaarCardNo: "",
+  upiId: "",
+  orchardName: "",
+  orchardLocation: "",
+  vehicleNumber: "",
+  drivingLicenseNumber: "",
 };
+
+const statusMessages = {
+  NOT_SUBMITTED: "Submit KYC documents for admin review.",
+  PENDING: "Your KYC has been submitted and is waiting for admin review.",
+  COMPLETED: "Your KYC has been submitted and is waiting for admin review.",
+  UNDER_REVIEW: "Your KYC is currently under review.",
+  APPROVED: "Your KYC is approved.",
+  REJECTED: "Your KYC was rejected. Please check remarks and submit again.",
+  CORRECTION_REQUIRED: "Please update the requested details and resubmit.",
+};
+
+const editableStatuses = new Set(["NOT_SUBMITTED", "REJECTED", "CORRECTION_REQUIRED"]);
 
 export default function Kyc() {
   const navigate = useNavigate();
   const location = useLocation();
   const returnTo = location.state?.from || "";
+  const isQuoteIntent = location.state?.intent === "quote";
+  const intentMessage = location.state?.message || "";
   const [form, setForm] = useState(initialForm);
-  const [files, setFiles] = useState({
-    udyanCardFile: null,
-    passbookFile: null,
-    aadhaarCardFile: null,
-  });
+  const [files, setFiles] = useState({});
+  const [kycStatus, setKycStatus] = useState("NOT_SUBMITTED");
+  const [adminRemarks, setAdminRemarks] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [kycStatus, setKycStatus] = useState("NOT_SUBMITTED");
+  const canEdit = editableStatuses.has(kycStatus);
 
   useEffect(() => {
-    const loadProfile = async () => {
+    const loadKyc = async () => {
       try {
-        const res = await API.get("/user/profile");
+        const res = await API.get("/kyc/me");
+        const user = res.data?.user || {};
         const kyc = res.data?.kyc || {};
+        const profiles = getProfileTypes(user);
+        const roleType =
+          kyc.roleType ||
+          (profiles.has("grower") ? "grower" : profiles.has("driver") ? "driver" : "buyer");
+
         setForm({
-          udyanCardNo: kyc.udyanCardNo || "",
-          bankAccountNo: kyc.bankAccountNo || "",
+          ...initialForm,
+          roleType,
+          fullName: kyc.fullName || user.name || "",
+          phone: kyc.phone || user.phone || "",
+          email: kyc.email || user.email || "",
+          address: kyc.address || user.location || "",
+          district: kyc.district || "",
+          state: kyc.state || "",
+          pinCode: kyc.pinCode || user.pinCode || "",
+          idProofType: kyc.idProofType || "Aadhaar",
+          idProofNumber: kyc.idProofNumber || kyc.aadhaarCardNo || "",
+          panNumber: kyc.panNumber || "",
+          gstNumber: kyc.gstNumber || user.gstNumber || "",
+          bankAccountHolderName: kyc.bankAccountHolderName || user.name || "",
+          bankName: kyc.bankName || "",
+          accountNumber: kyc.accountNumber || kyc.bankAccountNo || "",
           ifscCode: kyc.ifscCode || "",
-          aadhaarCardNo: kyc.aadhaarCardNo || "",
+          upiId: kyc.upiId || "",
+          orchardName: kyc.orchardName || user.orchardName || "",
+          orchardLocation: kyc.orchardLocation || user.location || "",
+          vehicleNumber: kyc.vehicleNumber || "",
+          drivingLicenseNumber: kyc.drivingLicenseNumber || "",
         });
         setKycStatus(kyc.status || "NOT_SUBMITTED");
+        setAdminRemarks(kyc.adminRemarks || "");
       } catch {
         setMessage("Please login to update KYC.");
       }
     };
 
-    loadProfile();
+    loadKyc();
   }, []);
 
-  const updateForm = (field, value) => {
-    setForm((current) => ({ ...current, [field]: value }));
-  };
+  const title = useMemo(() => {
+    if (kycStatus === "APPROVED") return "KYC Approved";
+    if (kycStatus === "UNDER_REVIEW") return "KYC Under Review";
+    if (kycStatus === "PENDING" || kycStatus === "COMPLETED") return "KYC Submitted";
+    if (kycStatus === "REJECTED") return "KYC Rejected";
+    if (kycStatus === "CORRECTION_REQUIRED") return "Correction Required";
+    return "Submit KYC";
+  }, [kycStatus]);
 
-  const updateFile = (field, file) => {
-    setFiles((current) => ({ ...current, [field]: file || null }));
-  };
+  const updateForm = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+  const updateFile = (field, file) => setFiles((current) => ({ ...current, [field]: file || null }));
 
   const submitKyc = async (event) => {
     event.preventDefault();
     setMessage("");
 
-    if (!form.udyanCardNo || !form.bankAccountNo || !form.ifscCode || !form.aadhaarCardNo) {
-      setMessage("Enter Udyan card, bank, IFSC, and Aadhaar details.");
+    if (!canEdit) {
+      setMessage(kycStatus === "APPROVED" ? "KYC already approved." : "Only rejected or correction-required KYC can be edited.");
+      return;
+    }
+
+    const requiredFields = [
+      "roleType",
+      "fullName",
+      "phone",
+      "address",
+      "pinCode",
+      "idProofType",
+      "idProofNumber",
+      "bankAccountHolderName",
+      "bankName",
+      "accountNumber",
+      "ifscCode",
+    ];
+    if (form.roleType === "driver") requiredFields.push("vehicleNumber", "drivingLicenseNumber");
+    const missing = requiredFields.filter((field) => !String(form[field] || "").trim());
+    if (missing.length) {
+      setMessage(`Complete required fields: ${missing.join(", ")}`);
       return;
     }
 
     try {
       setLoading(true);
       const data = new FormData();
-      Object.entries(form).forEach(([key, value]) => data.append(key, value.trim()));
+      Object.entries(form).forEach(([key, value]) => data.append(key, String(value || "").trim()));
       Object.entries(files).forEach(([key, file]) => {
         if (file) data.append(key, file);
       });
 
-      const res = await API.patch("/user/kyc", data);
+      const endpoint = kycStatus === "NOT_SUBMITTED" ? "/kyc/submit" : "/kyc/update";
+      const res = endpoint.endsWith("submit")
+        ? await API.post(endpoint, data)
+        : await API.put(endpoint, data);
       saveUserToStorage(res.data);
-      setKycStatus(res.data?.kyc?.status || "COMPLETED");
-      setMessage("KYC submitted. Authority verification will be completed within 24 hours.");
-      if (returnTo) {
-        window.setTimeout(() => navigate(returnTo), 800);
-      }
+      setKycStatus(res.data?.kyc?.status || "PENDING");
+      setMessage("KYC submitted successfully.");
+      if (returnTo) window.setTimeout(() => navigate(returnTo), 900);
     } catch (err) {
       setMessage(err.response?.data?.msg || "KYC submission failed.");
     } finally {
@@ -85,26 +165,26 @@ export default function Kyc() {
   };
 
   return (
-    <div className="mx-auto min-h-[calc(100vh-132px)] max-w-3xl px-4 pb-20 md:min-h-[calc(100vh-94px)]">
+    <div className="mx-auto min-h-[calc(100vh-132px)] max-w-4xl px-4 pb-20 md:min-h-[calc(100vh-94px)]">
       <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
         <div className="mb-5">
-          <p className="text-xs font-extrabold uppercase tracking-wide text-green-700">
-            Mandatory KYC
-          </p>
+          <p className="text-xs font-extrabold uppercase tracking-wide text-green-700">Mandatory KYC</p>
           <h1 className="mt-1 text-2xl font-extrabold text-gray-950">
-            {kycStatus === "APPROVED"
-              ? "KYC Verified"
-              : kycStatus === "COMPLETED"
-                ? "KYC Submitted"
-                : "Submit KYC Documents"}
+            {isQuoteIntent ? "Complete Your KYC to Quote Your Price" : title}
           </h1>
           <p className="mt-2 text-sm font-semibold text-gray-600">
-            {kycStatus === "APPROVED"
-              ? "Your KYC is verified. You can update documents if needed."
-              : kycStatus === "COMPLETED"
-                ? "Your KYC is submitted for authority verification within 24 hours."
-              : "Upload image or PDF documents before marketplace trading."}
+            {intentMessage || statusMessages[kycStatus] || statusMessages.NOT_SUBMITTED}
           </p>
+          {isQuoteIntent && (
+            <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-sm font-extrabold text-amber-900">
+              Current KYC status: {getKycStatusLabel({ kyc: { status: kycStatus } })}
+            </p>
+          )}
+          {adminRemarks && (
+            <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">
+              Admin remarks: {adminRemarks}
+            </p>
+          )}
         </div>
 
         {message && (
@@ -114,49 +194,81 @@ export default function Kyc() {
         )}
 
         <form onSubmit={submitKyc} className="space-y-4">
-          <KycCard
-            icon={<FaBuilding />}
-            title="Udyan Card"
-            numberLabel="Udyan Card No."
-            numberValue={form.udyanCardNo}
-            numberPlaceholder="Enter Udyan card number"
-            onNumberChange={(value) => updateForm("udyanCardNo", value)}
-            fileLabel="Upload Udyan Card Pic/PDF"
-            onFileChange={(file) => updateFile("udyanCardFile", file)}
-          />
+          <section className="rounded-lg border border-green-100 bg-green-50 p-4">
+            <h2 className="mb-3 text-base font-extrabold text-gray-950">User Details</h2>
+            <div className="grid gap-3 md:grid-cols-2">
+              <SelectField label="Role Type" value={form.roleType} disabled={!canEdit} onChange={(value) => updateForm("roleType", value)} options={[
+                ["buyer", "Buyer"],
+                ["grower", "Grower / Seller"],
+                ["driver", "Driver"],
+              ]} />
+              <KycInput label="Full Name" value={form.fullName} disabled={!canEdit} onChange={(value) => updateForm("fullName", value)} />
+              <KycInput label="Phone" value={form.phone} disabled={!canEdit} onChange={(value) => updateForm("phone", value)} />
+              <KycInput label="Email" value={form.email} disabled={!canEdit} onChange={(value) => updateForm("email", value)} />
+              <KycInput label="Address" value={form.address} disabled={!canEdit} onChange={(value) => updateForm("address", value)} />
+              <KycInput label="District" value={form.district} disabled={!canEdit} onChange={(value) => updateForm("district", value)} />
+              <KycInput label="State" value={form.state} disabled={!canEdit} onChange={(value) => updateForm("state", value)} />
+              <KycInput label="PIN Code" value={form.pinCode} disabled={!canEdit} onChange={(value) => updateForm("pinCode", value)} />
+            </div>
+          </section>
 
-          <KycCard
-            icon={<FaUniversity />}
-            title="Bank Details"
-            numberLabel="Bank A/C No."
-            numberValue={form.bankAccountNo}
-            numberPlaceholder="Enter bank account number"
-            onNumberChange={(value) => updateForm("bankAccountNo", value)}
-            extraLabel="IFSC Code"
-            extraValue={form.ifscCode}
-            extraPlaceholder="Enter IFSC code"
-            onExtraChange={(value) => updateForm("ifscCode", value)}
-            fileLabel="Upload Passbook Pic/PDF"
-            onFileChange={(file) => updateFile("passbookFile", file)}
-          />
+          <section className="rounded-lg border border-green-100 bg-green-50 p-4">
+            <div className="mb-3 flex items-center gap-2 text-green-800">
+              <FaIdCard />
+              <h2 className="text-base font-extrabold text-gray-950">Identity Documents</h2>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <KycInput label="ID Proof Type" value={form.idProofType} disabled={!canEdit} onChange={(value) => updateForm("idProofType", value)} />
+              <KycInput label="ID Proof Number" value={form.idProofNumber} disabled={!canEdit} onChange={(value) => updateForm("idProofNumber", value)} />
+              <FileField label="Upload ID Proof" disabled={!canEdit} onFileChange={(file) => updateFile("idProofImage", file)} />
+              <KycInput label="PAN Number optional" value={form.panNumber} disabled={!canEdit} onChange={(value) => updateForm("panNumber", value)} />
+              <FileField label="Upload PAN optional" disabled={!canEdit} onFileChange={(file) => updateFile("panImage", file)} />
+              <KycInput label="GST Number optional" value={form.gstNumber} disabled={!canEdit} onChange={(value) => updateForm("gstNumber", value)} />
+              <FileField label="Upload GST Certificate optional" disabled={!canEdit} onFileChange={(file) => updateFile("gstCertificate", file)} />
+            </div>
+          </section>
 
-          <KycCard
-            icon={<FaIdCard />}
-            title="Aadhaar Card"
-            numberLabel="Aadhaar Card No."
-            numberValue={form.aadhaarCardNo}
-            numberPlaceholder="Enter Aadhaar card number"
-            onNumberChange={(value) => updateForm("aadhaarCardNo", value)}
-            fileLabel="Upload Aadhaar Card Pic/PDF"
-            onFileChange={(file) => updateFile("aadhaarCardFile", file)}
-          />
+          <section className="rounded-lg border border-green-100 bg-green-50 p-4">
+            <div className="mb-3 flex items-center gap-2 text-green-800">
+              <FaUniversity />
+              <h2 className="text-base font-extrabold text-gray-950">Bank Details</h2>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <KycInput label="Account Holder Name" value={form.bankAccountHolderName} disabled={!canEdit} onChange={(value) => updateForm("bankAccountHolderName", value)} />
+              <KycInput label="Bank Name" value={form.bankName} disabled={!canEdit} onChange={(value) => updateForm("bankName", value)} />
+              <KycInput label="Account Number" value={form.accountNumber} disabled={!canEdit} onChange={(value) => updateForm("accountNumber", value)} />
+              <KycInput label="IFSC Code" value={form.ifscCode} disabled={!canEdit} onChange={(value) => updateForm("ifscCode", value)} />
+              <KycInput label="UPI ID optional" value={form.upiId} disabled={!canEdit} onChange={(value) => updateForm("upiId", value)} />
+            </div>
+          </section>
+
+          {form.roleType === "grower" && (
+            <section className="rounded-lg border border-green-100 bg-green-50 p-4">
+              <h2 className="mb-3 text-base font-extrabold text-gray-950">Grower Details</h2>
+              <div className="grid gap-3 md:grid-cols-2">
+                <KycInput label="Orchard Name optional" value={form.orchardName} disabled={!canEdit} onChange={(value) => updateForm("orchardName", value)} />
+                <KycInput label="Orchard Location optional" value={form.orchardLocation} disabled={!canEdit} onChange={(value) => updateForm("orchardLocation", value)} />
+              </div>
+            </section>
+          )}
+
+          {form.roleType === "driver" && (
+            <section className="rounded-lg border border-green-100 bg-green-50 p-4">
+              <h2 className="mb-3 text-base font-extrabold text-gray-950">Driver Details</h2>
+              <div className="grid gap-3 md:grid-cols-2">
+                <KycInput label="Vehicle Number" value={form.vehicleNumber} disabled={!canEdit} onChange={(value) => updateForm("vehicleNumber", value)} />
+                <KycInput label="Driving License Number" value={form.drivingLicenseNumber} disabled={!canEdit} onChange={(value) => updateForm("drivingLicenseNumber", value)} />
+                <FileField label="Upload Driving License" disabled={!canEdit} onFileChange={(file) => updateFile("drivingLicenseImage", file)} />
+              </div>
+            </section>
+          )}
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full rounded-md bg-green-700 py-3 text-sm font-extrabold text-white hover:bg-green-800 disabled:bg-gray-300"
+            disabled={loading || !canEdit}
+            className="w-full rounded-md bg-green-700 py-3 text-sm font-extrabold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-300"
           >
-            {loading ? "Submitting..." : "Submit KYC"}
+            {loading ? "Submitting..." : canEdit ? "Submit KYC" : "KYC Locked"}
           </button>
         </form>
       </section>
@@ -164,77 +276,58 @@ export default function Kyc() {
   );
 }
 
-function KycCard({
-  icon,
-  title,
-  numberLabel,
-  numberValue,
-  numberPlaceholder,
-  onNumberChange,
-  extraLabel,
-  extraValue,
-  extraPlaceholder,
-  onExtraChange,
-  fileLabel,
-  onFileChange,
-}) {
-  const [fileName, setFileName] = useState("");
-
+function SelectField({ label, value, options, disabled, onChange }) {
   return (
-    <section className="rounded-lg border border-green-100 bg-green-50 p-4">
-      <div className="mb-3 flex items-center gap-2 text-green-800">
-        <span className="text-xl">{icon}</span>
-        <h2 className="text-base font-extrabold text-gray-950">{title}</h2>
-      </div>
-      <div className="grid gap-3">
-        <KycInput
-          label={numberLabel}
-          value={numberValue}
-          placeholder={numberPlaceholder}
-          onChange={onNumberChange}
-        />
-        {extraLabel && (
-          <KycInput
-            label={extraLabel}
-            value={extraValue}
-            placeholder={extraPlaceholder}
-            onChange={onExtraChange}
-          />
-        )}
-        <label className="block">
-          <span className="text-sm font-bold text-gray-800">{fileLabel}</span>
-          <span className="mt-1 flex items-center gap-2 rounded-md border border-dashed border-green-300 bg-white px-3 py-3 text-sm font-semibold text-gray-600">
-            <FaFileUpload className="text-green-700" />
-            <span className="min-w-0 flex-1 truncate">
-              {fileName || "Choose image or PDF"}
-            </span>
-            {fileName && <FaCheckCircle className="text-green-700" />}
-            <input
-              type="file"
-              accept="image/*,.pdf,application/pdf"
-              className="hidden"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                setFileName(file?.name || "");
-                onFileChange(file);
-              }}
-            />
-          </span>
-        </label>
-      </div>
-    </section>
+    <label className="block">
+      <span className="text-sm font-bold text-gray-800">{label}</span>
+      <select
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-1 w-full rounded-md border border-green-100 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-green-700 disabled:bg-gray-100"
+      >
+        {options.map(([optionValue, labelText]) => (
+          <option key={optionValue} value={optionValue}>{labelText}</option>
+        ))}
+      </select>
+    </label>
   );
 }
 
-function KycInput({ label, value, placeholder, onChange }) {
+function FileField({ label, disabled, onFileChange }) {
+  const [fileName, setFileName] = useState("");
+  return (
+    <label className="block">
+      <span className="text-sm font-bold text-gray-800">{label}</span>
+      <span className="mt-1 flex items-center gap-2 rounded-md border border-dashed border-green-300 bg-white px-3 py-3 text-sm font-semibold text-gray-600">
+        <FaFileUpload className="text-green-700" />
+        <span className="min-w-0 flex-1 truncate">{fileName || "Choose image or PDF"}</span>
+        {fileName && <FaCheckCircle className="text-green-700" />}
+        <input
+          type="file"
+          disabled={disabled}
+          accept="image/*,.pdf,application/pdf"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            setFileName(file?.name || "");
+            onFileChange(file);
+          }}
+        />
+      </span>
+    </label>
+  );
+}
+
+function KycInput({ label, value, disabled, onChange }) {
   return (
     <label className="block">
       <span className="text-sm font-bold text-gray-800">{label}</span>
       <input
         value={value}
-        placeholder={placeholder}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1 w-full rounded-md border border-green-100 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-green-700"
+        className="mt-1 w-full rounded-md border border-green-100 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-green-700 disabled:bg-gray-100"
       />
     </label>
   );

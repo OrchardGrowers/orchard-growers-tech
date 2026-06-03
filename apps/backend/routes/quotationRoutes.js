@@ -13,7 +13,7 @@ import {
 const router = express.Router();
 
 const hasCompletedKyc = (user = {}) =>
-  ["COMPLETED", "APPROVED"].includes(String(user?.kyc?.status || "").toUpperCase());
+  String(user?.kyc?.status || "").toUpperCase() === "APPROVED";
 
 const getProfileTypes = (user = {}) => {
   const profiles = new Set(Array.isArray(user.profileTypes) ? user.profileTypes : []);
@@ -76,7 +76,12 @@ router.post("/lots/:lotId", protect, authorize("buyer"), async (req, res) => {
     }
 
     if (!hasCompletedKyc(buyer)) {
-      return res.status(403).json({ msg: "Complete KYC before quoting" });
+      return res.status(403).json({
+        success: false,
+        code: "KYC_REQUIRED",
+        message: "KYC approval is required before placing a quote.",
+        msg: "KYC approval is required before placing a quote.",
+      });
     }
 
     if (!product.createdBy) {

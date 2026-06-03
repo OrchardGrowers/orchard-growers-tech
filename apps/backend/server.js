@@ -18,6 +18,7 @@ import billdeskRoutes from "./routes/billdeskRoutes.js";
 import cashfreeRoutes from "./routes/cashfreeRoutes.js";
 import mandiRatesRoutes from "./routes/mandiRatesRoutes.js";
 import verificationRoutes from "./routes/verificationRoutes.js";
+import kycRoutes from "./routes/kycRoutes.js";
 import hsnRoutes from "./routes/hsnRoutes.js";
 import debugRoutes from "./routes/debugRoutes.js";
 import logisticsRoutes from "./routes/logisticsRoutes.js";
@@ -177,6 +178,7 @@ app.use("/api/billdesk", billdeskRoutes);
 app.use("/api/payments/cashfree", cashfreeRoutes);
 app.use("/api/mandi-rates", mandiRatesRoutes);
 app.use("/api/verification-requests", verificationRoutes);
+app.use("/api/kyc", kycRoutes);
 app.use("/api/hsn", hsnRoutes);
 app.use("/api/debug", debugRoutes);
 app.use("/api/logistics", logisticsRoutes);
@@ -328,7 +330,10 @@ io.on("connection", (socket) => {
 
       if (dealBuyer.kyc?.status !== "APPROVED") {
         socket.emit("dealRejected", {
-          msg: "Complete KYC authority verification before starting fruit trading.",
+          success: false,
+          code: "KYC_REQUIRED",
+          message: "KYC approval is required before placing a quote.",
+          msg: "KYC approval is required before placing a quote.",
         });
         return;
       }
@@ -408,7 +413,10 @@ io.on("connection", (socket) => {
 
       if (dealBuyer.kyc?.status !== "APPROVED") {
         socket.emit("dealRejected", {
-          msg: "Complete KYC authority verification before starting fruit trading.",
+          success: false,
+          code: "KYC_REQUIRED",
+          message: "KYC approval is required before placing a quote.",
+          msg: "KYC approval is required before placing a quote.",
         });
         return;
       }

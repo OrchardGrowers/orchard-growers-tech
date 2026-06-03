@@ -81,6 +81,8 @@ function App() {
             <Route path="/list-new-lot" element={<ListNewLot />} />
             <Route path="/get-verified" element={<GetVerified />} />
             <Route path="/kyc" element={<Kyc />} />
+            <Route path="/kyc/status" element={<Kyc />} />
+            <Route path="/profile/kyc" element={<Kyc />} />
             <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
             <Route path="/privacy-policy" element={<PolicyPage type="privacy" />} />
             <Route path="/terms-of-service" element={<PolicyPage type="terms" />} />

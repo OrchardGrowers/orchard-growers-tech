@@ -1,5 +1,6 @@
 import Product from "../models/Product.js";
 import Auction from "../models/Auction.js";
+import Quotation from "../models/Quotation.js";
 import User from "../models/User.js";
 import {
   getResourceType,
@@ -102,7 +103,7 @@ const requiresOrganicCertificate = (quality = "") =>
   ORGANIC_CERTIFIED_QUALITIES.has(String(quality || "").trim().toLowerCase());
 
 const hasCompletedKyc = (user = {}) =>
-  ["COMPLETED", "APPROVED"].includes(String(user?.kyc?.status || "").toUpperCase());
+  String(user?.kyc?.status || "").toUpperCase() === "APPROVED";
 
 const requireCompletedKyc = async (userId) => {
   const user = await User.findById(userId).select("kyc");
@@ -576,23 +577,14 @@ export const deleteProduct = async (req, res) => {
       return res.status(403).json({ msg: "You can delete only your own listing" });
     }
 
-    const linkedAuction = await Auction.findOne({
-      product: product._id,
-      status: { $in: ["SCHEDULED", "ACTIVE"] },
-    });
-
-    if (linkedAuction) {
+    if (product.status === "SOLD") {
       return res.status(400).json({
-        msg: "This lot is already sent to market and cannot be deleted",
+        msg: "This lot cannot be deleted after deal confirmation",
       });
     }
 
-    if (["IN_AUCTION", "SOLD"].includes(product.status)) {
-      return res.status(400).json({
-        msg: "This lot cannot be deleted after market confirmation",
-      });
-    }
-
+    await Auction.deleteMany({ product: product._id });
+    await Quotation.deleteMany({ lot: product._id });
     await product.deleteOne();
 
     res.json({ msg: "Listing deleted successfully" });

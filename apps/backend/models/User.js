@@ -101,6 +101,16 @@ const userSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    buyerLocation: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    buyerPinCode: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     designation: {
       type: String,
       trim: true,
@@ -246,6 +256,35 @@ const userSchema = new mongoose.Schema(
     },
 
     kyc: {
+      roleType: {
+        type: String,
+        enum: ["buyer", "grower", "driver", ""],
+        default: "",
+      },
+      fullName: { type: String, trim: true, default: "" },
+      phone: { type: String, trim: true, default: "" },
+      email: { type: String, lowercase: true, trim: true, default: "" },
+      address: { type: String, trim: true, default: "" },
+      district: { type: String, trim: true, default: "" },
+      state: { type: String, trim: true, default: "" },
+      pinCode: { type: String, trim: true, default: "" },
+      idProofType: { type: String, trim: true, default: "" },
+      idProofNumber: { type: String, trim: true, default: "" },
+      idProofImage: { type: String, trim: true, default: "" },
+      panNumber: { type: String, uppercase: true, trim: true, default: "" },
+      panImage: { type: String, trim: true, default: "" },
+      gstNumber: { type: String, uppercase: true, trim: true, default: "" },
+      gstCertificate: { type: String, trim: true, default: "" },
+      bankAccountHolderName: { type: String, trim: true, default: "" },
+      bankName: { type: String, trim: true, default: "" },
+      accountNumber: { type: String, trim: true, default: "" },
+      ifscCode: { type: String, uppercase: true, trim: true, default: "" },
+      upiId: { type: String, trim: true, default: "" },
+      orchardName: { type: String, trim: true, default: "" },
+      orchardLocation: { type: String, trim: true, default: "" },
+      vehicleNumber: { type: String, uppercase: true, trim: true, default: "" },
+      drivingLicenseNumber: { type: String, uppercase: true, trim: true, default: "" },
+      drivingLicenseImage: { type: String, trim: true, default: "" },
       udyanCardNo: { type: String, uppercase: true, trim: true, default: "" },
       udyanCardFileUrl: { type: String, trim: true, default: "" },
       bankAccountNo: { type: String, trim: true, default: "" },
@@ -255,9 +294,10 @@ const userSchema = new mongoose.Schema(
       aadhaarCardFileUrl: { type: String, trim: true, default: "" },
       status: {
         type: String,
-        enum: ["NOT_SUBMITTED", "COMPLETED", "APPROVED", "REJECTED"],
+        enum: ["NOT_SUBMITTED", "PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED", "CORRECTION_REQUIRED", "COMPLETED"],
         default: "NOT_SUBMITTED",
       },
+      adminRemarks: { type: String, trim: true, default: "" },
       adminReviews: [
         {
           admin: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
@@ -267,7 +307,7 @@ const userSchema = new mongoose.Schema(
           },
           action: {
             type: String,
-            enum: ["APPROVE", "REJECT"],
+            enum: ["APPROVE", "REJECT", "UNDER_REVIEW", "CORRECTION_REQUIRED"],
           },
           note: String,
           reviewedAt: { type: Date, default: Date.now },
@@ -276,7 +316,13 @@ const userSchema = new mongoose.Schema(
       decidedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
       decidedAt: { type: Date },
       submittedAt: { type: Date },
+      reviewedAt: { type: Date },
+      reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
     },
+
+    buyerVerified: { type: Boolean, default: false },
+    growerVerified: { type: Boolean, default: false },
+    driverVerified: { type: Boolean, default: false },
 
     profileImpressions: {
       type: Number,

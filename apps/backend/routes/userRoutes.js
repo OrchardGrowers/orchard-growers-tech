@@ -41,6 +41,10 @@ router.patch(
     { name: "udyanCardFile", maxCount: 1 },
     { name: "passbookFile", maxCount: 1 },
     { name: "aadhaarCardFile", maxCount: 1 },
+    { name: "idProofImage", maxCount: 1 },
+    { name: "panImage", maxCount: 1 },
+    { name: "gstCertificate", maxCount: 1 },
+    { name: "drivingLicenseImage", maxCount: 1 },
   ]),
   updateKyc
 );

@@ -54,6 +54,8 @@ export const setUserRole = async (req, res) => {
       orchardName,
       businessName,
       buyerContactPerson,
+      buyerLocation,
+      buyerPinCode,
       designation,
       gstNumber,
       tradeLicenseNumber,
@@ -143,7 +145,9 @@ export const setUserRole = async (req, res) => {
     }
 
     if (role === "buyer") {
-      if (!businessName || !buyerContactPerson || !location || !contact) {
+      const nextBuyerLocation = buyerLocation || location;
+      const nextBuyerPinCode = buyerPinCode || pinCode;
+      if (!businessName || !buyerContactPerson || !nextBuyerLocation || !contact) {
         return res.status(400).json({
           msg: "Company name, contact person, location, and contact number are required",
         });
@@ -159,6 +163,8 @@ export const setUserRole = async (req, res) => {
       user.role = user.role || role;
       user.businessName = businessName.trim();
       user.buyerContactPerson = buyerContactPerson.trim();
+      user.buyerLocation = nextBuyerLocation.trim();
+      if (nextBuyerPinCode) user.buyerPinCode = nextBuyerPinCode.trim();
       if (designation) user.designation = designation.trim();
       user.contact = verifiedPhone.value;
       if (gstNumber) user.gstNumber = gstNumber.trim();
@@ -239,6 +245,33 @@ export const getProfile = async (req, res) => {
 
     res.json(user);
 
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+export const getMyKyc = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("-password -__v");
+    if (!user) return res.status(404).json({ msg: "User not found" });
+
+    res.json({
+      success: true,
+      user: {
+        _id: user._id,
+        name: user.name,
+        phone: user.phone || user.contact,
+        email: user.email,
+        role: user.role,
+        profileTypes: user.profileTypes || [],
+        orchardName: user.orchardName,
+        businessName: user.businessName,
+        logisticsName: user.logisticsName,
+        location: user.location,
+        pinCode: user.pinCode,
+      },
+      kyc: user.kyc || {},
+    });
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }
@@ -432,24 +465,69 @@ export const updateProfileMedia = async (req, res) => {
 // ================= UPDATE KYC =================
 export const updateKyc = async (req, res) => {
   try {
-    const existingUser = await User.findById(req.user.id).select("kyc");
+    const existingUser = await User.findById(req.user.id).select("-password -__v");
 
     if (!existingUser) {
       return res.status(404).json({ msg: "User not found" });
     }
 
     const existingKyc = existingUser.kyc?.toObject?.() || {};
+    if (existingKyc.status === "APPROVED") {
+      return res.status(400).json({ msg: "KYC already approved." });
+    }
+
+    if (
+      ["PENDING", "UNDER_REVIEW", "COMPLETED"].includes(existingKyc.status) &&
+      !["REJECTED", "CORRECTION_REQUIRED"].includes(existingKyc.status) &&
+      Object.keys(existingKyc).some((key) => existingKyc[key])
+    ) {
+      return res.status(400).json({ msg: "Only rejected or correction-required KYC can be edited." });
+    }
+
     const udyanCardFile = req.files?.udyanCardFile?.[0];
     const passbookFile = req.files?.passbookFile?.[0];
     const aadhaarCardFile = req.files?.aadhaarCardFile?.[0];
+    const idProofImage = req.files?.idProofImage?.[0] || aadhaarCardFile;
+    const panImage = req.files?.panImage?.[0];
+    const gstCertificate = req.files?.gstCertificate?.[0];
+    const drivingLicenseImage = req.files?.drivingLicenseImage?.[0];
     const uploadKycFile = (file) =>
       uploadBufferToCloudinary(file, {
         folder: "efruitmandi/kyc",
         resourceType: getResourceType(file),
       });
+    const roleTypes = new Set(getUserProfileTypes(existingUser));
+    const requestedRoleType = String(req.body.roleType || existingKyc.roleType || existingUser.role || "").trim().toLowerCase();
+    const roleType = ["buyer", "grower", "driver"].includes(requestedRoleType)
+      ? requestedRoleType
+      : roleTypes.has("grower")
+        ? "grower"
+        : roleTypes.has("driver")
+          ? "driver"
+          : "buyer";
 
     const kyc = {
       ...existingKyc,
+      roleType,
+      fullName: String(req.body.fullName || existingKyc.fullName || existingUser.name || "").trim(),
+      phone: String(req.body.phone || existingKyc.phone || existingUser.contact || existingUser.phone || "").trim(),
+      email: String(req.body.email || existingKyc.email || existingUser.email || "").trim().toLowerCase(),
+      address: String(req.body.address || existingKyc.address || existingUser.location || "").trim(),
+      district: String(req.body.district || existingKyc.district || "").trim(),
+      state: String(req.body.state || existingKyc.state || "").trim(),
+      pinCode: String(req.body.pinCode || existingKyc.pinCode || existingUser.pinCode || "").trim(),
+      idProofType: String(req.body.idProofType || existingKyc.idProofType || "Aadhaar").trim(),
+      idProofNumber: String(req.body.idProofNumber || existingKyc.idProofNumber || req.body.aadhaarCardNo || existingKyc.aadhaarCardNo || "").trim(),
+      panNumber: String(req.body.panNumber || existingKyc.panNumber || "").trim().toUpperCase(),
+      gstNumber: String(req.body.gstNumber || existingKyc.gstNumber || existingUser.gstNumber || "").trim().toUpperCase(),
+      bankAccountHolderName: String(req.body.bankAccountHolderName || existingKyc.bankAccountHolderName || existingUser.name || "").trim(),
+      bankName: String(req.body.bankName || existingKyc.bankName || "").trim(),
+      accountNumber: String(req.body.accountNumber || existingKyc.accountNumber || req.body.bankAccountNo || existingKyc.bankAccountNo || "").trim(),
+      upiId: String(req.body.upiId || existingKyc.upiId || "").trim(),
+      orchardName: String(req.body.orchardName || existingKyc.orchardName || existingUser.orchardName || "").trim(),
+      orchardLocation: String(req.body.orchardLocation || existingKyc.orchardLocation || existingUser.location || "").trim(),
+      vehicleNumber: String(req.body.vehicleNumber || existingKyc.vehicleNumber || existingUser.vehicleNumber || "").trim().toUpperCase(),
+      drivingLicenseNumber: String(req.body.drivingLicenseNumber || existingKyc.drivingLicenseNumber || existingUser.licenseNumber || "").trim().toUpperCase(),
       udyanCardNo: String(req.body.udyanCardNo || existingKyc.udyanCardNo || "")
         .trim()
         .toUpperCase(),
@@ -458,22 +536,35 @@ export const updateKyc = async (req, res) => {
         .trim()
         .toUpperCase(),
       aadhaarCardNo: String(req.body.aadhaarCardNo || existingKyc.aadhaarCardNo || "").trim(),
-      status: "COMPLETED",
+      status: "PENDING",
+      adminRemarks: "",
       submittedAt: new Date(),
     };
 
     if (udyanCardFile) kyc.udyanCardFileUrl = (await uploadKycFile(udyanCardFile)).secure_url;
     if (passbookFile) kyc.passbookFileUrl = (await uploadKycFile(passbookFile)).secure_url;
     if (aadhaarCardFile) kyc.aadhaarCardFileUrl = (await uploadKycFile(aadhaarCardFile)).secure_url;
+    if (idProofImage) kyc.idProofImage = (await uploadKycFile(idProofImage)).secure_url;
+    if (panImage) kyc.panImage = (await uploadKycFile(panImage)).secure_url;
+    if (gstCertificate) kyc.gstCertificate = (await uploadKycFile(gstCertificate)).secure_url;
+    if (drivingLicenseImage) kyc.drivingLicenseImage = (await uploadKycFile(drivingLicenseImage)).secure_url;
 
     const missingKycDetails = [
-      !kyc.udyanCardNo && "Udyan card number",
-      !kyc.udyanCardFileUrl && "Udyan card file",
-      !kyc.bankAccountNo && "Bank account number",
+      !kyc.roleType && "role type",
+      !kyc.fullName && "full name",
+      !kyc.phone && "phone",
+      !kyc.address && "address",
+      !kyc.pinCode && "PIN code",
+      !kyc.idProofType && "ID proof type",
+      !kyc.idProofNumber && "ID proof number",
+      !kyc.idProofImage && "ID proof image",
+      !kyc.accountNumber && "bank account number",
       !kyc.ifscCode && "IFSC code",
-      !kyc.passbookFileUrl && "Passbook file",
-      !kyc.aadhaarCardNo && "Aadhaar card number",
-      !kyc.aadhaarCardFileUrl && "Aadhaar card file",
+      !kyc.bankAccountHolderName && "bank account holder name",
+      !kyc.bankName && "bank name",
+      roleType === "driver" && !kyc.vehicleNumber && "vehicle number",
+      roleType === "driver" && !kyc.drivingLicenseNumber && "driving license number",
+      roleType === "driver" && !kyc.drivingLicenseImage && "driving license image",
     ].filter(Boolean);
 
     if (missingKycDetails.length) {

@@ -16,6 +16,7 @@ import {
   listUsers,
   listVerificationRequests,
   listKycRequests,
+  getKycRequestByAdmin,
   listOrders,
   loginAdmin,
   requestAdminPasswordReset,
@@ -32,6 +33,7 @@ import {
   terminateAdmin,
   updateAdmin,
   updateOrderLogistics,
+  updateKycStatusByAdmin,
   updateProductByAdmin,
   updateUserByAdmin,
   updateVerificationRequestByAdmin,
@@ -175,6 +177,9 @@ router.patch("/verification-requests/:id", ...adminOnly, requireRoles(...VERIFIC
 router.post("/verification-requests/:id/review", ...adminOnly, requireRoles(...VERIFICATION_WRITE_ROLES), wrapAsync(reviewVerificationRequest));
 router.get("/kyc-requests", ...adminOnly, requireRoles(...VERIFICATION_READ_ROLES), wrapAsync(listKycRequests));
 router.post("/kyc-requests/:userId/review", ...adminOnly, requireRoles(...VERIFICATION_WRITE_ROLES), wrapAsync(reviewKycRequest));
+router.get("/kyc", ...adminOnly, requireRoles(...VERIFICATION_READ_ROLES), wrapAsync(listKycRequests));
+router.get("/kyc/:id", ...adminOnly, requireRoles(...VERIFICATION_READ_ROLES), wrapAsync(getKycRequestByAdmin));
+router.patch("/kyc/:id/status", ...adminOnly, requireRoles(...VERIFICATION_WRITE_ROLES), wrapAsync(updateKycStatusByAdmin));
 router.get("/orders", ...adminOnly, requireRoles(...ORDER_READ_ROLES), wrapAsync(listOrders));
 router.patch("/orders/:id/logistics", ...adminOnly, requireRoles(...ORDER_READ_ROLES), wrapAsync(updateOrderLogistics));
 

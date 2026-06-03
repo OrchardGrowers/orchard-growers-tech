@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { FaArrowLeft, FaCalculator, FaMapMarkerAlt, FaSeedling, FaVideo } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
-import { getCurrentUser, hasBuyerProfile, hasCompletedKyc } from "../utils/auth";
+import { canQuote, getCurrentUser, getKycStatusLabel, hasBuyerProfile } from "../utils/auth";
 import { saveUserToStorage } from "../utils/userStorage";
 
 export default function QuotePrice() {
@@ -11,7 +11,8 @@ export default function QuotePrice() {
   const user = getCurrentUser();
   const [profileUser, setProfileUser] = useState(user);
   const isBuyer = hasBuyerProfile(profileUser);
-  const isKycCompleted = hasCompletedKyc(profileUser);
+  const isKycApproved = canQuote(profileUser);
+  const kycStatusLabel = getKycStatusLabel(profileUser);
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState(null);
@@ -24,6 +25,11 @@ export default function QuotePrice() {
   useEffect(() => {
     const loadLot = async () => {
       try {
+        if (!localStorage.getItem("accessToken")) {
+          navigate("/profile", { state: { mode: "login", from: `/lots/${lotId}/quote` } });
+          return;
+        }
+
         const [lotRes, profileRes] = await Promise.all([
           API.get(`/products/${lotId}?platform=efruitmandi`),
           API.get("/user/profile").catch(() => ({ data: user })),
@@ -84,7 +90,7 @@ export default function QuotePrice() {
       setQuotation(res.data?.quotation || null);
       setMessage("Quote submitted. The grower will see only the final receivable amount.");
     } catch (err) {
-      setMessage(err.response?.data?.msg || "Quote could not be submitted.");
+      setMessage(err.response?.data?.message || err.response?.data?.msg || "Quote could not be submitted.");
     } finally {
       setSaving(false);
     }
@@ -144,11 +150,14 @@ export default function QuotePrice() {
             </button>
           </div>
         </section>
-      ) : !isKycCompleted ? (
+      ) : !isKycApproved ? (
         <section className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-4">
-          <h2 className="text-lg font-extrabold text-amber-950">Complete KYC before quoting</h2>
+          <h2 className="text-lg font-extrabold text-amber-950">Complete Your KYC to Quote Your Price</h2>
           <p className="mt-2 text-sm font-bold leading-6 text-amber-800">
-            Fruit buyers must submit KYC before quoting prices for grower lots.
+            To keep eFruitMandi safe and trusted, KYC verification is required before placing a quote or deal. Please complete your KYC and wait for admin approval.
+          </p>
+          <p className="mt-2 rounded-md bg-white px-3 py-2 text-sm font-extrabold text-amber-900">
+            Current KYC status: {kycStatusLabel}
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <button

@@ -3,6 +3,7 @@ import Auction from "../models/Auction.js";
 import Product from "../models/Product.js";
 import Order from "../models/Order.js";
 import DealSettings from "../models/DealSettings.js";
+import User from "../models/User.js";
 import protect, { authorize, optionalProtect } from "../middleware/authMiddleware.js";
 import {
   buildGradeQuantitiesFromProduct,
@@ -39,6 +40,21 @@ const canSeeProductBasePrice = (product, user) =>
 const canSeeBuyerDealBreakdown = (auction, user) => {
   const bidderId = auction?.highestBidder?._id || auction?.highestBidder;
   return user?.role === "SUPER_ADMIN" || bidderId?.toString() === user?.id?.toString();
+};
+
+const kycRequiredResponse = (res) =>
+  res.status(403).json({
+    success: false,
+    code: "KYC_REQUIRED",
+    message: "KYC approval is required before placing a quote.",
+    msg: "KYC approval is required before placing a quote.",
+  });
+
+const requireApprovedKyc = async (userId, role) => {
+  const user = await User.findById(userId).select("kyc role profileTypes buyerVerified growerVerified");
+  if (!user) return false;
+  const verifiedFlag = role === "buyer" ? user.buyerVerified : role === "grower" ? user.growerVerified : false;
+  return Boolean(verifiedFlag) || String(user.kyc?.status || "").toUpperCase() === "APPROVED";
 };
 
 const loadDealSettings = async () =>
@@ -101,6 +117,10 @@ router.post("/", protect, authorize("grower"), async (req, res) => {
 
     console.log("Incoming product:", product);
 
+    if (!(await requireApprovedKyc(req.user.id, "grower"))) {
+      return kycRequiredResponse(res);
+    }
+
     const productExists = await Product.findById(product);
 
     if (!productExists) {
@@ -149,6 +169,10 @@ router.post("/", protect, authorize("grower"), async (req, res) => {
 router.post("/:id/calculate", protect, authorize("buyer"), async (req, res) => {
   try {
     const { baseRate, distanceKm = 0 } = req.body;
+    if (!(await requireApprovedKyc(req.user.id, "buyer"))) {
+      return kycRequiredResponse(res);
+    }
+
     const auction = await Auction.findById(req.params.id).populate("product");
 
     if (!auction) {

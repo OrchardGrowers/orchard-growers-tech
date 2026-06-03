@@ -151,6 +151,7 @@ export default function Profile() {
   const navigate = useNavigate();
   const location = useLocation();
   const initialMode = location.state?.mode === "signup" ? "signup" : "login";
+  const returnTo = location.state?.from || "/profile-dashboard";
   const [mode, setMode] = useState(initialMode);
   const [loginForm, setLoginForm] = useState(initialLogin);
   const [signupForm, setSignupForm] = useState(initialSignup);
@@ -572,11 +573,11 @@ export default function Profile() {
       saveSession(res.data);
 
       if (!res.data.user?.role) {
-        navigate("/profile-dashboard");
+        navigate(returnTo);
         return;
       }
 
-      navigate("/profile-dashboard");
+      navigate(returnTo);
     } catch (err) {
       showError(err.response?.data?.msg || "Login failed. Please try again.");
     } finally {
@@ -622,7 +623,7 @@ export default function Profile() {
       });
 
       saveSession(registerRes.data);
-      navigate("/profile-dashboard");
+      navigate(returnTo);
     } catch (err) {
       showError(err.response?.data?.msg || "Signup failed. Please try again.");
     } finally {

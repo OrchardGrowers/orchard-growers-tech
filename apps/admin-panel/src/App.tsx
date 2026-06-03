@@ -144,8 +144,37 @@ type KycUser = {
   role?: string;
   businessName?: string;
   orchardName?: string;
+  logisticsName?: string;
+  buyerVerified?: boolean;
+  growerVerified?: boolean;
+  driverVerified?: boolean;
   isVerified?: boolean;
   kyc?: {
+    roleType?: string;
+    fullName?: string;
+    phone?: string;
+    email?: string;
+    address?: string;
+    district?: string;
+    state?: string;
+    pinCode?: string;
+    idProofType?: string;
+    idProofNumber?: string;
+    idProofImage?: string;
+    panNumber?: string;
+    panImage?: string;
+    gstNumber?: string;
+    gstCertificate?: string;
+    bankAccountHolderName?: string;
+    bankName?: string;
+    accountNumber?: string;
+    upiId?: string;
+    orchardName?: string;
+    orchardLocation?: string;
+    vehicleNumber?: string;
+    drivingLicenseNumber?: string;
+    drivingLicenseImage?: string;
+    adminRemarks?: string;
     udyanCardNo?: string;
     udyanCardFileUrl?: string;
     bankAccountNo?: string;
@@ -240,7 +269,7 @@ type AdminTab =
   | 'systemSettings'
   | 'downloadApp';
 type OrchardModulePages = Partial<Record<AdminTab, string>>;
-type ReviewAction = 'APPROVE' | 'REJECT' | 'HOLD' | 'SUSPEND' | 'TERMINATE';
+type ReviewAction = 'APPROVE' | 'REJECT' | 'UNDER_REVIEW' | 'CORRECTION_REQUIRED' | 'HOLD' | 'SUSPEND' | 'TERMINATE';
 type UploadedFile = { label: string; path?: string; fileName?: string };
 type AdminProduct = {
   _id: string;
@@ -1514,10 +1543,20 @@ function App() {
       type === 'kyc'
         ? `${API_BASE}/admin/kyc-requests/${id}/review`
         : `${API_BASE}/admin/verification-requests/${id}/review`;
+    const note =
+      type === 'kyc' && ['REJECT', 'CORRECTION_REQUIRED'].includes(action)
+        ? window.prompt('Admin remarks are required', '')
+        : '';
+
+    if (type === 'kyc' && ['REJECT', 'CORRECTION_REQUIRED'].includes(action) && !note?.trim()) {
+      setMessage('Admin remarks are required for rejection or correction.');
+      return;
+    }
+
     const res = await fetch(path, {
       method: 'POST',
       headers: authHeaders,
-      body: JSON.stringify({ action }),
+      body: JSON.stringify({ action, note }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -1939,7 +1978,9 @@ function App() {
     );
   }
 
-  const pendingKycCount = kycRequests.filter((user) => user.kyc?.status === 'COMPLETED').length;
+  const pendingKycCount = kycRequests.filter((user) =>
+    ['PENDING', 'COMPLETED', 'UNDER_REVIEW', 'CORRECTION_REQUIRED'].includes(String(user.kyc?.status || '').toUpperCase())
+  ).length;
   const pendingVerificationCount = verificationRequests.filter(
     (request) => request.status === 'SUBMITTED'
   ).length;
@@ -3496,11 +3537,47 @@ function KycVerificationPanel({
   onEditVerification: (request: VerificationRequest) => void;
   onViewFile: (file: UploadedFile) => void;
 }) {
+  const [filter, setFilter] = useState('all');
+  const normalizedFilter = filter.toLowerCase();
+  const filteredKycRequests = kycRequests.filter((user) => {
+    const status = String(user.kyc?.status || '').toLowerCase();
+    const roleType = String(user.kyc?.roleType || user.role || '').toLowerCase();
+    if (normalizedFilter === 'all') return true;
+    if (['buyer', 'grower', 'driver'].includes(normalizedFilter)) return roleType === normalizedFilter;
+    return status === normalizedFilter || (normalizedFilter === 'pending' && status === 'completed');
+  });
+
   return (
     <section className="space-y-4">
       <ModulePlanPanel plan={modulePlans.kyc} />
-      <RequestSection title="KYC Verification" count={kycRequests.length}>
-        {kycRequests.map((user) => (
+      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+        <p className="text-sm font-bold text-slate-300">KYC filters</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {[
+            ['all', 'All'],
+            ['pending', 'Pending'],
+            ['under_review', 'Under Review'],
+            ['approved', 'Approved'],
+            ['rejected', 'Rejected'],
+            ['correction_required', 'Correction Required'],
+            ['buyer', 'Buyer'],
+            ['grower', 'Grower'],
+            ['driver', 'Driver'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setFilter(value)}
+              className={`rounded-full px-3 py-1 text-xs font-bold ${
+                filter === value ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <RequestSection title="KYC Verification" count={filteredKycRequests.length}>
+        {filteredKycRequests.map((user) => (
           <KycRequestCard key={user._id} user={user} onReview={onReview} onViewFile={onViewFile} />
         ))}
       </RequestSection>
@@ -5150,7 +5227,9 @@ function NotificationsPanel({
   verificationRequests: VerificationRequest[];
   onOpenTab: (tab: AdminTab) => void;
 }) {
-  const pendingKyc = kycRequests.filter((user) => user.kyc?.status === 'COMPLETED');
+  const pendingKyc = kycRequests.filter((user) =>
+    ['PENDING', 'COMPLETED', 'UNDER_REVIEW', 'CORRECTION_REQUIRED'].includes(String(user.kyc?.status || '').toUpperCase())
+  );
   const pendingVerification = verificationRequests.filter((request) => request.status === 'SUBMITTED');
 
   return (
@@ -6374,32 +6453,54 @@ function KycRequestCard({
   onViewFile,
 }: {
   user: KycUser;
-  onReview: (type: 'kyc', id: string, action: 'APPROVE' | 'REJECT') => void;
+  onReview: (type: 'kyc', id: string, action: ReviewAction) => void;
   onViewFile: (file: UploadedFile) => void;
 }) {
   const kyc = user.kyc || {};
+  const roleType = kyc.roleType || user.role || 'user';
   return (
     <article className="rounded-xl border border-slate-800 bg-slate-950 p-4">
       <RequestHeader
-        title={user.businessName || user.orchardName || user.name || 'User'}
-        subtitle={`${user.role || 'user'} - ${user.email || user.phone || 'No contact'}`}
+        title={kyc.fullName || user.businessName || user.orchardName || user.logisticsName || user.name || 'User'}
+        subtitle={`${roleType} - ${kyc.email || user.email || kyc.phone || user.phone || 'No contact'}`}
         status={kyc.status || 'NOT_SUBMITTED'}
       />
       <div className="mt-4 grid gap-2 text-sm text-slate-300">
-        <Info label="Udyan Card No." value={kyc.udyanCardNo} />
-        <Info label="Bank A/C No." value={kyc.bankAccountNo} />
+        <Info label="Role Type" value={roleType} />
+        <Info label="Phone" value={kyc.phone || user.phone} />
+        <Info label="Email" value={kyc.email || user.email} />
+        <Info label="Address" value={kyc.address} />
+        <Info label="District / State" value={[kyc.district, kyc.state].filter(Boolean).join(', ')} />
+        <Info label="PIN Code" value={kyc.pinCode} />
+        <Info label="ID Proof" value={[kyc.idProofType, kyc.idProofNumber].filter(Boolean).join(' - ')} />
+        <Info label="PAN" value={kyc.panNumber} />
+        <Info label="GST" value={kyc.gstNumber} />
+        <Info label="Bank Holder" value={kyc.bankAccountHolderName} />
+        <Info label="Bank Name" value={kyc.bankName} />
+        <Info label="Bank A/C No." value={kyc.accountNumber || kyc.bankAccountNo} />
         <Info label="IFSC Code" value={kyc.ifscCode} />
-        <Info label="Aadhaar Card No." value={kyc.aadhaarCardNo} />
+        <Info label="UPI ID" value={kyc.upiId} />
+        <Info label="Orchard Name" value={kyc.orchardName || user.orchardName} />
+        <Info label="Orchard Location" value={kyc.orchardLocation} />
+        <Info label="Vehicle Number" value={kyc.vehicleNumber} />
+        <Info label="Driving License" value={kyc.drivingLicenseNumber} />
+        <Info label="Admin Remarks" value={kyc.adminRemarks} />
       </div>
       <UploadedFilesPanel
         onViewFile={onViewFile}
         files={[
-          { label: 'View Udyan Card Pic/PDF', path: kyc.udyanCardFileUrl },
-          { label: 'View Passbook Pic/PDF', path: kyc.passbookFileUrl },
-          { label: 'View Aadhaar Card Pic/PDF', path: kyc.aadhaarCardFileUrl },
+          { label: 'View ID Proof', path: kyc.idProofImage || kyc.aadhaarCardFileUrl },
+          { label: 'View PAN', path: kyc.panImage },
+          { label: 'View GST Certificate', path: kyc.gstCertificate },
+          { label: 'View Driving License', path: kyc.drivingLicenseImage },
         ]}
       />
-      <ReviewButtons onApprove={() => onReview('kyc', user._id, 'APPROVE')} onReject={() => onReview('kyc', user._id, 'REJECT')} />
+      <div className="mt-4 grid gap-2 md:grid-cols-4">
+        <AdminActionButton label="Under Review" onClick={() => onReview('kyc', user._id, 'UNDER_REVIEW')} />
+        <AdminActionButton label="Approve" onClick={() => onReview('kyc', user._id, 'APPROVE')} />
+        <AdminActionButton label="Correction Required" onClick={() => onReview('kyc', user._id, 'CORRECTION_REQUIRED')} />
+        <AdminActionButton label="Reject" onClick={() => onReview('kyc', user._id, 'REJECT')} danger />
+      </div>
     </article>
   );
 }

@@ -14,7 +14,8 @@ import {
 } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
 import CountdownTimer from "../components/CountdownTimer";
-import { getCurrentUser, hasBuyerProfile } from "../utils/auth";
+import { canQuote, getCurrentUser, hasBuyerProfile } from "../utils/auth";
+import { saveUserToStorage } from "../utils/userStorage";
 
 export default function LotDetails() {
   const { lotId } = useParams();
@@ -25,12 +26,20 @@ export default function LotDetails() {
   const [activeImage, setActiveImage] = useState("");
   const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
   const [imageZoom, setImageZoom] = useState(1);
-  const user = getCurrentUser();
+  const [user, setUser] = useState(() => getCurrentUser());
 
   useEffect(() => {
     const loadLot = async () => {
       try {
-        const res = await API.get(`/products/${lotId}?platform=efruitmandi`);
+        const [res, profileRes] = await Promise.all([
+          API.get(`/products/${lotId}?platform=efruitmandi`),
+          localStorage.getItem("accessToken")
+            ? API.get("/user/profile").catch(() => ({ data: getCurrentUser() }))
+            : Promise.resolve({ data: getCurrentUser() }),
+        ]);
+        const freshUser = profileRes.data || getCurrentUser();
+        setUser(freshUser);
+        saveUserToStorage(freshUser);
         const lot = res.data?.product || null;
         const linkedAuction = res.data?.auction || null;
 
@@ -60,8 +69,25 @@ export default function LotDetails() {
   const activeGradeLabel = getImageGradeLabel(product, activeImage);
   const openQuoteFlow = () => {
     const quotePath = `/lots/${product._id}/quote`;
+    if (!localStorage.getItem("accessToken")) {
+      navigate("/profile", { state: { mode: "login", from: quotePath } });
+      return;
+    }
+
     if (!hasBuyerProfile(user)) {
       navigate("/register-buyer", { state: { from: quotePath } });
+      return;
+    }
+
+    if (!canQuote(user)) {
+      navigate("/kyc", {
+        state: {
+          from: quotePath,
+          intent: "quote",
+          message:
+            "To keep eFruitMandi safe and trusted, KYC verification is required before placing a quote or deal. Please complete your KYC and wait for admin approval.",
+        },
+      });
       return;
     }
 

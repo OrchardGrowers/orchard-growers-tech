@@ -355,7 +355,8 @@ const getVarietiesForFruit = (fruitName) => {
 export default function ListNewLot() {
   const navigate = useNavigate();
   const location = useLocation();
-  const editProductId = location.state?.productId || "";
+  const queryParams = new URLSearchParams(location.search);
+  const editProductId = location.state?.productId || queryParams.get("edit") || "";
   const isEditMode = Boolean(editProductId);
   const [profileUser, setProfileUser] = useState(getCurrentUser());
   const isKycCompleted = hasCompletedKyc(profileUser);

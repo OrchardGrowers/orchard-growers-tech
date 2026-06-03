@@ -1885,13 +1885,27 @@ export const listKycRequests = async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const users = await User.find({
-    "kyc.status": { $in: ["COMPLETED", "APPROVED", "REJECTED"] },
+    "kyc.status": { $in: ["PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED", "CORRECTION_REQUIRED", "COMPLETED"] },
   })
     .select("-password -__v")
     .populate("kyc.adminReviews.admin", "name email role")
     .sort({ "kyc.submittedAt": -1, createdAt: -1 });
 
   res.json(users);
+};
+
+export const getKycRequestByAdmin = async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const user = await User.findById(req.params.id)
+    .select("-password -__v")
+    .populate("kyc.adminReviews.admin", "name email role");
+
+  if (!user || !user.kyc || user.kyc.status === "NOT_SUBMITTED") {
+    return res.status(404).json({ msg: "KYC request not found" });
+  }
+
+  res.json(user);
 };
 
 export const listOrders = async (req, res) => {
@@ -1944,14 +1958,18 @@ export const reviewKycRequest = async (req, res) => {
   if (!currentAdmin) return;
 
   const action = String(req.body.action || "").toUpperCase();
-  if (!["APPROVE", "REJECT"].includes(action)) {
+  if (!["APPROVE", "REJECT", "UNDER_REVIEW", "CORRECTION_REQUIRED"].includes(action)) {
     return res.status(400).json({ msg: "Invalid KYC review action" });
   }
 
   const user = await User.findById(req.params.userId);
   if (!user) return res.status(404).json({ msg: "User not found" });
-  if (!["COMPLETED", "APPROVED", "REJECTED"].includes(user.kyc?.status)) {
+  if (!["PENDING", "UNDER_REVIEW", "COMPLETED", "APPROVED", "REJECTED", "CORRECTION_REQUIRED"].includes(user.kyc?.status)) {
     return res.status(400).json({ msg: "KYC is not completed by user" });
+  }
+
+  if (["REJECT", "CORRECTION_REQUIRED"].includes(action) && !String(req.body.note || req.body.adminRemarks || "").trim()) {
+    return res.status(400).json({ msg: "Admin remarks are required for rejection or correction." });
   }
 
   const adminClass = getAdminClass(currentAdmin.role);
@@ -1965,24 +1983,43 @@ export const reviewKycRequest = async (req, res) => {
     existingReview.admin = currentAdmin.id;
     existingReview.adminClass = adminClass;
     existingReview.action = action;
-    existingReview.note = req.body.note || "";
+    existingReview.note = req.body.note || req.body.adminRemarks || "";
     existingReview.reviewedAt = new Date();
   } else {
     user.kyc.adminReviews.push({
       admin: currentAdmin.id,
       adminClass,
       action,
-      note: req.body.note || "",
+      note: req.body.note || req.body.adminRemarks || "",
       reviewedAt: new Date(),
     });
   }
 
   const canFinalizeImmediately = currentAdmin.role === "SUPER_ADMIN";
+  if (action === "UNDER_REVIEW") {
+    user.kyc.status = "UNDER_REVIEW";
+    user.kyc.reviewedBy = currentAdmin.id;
+    user.kyc.reviewedAt = new Date();
+  }
+
+  if (action === "CORRECTION_REQUIRED") {
+    user.kyc.status = "CORRECTION_REQUIRED";
+    user.kyc.adminRemarks = req.body.note || req.body.adminRemarks || "";
+    user.kyc.reviewedBy = currentAdmin.id;
+    user.kyc.reviewedAt = new Date();
+  }
+
   if (action === "APPROVE" && (hasDualApproval(user.kyc.adminReviews) || canFinalizeImmediately)) {
     user.kyc.status = "APPROVED";
     user.kyc.decidedBy = currentAdmin.id;
     user.kyc.decidedAt = new Date();
+    user.kyc.reviewedBy = currentAdmin.id;
+    user.kyc.reviewedAt = new Date();
+    user.kyc.adminRemarks = req.body.note || req.body.adminRemarks || "";
     user.isVerified = true;
+    if (user.kyc.roleType === "buyer") user.buyerVerified = true;
+    if (user.kyc.roleType === "grower") user.growerVerified = true;
+    if (user.kyc.roleType === "driver") user.driverVerified = true;
     user.accountStatus = "ACTIVE";
   }
 
@@ -1990,7 +2027,13 @@ export const reviewKycRequest = async (req, res) => {
     user.kyc.status = "REJECTED";
     user.kyc.decidedBy = currentAdmin.id;
     user.kyc.decidedAt = new Date();
+    user.kyc.reviewedBy = currentAdmin.id;
+    user.kyc.reviewedAt = new Date();
+    user.kyc.adminRemarks = req.body.note || req.body.adminRemarks || "";
     user.isVerified = false;
+    if (user.kyc.roleType === "buyer") user.buyerVerified = false;
+    if (user.kyc.roleType === "grower") user.growerVerified = false;
+    if (user.kyc.roleType === "driver") user.driverVerified = false;
   }
 
   await user.save();
@@ -1999,6 +2042,38 @@ export const reviewKycRequest = async (req, res) => {
     .populate("kyc.adminReviews.admin", "name email role");
 
   res.json(populated);
+};
+
+export const updateKycStatusByAdmin = async (req, res) => {
+  const status = String(req.body.status || "").trim().toLowerCase();
+  const actionByStatus = {
+    under_review: "UNDER_REVIEW",
+    approved: "APPROVE",
+    rejected: "REJECT",
+    correction_required: "CORRECTION_REQUIRED",
+  };
+
+  if (status === "pending") {
+    const currentAdmin = requireAdmin(req, res);
+    if (!currentAdmin) return;
+    const user = await User.findById(req.params.id);
+    if (!user || !user.kyc || user.kyc.status === "NOT_SUBMITTED") {
+      return res.status(404).json({ msg: "KYC request not found" });
+    }
+    user.kyc.status = "PENDING";
+    user.kyc.reviewedBy = currentAdmin.id;
+    user.kyc.reviewedAt = new Date();
+    await user.save();
+    return res.json(await User.findById(user._id).select("-password -__v"));
+  }
+
+  const action = actionByStatus[status];
+  if (!action) return res.status(400).json({ msg: "Invalid KYC status" });
+
+  req.params.userId = req.params.id;
+  req.body.action = action;
+  req.body.note = req.body.adminRemarks || req.body.note || "";
+  return reviewKycRequest(req, res);
 };
 
 export const reviewVerificationRequest = async (req, res) => {

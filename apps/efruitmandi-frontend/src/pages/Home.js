@@ -21,6 +21,7 @@ import TopFilters from "../components/TopFilters";
 import API, { FILE_BASE_URL } from "../services/api";
 import {
   getCurrentUser,
+  canQuote,
   hasBuyerProfile,
   hasDriverProfile,
   hasGrowerProfile,
@@ -234,8 +235,25 @@ export default function Home() {
   );
   const openQuoteFlow = (productId) => {
     const quotePath = `/lots/${productId}/quote`;
+    if (!localStorage.getItem("accessToken")) {
+      navigate("/profile", { state: { mode: "login", from: quotePath } });
+      return;
+    }
+
     if (!hasBuyerProfile(user)) {
       navigate("/register-buyer", { state: { from: quotePath } });
+      return;
+    }
+
+    if (!canQuote(user)) {
+      navigate("/kyc", {
+        state: {
+          from: quotePath,
+          intent: "quote",
+          message:
+            "To keep eFruitMandi safe and trusted, KYC verification is required before placing a quote or deal. Please complete your KYC and wait for admin approval.",
+        },
+      });
       return;
     }
 

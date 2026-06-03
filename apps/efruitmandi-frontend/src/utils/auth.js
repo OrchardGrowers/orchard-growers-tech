@@ -38,7 +38,30 @@ export const hasDriverProfile = (user = getCurrentUser()) =>
   getProfileTypes(user).has("driver");
 
 export const hasCompletedKyc = (user = getCurrentUser()) =>
-  ["COMPLETED", "APPROVED"].includes(String(user?.kyc?.status || "").toUpperCase());
+  String(user?.kyc?.status || "").toUpperCase() === "APPROVED";
+
+export const getKycStatus = (user = getCurrentUser()) =>
+  String(user?.kyc?.status || "NOT_SUBMITTED").toUpperCase();
+
+export const getKycStatusLabel = (user = getCurrentUser()) => {
+  const labels = {
+    NOT_SUBMITTED: "Not Submitted",
+    PENDING: "Pending Review",
+    COMPLETED: "Pending Review",
+    UNDER_REVIEW: "Under Review",
+    REJECTED: "Rejected",
+    CORRECTION_REQUIRED: "Correction Required",
+    APPROVED: "Approved",
+  };
+  return labels[getKycStatus(user)] || "Not Submitted";
+};
+
+export const canQuote = (user = getCurrentUser()) => {
+  if (!user || !(user._id || user.id || user.email || user.phone)) return false;
+  if (hasBuyerProfile(user)) return Boolean(user.buyerVerified) || hasCompletedKyc(user);
+  if (hasGrowerProfile(user)) return Boolean(user.growerVerified) || hasCompletedKyc(user);
+  return false;
+};
 
 export const isGrowerAccount = (user = getCurrentUser()) =>
   hasGrowerProfile(user);

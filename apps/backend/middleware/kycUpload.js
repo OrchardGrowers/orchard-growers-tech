@@ -9,7 +9,15 @@ const ALLOWED_DOCUMENT_MIME_TYPES = new Set([
 ]);
 
 const fileFilter = (req, file, cb) => {
-  const allowedFields = ["udyanCardFile", "passbookFile", "aadhaarCardFile"];
+  const allowedFields = [
+    "udyanCardFile",
+    "passbookFile",
+    "aadhaarCardFile",
+    "idProofImage",
+    "panImage",
+    "gstCertificate",
+    "drivingLicenseImage",
+  ];
   const isAllowedType = ALLOWED_DOCUMENT_MIME_TYPES.has(file.mimetype);
 
   if (!allowedFields.includes(file.fieldname)) {

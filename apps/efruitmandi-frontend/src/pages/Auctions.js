@@ -3,7 +3,7 @@ import { FaCertificate, FaEye, FaSeedling } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import API, { FILE_BASE_URL } from "../services/api";
 import socket from "../services/socket";
-import { getCurrentUser, isBuyerAccount } from "../utils/auth";
+import { canQuote, getCurrentUser, isBuyerAccount } from "../utils/auth";
 
 import CountdownTimer from "../components/CountdownTimer";
 
@@ -16,8 +16,7 @@ export default function Auctions() {
   const initialUser = useMemo(() => getCurrentUser(), []);
   const [profile, setProfile] = useState(initialUser);
   const isBuyer = isBuyerAccount(profile);
-  const hasTradingKyc = profile?.kyc?.status === "APPROVED";
-  const canDeal = isBuyer && hasTradingKyc;
+  const canDeal = isBuyer && canQuote(profile);
 
   const fetchAuctions = async () => {
     try {
@@ -105,11 +104,22 @@ export default function Auctions() {
 
   const placeDeal = (auctionId) => {
     if (!canDeal) {
-      alert(
-        isBuyer
-          ? "Complete KYC authority verification before starting fruit trading."
-          : "Buyer account required to participate."
-      );
+      if (!localStorage.getItem("accessToken")) {
+        navigate("/profile", { state: { mode: "login", from: "/auctions" } });
+        return;
+      }
+      if (isBuyer) {
+        navigate("/kyc", {
+          state: {
+            from: "/auctions",
+            intent: "quote",
+            message:
+              "To keep eFruitMandi safe and trusted, KYC verification is required before placing a quote or deal. Please complete your KYC and wait for admin approval.",
+          },
+        });
+        return;
+      }
+      alert("Buyer account required to participate.");
       return;
     }
 
@@ -304,11 +314,21 @@ function LiveLotCard({
           </button>
         </div>
       ) : (
-        <p className="mt-2 rounded bg-gray-100 px-2 py-1 text-[9px] font-bold text-gray-600">
-          {isBuyer
-            ? "KYC authority verification required to participate"
-            : "Buyer account required to participate"}
-        </p>
+        <div className="mt-2 space-y-1">
+          <p className="rounded bg-gray-100 px-2 py-1 text-[9px] font-bold text-gray-600">
+            {isBuyer
+              ? "KYC approval is required before quoting."
+              : "Buyer account required to participate"}
+          </p>
+          <button
+            type="button"
+            onClick={onDeal}
+            className="inline-flex items-center gap-1 rounded-full bg-gray-200 px-2 py-1 text-[9px] font-bold text-gray-700"
+          >
+            <FaEye />
+            Quote Your Price
+          </button>
+        </div>
       )}
     </article>
   );
