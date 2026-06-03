@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  FaArrowLeft,
   FaCertificate,
   FaCheckCircle,
   FaIdCard,
@@ -200,14 +199,6 @@ export default function GetVerified() {
   return (
     <div className="mx-auto max-w-4xl pb-20">
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-2 rounded-full bg-gray-200 px-3 py-1 text-xs font-bold text-gray-700 hover:bg-gray-300"
-        >
-          <FaArrowLeft />
-          Back
-        </button>
         <BackHomeButton />
       </div>
 

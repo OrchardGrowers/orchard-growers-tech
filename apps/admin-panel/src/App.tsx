@@ -213,10 +213,16 @@ type VerificationRequest = {
 type AdminOrder = {
   _id: string;
   invoiceNumber?: string;
+  invoiceDate?: string;
+  paymentMethod?: string;
   customer?: { name?: string; phone?: string; email?: string };
   shippingAddress?: { city?: string; state?: string; pinCode?: string };
   items?: { title?: string; quantity?: number; unitPrice?: number; lineTotal?: number }[];
   totalAmount?: number;
+  finalPrice?: number;
+  auctionPrice?: number;
+  sellerReceivable?: number;
+  growerPayout?: number;
   paymentStatus?: string;
   deliveryStatus?: string;
   courierPartner?: string;
@@ -254,6 +260,7 @@ type AdminTab =
   | 'produceLots'
   | 'quotes'
   | 'deals'
+  | 'efruitInvoices'
   | 'transactions'
   | 'supportDisputes'
   | 'analytics'
@@ -610,6 +617,7 @@ const adminRoutePaths: Record<AdminTab, string> = {
   produceLots: '/efruitmandi/produce-lots',
   quotes: '/efruitmandi/quotes',
   deals: '/efruitmandi/deals',
+  efruitInvoices: '/efruitmandi/invoices-chalan',
   transactions: '/efruitmandi/transactions',
   supportDisputes: '/efruitmandi/support-disputes',
   analytics: '/efruitmandi/analytics',
@@ -646,6 +654,7 @@ const adminTabPlatforms: Record<AdminTab, AdminPlatform> = {
   produceLots: 'efruitmandi',
   quotes: 'efruitmandi',
   deals: 'efruitmandi',
+  efruitInvoices: 'efruitmandi',
   transactions: 'efruitmandi',
   supportDisputes: 'efruitmandi',
   analytics: 'efruitmandi',
@@ -679,6 +688,7 @@ const platformTabs: Record<AdminPlatform, AdminTabButton[]> = {
     { id: 'produceLots', label: 'Produce Lots' },
     { id: 'quotes', label: 'Quotes' },
     { id: 'deals', label: 'Deals' },
+    { id: 'efruitInvoices', label: 'Invoices / Chalan' },
     { id: 'transactions', label: 'Transactions' },
     { id: 'supportDisputes', label: 'Support & Disputes' },
     { id: 'analytics', label: 'Analytics' },
@@ -744,10 +754,10 @@ const adminRolePermissions: Record<AdminRole, AdminTab[]> = {
   INVENTORY_MANAGER: ['dashboard', 'master', 'inventory', 'productAdmin', 'purchase', 'reports', 'notifications', 'downloadApp'],
   SALES_EXECUTIVE: ['dashboard', 'billing', 'sales', 'logistics', 'customers', 'reports', 'notifications', 'downloadApp'],
   PURCHASE_MANAGER: ['dashboard', 'master', 'inventory', 'purchase', 'reports', 'notifications', 'downloadApp'],
-  FINANCE_MANAGER: ['dashboard', 'billing', 'expenses', 'financials', 'transactions', 'reports', 'analytics', 'notifications', 'downloadApp'],
-  VERIFICATION_OFFICER: ['dashboard', 'efruitDashboard', 'users', 'kyc', 'produceLots', 'sellers', 'buyers', 'suspendedUsers', 'notifications', 'downloadApp'],
-  SUPPORT_EXECUTIVE: ['dashboard', 'users', 'customers', 'sellers', 'buyers', 'supportDisputes', 'suspendedUsers', 'notifications', 'downloadApp'],
-  VIEWER: ['dashboard', 'reports', 'efruitDashboard', 'analytics', 'notifications', 'downloadApp'],
+  FINANCE_MANAGER: ['dashboard', 'billing', 'expenses', 'financials', 'transactions', 'efruitInvoices', 'reports', 'analytics', 'notifications', 'downloadApp'],
+  VERIFICATION_OFFICER: ['dashboard', 'efruitDashboard', 'users', 'kyc', 'produceLots', 'efruitInvoices', 'sellers', 'buyers', 'suspendedUsers', 'notifications', 'downloadApp'],
+  SUPPORT_EXECUTIVE: ['dashboard', 'users', 'customers', 'sellers', 'buyers', 'supportDisputes', 'efruitInvoices', 'suspendedUsers', 'notifications', 'downloadApp'],
+  VIEWER: ['dashboard', 'reports', 'efruitDashboard', 'efruitInvoices', 'analytics', 'notifications', 'downloadApp'],
 };
 const adminRolePermissionSets = Object.fromEntries(
   Object.entries(adminRolePermissions).map(([role, tabs]) => [role, new Set(tabs)])
@@ -2216,6 +2226,9 @@ function App() {
         </section>
       );
     }
+    if (tab === 'efruitInvoices') {
+      return <EfruitInvoiceChalanPanel orders={orders} />;
+    }
     if (['quotes', 'deals', 'transactions', 'supportDisputes', 'analytics', 'efruitSettings'].includes(tab)) {
       return <ModulePlanPanel plan={modulePlans[tab]} />;
     }
@@ -2640,6 +2653,7 @@ function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: (
         { label: 'Produce Lots', icon: 'lot', tab: 'produceLots' },
         { label: 'Quotes', icon: 'quotes', tab: 'quotes' },
         { label: 'Deals', icon: 'deal', tab: 'deals' },
+        { label: 'Invoices / Chalan', icon: 'sales', tab: 'efruitInvoices' },
         { label: 'Transactions', icon: 'transaction', tab: 'transactions' },
         { label: 'Support & Disputes', icon: 'support', tab: 'supportDisputes' },
         { label: 'Analytics', icon: 'chart', tab: 'analytics' },
@@ -5303,6 +5317,132 @@ function OrdersPanel({ orders }: { orders: AdminOrder[] }) {
           </div>
         </article>
       ))}
+    </RequestSection>
+  );
+}
+
+function getEfruitDocumentType(order: AdminOrder) {
+  return String(order.paymentMethod || '').toUpperCase() === 'COD' ? 'Chalan' : 'Invoice';
+}
+
+function getEfruitDocumentAmount(order: AdminOrder) {
+  return order.finalPrice || order.totalAmount || order.auctionPrice || order.sellerReceivable || order.growerPayout || 0;
+}
+
+function buildAdminDocumentHtml(order: AdminOrder) {
+  const documentType = getEfruitDocumentType(order);
+  const rows = order.items?.length
+    ? order.items
+    : [{ title: 'Fruit lot', quantity: 1, lineTotal: getEfruitDocumentAmount(order) }];
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${documentType} ${order.invoiceNumber || order._id}</title>
+  <style>
+    body { font-family: Arial, sans-serif; color: #0f172a; padding: 28px; }
+    .top { display: flex; justify-content: space-between; gap: 20px; border-bottom: 2px solid #10b981; padding-bottom: 14px; }
+    h1 { margin: 0; color: #047857; }
+    table { width: 100%; border-collapse: collapse; margin-top: 22px; }
+    th, td { border: 1px solid #cbd5e1; padding: 10px; text-align: left; }
+    th { background: #ecfdf5; }
+    .total { margin-top: 18px; font-size: 20px; font-weight: 800; text-align: right; }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div>
+      <h1>eFruitMandi ${documentType}</h1>
+      <p><strong>Document No:</strong> ${order.invoiceNumber || order._id}</p>
+      <p><strong>Date:</strong> ${formatDate(order.invoiceDate || order.createdAt)}</p>
+    </div>
+    <div>
+      <p><strong>Customer:</strong> ${order.customer?.name || 'Customer'}</p>
+      <p><strong>Phone:</strong> ${order.customer?.phone || '-'}</p>
+      <p><strong>Status:</strong> ${order.paymentStatus || '-'} / ${order.deliveryStatus || '-'}</p>
+    </div>
+  </div>
+  <table>
+    <thead><tr><th>Item</th><th>Qty</th><th>Amount</th></tr></thead>
+    <tbody>
+      ${rows.map((item) => `<tr><td>${item.title || 'Fruit lot'}</td><td>${item.quantity || 1}</td><td>Rs. ${item.lineTotal || 0}</td></tr>`).join('')}
+    </tbody>
+  </table>
+  <p class="total">Total: Rs. ${getEfruitDocumentAmount(order)}</p>
+</body>
+</html>`;
+}
+
+function downloadAdminDocument(order: AdminOrder) {
+  const type = getEfruitDocumentType(order).toLowerCase();
+  const blob = new Blob([buildAdminDocumentHtml(order)], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${type}-${order.invoiceNumber || order._id}.html`.replace(/[^\w.-]+/g, '-');
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function printAdminDocument(order: AdminOrder) {
+  const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+  if (!printWindow) return;
+  printWindow.document.write(buildAdminDocumentHtml(order));
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+}
+
+function EfruitInvoiceChalanPanel({ orders }: { orders: AdminOrder[] }) {
+  const documents = orders.filter((order) => order.invoiceNumber || order._id);
+
+  return (
+    <RequestSection title="eFruitMandi Invoices / Chalan" count={documents.length}>
+      <div className="overflow-x-auto rounded-xl border border-slate-800">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-950 text-left text-xs uppercase tracking-wide text-slate-400">
+            <tr>
+              <th className="px-3 py-3">Document</th>
+              <th className="px-3 py-3">Customer</th>
+              <th className="px-3 py-3">Amount</th>
+              <th className="px-3 py-3">Status</th>
+              <th className="px-3 py-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800 bg-slate-900">
+            {documents.map((order) => (
+              <tr key={order._id}>
+                <td className="px-3 py-3">
+                  <p className="font-bold text-white">{order.invoiceNumber || order._id}</p>
+                  <p className="text-xs font-bold text-emerald-300">{getEfruitDocumentType(order)} - {formatDate(order.invoiceDate || order.createdAt)}</p>
+                </td>
+                <td className="px-3 py-3 text-slate-300">
+                  <p className="font-bold">{order.customer?.name || 'Customer'}</p>
+                  <p className="text-xs text-slate-500">{order.customer?.phone || 'No phone'}</p>
+                </td>
+                <td className="px-3 py-3 font-black text-emerald-300">Rs. {getEfruitDocumentAmount(order)}</td>
+                <td className="px-3 py-3 text-slate-300">{order.paymentStatus || 'PENDING'} / {order.deliveryStatus || 'PENDING'}</td>
+                <td className="px-3 py-3">
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => downloadAdminDocument(order)} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-500">
+                      Download
+                    </button>
+                    <button type="button" onClick={() => printAdminDocument(order)} className="rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-600">
+                      Print
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {!documents.length && (
+              <tr>
+                <td colSpan={5} className="px-3 py-6 text-center font-bold text-slate-400">No eFruitMandi invoice or chalan records found.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </RequestSection>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { FaArrowLeft, FaMapMarkerAlt, FaStar } from "react-icons/fa";
+import { FaMapMarkerAlt, FaStar } from "react-icons/fa";
 import API from "../services/api";
 import BackHomeButton from "../components/BackHomeButton";
 import { getCurrentUser, hasBuyerProfile } from "../utils/auth";
@@ -77,15 +77,6 @@ export default function RateGrower() {
 
   return (
     <div className="mx-auto max-w-2xl pb-20">
-      <button
-        type="button"
-        onClick={() => navigate(-1)}
-        className="mb-3 inline-flex items-center gap-2 rounded-full bg-gray-200 px-3 py-1 text-xs font-bold text-gray-700"
-      >
-        <FaArrowLeft />
-        Back
-      </button>
-
       <section className="rounded-md border border-gray-200 bg-white p-4">
         <p className="text-xs font-extrabold uppercase tracking-wide text-green-700">Rate Grower</p>
         <h1 className="mt-1 text-xl font-extrabold text-gray-950">

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { FaCheckCircle, FaFileUpload, FaIdCard, FaUniversity } from "react-icons/fa";
 import API from "../services/api";
 import BackHomeButton from "../components/BackHomeButton";
@@ -80,6 +80,7 @@ export default function Kyc() {
   const [adminRemarks, setAdminRemarks] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const canEdit = editableStatuses.has(kycStatus);
 
   useEffect(() => {
@@ -164,11 +165,16 @@ export default function Kyc() {
       setMessage(`Complete required fields: ${missing.join(", ")}`);
       return;
     }
+    if (!acceptedTerms) {
+      setMessage("Accept the Terms of Use before submitting KYC.");
+      return;
+    }
 
     try {
       setLoading(true);
       const data = new FormData();
       Object.entries(form).forEach(([key, value]) => data.append(key, String(value || "").trim()));
+      data.append("acceptedTerms", "true");
       Object.entries(files).forEach(([key, file]) => {
         if (file) data.append(key, file);
       });
@@ -198,6 +204,11 @@ export default function Kyc() {
           {isQuoteIntent && (
             <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-sm font-extrabold text-amber-900">
               Current KYC status: {getKycStatusLabel({ kyc: { status: kycStatus } })}
+            </p>
+          )}
+          {intentMessage && !isQuoteIntent && (
+            <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-sm font-extrabold text-amber-900">
+              {intentMessage}
             </p>
           )}
           {adminRemarks && (
@@ -283,6 +294,28 @@ export default function Kyc() {
               </div>
             </section>
           )}
+
+          <label className="flex items-start gap-3 rounded-lg border border-green-100 bg-white p-3 text-sm font-bold text-gray-800">
+            <input
+              type="checkbox"
+              checked={acceptedTerms}
+              disabled={!canEdit}
+              onChange={(event) => setAcceptedTerms(event.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-green-300 text-green-700 focus:ring-green-600 disabled:opacity-60"
+            />
+            <span>
+              I accept eFruitMandi{" "}
+              <Link
+                to="/terms-and-conditions"
+                target="_blank"
+                rel="noreferrer"
+                className="font-extrabold text-green-700 underline"
+              >
+                Terms of Use
+              </Link>
+              {" "}for KYC verification and marketplace activity.
+            </span>
+          </label>
 
           <button
             type="submit"

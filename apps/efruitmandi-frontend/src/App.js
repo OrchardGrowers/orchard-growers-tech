@@ -10,6 +10,7 @@ import MainLayout from "./layouts/MainLayout";
 import Home from "./pages/Home";
 import Auctions from "./pages/Auctions";
 import Orders from "./pages/Orders";
+import InvoicesChalan from "./pages/InvoicesChalan";
 import Delivery from "./pages/Delivery";
 import Payment from "./pages/Payment";
 import Profile from "./pages/Profile";
@@ -57,6 +58,7 @@ function App() {
 
           {/* 📦 Orders */}
           <Route path="orders" element={<Orders />} />
+          <Route path="invoices-chalan" element={<InvoicesChalan />} />
 
           {/* 🚚 Delivery */}
           <Route path="delivery" element={<Delivery />} />

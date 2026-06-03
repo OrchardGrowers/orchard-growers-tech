@@ -360,6 +360,7 @@ export default function ListNewLot() {
   const editProductId = location.state?.productId || queryParams.get("edit") || "";
   const isEditMode = Boolean(editProductId);
   const [profileUser, setProfileUser] = useState(getCurrentUser());
+  const [profileChecked, setProfileChecked] = useState(false);
   const isKycCompleted = hasCompletedKyc(profileUser);
   const [fruits, setFruits] = useState(DEFAULT_FRUITS);
   const [varieties, setVarieties] = useState(DEFAULT_VARIETIES);
@@ -428,7 +429,10 @@ export default function ListNewLot() {
         setProfileUser(freshUser);
         saveUserToStorage(freshUser);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (active) setProfileChecked(true);
+      });
 
     API.get("/products/next-lot-no")
       .then((res) => {
@@ -444,6 +448,18 @@ export default function ListNewLot() {
       active = false;
     };
   }, [localLotNoPreview]);
+
+  useEffect(() => {
+    if (!profileChecked || isKycCompleted) return;
+    navigate("/kyc", {
+      replace: true,
+      state: {
+        from: "/list-new-lot",
+        roleType: "grower",
+        message: "Complete Grower KYC before listing fruit lots.",
+      },
+    });
+  }, [isKycCompleted, navigate, profileChecked]);
 
   useEffect(() => {
     if (!editProductId) return undefined;
@@ -716,26 +732,7 @@ export default function ListNewLot() {
 
   return (
     <div className="mx-auto max-w-md border-t-4 border-green-600 bg-white pb-20">
-      {!isKycCompleted ? (
-        <section className="px-4 py-5">
-          <div className="rounded-md border border-amber-200 bg-amber-50 p-4">
-            <h1 className="text-lg font-extrabold text-amber-950">Complete KYC before listing lot</h1>
-            <p className="mt-2 text-sm font-bold leading-6 text-amber-800">
-              Growers must submit KYC before listing fruit lots on eFruitMandi.
-            </p>
-            <button
-              type="button"
-              onClick={() => navigate("/kyc", { state: { from: "/list-new-lot", roleType: "grower" } })}
-              className="mt-4 rounded-full bg-green-700 px-5 py-2 text-sm font-extrabold text-white hover:bg-green-800"
-            >
-              Complete KYC
-            </button>
-            <div className="mt-3">
-              <BackHomeButton />
-            </div>
-          </div>
-        </section>
-      ) : (
+      {profileChecked && isKycCompleted ? (
       <form onSubmit={handleSubmit} className="px-4 py-5">
         <div className="mb-5 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border-2 border-black text-2xl font-bold">
@@ -1048,6 +1045,10 @@ export default function ListNewLot() {
           <BackHomeButton />
         </div>
       </form>
+      ) : (
+        <div className="px-4 py-8 text-center text-sm font-extrabold text-green-800">
+          Opening Grower KYC...
+        </div>
       )}
     </div>
   );

@@ -134,7 +134,7 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
       {
         label: "Downloads Invoices/chalan",
         icon: <FaFileInvoice />,
-        path: "/orders",
+        path: "/invoices-chalan",
       },
     ],
     [
