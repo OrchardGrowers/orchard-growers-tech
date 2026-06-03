@@ -963,14 +963,13 @@ function DesktopLotImageCarousel({ images, product, title, onOpen }) {
           onZoomOut={() => setZoom((value) => Math.max(0.5, Number((value - 0.25).toFixed(2))))}
           onReset={() => setZoom(1)}
           onClose={() => setPreviewOpen(false)}
-          onViewLot={onOpen}
         />
       )}
     </div>
   );
 }
 
-function ImageZoomModal({ imageUrl, title, zoom, onZoomIn, onZoomOut, onReset, onClose, onViewLot }) {
+function ImageZoomModal({ imageUrl, title, zoom, onZoomIn, onZoomOut, onReset, onClose }) {
   return (
     <div className="fixed inset-0 z-[1000] flex flex-col bg-black/90 p-3">
       <div className="mb-3 flex items-center justify-between gap-2">
@@ -998,13 +997,6 @@ function ImageZoomModal({ imageUrl, title, zoom, onZoomIn, onZoomOut, onReset, o
           style={{ transform: `scale(${zoom})` }}
         />
       </div>
-      <button
-        type="button"
-        onClick={onViewLot}
-        className="mx-auto mt-3 rounded-full bg-green-700 px-5 py-2 text-xs font-extrabold text-white"
-      >
-        View lot details
-      </button>
     </div>
   );
 }
