@@ -11,6 +11,7 @@ import userRoutes from "./routes/userRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
 import auctionRoutes from "./routes/auctionRoutes.js";
+import quotationRoutes from "./routes/quotationRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import deliveryRoutes from "./routes/deliveryRoutes.js";
 import billdeskRoutes from "./routes/billdeskRoutes.js";
@@ -169,6 +170,7 @@ app.use("/api/auctions", auctionRoutes);
 // Compatibility aliases: expose the same auction routes under business-friendly paths
 app.use("/api/deals", auctionRoutes);
 app.use("/api/quotes", auctionRoutes);
+app.use("/api/quotations", quotationRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/delivery", deliveryRoutes);
 app.use("/api/billdesk", billdeskRoutes);
@@ -255,12 +257,16 @@ const calculateAuctionDeal = async (auction, baseRate, distanceKm = 0) => {
     : await Product.findById(auction.product);
   const gradeQuantities = buildGradeQuantitiesFromProduct(product);
   const highestGrade = getHighestAvailableGrade(gradeQuantities);
+  const gradePrices = Object.keys(gradeQuantities).reduce((prices, grade) => {
+    if (Number(gradeQuantities[grade] || 0) > 0) prices[grade] = Number(baseRate || 0);
+    return prices;
+  }, {});
   const settings = await loadDealSettings();
 
   return calculateDealBreakdown({
     highestGrade,
-    baseRate,
     gradeQuantities,
+    gradePrices,
     distanceKm,
     ...settings,
   });

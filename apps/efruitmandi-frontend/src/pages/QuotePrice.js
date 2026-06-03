@@ -15,8 +15,10 @@ export default function QuotePrice() {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState(null);
-  const [price, setPrice] = useState("");
+  const [gradePrices, setGradePrices] = useState({});
   const [distanceKm, setDistanceKm] = useState("");
+  const [quotation, setQuotation] = useState(null);
+  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -32,6 +34,12 @@ export default function QuotePrice() {
         const lot = lotRes.data?.product || null;
         setProduct(lot);
         setActiveImage(getLotImages(lot)[0] || null);
+        setGradePrices(
+          getAvailableGradeLots(lot).reduce((prices, lotGrade) => {
+            prices[lotGrade.grade] = "";
+            return prices;
+          }, {})
+        );
       } catch {
         setProduct(null);
       } finally {
@@ -42,23 +50,44 @@ export default function QuotePrice() {
     loadLot();
   }, [lotId]);
 
-  const quantity = Number(product?.quantity || 0);
-  const quotedPrice = Number(price || 0);
   const images = useMemo(() => getLotImages(product), [product]);
+  const availableGrades = useMemo(() => getAvailableGradeLots(product), [product]);
   const quoteUnit = getQuoteUnit(product);
-  const quoteTotal = useMemo(
-    () => (quantity && quotedPrice ? quantity * quotedPrice : 0),
-    [quantity, quotedPrice]
+  const preview = useMemo(
+    () => calculateBuyerPreview(availableGrades, gradePrices, distanceKm),
+    [availableGrades, gradePrices, distanceKm]
   );
 
-  const submitQuote = (event) => {
+  const updateGradePrice = (grade, value) => {
+    setQuotation(null);
+    setGradePrices((current) => ({ ...current, [grade]: value }));
+  };
+
+  const submitQuote = async (event) => {
     event.preventDefault();
-    if (!quotedPrice || quotedPrice <= 0) {
-      setMessage(`Enter your price per ${quoteUnit.singular}.`);
+    const missingGrade = availableGrades.find((gradeLot) => Number(gradePrices[gradeLot.grade] || 0) <= 0);
+    if (missingGrade) {
+      setMessage(`Enter a price greater than 0 for Grade ${missingGrade.grade}.`);
       return;
     }
 
-    setMessage("Quote saved for review. The grower will be informed when deal processing is available.");
+    try {
+      setSaving(true);
+      setMessage("");
+      const res = await API.post(`/quotations/lots/${lotId}`, {
+        grades: availableGrades.map((gradeLot) => ({
+          grade: gradeLot.grade,
+          price: Number(gradePrices[gradeLot.grade] || 0),
+        })),
+        distanceKm,
+      });
+      setQuotation(res.data?.quotation || null);
+      setMessage("Quote submitted. The grower will see only the final receivable amount.");
+    } catch (err) {
+      setMessage(err.response?.data?.msg || "Quote could not be submitted.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -149,34 +178,51 @@ export default function QuotePrice() {
 
           <form onSubmit={submitQuote} className="rounded-md border border-gray-200 bg-white p-4 lg:sticky lg:top-20 lg:self-start">
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
-              <InfoTile label="Quantity" value={`${quantity || 0} ${quantity === 1 ? quoteUnit.singular : quoteUnit.plural}`} />
+              <InfoTile label="Available grades" value={`${availableGrades.length} grades`} />
               <InfoTile label="Packing" value={product?.packingType || "Not set"} />
               <InfoTile label="Variety" value={product?.variety || "Not set"} />
               <InfoTile label="Quality" value={product?.quality || "Not set"} />
             </div>
 
-            <label className="mt-4 block text-sm font-bold text-gray-700">
-              Your price per {quoteUnit.singular}
-              <input
-                value={price}
-                inputMode="numeric"
-                type="number"
-                min="1"
-                onChange={(event) => setPrice(event.target.value)}
-                placeholder="Enter quote amount"
-                className="mt-2 w-full rounded-md border border-gray-200 px-3 py-3 text-sm font-bold outline-none focus:border-green-600"
-              />
-            </label>
+            <div className="mt-4 space-y-3">
+              <p className="text-sm font-extrabold text-gray-800">Grade-wise prices</p>
+              {availableGrades.map((gradeLot) => {
+                const price = Number(gradePrices[gradeLot.grade] || 0);
+                const amount = price * gradeLot.quantity;
+                return (
+                  <label key={gradeLot.grade} className="block rounded-md border border-gray-200 bg-white p-3">
+                    <span className="flex items-center justify-between gap-2 text-sm font-extrabold text-gray-800">
+                      <span>{gradeLot.grade} Grade Price (Rs. per {quoteUnit.singular})</span>
+                      <span className="text-xs text-gray-500">
+                        {gradeLot.quantity} {gradeLot.quantity === 1 ? quoteUnit.singular : quoteUnit.plural}
+                      </span>
+                    </span>
+                    <input
+                      value={gradePrices[gradeLot.grade] || ""}
+                      inputMode="numeric"
+                      type="number"
+                      min="1"
+                      onChange={(event) => updateGradePrice(gradeLot.grade, event.target.value)}
+                      placeholder={`Enter ${gradeLot.grade} grade price`}
+                      className="mt-2 w-full rounded-md border border-gray-200 px-3 py-3 text-sm font-bold outline-none focus:border-green-600"
+                    />
+                    <p className="mt-2 text-xs font-bold text-green-800">
+                      Amount: Rs. {amount || 0}
+                    </p>
+                  </label>
+                );
+              })}
+            </div>
 
             <label className="mt-3 block text-sm font-bold text-gray-700">
-              Delivery distance in km optional
+              Delivery distance in km fallback
               <input
                 value={distanceKm}
                 inputMode="numeric"
                 type="number"
                 min="0"
                 onChange={(event) => setDistanceKm(event.target.value)}
-                placeholder="Distance from orchard to destination"
+                placeholder="Auto-calculated when profile map points exist"
                 className="mt-2 w-full rounded-md border border-gray-200 px-3 py-3 text-sm font-bold outline-none focus:border-green-600"
               />
             </label>
@@ -184,10 +230,9 @@ export default function QuotePrice() {
             <div className="mt-4 rounded-md bg-green-50 p-3 text-sm font-bold text-green-900">
               <div className="flex items-center gap-2">
                 <FaCalculator />
-                <span>Total quote preview</span>
+                <span>Buyer quote preview</span>
               </div>
-              <p className="mt-2 text-lg font-extrabold">Rs. {quoteTotal || 0}</p>
-              {distanceKm && <p className="text-xs text-green-800">Distance noted: {distanceKm} km</p>}
+              <BuyerQuoteSummary breakdown={quotation || preview} />
             </div>
 
             {message && (
@@ -198,10 +243,11 @@ export default function QuotePrice() {
 
             <button
               type="submit"
+              disabled={saving}
               className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-green-700 px-4 py-3 text-sm font-extrabold text-white"
             >
               <FaSeedling />
-              Submit Quote
+              {saving ? "Submitting..." : "Submit Quote"}
             </button>
           </form>
         </section>
@@ -305,6 +351,43 @@ function InfoTile({ label, value }) {
   );
 }
 
+function BuyerQuoteSummary({ breakdown = {} }) {
+  const grades = breakdown.grades || [];
+
+  return (
+    <div className="mt-2 space-y-2">
+      {grades.length > 0 && (
+        <div className="space-y-1">
+          {grades.map((grade) => (
+            <div key={grade.grade} className="flex items-center justify-between gap-2 rounded bg-white px-2 py-1 text-xs">
+              <span>
+                Grade {grade.grade}: {grade.quantity} x Rs. {grade.price || 0}
+              </span>
+              <span>Rs. {grade.amount || 0}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <SummaryRow label="Total deal amount" value={breakdown.dealAmount} />
+      <SummaryRow label="Driver charge" value={breakdown.driverCharge} />
+      <SummaryRow label="Commission" value={breakdown.commissionAmount} />
+      <div className="flex items-center justify-between gap-2 border-t border-green-200 pt-2 text-base font-extrabold">
+        <span>Final payable</span>
+        <span>Rs. {breakdown.buyerPayable || 0}</span>
+      </div>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value }) {
+  return (
+    <div className="flex items-center justify-between gap-2 text-xs">
+      <span>{label}</span>
+      <span>Rs. {value || 0}</span>
+    </div>
+  );
+}
+
 function getLotImages(product) {
   if (!product) return [];
   const seen = new Set();
@@ -326,6 +409,16 @@ function getLotImages(product) {
       )
     : [];
   return [...topImages, ...gradeImages];
+}
+
+function getAvailableGradeLots(product) {
+  if (!product) return [];
+  return (product.gradeLots || [])
+    .map((lot) => ({
+      grade: lot.grade,
+      quantity: Number(lot.boxes || 0),
+    }))
+    .filter((lot) => lot.grade && lot.quantity > 0);
 }
 
 function toAssetUrl(path = "") {
@@ -350,4 +443,50 @@ function getQuoteUnit(product = {}) {
   }
 
   return { singular: "box", plural: "boxes" };
+}
+
+function calculateDriverCharge(distanceKm = 0) {
+  const distance = Number(distanceKm || 0);
+  if (!Number.isFinite(distance) || distance <= 0) return 0;
+  const slabs = [
+    { min: 1, max: 5, amount: 300 },
+    { min: 6, max: 10, amount: 800 },
+    { min: 11, max: 20, amount: 1200 },
+    { min: 21, max: 25, amount: 1500 },
+    { min: 26, max: 30, amount: 2000 },
+    { min: 31, max: 40, amount: 2500 },
+    { min: 41, max: 70, amount: 3000 },
+    { min: 71, max: 85, amount: 3500 },
+    { min: 86, max: 100, amount: 4000 },
+    { min: 101, max: 200, perKm: 40 },
+    { min: 201, max: 300, perKm: 35 },
+    { min: 301, max: 400, perKm: 30 },
+    { min: 401, max: Infinity, perKm: 25 },
+  ];
+  const slab = slabs.find((item) => distance >= item.min && distance <= item.max);
+  if (!slab) return 0;
+  return slab.amount ?? Math.round(distance * slab.perKm);
+}
+
+function calculateBuyerPreview(availableGrades, gradePrices, distanceKm) {
+  const grades = availableGrades.map((gradeLot) => {
+    const price = Number(gradePrices[gradeLot.grade] || 0);
+    return {
+      grade: gradeLot.grade,
+      quantity: gradeLot.quantity,
+      price,
+      amount: Math.round(gradeLot.quantity * price),
+    };
+  });
+  const dealAmount = grades.reduce((sum, grade) => sum + Number(grade.amount || 0), 0);
+  const driverCharge = calculateDriverCharge(distanceKm);
+  const commissionBase = dealAmount + driverCharge;
+  const commissionAmount = Math.round(commissionBase * 0.05);
+  return {
+    grades,
+    dealAmount,
+    driverCharge,
+    commissionAmount,
+    buyerPayable: dealAmount + driverCharge + commissionAmount,
+  };
 }

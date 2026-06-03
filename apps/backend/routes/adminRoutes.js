@@ -47,7 +47,6 @@ import {
 } from "../controllers/logisticsController.js";
 import {
   DEFAULT_DRIVER_CHARGE_SLABS,
-  DEFAULT_GRADE_RATE_RULES,
   mergeDealSettings,
 } from "../services/dealCalculationService.js";
 
@@ -197,11 +196,6 @@ router.patch("/deal-settings", ...adminOnly, requireRoles(...SETTINGS_WRITE_ROLE
   const driverChargeSlabs = Array.isArray(req.body.driverChargeSlabs)
     ? req.body.driverChargeSlabs
     : currentSettings.driverChargeSlabs || DEFAULT_DRIVER_CHARGE_SLABS;
-  const gradeRateRules =
-    req.body.gradeRateRules && typeof req.body.gradeRateRules === "object"
-      ? req.body.gradeRateRules
-      : currentSettings.gradeRateRules || DEFAULT_GRADE_RATE_RULES;
-
   if (!Number.isFinite(commissionPercent) || commissionPercent < 0) {
     return res.status(400).json({ msg: "Commission percent must be greater than or equal to 0" });
   }
@@ -211,7 +205,6 @@ router.patch("/deal-settings", ...adminOnly, requireRoles(...SETTINGS_WRITE_ROLE
     {
       commissionPercent,
       driverChargeSlabs,
-      gradeRateRules,
       updatedBy: req.user.id,
     },
     { new: true, upsert: true, setDefaultsOnInsert: true }

@@ -46,15 +46,19 @@ const loadDealSettings = async () =>
 
 const calculateProductDeal = async (product, baseRate, distanceKm = 0) => {
   const gradeQuantities = buildGradeQuantitiesFromProduct(product);
-  const highestGrade = getHighestAvailableGrade(gradeQuantities);
+  const availableGrade = getHighestAvailableGrade(gradeQuantities);
+  const gradePrices = Object.keys(gradeQuantities).reduce((prices, grade) => {
+    if (Number(gradeQuantities[grade] || 0) > 0) prices[grade] = Number(baseRate || 0);
+    return prices;
+  }, {});
   const settings = await loadDealSettings();
 
   return calculateDealBreakdown({
-    highestGrade,
-    baseRate,
     gradeQuantities,
+    gradePrices,
     distanceKm,
     ...settings,
+    highestGrade: availableGrade,
   });
 };
 

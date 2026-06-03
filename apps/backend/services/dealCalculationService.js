@@ -17,36 +17,6 @@ export const DEFAULT_DRIVER_CHARGE_SLABS = [
   { minKm: 401, perKm: 25 },
 ];
 
-export const DEFAULT_GRADE_RATE_RULES = {
-  "A+": {
-    "A+": 1,
-    A: 0.8,
-    "B+": 0.6,
-    B: 0.5,
-    "C+": 0.36,
-    C: 0.3,
-    D: 0.18,
-    Ungraded: 0.8,
-  },
-  A: {
-    A: 1,
-    "B+": 0.8,
-    B: 0.6,
-    "C+": 0.5,
-    C: 0.4,
-    D: 0.25,
-    Ungraded: 0.8,
-  },
-  "B+": {
-    "B+": 1,
-    B: 0.8,
-    "C+": 0.6,
-    C: 0.5,
-    D: 0.5,
-    Ungraded: 0.8,
-  },
-};
-
 const roundMoney = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
 export const normalizeGradeQuantities = (gradeQuantities = {}) => {
@@ -75,23 +45,6 @@ export const getHighestAvailableGrade = (gradeQuantities = {}, gradeOrder = DEFA
   return gradeOrder.find((grade) => Number(quantities[grade] || 0) > 0) || "";
 };
 
-const buildFallbackRule = (highestGrade, gradeOrder = DEFAULT_GRADE_ORDER) => {
-  if (highestGrade === "Ungraded") return { Ungraded: 1 };
-
-  const highestIndex = gradeOrder.indexOf(highestGrade);
-  if (highestIndex < 0) return {};
-
-  const descendingMultipliers = [1, 0.8, 0.6, 0.5, 0.4, 0.3, 0.2];
-  return gradeOrder.slice(highestIndex).reduce((rule, grade, index) => {
-    if (grade === "Ungraded") {
-      rule[grade] = 0.8;
-    } else {
-      rule[grade] = descendingMultipliers[index] ?? 0.2;
-    }
-    return rule;
-  }, {});
-};
-
 export const calculateDriverCharge = (distanceKm = 0, slabs = DEFAULT_DRIVER_CHARGE_SLABS) => {
   const distance = Number(distanceKm);
   if (!Number.isFinite(distance) || distance < 0) {
@@ -110,45 +63,31 @@ export const calculateDriverCharge = (distanceKm = 0, slabs = DEFAULT_DRIVER_CHA
 };
 
 export const calculateDealBreakdown = ({
-  highestGrade,
-  baseRate,
   gradeQuantities = {},
+  gradePrices = {},
   distanceKm = 0,
   commissionPercent = Number(process.env.PLATFORM_COMMISSION_PERCENT || 5),
-  gradeRateRules = DEFAULT_GRADE_RATE_RULES,
   driverChargeSlabs = DEFAULT_DRIVER_CHARGE_SLABS,
   gradeOrder = DEFAULT_GRADE_ORDER,
 } = {}) => {
-  const rate = Number(baseRate);
-  if (!Number.isFinite(rate) || rate <= 0) {
-    throw new Error("Rate must be greater than 0");
-  }
-
   const quantities = normalizeGradeQuantities(gradeQuantities);
   const availableGrades = gradeOrder.filter((grade) => Number(quantities[grade] || 0) > 0);
-  const resolvedHighestGrade = highestGrade || availableGrades[0] || "";
 
-  if (!resolvedHighestGrade) {
+  if (!availableGrades.length) {
     throw new Error("At least one grade quantity must be greater than 0");
   }
 
-  if (!availableGrades.includes(resolvedHighestGrade)) {
-    throw new Error("Highest grade must be present in the lot quantity");
-  }
-
-  const rule = {
-    ...buildFallbackRule(resolvedHighestGrade, gradeOrder),
-    ...(gradeRateRules?.[resolvedHighestGrade] || {}),
-  };
-
   const gradeBreakdown = availableGrades.map((grade) => {
     const quantity = Number(quantities[grade] || 0);
-    const multiplier = Number(rule[grade]);
-    const gradeRate = roundMoney(rate * (Number.isFinite(multiplier) ? multiplier : 0));
+    const gradeRate = Number(gradePrices[grade] ?? 0);
+    if (!Number.isFinite(gradeRate) || gradeRate <= 0) {
+      throw new Error(`Enter a price greater than 0 for Grade ${grade}`);
+    }
+
     return {
       grade,
       quantity,
-      rate: gradeRate,
+      price: roundMoney(gradeRate),
       amount: roundMoney(quantity * gradeRate),
     };
   });
@@ -163,9 +102,7 @@ export const calculateDealBreakdown = ({
   const buyerPayable = roundMoney(dealAmount + driverCharge + commissionAmount);
 
   return {
-    highestGrade: resolvedHighestGrade,
-    baseRate: rate,
-    gradeBreakdown,
+    grades: gradeBreakdown,
     dealAmount,
     driverCharge,
     commissionBase,
@@ -201,8 +138,4 @@ export const mergeDealSettings = (settings = {}) => ({
   driverChargeSlabs: settings.driverChargeSlabs?.length
     ? settings.driverChargeSlabs
     : DEFAULT_DRIVER_CHARGE_SLABS,
-  gradeRateRules:
-    settings.gradeRateRules && Object.keys(settings.gradeRateRules).length
-      ? settings.gradeRateRules
-      : DEFAULT_GRADE_RATE_RULES,
 });

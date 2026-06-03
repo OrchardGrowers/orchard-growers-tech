@@ -1942,6 +1942,7 @@ function PeriodTabs({ period, onChange }) {
 
 function MarketLotCard({ item, onUpdateLot, onDeleteLot }) {
   const product = item.product || item;
+  const [sellerQuote, setSellerQuote] = useState(null);
   const title = product.title || "Fruit Lot";
   const image = Array.isArray(product.images) ? product.images[0] : "";
   const normalizedImage = image ? image.replace(/\\/g, "/") : "";
@@ -1951,6 +1952,20 @@ function MarketLotCard({ item, onUpdateLot, onDeleteLot }) {
       : `${FILE_BASE_URL}/${normalizedImage}`
     : "";
   const amount = item.currentBid || product.basePrice || item.auctionPrice || 0;
+
+  useEffect(() => {
+    if (!product._id || !onUpdateLot) return undefined;
+    let active = true;
+    API.get(`/quotations/lots/${product._id}`)
+      .then((res) => {
+        if (!active) return;
+        setSellerQuote((res.data?.quotations || [])[0] || null);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [product._id, onUpdateLot]);
 
   return (
     <article className="w-[165px] min-w-[165px] shrink-0 rounded-md border border-gray-200 bg-white p-2">
@@ -1971,6 +1986,11 @@ function MarketLotCard({ item, onUpdateLot, onDeleteLot }) {
         {product.quantity || 0} Box Lot
       </p>
       <p className="text-[10px] font-bold text-green-800">Rs. {amount}</p>
+      {sellerQuote && (
+        <p className="mt-1 rounded bg-green-50 px-2 py-1 text-[10px] font-extrabold text-green-900">
+          You Will Receive: Rs. {sellerQuote.sellerReceivable || 0}
+        </p>
+      )}
       {(onUpdateLot || onDeleteLot) && product._id && (
         <div className="mt-2 grid grid-cols-2 gap-1">
           {onUpdateLot && (
