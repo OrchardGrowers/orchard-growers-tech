@@ -218,6 +218,15 @@ export default function Home() {
 
     navigate(quotePath);
   };
+  const openRateGrowerFlow = (productId) => {
+    const ratingPath = `/lots/${productId}/rating`;
+    if (!hasBuyerProfile(user)) {
+      navigate("/register-buyer", { state: { from: ratingPath } });
+      return;
+    }
+
+    navigate(ratingPath);
+  };
 
   return (
     <>
@@ -330,7 +339,7 @@ export default function Home() {
             onAdd={() => navigate(isGrower ? "/list-new-lot" : "/profile")}
             onOpenLot={(productId) => navigate(`/lots/${productId}`)}
             onQuoteLot={openQuoteFlow}
-            onRateLot={(productId) => navigate(`/lots/${productId}/rating`)}
+            onRateLot={openRateGrowerFlow}
           />
         )}
       </section>
@@ -839,6 +848,7 @@ function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) 
       </div>
       <DesktopLotImageCarousel
         images={images}
+        product={product}
         title={product.title || "Fruit Lot"}
         onOpen={() => onOpenLot(product._id)}
       />
@@ -876,7 +886,7 @@ function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) 
   );
 }
 
-function DesktopLotImageCarousel({ images, title, onOpen }) {
+function DesktopLotImageCarousel({ images, product, title, onOpen }) {
   const [activeImage, setActiveImage] = useState(0);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -906,6 +916,7 @@ function DesktopLotImageCarousel({ images, title, onOpen }) {
     setZoom(1);
     setPreviewOpen(true);
   };
+  const gradeLabel = getImageGradeLabel(product, images[activeImage]);
 
   return (
     <div className="relative bg-white">
@@ -922,6 +933,7 @@ function DesktopLotImageCarousel({ images, title, onOpen }) {
           loading="lazy"
         />
       </button>
+      {gradeLabel && <FruitGradeBadge label={gradeLabel} />}
       {images.length > 1 && (
         <>
           <button
@@ -1133,6 +1145,14 @@ function CompanyCard({ onOpen }) {
       <h2 className="text-base font-semibold text-gray-900">Orchard Growers</h2>
       <p className="mt-2 text-xs text-gray-600">Agriculture marketplace updates and fruit lots.</p>
     </button>
+  );
+}
+
+function FruitGradeBadge({ label }) {
+  return (
+    <span className="absolute left-3 top-3 rounded bg-green-800 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide text-white shadow">
+      {label}
+    </span>
   );
 }
 
@@ -1361,6 +1381,18 @@ function normalizeProductImageUrl(image = "") {
   return normalized
     ? `${FILE_BASE_URL}/${normalized}`
     : "";
+}
+
+function getImageGradeLabel(product = {}, imageUrl = "") {
+  if (!imageUrl) return "";
+  const normalizedActive = normalizeProductImageUrl(imageUrl);
+  const gradeLot = Array.isArray(product.gradeLots)
+    ? product.gradeLots.find((lot) =>
+        (lot.images || []).some((image) => normalizeProductImageUrl(image) === normalizedActive)
+      )
+    : null;
+  const grade = gradeLot?.grade || product.grade || "";
+  return grade ? `Grade ${grade}` : "";
 }
 
 function formatLotStatus(status = "") {

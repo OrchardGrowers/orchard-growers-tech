@@ -503,6 +503,10 @@ export const rateGrowerForLot = async (req, res) => {
       return res.status(400).json({ msg: "Rating must be between 1 and 5" });
     }
 
+    if (!getUserProfileTypes(req.user).has("buyer")) {
+      return res.status(403).json({ msg: "Register as Fruit Buyer first to rate a grower" });
+    }
+
     const product = await Product.findById(req.params.lotId).select("title createdBy gradeLots createdSource");
     if (!product || product.createdSource === "admin-panel") {
       return res.status(404).json({ msg: "Fruit lot not found" });

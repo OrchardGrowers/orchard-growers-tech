@@ -2,10 +2,13 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { FaArrowLeft, FaMapMarkerAlt, FaStar } from "react-icons/fa";
 import API from "../services/api";
+import { getCurrentUser, hasBuyerProfile } from "../utils/auth";
 
 export default function RateGrower() {
   const { lotId } = useParams();
   const navigate = useNavigate();
+  const user = getCurrentUser();
+  const isBuyer = hasBuyerProfile(user);
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [rating, setRating] = useState(5);
@@ -101,6 +104,29 @@ export default function RateGrower() {
         <div className="mt-3 rounded-md border border-dashed border-green-200 bg-green-50 p-4 text-sm font-bold text-green-800">
           This grower rating page is not available.
         </div>
+      ) : !isBuyer ? (
+        <section className="mt-3 rounded-md border border-green-200 bg-white p-4">
+          <h2 className="text-lg font-extrabold text-gray-950">Register as Fruit Buyer first</h2>
+          <p className="mt-2 text-sm font-bold leading-6 text-gray-600">
+            Only registered fruit buyers can rate a grower. Create or update your buyer profile, then return to this grower rating page.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => navigate("/register-buyer", { state: { from: `/lots/${lotId}/rating` } })}
+              className="rounded-full bg-green-700 px-5 py-2 text-sm font-extrabold text-white hover:bg-green-800"
+            >
+              Register as Fruit Buyer
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(`/lots/${lotId}`)}
+              className="rounded-full bg-gray-100 px-5 py-2 text-sm font-extrabold text-gray-700 hover:bg-gray-200"
+            >
+              View Lot
+            </button>
+          </div>
+        </section>
       ) : (
         <form onSubmit={submitRating} className="mt-3 rounded-md border border-gray-200 bg-white p-4">
           <p className="text-sm font-bold text-gray-700">Your rating</p>

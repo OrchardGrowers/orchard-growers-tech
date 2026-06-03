@@ -143,12 +143,16 @@ export default function RegisterGrower() {
     try {
       const widgetId = getEfruitMandiWidgetId();
       const tokenAuth = getEfruitMandiTokenAuth();
-      if (!widgetId || !tokenAuth || !otpSent) {
+      if (!otpSent) {
         setMessage("Request phone OTP first.");
         return;
       }
 
       const result = await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp: otp.trim(), reqId: otpReqId, phone: normalizeIndianMobile(contactValue) || contactValue, mode: "profile" });
+      if (!result.data?.otpVerificationToken) {
+        setMessage("OTP verified, but verification token was not returned. Request OTP again.");
+        return;
+      }
       setVerifiedPhone(contactValue);
       setOtpVerificationToken(result.data?.otpVerificationToken || "");
       setMessage("Contact number verified.");

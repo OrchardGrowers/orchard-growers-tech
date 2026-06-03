@@ -173,10 +173,12 @@ export default function QuotePrice() {
 }
 
 function LotMediaPanel({ product, images, activeImage, onSelectImage }) {
+  const gradeLabel = getImageGradeLabel(product, activeImage);
+
   return (
     <section className="rounded-md border border-gray-200 bg-white p-3">
       <h2 className="mb-3 text-sm font-extrabold text-gray-950">Lot media</h2>
-      <div className="flex min-h-[320px] items-center justify-center rounded-md bg-white">
+      <div className="relative flex min-h-[320px] items-center justify-center rounded-md bg-white">
         {activeImage ? (
           <img
             src={toAssetUrl(activeImage)}
@@ -188,6 +190,7 @@ function LotMediaPanel({ product, images, activeImage, onSelectImage }) {
             <FaSeedling />
           </div>
         )}
+        {gradeLabel && <FruitGradeBadge label={gradeLabel} />}
       </div>
 
       {images.length > 1 && (
@@ -220,6 +223,14 @@ function LotMediaPanel({ product, images, activeImage, onSelectImage }) {
   );
 }
 
+function FruitGradeBadge({ label }) {
+  return (
+    <span className="absolute left-3 top-3 rounded bg-green-800 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide text-white shadow">
+      {label}
+    </span>
+  );
+}
+
 function InfoTile({ label, value }) {
   return (
     <div className="rounded-md bg-green-50 px-3 py-2">
@@ -242,4 +253,16 @@ function toAssetUrl(path = "") {
   const normalized = String(path || "").replace(/\\/g, "/");
   if (/^https?:\/\//i.test(normalized)) return normalized;
   return normalized ? `${FILE_BASE_URL}/${normalized}` : "";
+}
+
+function getImageGradeLabel(product = {}, imageUrl = "") {
+  if (!imageUrl) return "";
+  const normalizedActive = toAssetUrl(imageUrl);
+  const gradeLot = Array.isArray(product.gradeLots)
+    ? product.gradeLots.find((lot) =>
+        (lot.images || []).some((image) => toAssetUrl(image) === normalizedActive)
+      )
+    : null;
+  const grade = gradeLot?.grade || product.grade || "";
+  return grade ? `Grade ${grade}` : "";
 }

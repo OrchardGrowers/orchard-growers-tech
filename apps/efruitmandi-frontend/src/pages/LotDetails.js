@@ -57,6 +57,7 @@ export default function LotDetails() {
   const growerName = createdBy.orchardName || createdBy.businessName || createdBy.name || "Grower's Orchard";
   const growerRating = Number(createdBy.growerRatingAverage || createdBy.rating || product.growerRating || 0);
   const growerRatingCount = Number(createdBy.growerRatingCount || 0);
+  const activeGradeLabel = getImageGradeLabel(product, activeImage);
   const openQuoteFlow = () => {
     const quotePath = `/lots/${product._id}/quote`;
     if (!hasBuyerProfile(user)) {
@@ -65,6 +66,15 @@ export default function LotDetails() {
     }
 
     navigate(quotePath);
+  };
+  const openRateGrowerFlow = () => {
+    const ratingPath = `/lots/${product._id}/rating`;
+    if (!hasBuyerProfile(user)) {
+      navigate("/register-buyer", { state: { from: ratingPath } });
+      return;
+    }
+
+    navigate(ratingPath);
   };
 
   if (loading) {
@@ -105,7 +115,7 @@ export default function LotDetails() {
       </button>
 
       <section className="rounded-md border border-gray-200 bg-white p-2">
-        <div className="flex h-[70vh] max-h-[680px] min-h-[320px] w-full items-center justify-center rounded-md bg-white">
+        <div className="relative flex h-[70vh] max-h-[680px] min-h-[320px] w-full items-center justify-center rounded-md bg-white">
           {activeImage ? (
             <button
               type="button"
@@ -127,6 +137,7 @@ export default function LotDetails() {
               <FaSeedling />
             </div>
           )}
+          {activeGradeLabel && <FruitGradeBadge label={activeGradeLabel} />}
         </div>
 
         {images.length > 1 && (
@@ -163,7 +174,7 @@ export default function LotDetails() {
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => navigate(`/lots/${product._id}/rating`)}
+              onClick={openRateGrowerFlow}
               className="rounded-full bg-white px-3 py-2 text-[11px] font-extrabold text-green-800 ring-1 ring-green-200"
             >
               Rate Grower
@@ -303,6 +314,14 @@ function ImageZoomModal({ imageUrl, title, zoom, onZoomIn, onZoomOut, onReset, o
   );
 }
 
+function FruitGradeBadge({ label }) {
+  return (
+    <span className="absolute left-3 top-3 rounded bg-green-800 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wide text-white shadow">
+      {label}
+    </span>
+  );
+}
+
 function AuctionPanel({ auction }) {
   if (!auction) {
     return (
@@ -437,6 +456,18 @@ function toAssetUrl(path) {
   const normalizedPath = path ? path.replace(/\\/g, "/") : "";
   if (/^https?:\/\//i.test(normalizedPath)) return normalizedPath;
   return normalizedPath ? `${FILE_BASE_URL}/${normalizedPath}` : "";
+}
+
+function getImageGradeLabel(product = {}, imageUrl = "") {
+  if (!imageUrl) return "";
+  const normalizedActive = toAssetUrl(imageUrl);
+  const gradeLot = Array.isArray(product.gradeLots)
+    ? product.gradeLots.find((lot) =>
+        (lot.images || []).some((image) => toAssetUrl(image) === normalizedActive)
+      )
+    : null;
+  const grade = gradeLot?.grade || product.grade || "";
+  return grade ? `Grade ${grade}` : "";
 }
 
 function isOrganicCertifiedProduct(product = {}) {
