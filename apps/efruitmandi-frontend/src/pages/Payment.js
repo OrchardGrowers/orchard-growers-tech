@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import API from "../services/api";
 import { useParams, useNavigate } from "react-router-dom";
+import BackHomeButton from "../components/BackHomeButton";
 import { isGrowerAccount } from "../utils/auth";
 
 export default function Payment() {
@@ -41,6 +42,9 @@ export default function Payment() {
         >
           Go to Profile Dashboard
         </button>
+        <div className="mt-3 flex justify-center">
+          <BackHomeButton />
+        </div>
       </div>
     );
   }
@@ -91,6 +95,9 @@ export default function Payment() {
       <p className="text-xs text-gray-500 mt-3">
         Secured via BillDesk (Test Mode)
       </p>
+      <div className="mt-4 flex justify-center">
+        <BackHomeButton />
+      </div>
     </div>
   );
 }

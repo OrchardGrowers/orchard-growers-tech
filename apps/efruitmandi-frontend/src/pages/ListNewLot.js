@@ -13,6 +13,7 @@ import {
   FaWeightHanging,
 } from "react-icons/fa";
 import API from "../services/api";
+import BackHomeButton from "../components/BackHomeButton";
 import {
   recognizeFruitImage,
   recognizeFruitVideo,
@@ -729,6 +730,9 @@ export default function ListNewLot() {
             >
               Complete KYC
             </button>
+            <div className="mt-3">
+              <BackHomeButton />
+            </div>
           </div>
         </section>
       ) : (
@@ -1040,6 +1044,9 @@ export default function ListNewLot() {
         >
           {loading ? (isEditMode ? "Updating..." : "Listing...") : recognizing ? "Checking media..." : isEditMode ? "Update Lot" : "List Lot"}
         </button>
+        <div className="mt-4 flex justify-center">
+          <BackHomeButton />
+        </div>
       </form>
       )}
     </div>

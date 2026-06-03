@@ -7,6 +7,7 @@ import {
   hasGrowerProfile,
 } from "../utils/auth";
 import { useNavigate } from "react-router-dom";
+import BackHomeButton from "../components/BackHomeButton";
 
 export default function Delivery() {
   const navigate = useNavigate();
@@ -140,6 +141,9 @@ export default function Delivery() {
           Login with a buyer, grower, or driver account to manage delivery.
         </p>
       )}
+      <div className="flex justify-center">
+        <BackHomeButton />
+      </div>
     </div>
   );
 }

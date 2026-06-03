@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import API from "../services/api";
+import BackHomeButton from "../components/BackHomeButton";
 import { isGrowerAccount } from "../utils/auth";
 
 export default function EscrowWorkflow() {
@@ -70,6 +71,9 @@ export default function EscrowWorkflow() {
           </div>
         </>
       )}
+      <div className="flex justify-center">
+        <BackHomeButton />
+      </div>
     </div>
   );
 }

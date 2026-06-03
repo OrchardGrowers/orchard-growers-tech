@@ -12,6 +12,7 @@ import {
   FaVideo,
 } from "react-icons/fa";
 import API from "../services/api";
+import BackHomeButton from "../components/BackHomeButton";
 import { getCurrentUser, hasBuyerProfile } from "../utils/auth";
 import {
   getEfruitMandiWidgetId,
@@ -198,14 +199,17 @@ export default function GetVerified() {
 
   return (
     <div className="mx-auto max-w-4xl pb-20">
-      <button
-        type="button"
-        onClick={() => navigate(-1)}
-        className="mb-3 inline-flex items-center gap-2 rounded-full bg-gray-200 px-3 py-1 text-xs font-bold text-gray-700 hover:bg-gray-300"
-      >
-        <FaArrowLeft />
-        Back
-      </button>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="inline-flex items-center gap-2 rounded-full bg-gray-200 px-3 py-1 text-xs font-bold text-gray-700 hover:bg-gray-300"
+        >
+          <FaArrowLeft />
+          Back
+        </button>
+        <BackHomeButton />
+      </div>
 
       <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="bg-green-800 px-5 py-6 text-white md:px-8">

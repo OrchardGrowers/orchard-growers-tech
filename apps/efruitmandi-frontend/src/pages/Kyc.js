@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { FaCheckCircle, FaFileUpload, FaIdCard, FaUniversity } from "react-icons/fa";
 import API from "../services/api";
+import BackHomeButton from "../components/BackHomeButton";
 import { getKycStatusLabel, getProfileTypes } from "../utils/auth";
 import { saveUserToStorage } from "../utils/userStorage";
 
@@ -290,6 +291,9 @@ export default function Kyc() {
           >
             {loading ? "Submitting..." : canEdit ? "Submit KYC" : "KYC Locked"}
           </button>
+          <div className="flex justify-center">
+            <BackHomeButton />
+          </div>
         </form>
       </section>
     </div>

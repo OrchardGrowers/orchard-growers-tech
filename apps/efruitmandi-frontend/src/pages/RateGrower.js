@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { FaArrowLeft, FaMapMarkerAlt, FaStar } from "react-icons/fa";
 import API from "../services/api";
+import BackHomeButton from "../components/BackHomeButton";
 import { getCurrentUser, hasBuyerProfile } from "../utils/auth";
 
 export default function RateGrower() {
@@ -171,6 +172,9 @@ export default function RateGrower() {
             <FaStar />
             {saving ? "Submitting..." : "Submit Rating"}
           </button>
+          <div className="mt-3 flex justify-center">
+            <BackHomeButton />
+          </div>
         </form>
       )}
     </div>

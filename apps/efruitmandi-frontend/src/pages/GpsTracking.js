@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import API from "../services/api";
+import BackHomeButton from "../components/BackHomeButton";
 import { getCurrentUser, hasDriverProfile } from "../utils/auth";
 
 export default function GpsTracking() {
@@ -102,6 +103,9 @@ export default function GpsTracking() {
           </button>
         </div>
       )}
+      <div className="flex justify-center">
+        <BackHomeButton />
+      </div>
     </div>
   );
 }

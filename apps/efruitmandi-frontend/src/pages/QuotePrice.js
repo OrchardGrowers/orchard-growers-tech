@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { FaArrowLeft, FaCalculator, FaMapMarkerAlt, FaSeedling, FaVideo } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
+import BackHomeButton from "../components/BackHomeButton";
 import { canQuote, getCurrentUser, getKycStatusLabel, hasBuyerProfile } from "../utils/auth";
 import { saveUserToStorage } from "../utils/userStorage";
 
@@ -258,6 +259,9 @@ export default function QuotePrice() {
               <FaSeedling />
               {saving ? "Submitting..." : "Submit Quote"}
             </button>
+            <div className="mt-3 flex justify-center">
+              <BackHomeButton />
+            </div>
           </form>
         </section>
       )}

@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import BackHomeButton from "./BackHomeButton";
 
 const logoUrl = `${process.env.PUBLIC_URL || ""}/logo.png`;
 
@@ -85,6 +86,9 @@ export default function AuthBrandShell({ children, compact = false }) {
         </section>
 
         <main className="h-full min-h-0 overflow-y-auto bg-white px-5 py-3 sm:px-7 lg:px-6 lg:py-4">
+          <div className="mb-3 flex justify-end">
+            <BackHomeButton />
+          </div>
           <div className={`mx-auto min-h-full w-full ${compact ? "max-w-[360px]" : "max-w-[390px]"} lg:flex lg:items-center`}>
             {children}
           </div>
