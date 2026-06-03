@@ -1083,7 +1083,7 @@ export default function ProfileDashboard() {
             </p>
             <button
               type="button"
-              onClick={() => navigate("/kyc")}
+              onClick={() => navigate("/kyc", { state: { roleType: profileMode } })}
               className="mt-3 rounded-full bg-green-700 px-4 py-2 text-xs font-extrabold text-white hover:bg-green-800"
             >
               Complete KYC

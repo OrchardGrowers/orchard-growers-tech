@@ -40,6 +40,26 @@ const statusMessages = {
 };
 
 const editableStatuses = new Set(["NOT_SUBMITTED", "REJECTED", "CORRECTION_REQUIRED"]);
+const validRoleTypes = new Set(["buyer", "grower", "driver"]);
+
+const resolveLockedRoleType = (user = {}, kyc = {}, routeRoleType = "") => {
+  const routeRole = String(routeRoleType || "").toLowerCase();
+  if (validRoleTypes.has(routeRole)) return routeRole;
+
+  const switchedMode = String(localStorage.getItem("efruitmandiProfileMode") || "").toLowerCase();
+  if (validRoleTypes.has(switchedMode)) return switchedMode;
+
+  const userRole = String(user.role || "").toLowerCase();
+  if (validRoleTypes.has(userRole)) return userRole;
+
+  const kycRole = String(kyc.roleType || "").toLowerCase();
+  if (validRoleTypes.has(kycRole)) return kycRole;
+
+  const profiles = getProfileTypes(user);
+  if (profiles.has("grower")) return "grower";
+  if (profiles.has("driver")) return "driver";
+  return "buyer";
+};
 
 export default function Kyc() {
   const navigate = useNavigate();
@@ -47,6 +67,7 @@ export default function Kyc() {
   const returnTo = location.state?.from || "";
   const isQuoteIntent = location.state?.intent === "quote";
   const intentMessage = location.state?.message || "";
+  const routeRoleType = location.state?.roleType || "";
   const [form, setForm] = useState(initialForm);
   const [files, setFiles] = useState({});
   const [kycStatus, setKycStatus] = useState("NOT_SUBMITTED");
@@ -61,10 +82,7 @@ export default function Kyc() {
         const res = await API.get("/kyc/me");
         const user = res.data?.user || {};
         const kyc = res.data?.kyc || {};
-        const profiles = getProfileTypes(user);
-        const roleType =
-          kyc.roleType ||
-          (profiles.has("grower") ? "grower" : profiles.has("driver") ? "driver" : "buyer");
+        const roleType = resolveLockedRoleType(user, kyc, routeRoleType);
 
         setForm({
           ...initialForm,
@@ -197,11 +215,14 @@ export default function Kyc() {
           <section className="rounded-lg border border-green-100 bg-green-50 p-4">
             <h2 className="mb-3 text-base font-extrabold text-gray-950">User Details</h2>
             <div className="grid gap-3 md:grid-cols-2">
-              <SelectField label="Role Type" value={form.roleType} disabled={!canEdit} onChange={(value) => updateForm("roleType", value)} options={[
+              <SelectField label="Role Type" value={form.roleType} disabled onChange={(value) => updateForm("roleType", value)} options={[
                 ["buyer", "Buyer"],
                 ["grower", "Grower / Seller"],
                 ["driver", "Driver"],
               ]} />
+              <p className="rounded-md bg-white px-3 py-2 text-xs font-bold text-green-800 md:col-span-2">
+                Role type is auto-selected from your logged-in or switched dashboard profile.
+              </p>
               <KycInput label="Full Name" value={form.fullName} disabled={!canEdit} onChange={(value) => updateForm("fullName", value)} />
               <KycInput label="Phone" value={form.phone} disabled={!canEdit} onChange={(value) => updateForm("phone", value)} />
               <KycInput label="Email" value={form.email} disabled={!canEdit} onChange={(value) => updateForm("email", value)} />

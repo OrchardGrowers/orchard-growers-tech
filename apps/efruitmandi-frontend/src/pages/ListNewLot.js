@@ -724,7 +724,7 @@ export default function ListNewLot() {
             </p>
             <button
               type="button"
-              onClick={() => navigate("/kyc", { state: { from: "/list-new-lot" } })}
+              onClick={() => navigate("/kyc", { state: { from: "/list-new-lot", roleType: "grower" } })}
               className="mt-4 rounded-full bg-green-700 px-5 py-2 text-sm font-extrabold text-white hover:bg-green-800"
             >
               Complete KYC

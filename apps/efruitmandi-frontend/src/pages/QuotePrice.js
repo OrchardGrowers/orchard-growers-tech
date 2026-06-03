@@ -162,7 +162,7 @@ export default function QuotePrice() {
           <div className="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => navigate("/kyc", { state: { from: `/lots/${lotId}/quote` } })}
+              onClick={() => navigate("/kyc", { state: { from: `/lots/${lotId}/quote`, roleType: "buyer", intent: "quote" } })}
               className="rounded-full bg-green-700 px-5 py-2 text-sm font-extrabold text-white hover:bg-green-800"
             >
               Complete KYC

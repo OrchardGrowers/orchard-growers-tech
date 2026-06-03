@@ -249,6 +249,7 @@ export default function Home() {
       navigate("/kyc", {
         state: {
           from: quotePath,
+          roleType: "buyer",
           intent: "quote",
           message:
             "To keep eFruitMandi safe and trusted, KYC verification is required before placing a quote or deal. Please complete your KYC and wait for admin approval.",
