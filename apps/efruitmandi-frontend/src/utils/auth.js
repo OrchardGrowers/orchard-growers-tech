@@ -37,6 +37,9 @@ export const hasBuyerProfile = (user = getCurrentUser()) =>
 export const hasDriverProfile = (user = getCurrentUser()) =>
   getProfileTypes(user).has("driver");
 
+export const hasCompletedKyc = (user = getCurrentUser()) =>
+  ["COMPLETED", "APPROVED"].includes(String(user?.kyc?.status || "").toUpperCase());
+
 export const isGrowerAccount = (user = getCurrentUser()) =>
   hasGrowerProfile(user);
 

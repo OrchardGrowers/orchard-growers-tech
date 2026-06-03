@@ -101,6 +101,14 @@ const ORGANIC_CERTIFIED_QUALITIES = new Set([
 const requiresOrganicCertificate = (quality = "") =>
   ORGANIC_CERTIFIED_QUALITIES.has(String(quality || "").trim().toLowerCase());
 
+const hasCompletedKyc = (user = {}) =>
+  ["COMPLETED", "APPROVED"].includes(String(user?.kyc?.status || "").toUpperCase());
+
+const requireCompletedKyc = async (userId) => {
+  const user = await User.findById(userId).select("kyc");
+  return hasCompletedKyc(user);
+};
+
 export const getNextLotNo = async (req, res) => {
   try {
     const lotNo = await generateLotNo(req.user.id);
@@ -206,6 +214,10 @@ export const generateSku = async (req, res) => {
 // CREATE PRODUCT WITH IMAGE
 export const createProduct = async (req, res) => {
   try {
+    if (!(await requireCompletedKyc(req.user.id))) {
+      return res.status(403).json({ msg: "Complete KYC before listing fruit lots" });
+    }
+
     const title = String(req.body.title || "").trim();
     const fruitName = String(req.body.fruitName || "").trim();
     const variety = String(req.body.variety || "").trim();
@@ -391,7 +403,7 @@ export const getProducts = async (req, res) => {
     }
 
     const products = await Product.find(filters)
-      .populate("createdBy", "name orchardName businessName role location growerRatingAverage growerRatingCount")
+      .populate("createdBy", "name orchardName businessName companyLogoUrl avatarUrl bannerUrl role location growerRatingAverage growerRatingCount")
       .sort({ createdAt: -1 });
     res.json(products.map((product) => serializeProduct(product, req.user)));
   } catch (err) {
@@ -405,7 +417,7 @@ export const getProductById = async (req, res) => {
     const platform = String(req.query.platform || "").trim().toLowerCase();
     const product = await Product.findById(req.params.id).populate(
       "createdBy",
-      "name orchardName businessName role location growerRatingAverage growerRatingCount"
+      "name orchardName businessName companyLogoUrl avatarUrl bannerUrl role location growerRatingAverage growerRatingCount"
     );
 
     const isOrchardPlatform = ["orchard", "orchardgrowers", "orchard-growers"].includes(platform);
@@ -431,6 +443,121 @@ export const getProductById = async (req, res) => {
     }
 
     res.json({ product: serializedProduct, auction: serializedAuction });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+// UPDATE GROWER LOT DETAILS
+export const updateProduct = async (req, res) => {
+  try {
+    if (!(await requireCompletedKyc(req.user.id))) {
+      return res.status(403).json({ msg: "Complete KYC before updating fruit lots" });
+    }
+
+    const product = await Product.findById(req.params.id);
+    if (!product) {
+      return res.status(404).json({ msg: "Product not found" });
+    }
+
+    if (product.createdBy?.toString() !== req.user.id?.toString()) {
+      return res.status(403).json({ msg: "You can update only your own listing" });
+    }
+
+    if (product.createdSource === "admin-panel" || product.inventoryType === "raw_material") {
+      return res.status(400).json({ msg: "This listing cannot be updated from grower dashboard" });
+    }
+
+    const title = String(req.body.title || product.title || "").trim();
+    const fruitName = String(req.body.fruitName || product.fruitName || "").trim();
+    const variety = String(req.body.variety || product.variety || "").trim();
+    const quality = String(req.body.quality || product.quality || "").trim();
+    const organicCertificationNo = String(req.body.organicCertificationNo || product.organicCertificationNo || "").trim();
+    const description = String(req.body.description ?? product.description ?? "").trim();
+    const packingType = String(req.body.packingType || product.packingType || "").trim();
+    const location = String(req.body.location || product.location || "").trim();
+    const quantity = Number(req.body.quantity ?? product.quantity ?? 0);
+    const packingWeightKg = Number(req.body.packingWeightKg ?? product.packingWeightKg ?? 0);
+    const totalWeightKg = Number(req.body.totalWeightKg ?? product.totalWeightKg ?? 0);
+    const basePrice = Number(req.body.basePrice ?? product.basePrice ?? 0);
+
+    if (!title || !fruitName || !variety || !quality || !packingType || !location) {
+      return res.status(400).json({ msg: "Title, fruit, variety, quality, packing, and location are required" });
+    }
+
+    if (!Number.isFinite(basePrice) || basePrice <= 0) {
+      return res.status(400).json({ msg: "Base price must be greater than zero" });
+    }
+
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      return res.status(400).json({ msg: "Quantity must be greater than zero" });
+    }
+
+    if (!Number.isFinite(totalWeightKg) || totalWeightKg <= 0) {
+      return res.status(400).json({ msg: "Total weight must be greater than zero" });
+    }
+
+    if (requiresOrganicCertificate(quality) && !organicCertificationNo) {
+      return res.status(400).json({ msg: "Organic certification number is required for certified organic lots" });
+    }
+
+    let requestedGradeLots = [];
+    try {
+      requestedGradeLots = Array.isArray(req.body.gradeLots)
+        ? req.body.gradeLots
+        : typeof req.body.gradeLots === "string"
+          ? JSON.parse(req.body.gradeLots || "[]")
+          : [];
+    } catch {
+      return res.status(400).json({ msg: "Invalid grade lot details" });
+    }
+
+    if (!Array.isArray(requestedGradeLots)) {
+      return res.status(400).json({ msg: "Invalid grade lot details" });
+    }
+
+    const gradeLots = requestedGradeLots.map((lot) => {
+      const existingLot = (product.gradeLots || []).find((item) => item.grade === lot.grade) || {};
+      const boxes = Number(lot.boxes || 0);
+      const weightKg = Number(lot.weightKg || 0);
+      return {
+        grade: lot.grade,
+        boxes,
+        weightKg,
+        images: existingLot.images || [],
+        imageObjects: existingLot.imageObjects || [],
+      };
+    });
+
+    const totalGradeBoxes = gradeLots.reduce((sum, lot) => sum + Number(lot.boxes || 0), 0);
+    if (totalGradeBoxes <= 0) {
+      return res.status(400).json({ msg: "At least one grade lot with boxes is required" });
+    }
+
+    product.title = title;
+    product.fruitName = fruitName;
+    product.variety = variety;
+    product.quality = quality;
+    product.organicCertificationNo = organicCertificationNo;
+    product.description = description;
+    product.packingType = packingType;
+    product.packingWeightKg = packingWeightKg;
+    product.totalWeightKg = totalWeightKg;
+    product.quantity = quantity;
+    product.basePrice = basePrice;
+    product.location = location;
+    product.gradeLots = gradeLots;
+
+    await product.save();
+
+    const linkedAuction = await Auction.findOne({ product: product._id, status: "SCHEDULED" });
+    if (linkedAuction) {
+      linkedAuction.startingPrice = basePrice;
+      linkedAuction.currentBid = basePrice;
+      await linkedAuction.save();
+    }
+
+    res.json({ message: "Product updated", product });
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }

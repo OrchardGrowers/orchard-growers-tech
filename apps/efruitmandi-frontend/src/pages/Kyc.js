@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { FaBuilding, FaCheckCircle, FaFileUpload, FaIdCard, FaUniversity } from "react-icons/fa";
 import API from "../services/api";
 import { saveUserToStorage } from "../utils/userStorage";
@@ -11,6 +12,9 @@ const initialForm = {
 };
 
 export default function Kyc() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = location.state?.from || "";
   const [form, setForm] = useState(initialForm);
   const [files, setFiles] = useState({
     udyanCardFile: null,
@@ -70,6 +74,9 @@ export default function Kyc() {
       saveUserToStorage(res.data);
       setKycStatus(res.data?.kyc?.status || "COMPLETED");
       setMessage("KYC submitted. Authority verification will be completed within 24 hours.");
+      if (returnTo) {
+        window.setTimeout(() => navigate(returnTo), 800);
+      }
     } catch (err) {
       setMessage(err.response?.data?.msg || "KYC submission failed.");
     } finally {

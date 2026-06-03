@@ -14,6 +14,7 @@ import {
   FaSearch,
   FaSeedling,
   FaShieldAlt,
+  FaTrash,
   FaTruck,
   FaYoutube,
 } from "react-icons/fa";
@@ -239,6 +240,9 @@ export default function ProfileDashboard() {
   const [adClaimed, setAdClaimed] = useState(
     () => localStorage.getItem("profilePromoClaimed") === "true"
   );
+  const [activeProfileMode, setActiveProfileMode] = useState(
+    () => localStorage.getItem("efruitmandiProfileMode") || ""
+  );
 
   const storedUser = useMemo(() => {
     try {
@@ -316,28 +320,42 @@ export default function ProfileDashboard() {
   const isBuyer = hasBuyerProfile(user);
   const isDriver = hasDriverProfile(user);
   const isVisitor = !isGrower && !isBuyer && !isDriver;
+  const availableProfileModes = [
+    isBuyer && { key: "buyer", label: "Buyer", icon: <FaHandshake /> },
+    isGrower && { key: "grower", label: "Grower", icon: <FaSeedling /> },
+    isDriver && { key: "driver", label: "Driver", icon: <FaTruck /> },
+  ].filter(Boolean);
+  const roleProfileMode = availableProfileModes.find((mode) => mode.key === user.role)?.key;
+  const profileMode = availableProfileModes.some((mode) => mode.key === activeProfileMode)
+    ? activeProfileMode
+    : roleProfileMode || availableProfileModes[0]?.key || "visitor";
+  const switchProfileMode = (mode) => {
+    setActiveProfileMode(mode);
+    localStorage.setItem("efruitmandiProfileMode", mode);
+    setNotice(`Switched to ${mode} mode.`);
+  };
   const profileAddress = formatProfileAddress(user);
   const businessAddress = formatBusinessAddress(user);
   const displayName =
-    isGrower
+    profileMode === "grower"
       ? user.orchardName || user.name || "Pawan Orchards"
-      : isDriver
+      : profileMode === "driver"
         ? user.logisticsName || user.name || "Logistics Partner"
         : user.businessName || user.name || "Visitor";
   const location = businessAddress || user.location || profileAddress || "Shilhi Bagi, Thunag, Mandi, H.P.";
   const profileDesignation = String(user.designation || "").trim();
-  const headline = isGrower
+  const headline = profileMode === "grower"
     ? `${profileDesignation || "Fruit grower"} @ ${displayName} | Fruit grower`
-    : isBuyer
+    : profileMode === "buyer"
       ? `Buyer @ ${displayName} | Fruit trading partner`
-      : isDriver
+      : profileMode === "driver"
         ? `Logistics partner @ ${displayName}`
         : "Visitor account";
-  const dashboardTitle = isGrower
+  const dashboardTitle = profileMode === "grower"
     ? "Growers Profile dashboard"
-    : isBuyer
+    : profileMode === "buyer"
       ? "Buyer Profile Dashboard"
-      : isDriver
+      : profileMode === "driver"
         ? "Logistic Partner Profile Dashboard"
         : "User Profile Dashboard";
   const registrationActions = [
@@ -715,6 +733,36 @@ export default function ProfileDashboard() {
     navigate("/get-verified");
   };
 
+  const openListLot = () => {
+    if (!isKycCompleted) {
+      navigate("/kyc", { state: { from: "/list-new-lot" } });
+      return;
+    }
+
+    navigate("/list-new-lot");
+  };
+
+  const updateLot = (productId) => {
+    if (!isKycCompleted) {
+      navigate("/kyc", { state: { from: "/profile-dashboard" } });
+      return;
+    }
+
+    navigate("/list-new-lot", { state: { productId } });
+  };
+
+  const deleteLot = async (productId) => {
+    if (!window.confirm("Delete this fruit lot?")) return;
+
+    try {
+      await API.delete(`/products/${productId}`);
+      setProducts((current) => current.filter((product) => product._id !== productId));
+      setNotice("Lot deleted.");
+    } catch (err) {
+      setNotice(err.response?.data?.msg || "Lot could not be deleted.");
+    }
+  };
+
   const claimPromo = () => {
     localStorage.setItem("profilePromoClaimed", "true");
     setAdClaimed(true);
@@ -865,11 +913,15 @@ export default function ProfileDashboard() {
                     {isGrower && (
                       <button
                         type="button"
-                        onClick={() => navigate("/list-new-lot")}
-                        className="mt-4 inline-flex items-center justify-center gap-2 rounded-full bg-green-700 px-5 py-2.5 text-sm font-extrabold text-white shadow-sm hover:bg-green-800"
+                        onClick={openListLot}
+                        className={`mt-4 inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-extrabold shadow-sm ${
+                          isKycCompleted
+                            ? "bg-green-700 text-white hover:bg-green-800"
+                            : "bg-gray-200 text-gray-500"
+                        }`}
                       >
-                        <FaSeedling />
-                        List Fruit Lot
+                        {isKycCompleted ? <FaSeedling /> : <FaLock />}
+                        {isKycCompleted ? "List Fruit Lot" : "KYC required to list"}
                       </button>
                     )}
 
@@ -943,6 +995,14 @@ export default function ProfileDashboard() {
           </div>
         </section>
 
+        {availableProfileModes.length > 1 && (
+          <ProfileModeSwitcher
+            modes={availableProfileModes}
+            activeMode={profileMode}
+            onSwitch={switchProfileMode}
+          />
+        )}
+
         {registrationActions.length > 0 && (
           <RoleRegistrationCards
             options={registrationActions}
@@ -1003,6 +1063,8 @@ export default function ProfileDashboard() {
           onSeeListings={() => navigate("/profile-dashboard")}
           onSeeClosed={() => navigate("/orders")}
           onSeeRates={() => navigate("/auctions")}
+          onUpdateLot={updateLot}
+          onDeleteLot={deleteLot}
         />
 
         <div className="mt-4 space-y-3 md:hidden">
@@ -1539,6 +1601,36 @@ function RoleRegistrationCards({ options, onSelect }) {
   );
 }
 
+function ProfileModeSwitcher({ modes, activeMode, onSwitch }) {
+  return (
+    <section className="mt-4 rounded-lg border border-green-100 bg-white p-3">
+      <p className="text-xs font-extrabold uppercase tracking-wide text-green-700">
+        Switch Mode
+      </p>
+      <p className="mt-1 text-[11px] font-bold text-gray-500">
+        Change dashboard view for this account.
+      </p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        {modes.map((mode) => (
+          <button
+            key={mode.key}
+            type="button"
+            onClick={() => onSwitch(mode.key)}
+            className={`inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-extrabold ${
+              activeMode === mode.key
+                ? "bg-green-700 text-white"
+                : "bg-green-50 text-green-800 hover:bg-green-100"
+            }`}
+          >
+            {mode.icon}
+            {mode.label}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ProfileMarketPanel({
   loading,
   products,
@@ -1550,6 +1642,8 @@ function ProfileMarketPanel({
   onSeeListings,
   onSeeClosed,
   onSeeRates,
+  onUpdateLot,
+  onDeleteLot,
 }) {
   return (
     <div className="mt-4 space-y-3 rounded-lg border border-gray-200 bg-white p-3">
@@ -1564,6 +1658,8 @@ function ProfileMarketPanel({
         items={products}
         emptyText="No current listing yet. Add a fruit lot to manage it here."
         onSeeAll={onSeeListings}
+        onUpdateLot={onUpdateLot}
+        onDeleteLot={onDeleteLot}
       />
 
       <ProfileFruitSalesSection records={salesRecords} />
@@ -1585,7 +1681,7 @@ function ProfileMarketPanel({
   );
 }
 
-function MarketLotSection({ title, items, emptyText, onSeeAll }) {
+function MarketLotSection({ title, items, emptyText, onSeeAll, onUpdateLot, onDeleteLot }) {
   return (
     <section>
       <div className="mb-2 flex items-center justify-between">
@@ -1602,7 +1698,12 @@ function MarketLotSection({ title, items, emptyText, onSeeAll }) {
       {items.length ? (
         <div className="flex gap-2 overflow-x-auto pb-2">
           {items.slice(0, 6).map((item, index) => (
-            <MarketLotCard key={item._id || index} item={item} />
+            <MarketLotCard
+              key={item._id || index}
+              item={item}
+              onUpdateLot={onUpdateLot}
+              onDeleteLot={onDeleteLot}
+            />
           ))}
         </div>
       ) : (
@@ -1839,7 +1940,7 @@ function PeriodTabs({ period, onChange }) {
   );
 }
 
-function MarketLotCard({ item }) {
+function MarketLotCard({ item, onUpdateLot, onDeleteLot }) {
   const product = item.product || item;
   const title = product.title || "Fruit Lot";
   const image = Array.isArray(product.images) ? product.images[0] : "";
@@ -1870,6 +1971,30 @@ function MarketLotCard({ item }) {
         {product.quantity || 0} Box Lot
       </p>
       <p className="text-[10px] font-bold text-green-800">Rs. {amount}</p>
+      {(onUpdateLot || onDeleteLot) && product._id && (
+        <div className="mt-2 grid grid-cols-2 gap-1">
+          {onUpdateLot && (
+            <button
+              type="button"
+              onClick={() => onUpdateLot(product._id)}
+              className="inline-flex items-center justify-center gap-1 rounded bg-green-50 px-2 py-1 text-[9px] font-extrabold text-green-800 hover:bg-green-100"
+            >
+              <FaPen />
+              Update
+            </button>
+          )}
+          {onDeleteLot && (
+            <button
+              type="button"
+              onClick={() => onDeleteLot(product._id)}
+              className="inline-flex items-center justify-center gap-1 rounded bg-red-50 px-2 py-1 text-[9px] font-extrabold text-red-700 hover:bg-red-100"
+            >
+              <FaTrash />
+              Delete
+            </button>
+          )}
+        </div>
+      )}
     </article>
   );
 }

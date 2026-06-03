@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   FaTimes,
   FaCertificate,
@@ -18,7 +18,8 @@ import {
   recognizeFruitVideo,
   warmUpFruitRecognition,
 } from "../utils/fruitRecognition";
-import { getCurrentUser } from "../utils/auth";
+import { getCurrentUser, hasCompletedKyc } from "../utils/auth";
+import { saveUserToStorage } from "../utils/userStorage";
 
 const DEFAULT_FRUITS = [
   "Almond",
@@ -353,6 +354,11 @@ const getVarietiesForFruit = (fruitName) => {
 
 export default function ListNewLot() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const editProductId = location.state?.productId || "";
+  const isEditMode = Boolean(editProductId);
+  const [profileUser, setProfileUser] = useState(getCurrentUser());
+  const isKycCompleted = hasCompletedKyc(profileUser);
   const [fruits, setFruits] = useState(DEFAULT_FRUITS);
   const [varieties, setVarieties] = useState(DEFAULT_VARIETIES);
   const [customPanel, setCustomPanel] = useState(null);
@@ -370,6 +376,7 @@ export default function ListNewLot() {
   const [gradeLots, setGradeLots] = useState(initialGradeLots);
   const [sampleVideo, setSampleVideo] = useState(null);
   const [organicCertificate, setOrganicCertificate] = useState(null);
+  const [existingOrganicCertificateUrl, setExistingOrganicCertificateUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [recognizing, setRecognizing] = useState(false);
@@ -412,6 +419,15 @@ export default function ListNewLot() {
   useEffect(() => {
     let active = true;
 
+    API.get("/user/profile")
+      .then((res) => {
+        if (!active) return;
+        const freshUser = res.data || {};
+        setProfileUser(freshUser);
+        saveUserToStorage(freshUser);
+      })
+      .catch(() => {});
+
     API.get("/products/next-lot-no")
       .then((res) => {
         if (active && res.data?.lotNo) {
@@ -426,6 +442,52 @@ export default function ListNewLot() {
       active = false;
     };
   }, [localLotNoPreview]);
+
+  useEffect(() => {
+    if (!editProductId) return undefined;
+
+    let active = true;
+    API.get(`/products/${editProductId}?platform=efruitmandi`)
+      .then((res) => {
+        if (!active) return;
+        const product = res.data?.product;
+        if (!product) return;
+        const packingIndex = Math.max(
+          0,
+          PACKING_TYPES.findIndex((packing) => packing.label === product.packingType)
+        );
+        const nextGradeLots = GRADES.reduce((lots, grade) => {
+          const savedLot = (product.gradeLots || []).find((lot) => lot.grade === grade.label) || {};
+          lots[grade.key] = {
+            boxes: savedLot.boxes ? String(savedLot.boxes) : "",
+            images: normalizeExistingImages(savedLot.images),
+          };
+          return lots;
+        }, {});
+
+        setForm({
+          fruitName: product.fruitName || "",
+          variety: product.variety || "",
+          quality: product.quality || "",
+          organicCertificationNo: product.organicCertificationNo || "",
+          description: product.description || "",
+          basePrice: product.basePrice ? String(product.basePrice) : "",
+          location: product.location || "",
+          packingIndex: String(packingIndex),
+        });
+        setVarieties(getVarietiesForFruit(product.fruitName || ""));
+        setGradeLots(nextGradeLots);
+        setExistingOrganicCertificateUrl(product.organicCertificateUrl || "");
+        setLotNoPreview(product.lotNo || localLotNoPreview);
+      })
+      .catch((err) => {
+        setMessage(err.response?.data?.msg || "Could not load this lot for update.");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [editProductId, localLotNoPreview]);
 
   const updateForm = (field, value) => {
     setForm((current) => {
@@ -571,7 +633,7 @@ export default function ListNewLot() {
       return;
     }
 
-    if (needsOrganicCertificate && !organicCertificate) {
+    if (needsOrganicCertificate && !organicCertificate && !existingOrganicCertificateUrl) {
       setMessage("Upload organic certificate for this certified organic lot.");
       return;
     }
@@ -581,6 +643,28 @@ export default function ListNewLot() {
       setUploadProgress(0);
 
       const title = `${form.fruitName} ${form.variety}`.trim();
+
+      if (isEditMode) {
+        await API.patch(`/products/${editProductId}`, {
+          title,
+          fruitName: form.fruitName,
+          variety: form.variety,
+          quality: form.quality,
+          organicCertificationNo: form.organicCertificationNo,
+          description: form.description,
+          basePrice: form.basePrice,
+          location: form.location,
+          packingType: selectedPacking.label,
+          packingWeightKg: selectedPacking.kg,
+          totalWeightKg: calculations.totalWeightKg,
+          quantity: calculations.totalBoxes,
+          gradeLots: preparedGradeLots,
+        });
+
+        navigate("/profile-dashboard", { state: { notice: "Lot updated." } });
+        return;
+      }
+
       const data = new FormData();
       data.append("title", title);
       data.append("fruitName", form.fruitName);
@@ -630,13 +714,30 @@ export default function ListNewLot() {
 
   return (
     <div className="mx-auto max-w-md border-t-4 border-green-600 bg-white pb-20">
+      {!isKycCompleted ? (
+        <section className="px-4 py-5">
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-4">
+            <h1 className="text-lg font-extrabold text-amber-950">Complete KYC before listing lot</h1>
+            <p className="mt-2 text-sm font-bold leading-6 text-amber-800">
+              Growers must submit KYC before listing fruit lots on eFruitMandi.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate("/kyc", { state: { from: "/list-new-lot" } })}
+              className="mt-4 rounded-full bg-green-700 px-5 py-2 text-sm font-extrabold text-white hover:bg-green-800"
+            >
+              Complete KYC
+            </button>
+          </div>
+        </section>
+      ) : (
       <form onSubmit={handleSubmit} className="px-4 py-5">
         <div className="mb-5 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border-2 border-black text-2xl font-bold">
             <FaPlus />
           </div>
           <h1 className="mt-2 text-lg font-extrabold text-black">
-            List Your Product
+            {isEditMode ? "Update Fruit Lot" : "List Your Product"}
           </h1>
           <p className="mt-1 text-xs font-semibold text-gray-500">
             Select fruit, packing, grade quantity, and calculate lot weight.
@@ -817,7 +918,7 @@ export default function ListNewLot() {
 
           <Field
             icon={<FaMoneyBillWave />}
-            label="Base price per box"
+            label={`Base price per ${singularizeUnit(packingUnit).toLowerCase()}`}
             value={form.basePrice}
             placeholder="1200"
             inputMode="numeric"
@@ -936,9 +1037,10 @@ export default function ListNewLot() {
           disabled={loading || recognizing}
           className="mt-6 w-full rounded-md bg-green-700 py-3 text-sm font-bold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-300"
         >
-          {loading ? "Listing..." : recognizing ? "Checking media..." : "List Lot"}
+          {loading ? (isEditMode ? "Updating..." : "Listing...") : recognizing ? "Checking media..." : isEditMode ? "Update Lot" : "List Lot"}
         </button>
       </form>
+      )}
     </div>
   );
 }
@@ -1097,4 +1199,10 @@ function singularizeUnit(unit = "units") {
   if (unit === "cartons") return "Carton";
   if (unit === "crates") return "Crate";
   return "Unit";
+}
+
+function normalizeExistingImages(images = []) {
+  const normalized = Array.isArray(images) ? images.filter(Boolean).slice(0, 5) : [];
+  while (normalized.length < 5) normalized.push(null);
+  return normalized;
 }

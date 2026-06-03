@@ -2,16 +2,19 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { FaArrowLeft, FaCalculator, FaMapMarkerAlt, FaSeedling, FaVideo } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
-import { getCurrentUser, hasBuyerProfile } from "../utils/auth";
+import { getCurrentUser, hasBuyerProfile, hasCompletedKyc } from "../utils/auth";
+import { saveUserToStorage } from "../utils/userStorage";
 
 export default function QuotePrice() {
   const { lotId } = useParams();
   const navigate = useNavigate();
   const user = getCurrentUser();
-  const isBuyer = hasBuyerProfile(user);
+  const [profileUser, setProfileUser] = useState(user);
+  const isBuyer = hasBuyerProfile(profileUser);
+  const isKycCompleted = hasCompletedKyc(profileUser);
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeImage, setActiveImage] = useState("");
+  const [activeImage, setActiveImage] = useState(null);
   const [price, setPrice] = useState("");
   const [distanceKm, setDistanceKm] = useState("");
   const [message, setMessage] = useState("");
@@ -19,10 +22,16 @@ export default function QuotePrice() {
   useEffect(() => {
     const loadLot = async () => {
       try {
-        const res = await API.get(`/products/${lotId}?platform=efruitmandi`);
-        const lot = res.data?.product || null;
+        const [lotRes, profileRes] = await Promise.all([
+          API.get(`/products/${lotId}?platform=efruitmandi`),
+          API.get("/user/profile").catch(() => ({ data: user })),
+        ]);
+        const freshUser = profileRes.data || user;
+        setProfileUser(freshUser);
+        saveUserToStorage(freshUser);
+        const lot = lotRes.data?.product || null;
         setProduct(lot);
-        setActiveImage(getLotImages(lot)[0] || "");
+        setActiveImage(getLotImages(lot)[0] || null);
       } catch {
         setProduct(null);
       } finally {
@@ -36,6 +45,7 @@ export default function QuotePrice() {
   const quantity = Number(product?.quantity || 0);
   const quotedPrice = Number(price || 0);
   const images = useMemo(() => getLotImages(product), [product]);
+  const quoteUnit = getQuoteUnit(product);
   const quoteTotal = useMemo(
     () => (quantity && quotedPrice ? quantity * quotedPrice : 0),
     [quantity, quotedPrice]
@@ -44,7 +54,7 @@ export default function QuotePrice() {
   const submitQuote = (event) => {
     event.preventDefault();
     if (!quotedPrice || quotedPrice <= 0) {
-      setMessage("Enter your price per box.");
+      setMessage(`Enter your price per ${quoteUnit.singular}.`);
       return;
     }
 
@@ -64,13 +74,18 @@ export default function QuotePrice() {
 
       <section className="rounded-md border border-gray-200 bg-white p-4">
         <p className="text-xs font-extrabold uppercase tracking-wide text-green-700">Quote Your Price</p>
-        <h1 className="mt-1 text-xl font-extrabold text-gray-950">
-          {loading ? "Loading lot..." : product?.title || "Fruit Lot"}
-        </h1>
-        <p className="mt-2 flex items-center gap-2 text-sm font-bold text-gray-600">
-          <FaMapMarkerAlt className="text-green-700" />
-          {product?.location || "Fruit Mandi"}
-        </p>
+        <div className="mt-1 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-xl font-extrabold text-gray-950">
+              {loading ? "Loading lot..." : product?.title || "Fruit Lot"}
+            </h1>
+            <p className="mt-2 flex items-center gap-2 text-sm font-bold text-gray-600">
+              <FaMapMarkerAlt className="text-green-700" />
+              {product?.location || "Fruit Mandi"}
+            </p>
+          </div>
+          <GrowerIdentity product={product} />
+        </div>
       </section>
 
       {!loading && !product ? (
@@ -100,6 +115,29 @@ export default function QuotePrice() {
             </button>
           </div>
         </section>
+      ) : !isKycCompleted ? (
+        <section className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-4">
+          <h2 className="text-lg font-extrabold text-amber-950">Complete KYC before quoting</h2>
+          <p className="mt-2 text-sm font-bold leading-6 text-amber-800">
+            Fruit buyers must submit KYC before quoting prices for grower lots.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => navigate("/kyc", { state: { from: `/lots/${lotId}/quote` } })}
+              className="rounded-full bg-green-700 px-5 py-2 text-sm font-extrabold text-white hover:bg-green-800"
+            >
+              Complete KYC
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(`/lots/${lotId}`)}
+              className="rounded-full bg-white px-5 py-2 text-sm font-extrabold text-amber-800 ring-1 ring-amber-200 hover:bg-amber-100"
+            >
+              View Lot
+            </button>
+          </div>
+        </section>
       ) : (
         <section className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
           <LotMediaPanel
@@ -111,14 +149,14 @@ export default function QuotePrice() {
 
           <form onSubmit={submitQuote} className="rounded-md border border-gray-200 bg-white p-4 lg:sticky lg:top-20 lg:self-start">
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
-              <InfoTile label="Quantity" value={`${quantity || 0} boxes`} />
+              <InfoTile label="Quantity" value={`${quantity || 0} ${quantity === 1 ? quoteUnit.singular : quoteUnit.plural}`} />
               <InfoTile label="Packing" value={product?.packingType || "Not set"} />
               <InfoTile label="Variety" value={product?.variety || "Not set"} />
               <InfoTile label="Quality" value={product?.quality || "Not set"} />
             </div>
 
             <label className="mt-4 block text-sm font-bold text-gray-700">
-              Your price per box
+              Your price per {quoteUnit.singular}
               <input
                 value={price}
                 inputMode="numeric"
@@ -173,15 +211,13 @@ export default function QuotePrice() {
 }
 
 function LotMediaPanel({ product, images, activeImage, onSelectImage }) {
-  const gradeLabel = getImageGradeLabel(product, activeImage);
-
   return (
     <section className="rounded-md border border-gray-200 bg-white p-3">
       <h2 className="mb-3 text-sm font-extrabold text-gray-950">Lot media</h2>
       <div className="relative flex min-h-[320px] items-center justify-center rounded-md bg-white">
         {activeImage ? (
           <img
-            src={toAssetUrl(activeImage)}
+            src={activeImage.url}
             alt={product?.title || "Fruit Lot"}
             className="max-h-[560px] max-w-full object-contain"
           />
@@ -190,21 +226,26 @@ function LotMediaPanel({ product, images, activeImage, onSelectImage }) {
             <FaSeedling />
           </div>
         )}
-        {gradeLabel && <FruitGradeBadge label={gradeLabel} />}
+        {activeImage?.gradeLabel && <FruitGradeBadge label={activeImage.gradeLabel} />}
       </div>
 
       {images.length > 1 && (
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
           {images.map((image) => (
             <button
-              key={image}
+              key={image.url}
               type="button"
               onClick={() => onSelectImage(image)}
-              className={`h-16 w-20 shrink-0 rounded border bg-white ${
-                activeImage === image ? "border-green-700" : "border-gray-200"
+              className={`relative h-16 w-20 shrink-0 overflow-hidden rounded border bg-white ${
+                activeImage?.url === image.url ? "border-green-700" : "border-gray-200"
               }`}
             >
-              <img src={toAssetUrl(image)} alt="" className="h-full w-full object-contain" />
+              <img src={image.url} alt="" className="h-full w-full object-contain" />
+              {image.gradeLabel && (
+                <span className="absolute left-1 top-1 rounded bg-green-800 px-1.5 py-0.5 text-[8px] font-extrabold uppercase text-white shadow">
+                  {image.gradeLabel}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -220,6 +261,30 @@ function LotMediaPanel({ product, images, activeImage, onSelectImage }) {
         </div>
       )}
     </section>
+  );
+}
+
+function GrowerIdentity({ product }) {
+  const grower = product?.createdBy || {};
+  const name = grower.orchardName || grower.businessName || grower.name || "Grower's Orchard";
+  const logo = resolveProfileMediaUrl(grower.companyLogoUrl || grower.avatarUrl);
+
+  if (!product) return null;
+
+  return (
+    <div className="flex max-w-[240px] shrink-0 items-center gap-2 rounded-md bg-green-50 px-3 py-2">
+      {logo ? (
+        <img src={logo} alt="" className="h-10 w-10 rounded bg-white object-contain ring-1 ring-green-100" />
+      ) : (
+        <span className="flex h-10 w-10 items-center justify-center rounded bg-green-800 text-xs font-extrabold text-white">
+          {name.slice(0, 1).toUpperCase()}
+        </span>
+      )}
+      <div className="min-w-0 text-left">
+        <p className="text-[10px] font-extrabold uppercase tracking-wide text-green-700">Farm</p>
+        <p className="truncate text-sm font-extrabold text-gray-950">{name}</p>
+      </div>
+    </div>
   );
 }
 
@@ -242,11 +307,25 @@ function InfoTile({ label, value }) {
 
 function getLotImages(product) {
   if (!product) return [];
-  const topImages = Array.isArray(product.images) ? product.images : [];
+  const seen = new Set();
+  const addImage = (image, grade = "") => {
+    const url = toAssetUrl(image);
+    if (!url || seen.has(url)) return null;
+    seen.add(url);
+    return {
+      url,
+      gradeLabel: grade ? `Grade ${grade}` : "",
+    };
+  };
+  const topImages = (Array.isArray(product.images) ? product.images : [])
+    .map((image) => addImage(image, product.grade || ""))
+    .filter(Boolean);
   const gradeImages = Array.isArray(product.gradeLots)
-    ? product.gradeLots.flatMap((lot) => lot.images || [])
+    ? product.gradeLots.flatMap((lot) =>
+        (lot.images || []).map((image) => addImage(image, lot.grade || "")).filter(Boolean)
+      )
     : [];
-  return Array.from(new Set([...topImages, ...gradeImages].filter(Boolean)));
+  return [...topImages, ...gradeImages];
 }
 
 function toAssetUrl(path = "") {
@@ -255,14 +334,20 @@ function toAssetUrl(path = "") {
   return normalized ? `${FILE_BASE_URL}/${normalized}` : "";
 }
 
-function getImageGradeLabel(product = {}, imageUrl = "") {
-  if (!imageUrl) return "";
-  const normalizedActive = toAssetUrl(imageUrl);
-  const gradeLot = Array.isArray(product.gradeLots)
-    ? product.gradeLots.find((lot) =>
-        (lot.images || []).some((image) => toAssetUrl(image) === normalizedActive)
-      )
-    : null;
-  const grade = gradeLot?.grade || product.grade || "";
-  return grade ? `Grade ${grade}` : "";
+function resolveProfileMediaUrl(value = "") {
+  const url = String(value || "").trim();
+  if (!url) return "";
+  if (/^https?:\/\//i.test(url)) return url;
+  const cleanPath = url.replace(/^\/+/, "");
+  if (cleanPath.startsWith("uploads/")) return `${FILE_BASE_URL}/${cleanPath}`;
+  return url.startsWith("/") ? url : `/${url}`;
+}
+
+function getQuoteUnit(product = {}) {
+  const packing = String(product.packingType || "").toLowerCase();
+  if (packing.includes("crate")) {
+    return { singular: "crate", plural: "crates" };
+  }
+
+  return { singular: "box", plural: "boxes" };
 }

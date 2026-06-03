@@ -6,6 +6,7 @@ import {
   getNextLotNo,
   getProductById,
   getProducts,
+  updateProduct,
 } from "../controllers/productController.js";
 
 import protect, { authorize, optionalProtect } from "../middleware/authMiddleware.js";
@@ -26,6 +27,7 @@ router.get("/", optionalProtect, getProducts);
 router.get("/generate-sku", protect, generateSku);
 router.get("/next-lot-no", protect, authorize("grower"), getNextLotNo);
 router.get("/:id", optionalProtect, getProductById);
+router.patch("/:id", protect, authorize("grower"), updateProduct);
 router.delete("/:id", protect, authorize("grower"), deleteProduct);
 
 export default router;
