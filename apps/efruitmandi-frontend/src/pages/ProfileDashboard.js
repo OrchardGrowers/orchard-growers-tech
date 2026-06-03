@@ -575,21 +575,6 @@ export default function ProfileDashboard() {
   };
 
   const openEntityProfileEditor = () => {
-    if (profileMode === "buyer") {
-      navigate("/register-buyer", { state: { from: "/profile-dashboard" } });
-      return;
-    }
-
-    if (profileMode === "grower") {
-      navigate("/register-grower", { state: { from: "/profile-dashboard" } });
-      return;
-    }
-
-    if (profileMode === "driver") {
-      navigate("/register-driver", { state: { from: "/profile-dashboard" } });
-      return;
-    }
-
     openEditProfile();
   };
 
