@@ -13,6 +13,21 @@ export const sanitizeUserForStorage = (user = {}) => {
     delete safeUser.companyLogoUrl;
   }
 
+  if (typeof safeUser.buyerAvatarUrl === "string" && safeUser.buyerAvatarUrl.startsWith("data:")) {
+    delete safeUser.buyerAvatarUrl;
+  }
+
+  if (typeof safeUser.buyerBannerUrl === "string" && safeUser.buyerBannerUrl.startsWith("data:")) {
+    delete safeUser.buyerBannerUrl;
+  }
+
+  if (
+    typeof safeUser.buyerCompanyLogoUrl === "string" &&
+    safeUser.buyerCompanyLogoUrl.startsWith("data:")
+  ) {
+    delete safeUser.buyerCompanyLogoUrl;
+  }
+
   return safeUser;
 };
 

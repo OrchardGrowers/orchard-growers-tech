@@ -111,6 +111,18 @@ const userSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    buyerAvatarUrl: {
+      type: String,
+      default: "",
+    },
+    buyerBannerUrl: {
+      type: String,
+      default: "",
+    },
+    buyerCompanyLogoUrl: {
+      type: String,
+      default: "",
+    },
     designation: {
       type: String,
       trim: true,

@@ -41,6 +41,11 @@ const statusMessages = {
 
 const editableStatuses = new Set(["NOT_SUBMITTED", "REJECTED", "CORRECTION_REQUIRED"]);
 const validRoleTypes = new Set(["buyer", "grower", "driver"]);
+const roleTitleLabels = {
+  buyer: "Buyer's Account",
+  grower: "Grower's Account",
+  driver: "Driver's Account",
+};
 
 const resolveLockedRoleType = (user = {}, kyc = {}, routeRoleType = "") => {
   const routeRole = String(routeRoleType || "").toLowerCase();
@@ -186,13 +191,9 @@ export default function Kyc() {
     <div className="mx-auto min-h-[calc(100vh-132px)] max-w-4xl px-4 pb-20 md:min-h-[calc(100vh-94px)]">
       <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
         <div className="mb-5">
-          <p className="text-xs font-extrabold uppercase tracking-wide text-green-700">Mandatory KYC</p>
-          <h1 className="mt-1 text-2xl font-extrabold text-gray-950">
-            {isQuoteIntent ? "Complete Your KYC to Quote Your Price" : title}
+          <h1 className="text-2xl font-extrabold text-gray-950">
+            eFruitMandi KYC {roleTitleLabels[form.roleType] || "Account"}
           </h1>
-          <p className="mt-2 text-sm font-semibold text-gray-600">
-            {intentMessage || statusMessages[kycStatus] || statusMessages.NOT_SUBMITTED}
-          </p>
           {isQuoteIntent && (
             <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-sm font-extrabold text-amber-900">
               Current KYC status: {getKycStatusLabel({ kyc: { status: kycStatus } })}
@@ -220,9 +221,6 @@ export default function Kyc() {
                 ["grower", "Grower / Seller"],
                 ["driver", "Driver"],
               ]} />
-              <p className="rounded-md bg-white px-3 py-2 text-xs font-bold text-green-800 md:col-span-2">
-                Role type is auto-selected from your logged-in or switched dashboard profile.
-              </p>
               <KycInput label="Full Name" value={form.fullName} disabled={!canEdit} onChange={(value) => updateForm("fullName", value)} />
               <KycInput label="Phone" value={form.phone} disabled={!canEdit} onChange={(value) => updateForm("phone", value)} />
               <KycInput label="Email" value={form.email} disabled={!canEdit} onChange={(value) => updateForm("email", value)} />

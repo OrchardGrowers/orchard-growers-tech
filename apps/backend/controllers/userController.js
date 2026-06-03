@@ -295,6 +295,8 @@ export const updateProfile = async (req, res) => {
       orchardName,
       businessName,
       buyerContactPerson,
+      buyerLocation,
+      buyerPinCode,
       logisticsName,
       phone,
       contact,
@@ -320,6 +322,12 @@ export const updateProfile = async (req, res) => {
     }
     if (typeof buyerContactPerson === "string") {
       updates.buyerContactPerson = buyerContactPerson.trim();
+    }
+    if (typeof buyerLocation === "string") {
+      updates.buyerLocation = buyerLocation.trim();
+    }
+    if (typeof buyerPinCode === "string") {
+      updates.buyerPinCode = buyerPinCode.trim();
     }
     if (typeof logisticsName === "string") {
       updates.logisticsName = logisticsName.trim();
@@ -402,6 +410,7 @@ const sanitizeSocialLink = (value, fallback = "") => {
 export const updateProfileMedia = async (req, res) => {
   try {
     const { avatarUrl, bannerUrl, companyLogoUrl } = req.body;
+    const profileMode = String(req.body.profileMode || "").trim().toLowerCase();
     const updates = {};
     const avatarFile = req.files?.avatar?.[0] || req.files?.avatarUrl?.[0];
     const bannerFile = req.files?.banner?.[0] || req.files?.bannerUrl?.[0];
@@ -409,9 +418,21 @@ export const updateProfileMedia = async (req, res) => {
       req.files?.companyLogo?.[0] || req.files?.companyLogoUrl?.[0];
     const profileTypes = new Set(req.user?.profileTypes || []);
     if (req.user?.role) profileTypes.add(req.user.role);
-    const profileFolder = profileTypes.has("driver")
+    const activeProfileMode =
+      profileMode === "buyer" && profileTypes.has("buyer")
+        ? "buyer"
+        : profileMode === "grower" && profileTypes.has("grower")
+          ? "grower"
+          : profileMode === "driver" && profileTypes.has("driver")
+            ? "driver"
+            : profileTypes.has("driver")
+              ? "driver"
+              : profileTypes.has("buyer")
+                ? "buyer"
+                : "grower";
+    const profileFolder = activeProfileMode === "driver"
       ? "efruitmandi/drivers"
-      : profileTypes.has("buyer")
+      : activeProfileMode === "buyer"
         ? "efruitmandi/buyers"
         : "efruitmandi/growers";
     const uploadProfileFile = (file) =>
@@ -422,26 +443,26 @@ export const updateProfileMedia = async (req, res) => {
 
     if (avatarFile) {
       const uploaded = await uploadProfileFile(avatarFile);
-      updates.avatarUrl = uploaded.secure_url;
+      updates[activeProfileMode === "buyer" ? "buyerAvatarUrl" : "avatarUrl"] = uploaded.secure_url;
     } else if (typeof avatarUrl === "string" && !avatarUrl.startsWith("data:")) {
-      updates.avatarUrl = avatarUrl;
+      updates[activeProfileMode === "buyer" ? "buyerAvatarUrl" : "avatarUrl"] = avatarUrl;
     }
 
     if (bannerFile) {
       const uploaded = await uploadProfileFile(bannerFile);
-      updates.bannerUrl = uploaded.secure_url;
+      updates[activeProfileMode === "buyer" ? "buyerBannerUrl" : "bannerUrl"] = uploaded.secure_url;
     } else if (typeof bannerUrl === "string" && !bannerUrl.startsWith("data:")) {
-      updates.bannerUrl = bannerUrl;
+      updates[activeProfileMode === "buyer" ? "buyerBannerUrl" : "bannerUrl"] = bannerUrl;
     }
 
     if (companyLogoFile) {
       const uploaded = await uploadProfileFile(companyLogoFile);
-      updates.companyLogoUrl = uploaded.secure_url;
+      updates[activeProfileMode === "buyer" ? "buyerCompanyLogoUrl" : "companyLogoUrl"] = uploaded.secure_url;
     } else if (
       typeof companyLogoUrl === "string" &&
       !companyLogoUrl.startsWith("data:")
     ) {
-      updates.companyLogoUrl = companyLogoUrl;
+      updates[activeProfileMode === "buyer" ? "buyerCompanyLogoUrl" : "companyLogoUrl"] = companyLogoUrl;
     }
 
     if (!Object.keys(updates).length) {

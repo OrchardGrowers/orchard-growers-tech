@@ -197,7 +197,7 @@ export default function ProfileDashboard() {
   const [previewImage, setPreviewImage] = useState(null);
   const [profileDraft, setProfileDraft] = useState(createProfileDraft());
   const [addressDraft, setAddressDraft] = useState(createAddressDraft());
-  const [businessAddressDraft, setBusinessAddressDraft] = useState(createBusinessAddressDraft());
+  const [businessAddressDraft, setBusinessAddressDraft] = useState(createEntityAddressDraft());
   const [mediaDraft, setMediaDraft] = useState(createMediaDraft());
   const [contactDraft, setContactDraft] = useState({
     phone: "",
@@ -241,7 +241,7 @@ export default function ProfileDashboard() {
     () => localStorage.getItem("profilePromoClaimed") === "true"
   );
   const [activeProfileMode, setActiveProfileMode] = useState(
-    () => localStorage.getItem("efruitmandiProfileMode") || ""
+    () => new URLSearchParams(window.location.search).get("mode") || localStorage.getItem("efruitmandiProfileMode") || ""
   );
 
   useEffect(() => {
@@ -254,6 +254,14 @@ export default function ProfileDashboard() {
     return () =>
       window.removeEventListener("efruitmandi-profile-mode-change", handleProfileModeChange);
   }, []);
+
+  useEffect(() => {
+    const mode = new URLSearchParams(location.search).get("mode");
+    if (mode) {
+      localStorage.setItem("efruitmandiProfileMode", mode);
+      setActiveProfileMode(mode);
+    }
+  }, [location.search]);
 
   const storedUser = useMemo(() => {
     try {
@@ -343,22 +351,25 @@ export default function ProfileDashboard() {
   const switchProfileMode = (mode) => {
     setActiveProfileMode(mode);
     localStorage.setItem("efruitmandiProfileMode", mode);
+    navigate(`/profile-dashboard?mode=${mode}`, { replace: true });
     setNotice(`Switched to ${mode} mode.`);
   };
   const profileAddress = formatProfileAddress(user);
   const businessAddress = formatBusinessAddress(user);
   const buyerAddress = [
-    user.buyerLocation || user.businessAddressLine1 || user.location,
-    user.buyerPinCode || user.businessPinCode || user.pinCode,
+    user.buyerLocation,
+    user.buyerPinCode,
   ].filter(Boolean).join(", ");
-  const growerAddress = profileAddress || user.location || "";
+  const growerAddress = profileAddress;
   const driverAddress = businessAddress || user.location || profileAddress || "";
   const displayName =
     profileMode === "grower"
-      ? user.orchardName || user.name || "Pawan Orchards"
+      ? user.orchardName || "Grower / Seller"
       : profileMode === "driver"
-        ? user.logisticsName || user.name || "Logistics Partner"
-        : user.businessName || user.name || "Visitor";
+        ? user.logisticsName || "Logistics Partner"
+        : profileMode === "buyer"
+          ? user.businessName || "Fruit Buyer"
+          : user.name || "Visitor";
   const location =
     profileMode === "grower"
       ? growerAddress || "Grower orchard location not added"
@@ -381,7 +392,7 @@ export default function ProfileDashboard() {
         ? "Logistic Partner Profile Dashboard"
         : "User Profile Dashboard";
   const registrationActions = [
-    ...(!isBuyer
+    ...(!isBuyer && !isDriver
       ? [
           {
             title: "Register as Buyer",
@@ -427,6 +438,30 @@ export default function ProfileDashboard() {
   const kycStatus = user.kyc?.status || "NOT_SUBMITTED";
   const isKycCompleted = ["COMPLETED", "APPROVED"].includes(kycStatus);
   const needsKycUpdate = !isKycCompleted;
+  const kycDashboardCopy =
+    profileMode === "buyer"
+      ? {
+          title: "KYC Pending for Buyer's Account.",
+          description: "Submit Aadhaar, bank/passbook proof, and business details to complete your buyer profile.",
+          action: "Complete KYC to become eligible to buy and quote your price.",
+        }
+      : profileMode === "grower"
+        ? {
+            title: "KYC Pending for Grower's Account.",
+            description: "Submit Udyan card, Aadhaar, bank/passbook proof, and orchard details to complete your grower profile.",
+            action: "Complete KYC to become eligible to list fruit consignment lots.",
+          }
+        : profileMode === "driver"
+          ? {
+              title: "KYC Pending for Logistics Account.",
+              description: "Submit Aadhaar, driving license, vehicle, and bank/passbook proof to complete your logistics profile.",
+              action: "Complete KYC to become eligible for fruit delivery work.",
+            }
+          : {
+              title: "KYC Pending.",
+              description: "Submit the required documents to complete your profile.",
+              action: "Complete KYC to continue.",
+            };
   const verifiedContactNo = profileContactNo || "Add contact no.";
   const verifiedEmail = profileEmail || "Add email";
   const visitorAddress = profileAddress || user.location || "not available";
@@ -438,6 +473,14 @@ export default function ProfileDashboard() {
       ? "Get Verified to attract more Growers"
       : "Get verified to attract more Buyers";
   const trustedActionLabel = profileMode === "buyer" ? "Visit Buyers Space" : "Visit Growers Orchard";
+  const editDetailsTitle =
+    profileMode === "buyer"
+      ? "Edit Buyer's Details"
+      : profileMode === "grower"
+        ? "Edit Grower's Details"
+        : profileMode === "driver"
+          ? "Edit Logistics Details"
+          : "Edit Profile";
   const organizationLogo =
     profileMode === "buyer"
       ? buyerLogoUrl
@@ -446,12 +489,15 @@ export default function ProfileDashboard() {
         : logoUrl;
   const companyLogoUrl =
     profileMode === "buyer"
-      ? buyerLogoUrl
+      ? resolveProfileMediaUrl(user.buyerCompanyLogoUrl) || buyerLogoUrl
       : resolveProfileMediaUrl(user.companyLogoUrl) || organizationLogo;
-  const bannerUrl = resolveProfileMediaUrl(user.bannerUrl) || orchardCover;
+  const bannerUrl =
+    profileMode === "buyer"
+      ? resolveProfileMediaUrl(user.buyerBannerUrl) || orchardCover
+      : resolveProfileMediaUrl(user.bannerUrl) || orchardCover;
   const avatarUrl =
     profileMode === "buyer"
-      ? buyerLogoUrl
+      ? resolveProfileMediaUrl(user.buyerAvatarUrl) || buyerLogoUrl
       : resolveProfileMediaUrl(user.avatarUrl);
   const lockedAmount = Number(user.lockedAmount || 0);
   const lockedAmountLabel = formatCurrency(lockedAmount);
@@ -468,6 +514,7 @@ export default function ProfileDashboard() {
       companyLogoUrl: "companyLogo",
     };
     const formData = new FormData();
+    formData.append("profileMode", profileMode);
     entries.forEach(([field, file]) => {
       formData.append(fieldMap[field] || field, file);
     });
@@ -496,7 +543,7 @@ export default function ProfileDashboard() {
       Object.keys(current)
         .filter((key) => key.endsWith("Preview") && current[key])
         .forEach((key) => URL.revokeObjectURL(current[key]));
-      return createMediaDraft(user);
+      return createMediaDraft();
     });
     setShowEditProfile(false);
   };
@@ -504,7 +551,7 @@ export default function ProfileDashboard() {
   const openEditProfile = () => {
     setProfileDraft(createProfileDraft(user));
     setAddressDraft(createAddressDraft(user));
-    setBusinessAddressDraft(createBusinessAddressDraft(user));
+    setBusinessAddressDraft(createEntityAddressDraft(user, profileMode));
     setContactDraft({
       phone: profileContactNo,
       otp: "",
@@ -656,7 +703,7 @@ export default function ProfileDashboard() {
   const saveProfileDetails = async () => {
     if (profileSaving) return;
 
-    const location = formatBusinessAddress(businessAddressDraft) || formatProfileAddress(addressDraft);
+    const entityLocation = formatBusinessAddress(businessAddressDraft);
     const nextPhone = contactDraft.phone.trim();
     const nextEmail = emailDraft.email.trim();
     const contactChanged = nextPhone && nextPhone !== profileContactNo;
@@ -674,14 +721,41 @@ export default function ProfileDashboard() {
     try {
       setProfileSaving(true);
       setNotice("Saving profile. Please wait...");
-      const res = await API.patch("/user/profile", {
-        ...profileDraft,
-        ...addressDraft,
-        ...businessAddressDraft,
-        location,
+      const profilePayload = {
+        name: profileDraft.name,
+        designation: profileDraft.designation,
         ...(contactChanged ? { phone: nextPhone } : {}),
         ...(emailChanged ? { email: nextEmail } : {}),
         socialLinks: socialDraft,
+      };
+
+      if (profileMode === "buyer") {
+        profilePayload.businessName = profileDraft.businessName;
+        profilePayload.buyerContactPerson = profileDraft.buyerContactPerson;
+        profilePayload.buyerLocation = entityLocation;
+        profilePayload.buyerPinCode = businessAddressDraft.businessPinCode;
+      }
+
+      if (profileMode === "grower") {
+        profilePayload.orchardName = profileDraft.orchardName;
+        profilePayload.addressLine1 = businessAddressDraft.businessAddressLine1;
+        profilePayload.addressLine2 = businessAddressDraft.businessAddressLine2;
+        profilePayload.addressLine3 = businessAddressDraft.businessAddressLine3;
+        profilePayload.pinCode = businessAddressDraft.businessPinCode;
+        profilePayload.location = entityLocation;
+      }
+
+      if (profileMode === "driver") {
+        profilePayload.logisticsName = profileDraft.logisticsName;
+        profilePayload.businessAddressLine1 = businessAddressDraft.businessAddressLine1;
+        profilePayload.businessAddressLine2 = businessAddressDraft.businessAddressLine2;
+        profilePayload.businessAddressLine3 = businessAddressDraft.businessAddressLine3;
+        profilePayload.businessPinCode = businessAddressDraft.businessPinCode;
+        profilePayload.location = entityLocation;
+      }
+
+      const res = await API.patch("/user/profile", {
+        ...profilePayload,
       });
       const profileUser = {
         ...user,
@@ -704,6 +778,21 @@ export default function ProfileDashboard() {
           bannerUrl: mediaUser?.bannerUrl || profileUser.bannerUrl || user.bannerUrl || "",
           companyLogoUrl:
             mediaUser?.companyLogoUrl || profileUser.companyLogoUrl || user.companyLogoUrl || "",
+          buyerAvatarUrl:
+            mediaUser?.buyerAvatarUrl ||
+            profileUser.buyerAvatarUrl ||
+            user.buyerAvatarUrl ||
+            "",
+          buyerBannerUrl:
+            mediaUser?.buyerBannerUrl ||
+            profileUser.buyerBannerUrl ||
+            user.buyerBannerUrl ||
+            "",
+          buyerCompanyLogoUrl:
+            mediaUser?.buyerCompanyLogoUrl ||
+            profileUser.buyerCompanyLogoUrl ||
+            user.buyerCompanyLogoUrl ||
+            "",
         };
       }
 
@@ -1073,13 +1162,13 @@ export default function ProfileDashboard() {
         {needsKycUpdate ? (
           <section className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
             <p className="text-sm font-extrabold text-amber-900">
-              KYC is mandatory for all users.
+              {kycDashboardCopy.title}
             </p>
             <p className="mt-1 text-xs font-semibold leading-5 text-amber-800">
-              Submit Udyan card, bank/passbook, and Aadhaar details to complete your profile.
+              {kycDashboardCopy.description}
             </p>
             <p className="mt-1 text-xs font-extrabold leading-5 text-amber-900">
-              KYC Pending: Complete KYC to become Eligible to Buy (For Buyer) and List Fruit Consignment Lots (for Growers).
+              {kycDashboardCopy.action}
             </p>
             <button
               type="button"
@@ -1115,20 +1204,22 @@ export default function ProfileDashboard() {
         </div>
       )}
 
-        <ProfileMarketPanel
-          loading={marketLoading}
-          products={currentListings}
-          closedAuctions={closedAuctions}
-          salesRecords={salesRecords}
-          rates={mandiRateData}
-          rateSource={mandiRateSource}
-          activeAuctions={activeAuctions}
-          onSeeListings={() => navigate("/profile-dashboard")}
-          onSeeClosed={() => navigate("/orders")}
-          onSeeRates={() => navigate("/auctions")}
-          onUpdateLot={updateLot}
-          onDeleteLot={deleteLot}
-        />
+        {profileMode === "grower" && (
+          <ProfileMarketPanel
+            loading={marketLoading}
+            products={currentListings}
+            closedAuctions={closedAuctions}
+            salesRecords={salesRecords}
+            rates={mandiRateData}
+            rateSource={mandiRateSource}
+            activeAuctions={activeAuctions}
+            onSeeListings={() => navigate("/profile-dashboard?mode=grower")}
+            onSeeClosed={() => navigate("/orders")}
+            onSeeRates={() => navigate("/auctions")}
+            onUpdateLot={updateLot}
+            onDeleteLot={deleteLot}
+          />
+        )}
 
         <div className="mt-4 space-y-3 md:hidden">
           <ProfileLanguageCard
@@ -1164,7 +1255,7 @@ export default function ProfileDashboard() {
           title="Public profile & URL"
           value={`efruitmandi.in/${slugify(displayName) || "profile"}`}
         />
-        {isBuyer && (
+        {profileMode === "buyer" && (
           <BuyerLockedAmountCard amountLabel={lockedAmountLabel} compact />
         )}
         <section className="relative rounded-lg border border-gray-200 bg-white p-4">
@@ -1219,9 +1310,15 @@ export default function ProfileDashboard() {
       {showEditProfile && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/45 px-4">
           <section className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-5 shadow-xl">
-            <h2 className="text-lg font-bold text-gray-950">Edit Profile</h2>
+            <h2 className="text-lg font-bold text-gray-950">{editDetailsTitle}</h2>
             <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3">
-              <p className="text-xs font-extrabold text-gray-800">Change banner</p>
+              <p className="text-xs font-extrabold text-gray-800">
+                {profileMode === "buyer"
+                  ? "Buyer banner"
+                  : profileMode === "grower"
+                    ? "Grower banner"
+                    : "Logistics banner"}
+              </p>
               <div
                 className="mt-3 h-28 rounded-md bg-gray-100 bg-cover bg-center"
                 style={{ backgroundImage: `url(${mediaDraft.bannerUrlPreview || bannerUrl})` }}
@@ -1239,7 +1336,13 @@ export default function ProfileDashboard() {
               </label>
             </div>
             <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3">
-              <p className="text-xs font-extrabold text-gray-800">Profile photo</p>
+              <p className="text-xs font-extrabold text-gray-800">
+                {profileMode === "buyer"
+                  ? "Buyer profile photo"
+                  : profileMode === "grower"
+                    ? "Grower profile photo"
+                    : "Logistics profile photo"}
+              </p>
               <div className="mt-3 flex items-center gap-3">
                 <Avatar
                   name={displayName}
@@ -1261,7 +1364,13 @@ export default function ProfileDashboard() {
             </div>
             {!isVisitor && (
               <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3">
-                <p className="text-xs font-extrabold text-gray-800">Company logo</p>
+                <p className="text-xs font-extrabold text-gray-800">
+                  {profileMode === "buyer"
+                    ? "Buyer company logo"
+                    : profileMode === "grower"
+                      ? "Grower orchard logo"
+                      : "Logistics logo"}
+                </p>
                 <div className="mt-3 flex items-center gap-3">
                   <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 p-2">
                     <img
@@ -1285,7 +1394,7 @@ export default function ProfileDashboard() {
               </div>
             )}
             <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
-              <p className="text-xs font-extrabold text-gray-800">Personal details</p>
+              <p className="text-xs font-extrabold text-gray-800">Account owner details</p>
               <p className="mt-1 text-xs font-semibold leading-5 text-gray-600">
                 Edit the user name and position separately from the company or orchard premises.
               </p>
@@ -1311,13 +1420,17 @@ export default function ProfileDashboard() {
             {!isVisitor && (
               <div className="mt-4 rounded-lg border border-emerald-100 bg-emerald-50 p-3">
                 <p className="text-xs font-extrabold text-emerald-800">
-                  {isBuyer ? "Company details" : isGrower ? "Orchard details" : "Business details"}
+                  {profileMode === "buyer"
+                    ? "Buyer company details"
+                    : profileMode === "grower"
+                      ? "Grower orchard details"
+                      : "Logistics business details"}
                 </p>
                 <p className="mt-1 text-xs font-semibold leading-5 text-emerald-900">
                   Keep entity name and premises separate from the personal user address.
                 </p>
                 <div className="mt-3 grid gap-3">
-                  {isBuyer && (
+                  {profileMode === "buyer" && (
                     <>
                       <AddressInput
                         label="Company name"
@@ -1337,7 +1450,7 @@ export default function ProfileDashboard() {
                       />
                     </>
                   )}
-                  {isGrower && (
+                  {profileMode === "grower" && (
                     <AddressInput
                       label="Orchard name"
                       value={profileDraft.orchardName}
@@ -1347,7 +1460,7 @@ export default function ProfileDashboard() {
                       }
                     />
                   )}
-                  {isDriver && (
+                  {profileMode === "driver" && (
                     <AddressInput
                       label="Logistics name"
                       value={profileDraft.logisticsName}
@@ -1358,7 +1471,13 @@ export default function ProfileDashboard() {
                     />
                   )}
                   <AddressInput
-                    label="Premises address line 1"
+                    label={
+                      profileMode === "buyer"
+                        ? "Buyer business address"
+                        : profileMode === "grower"
+                          ? "Orchard address"
+                          : "Logistics premises address"
+                    }
                     value={businessAddressDraft.businessAddressLine1}
                     placeholder="Shop, office, company, orchard, building"
                     onChange={(value) =>
@@ -1366,7 +1485,7 @@ export default function ProfileDashboard() {
                     }
                   />
                   <AddressInput
-                    label="Premises address line 2"
+                    label="Address line 2"
                     value={businessAddressDraft.businessAddressLine2}
                     placeholder="Market, road, village, tehsil"
                     onChange={(value) =>
@@ -1374,7 +1493,7 @@ export default function ProfileDashboard() {
                     }
                   />
                   <AddressInput
-                    label="Premises address line 3"
+                    label="Address line 3"
                     value={businessAddressDraft.businessAddressLine3}
                     placeholder="District, state, country"
                     onChange={(value) =>
@@ -1382,7 +1501,7 @@ export default function ProfileDashboard() {
                     }
                   />
                   <AddressInput
-                    label="Premises postal code"
+                    label="Postal code"
                     value={businessAddressDraft.businessPinCode}
                     placeholder="Postal / PIN code"
                     inputMode="numeric"
@@ -2279,7 +2398,25 @@ function createAddressDraft(user = {}) {
   };
 }
 
-function createBusinessAddressDraft(user = {}) {
+function createEntityAddressDraft(user = {}, mode = "") {
+  if (mode === "buyer") {
+    return {
+      businessAddressLine1: user.buyerLocation || "",
+      businessAddressLine2: "",
+      businessAddressLine3: "",
+      businessPinCode: user.buyerPinCode || "",
+    };
+  }
+
+  if (mode === "grower") {
+    return {
+      businessAddressLine1: user.addressLine1 || user.location || "",
+      businessAddressLine2: user.addressLine2 || "",
+      businessAddressLine3: user.addressLine3 || "",
+      businessPinCode: user.pinCode || "",
+    };
+  }
+
   if (
     user.businessAddressLine1 ||
     user.businessAddressLine2 ||

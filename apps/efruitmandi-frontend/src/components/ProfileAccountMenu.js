@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   FaBriefcase,
   FaCertificate,
@@ -47,24 +47,72 @@ const resolveProfileMediaUrl = (value = "") => {
   return url.startsWith("/") ? url : `/${url}`;
 };
 
+const resolveProfileMode = (user = {}, requestedMode = "") => {
+  const mode = String(requestedMode || "").toLowerCase();
+  if (mode === "buyer" && hasBuyerProfile(user)) return "buyer";
+  if (mode === "grower" && hasGrowerProfile(user)) return "grower";
+  if (mode === "driver" && hasDriverProfile(user)) return "driver";
+  if (user.role === "buyer" && hasBuyerProfile(user)) return "buyer";
+  if (user.role === "grower" && hasGrowerProfile(user)) return "grower";
+  if (user.role === "driver" && hasDriverProfile(user)) return "driver";
+  if (hasBuyerProfile(user)) return "buyer";
+  if (hasGrowerProfile(user)) return "grower";
+  if (hasDriverProfile(user)) return "driver";
+  return "visitor";
+};
+
 export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobile = false }) {
   const [activeGrowerMenuItem, setActiveGrowerMenuItem] = useState(
     () => localStorage.getItem("activeGrowerMenuItem") || ""
   );
-  const displayName =
-    user.orchardName ||
-    user.businessName ||
-    user.logisticsName ||
-    user.name ||
-    "Orchard Growers";
-  const handle = `@${String(displayName)
-    .replace(/[^a-z0-9]+/gi, "")
-    .slice(0, 24) || "OrchardGrowers"}`;
-  const avatarUrl = resolveProfileMediaUrl(user.avatarUrl);
   const isGrower = hasGrowerProfile(user);
   const isBuyer = hasBuyerProfile(user);
   const isDriver = hasDriverProfile(user);
+  const [activeMode, setActiveMode] = useState(() =>
+    resolveProfileMode(user, localStorage.getItem("efruitmandiProfileMode") || "")
+  );
+
+  useEffect(() => {
+    const syncMode = (event) => {
+      setActiveMode(resolveProfileMode(user, event.detail?.mode || localStorage.getItem("efruitmandiProfileMode") || ""));
+    };
+
+    syncMode({ detail: {} });
+    window.addEventListener("efruitmandi-profile-mode-change", syncMode);
+    return () => window.removeEventListener("efruitmandi-profile-mode-change", syncMode);
+  }, [user]);
+
+  const displayName =
+    activeMode === "buyer"
+      ? user.businessName || user.name || "Fruit Buyer"
+      : activeMode === "grower"
+        ? user.orchardName || user.name || "Fruit Grower"
+        : activeMode === "driver"
+          ? user.logisticsName || user.name || "Logistics Partner"
+          : user.name || "Orchard Growers";
+  const handle = `@${String(displayName)
+    .replace(/[^a-z0-9]+/gi, "")
+    .slice(0, 24) || "OrchardGrowers"}`;
+  const avatarUrl =
+    activeMode === "buyer"
+      ? resolveProfileMediaUrl(user.buyerCompanyLogoUrl) ||
+        resolveProfileMediaUrl(user.buyerAvatarUrl) ||
+        resolveProfileMediaUrl(user.companyLogoUrl) ||
+        resolveProfileMediaUrl(user.avatarUrl)
+      : resolveProfileMediaUrl(user.avatarUrl);
   const lockedAmountLabel = formatCurrency(user.lockedAmount || 0);
+  const editDetailsLabel =
+    activeMode === "buyer"
+      ? "Edit Buyer's Details"
+      : activeMode === "grower"
+        ? "Edit Grower's Details"
+        : activeMode === "driver"
+          ? "Edit Logistics Details"
+          : "Edit Profile";
+  const activeDashboardPath =
+    activeMode && activeMode !== "visitor"
+      ? `/profile-dashboard?mode=${activeMode}`
+      : "/profile-dashboard";
 
   const growerMenuSections = [
     [
@@ -76,12 +124,12 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
       {
         label: "Current Listings",
         icon: <FaTruck />,
-        path: "/profile-dashboard",
+        path: "/profile-dashboard?mode=grower",
       },
       {
         label: "Fruit Sale Report",
         icon: <FaChartLine />,
-        path: "/profile-dashboard",
+        path: "/profile-dashboard?mode=grower",
       },
       {
         label: "Downloads Invoices/chalan",
@@ -91,9 +139,9 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
     ],
     [
       {
-        label: "Edit Profile",
+        label: editDetailsLabel,
         icon: <FaUserCircle />,
-        path: "/profile-dashboard",
+        path: activeDashboardPath,
       },
       {
         label: "KYC",
@@ -110,16 +158,16 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
 
   const profileActionItems = [
     {
-      label: "Edit Profile",
+      label: editDetailsLabel,
       icon: <FaUserCircle />,
-      path: "/profile-dashboard",
+      path: activeDashboardPath,
     },
     ...(isBuyer || !isDriver
       ? [
           {
             label: isBuyer ? "Switch to Buyer Dashboard" : "Register as Buyer",
             icon: <FaHandshake />,
-            path: isBuyer ? "/profile-dashboard" : "/register-buyer",
+            path: isBuyer ? "/profile-dashboard?mode=buyer" : "/register-buyer",
             mode: isBuyer ? "buyer" : "",
             hasChevron: true,
           },
@@ -128,7 +176,7 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
     {
       label: isGrower ? "Switch to Grower Dashboard" : "Register as Grower",
       icon: <FaSeedling />,
-      path: isGrower ? "/profile-dashboard" : "/register-grower",
+      path: isGrower ? "/profile-dashboard?mode=grower" : "/register-grower",
       mode: isGrower ? "grower" : "",
       hasChevron: true,
     },
@@ -137,7 +185,7 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
           {
             label: isDriver ? "Switch to Logistic Partner Dashboard" : "Register as Logistic Partner",
             icon: <FaTruck />,
-            path: isDriver ? "/profile-dashboard" : "/register-driver",
+            path: isDriver ? "/profile-dashboard?mode=driver" : "/register-driver",
             mode: isDriver ? "driver" : "",
             hasChevron: true,
           },
@@ -184,7 +232,7 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
     {
       label: "Dashboard",
       icon: <FaChartLine />,
-      path: "/profile-dashboard",
+      path: "/profile-dashboard?mode=buyer",
     },
     {
       label: "KYC",
@@ -199,7 +247,7 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
     {
       label: "Invest With us",
       icon: <FaDollarSign />,
-      path: "/profile-dashboard",
+      path: "/profile-dashboard?mode=buyer",
     },
     {
       label: "How to buy with us",
@@ -214,17 +262,17 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
     {
       label: "Growersr’s Review",
       icon: <FaStar />,
-      path: "/profile-dashboard",
+      path: "/profile-dashboard?mode=buyer",
     },
     {
       label: "Your Sujestions",
       icon: <FaCommentDots />,
-      path: "/profile-dashboard",
+      path: "/profile-dashboard?mode=buyer",
     },
     {
       label: "Help & Feedback",
       icon: <FaHeadset />,
-      path: "/profile-dashboard",
+      path: "/profile-dashboard?mode=buyer",
     },
   ];
   const containerClass = mobile
@@ -255,12 +303,12 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
           <p className="truncate text-sm text-white/80">{handle}</p>
           <button
             type="button"
-            onClick={() => onAction("/profile-dashboard")}
+            onClick={() => onAction(activeDashboardPath)}
             className="mt-1 text-left text-sm font-semibold text-white hover:text-yellow-200"
           >
             View your profile
           </button>
-          {isBuyer && (
+          {activeMode === "buyer" && isBuyer && (
             <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-green-950/45 px-3 py-1 text-xs font-extrabold text-yellow-200">
               <FaLock />
               <span>Locked Amount: {lockedAmountLabel}</span>
@@ -274,7 +322,7 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
           {profileActionItems.map((item) => renderMenuButton(item, "text-white"))}
         </div>
 
-        {isGrower ? (
+        {activeMode === "grower" && isGrower ? (
           growerMenuSections.map((section, sectionIndex) => (
             <div
               key={sectionIndex}
@@ -305,7 +353,7 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
               })}
             </div>
           ))
-        ) : isBuyer ? (
+        ) : activeMode === "buyer" && isBuyer ? (
           <div className="py-2">
             {buyerMenuItems.map((item) => renderMenuButton(item, "text-yellow-300"))}
           </div>
