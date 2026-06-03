@@ -320,9 +320,6 @@ const initialGradeLots = GRADES.reduce((lots, grade) => {
 }, {});
 
 const SAMPLE_IMAGE_SLOTS = [0, 1, 2, 3, 4];
-const SAMPLE_IMAGE_WIDTH = 800;
-const SAMPLE_IMAGE_HEIGHT = 600;
-const SAMPLE_IMAGE_QUALITY = 0.72;
 
 const makeFirmPrefix = (user) => {
   const source =
@@ -352,78 +349,6 @@ const getVarietiesForFruit = (fruitName) => {
     : DEFAULT_VARIETIES;
 
   return Array.from(new Set([...mappedOptions, ...fallbackOptions]));
-};
-
-const cropImageToPlatformFrame = (file) => {
-  if (!file || !file.type?.startsWith("image/")) {
-    return Promise.resolve(file);
-  }
-
-  return new Promise((resolve) => {
-    const image = new Image();
-    const url = URL.createObjectURL(file);
-
-    image.onload = () => {
-      const targetWidth = SAMPLE_IMAGE_WIDTH;
-      const targetHeight = SAMPLE_IMAGE_HEIGHT;
-      const targetRatio = targetWidth / targetHeight;
-      const sourceRatio = image.width / image.height;
-      let sourceWidth = image.width;
-      let sourceHeight = image.height;
-      let sourceX = 0;
-      let sourceY = 0;
-
-      if (sourceRatio > targetRatio) {
-        sourceWidth = image.height * targetRatio;
-        sourceX = (image.width - sourceWidth) / 2;
-      } else {
-        sourceHeight = image.width / targetRatio;
-        sourceY = (image.height - sourceHeight) / 2;
-      }
-
-      const canvas = document.createElement("canvas");
-      canvas.width = targetWidth;
-      canvas.height = targetHeight;
-      const context = canvas.getContext("2d");
-      context.drawImage(
-        image,
-        sourceX,
-        sourceY,
-        sourceWidth,
-        sourceHeight,
-        0,
-        0,
-        targetWidth,
-        targetHeight
-      );
-
-      canvas.toBlob(
-        (blob) => {
-          URL.revokeObjectURL(url);
-          if (!blob) {
-            resolve(file);
-            return;
-          }
-
-          resolve(
-            new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), {
-              type: "image/jpeg",
-              lastModified: Date.now(),
-            })
-          );
-        },
-        "image/jpeg",
-        SAMPLE_IMAGE_QUALITY
-      );
-    };
-
-    image.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve(file);
-    };
-
-    image.src = url;
-  });
 };
 
 export default function ListNewLot() {
@@ -550,10 +475,9 @@ export default function ListNewLot() {
         return;
       }
 
-      const platformFile = await cropImageToPlatformFrame(file);
       const images = [...(gradeLots[gradeKey].images || Array(5).fill(null))];
       while (images.length < 5) images.push(null);
-      images[index] = platformFile || null;
+      images[index] = file;
 
       setGradeLots({
         ...gradeLots,

@@ -9,8 +9,11 @@ import {
   FaGavel,
   FaGlobeAmericas,
   FaInfoCircle,
+  FaSearchMinus,
+  FaSearchPlus,
   FaSeedling,
   FaShieldAlt,
+  FaStar,
   FaTimes,
 } from "react-icons/fa";
 import BannerSlider from "../components/BannerSlider";
@@ -317,6 +320,8 @@ export default function Home() {
             selectedInfoSection={selectedInfoSection}
             onAdd={() => navigate(isGrower ? "/list-new-lot" : "/profile")}
             onOpenLot={(productId) => navigate(`/lots/${productId}`)}
+            onQuoteLot={(productId) => navigate(`/lots/${productId}/quote`)}
+            onRateLot={(productId) => navigate(`/lots/${productId}/rating`)}
           />
         )}
       </section>
@@ -622,6 +627,8 @@ function DesktopSection({
   selectedInfoSection,
   onAdd,
   onOpenLot,
+  onQuoteLot,
+  onRateLot,
 }) {
   if (section === "liveLots") {
     return (
@@ -633,6 +640,8 @@ function DesktopSection({
           items={visibleListings}
           emptyText="No live fruit lot yet. New mandi lots will appear here."
           onOpenLot={onOpenLot}
+          onQuoteLot={onQuoteLot}
+          onRateLot={onRateLot}
         />
       </WebSectionPost>
     );
@@ -648,6 +657,8 @@ function DesktopSection({
           items={upcomingLots}
           emptyText="No upcoming fruit lot yet. Scheduled lots will appear here."
           onOpenLot={onOpenLot}
+          onQuoteLot={onQuoteLot}
+          onRateLot={onRateLot}
         />
       </WebSectionPost>
     );
@@ -753,7 +764,7 @@ function WebSectionPost({ title, text, children }) {
   );
 }
 
-function DesktopLotPost({ items, emptyText, onOpenLot }) {
+function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) {
   const [showAllDetails, setShowAllDetails] = useState(false);
   if (!items.length) return <DesktopEmptyState text={emptyText} />;
 
@@ -761,6 +772,12 @@ function DesktopLotPost({ items, emptyText, onOpenLot }) {
   const images = getProductImages(product);
   const lotDetails = getLotDetails(product);
   const visibleDetails = showAllDetails ? lotDetails : lotDetails.slice(0, 5);
+  const growerName =
+    product.createdBy?.orchardName ||
+    product.createdBy?.businessName ||
+    product.createdBy?.name ||
+    "Grower's Orchard";
+  const rating = Number(product.createdBy?.rating || product.growerRating || 0);
 
   return (
     <article className="overflow-hidden rounded-md border border-gray-200 bg-white">
@@ -785,13 +802,6 @@ function DesktopLotPost({ items, emptyText, onOpenLot }) {
             <span className="rounded bg-green-100 px-2 py-1 text-[10px] font-extrabold text-green-800">
               {formatLotStatus(product.status)}
             </span>
-            <button
-              type="button"
-              onClick={() => onOpenLot(product._id)}
-              className="rounded-full bg-green-700 px-3 py-1.5 text-[11px] font-extrabold text-white hover:bg-green-800"
-            >
-              Quote Your Price
-            </button>
           </div>
         </div>
 
@@ -821,12 +831,44 @@ function DesktopLotPost({ items, emptyText, onOpenLot }) {
         title={product.title || "Fruit Lot"}
         onOpen={() => onOpenLot(product._id)}
       />
+      <div className="border-t border-gray-100 p-3">
+        <div className="grid gap-2 rounded-md bg-green-50 px-3 py-3 text-xs sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+          <div className="min-w-0">
+            <p className="font-extrabold text-gray-950">{growerName}</p>
+            <p className="mt-1 flex flex-wrap items-center gap-2 font-bold text-gray-600">
+              <span className="inline-flex items-center gap-1 text-amber-600">
+                <FaStar />
+                {rating ? rating.toFixed(1) : "No rating yet"}
+              </span>
+              <span>{product.location || "Fruit Mandi"}</span>
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => onRateLot(product._id)}
+              className="rounded-full bg-white px-3 py-2 text-[11px] font-extrabold text-green-800 ring-1 ring-green-200 hover:bg-green-100"
+            >
+              Rate Grower
+            </button>
+            <button
+              type="button"
+              onClick={() => onQuoteLot(product._id)}
+              className="rounded-full bg-green-700 px-3 py-2 text-[11px] font-extrabold text-white hover:bg-green-800"
+            >
+              Quote Your Price
+            </button>
+          </div>
+        </div>
+      </div>
     </article>
   );
 }
 
 function DesktopLotImageCarousel({ images, title, onOpen }) {
   const [activeImage, setActiveImage] = useState(0);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [zoom, setZoom] = useState(1);
 
   if (!images.length) {
     return (
@@ -849,19 +891,23 @@ function DesktopLotImageCarousel({ images, title, onOpen }) {
     event.stopPropagation();
     setActiveImage((current) => (current + 1) % images.length);
   };
+  const openPreview = () => {
+    setZoom(1);
+    setPreviewOpen(true);
+  };
 
   return (
     <div className="relative bg-white">
       <button
         type="button"
-        onClick={onOpen}
-        className="flex w-full items-center justify-center bg-white"
+        onClick={openPreview}
+        className="flex h-[560px] w-full items-center justify-center bg-white"
         aria-label={`Open ${title}`}
       >
         <img
           src={images[activeImage]}
           alt={`${title} ${activeImage + 1}`}
-          className="max-h-[560px] w-full object-contain"
+          className="max-h-full max-w-full object-contain"
           loading="lazy"
         />
       </button>
@@ -885,6 +931,57 @@ function DesktopLotImageCarousel({ images, title, onOpen }) {
           </button>
         </>
       )}
+      {previewOpen && (
+        <ImageZoomModal
+          imageUrl={images[activeImage]}
+          title={title}
+          zoom={zoom}
+          onZoomIn={() => setZoom((value) => Math.min(3, Number((value + 0.25).toFixed(2))))}
+          onZoomOut={() => setZoom((value) => Math.max(0.5, Number((value - 0.25).toFixed(2))))}
+          onReset={() => setZoom(1)}
+          onClose={() => setPreviewOpen(false)}
+          onViewLot={onOpen}
+        />
+      )}
+    </div>
+  );
+}
+
+function ImageZoomModal({ imageUrl, title, zoom, onZoomIn, onZoomOut, onReset, onClose, onViewLot }) {
+  return (
+    <div className="fixed inset-0 z-[1000] flex flex-col bg-black/90 p-3">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <p className="min-w-0 truncate text-sm font-extrabold text-white">{title}</p>
+        <div className="flex shrink-0 items-center gap-2">
+          <button type="button" onClick={onZoomOut} className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-900" aria-label="Zoom out">
+            <FaSearchMinus />
+          </button>
+          <button type="button" onClick={onReset} className="rounded-full bg-white px-3 py-2 text-xs font-extrabold text-gray-900">
+            {Math.round(zoom * 100)}%
+          </button>
+          <button type="button" onClick={onZoomIn} className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-900" aria-label="Zoom in">
+            <FaSearchPlus />
+          </button>
+          <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-900" aria-label="Close image preview">
+            <FaTimes />
+          </button>
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-md bg-black">
+        <img
+          src={imageUrl}
+          alt={title}
+          className="max-h-full max-w-full object-contain transition-transform"
+          style={{ transform: `scale(${zoom})` }}
+        />
+      </div>
+      <button
+        type="button"
+        onClick={onViewLot}
+        className="mx-auto mt-3 rounded-full bg-green-700 px-5 py-2 text-xs font-extrabold text-white"
+      >
+        View lot details
+      </button>
     </div>
   );
 }

@@ -4,7 +4,11 @@ import {
   FaArrowLeft,
   FaCertificate,
   FaMapMarkerAlt,
+  FaSearchMinus,
+  FaSearchPlus,
   FaSeedling,
+  FaStar,
+  FaTimes,
   FaUser,
   FaVideo,
 } from "react-icons/fa";
@@ -19,6 +23,8 @@ export default function LotDetails() {
   const [auction, setAuction] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState("");
+  const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
+  const [imageZoom, setImageZoom] = useState(1);
   const user = getCurrentUser();
 
   useEffect(() => {
@@ -48,6 +54,8 @@ export default function LotDetails() {
   const currentUserId = user._id || user.id;
   const canSeeBasePrice = ownerId && currentUserId && ownerId === currentUserId;
   const isOrganicCertified = isOrganicCertifiedProduct(product);
+  const growerName = createdBy.orchardName || createdBy.businessName || createdBy.name || "Grower's Orchard";
+  const growerRating = Number(createdBy.rating || product.growerRating || 0);
 
   if (loading) {
     return (
@@ -87,13 +95,23 @@ export default function LotDetails() {
       </button>
 
       <section className="rounded-md border border-gray-200 bg-white p-2">
-        <div className="aspect-[4/3] w-full overflow-hidden rounded-md bg-green-100">
+        <div className="flex h-[70vh] max-h-[680px] min-h-[320px] w-full items-center justify-center rounded-md bg-white">
           {activeImage ? (
-            <img
-              src={toAssetUrl(activeImage)}
-              alt={product.title || "Fruit Lot"}
-              className="h-full w-full object-contain object-center"
-            />
+            <button
+              type="button"
+              onClick={() => {
+                setImageZoom(1);
+                setImagePreviewOpen(true);
+              }}
+              className="flex h-full w-full items-center justify-center"
+              aria-label="Open image preview"
+            >
+              <img
+                src={toAssetUrl(activeImage)}
+                alt={product.title || "Fruit Lot"}
+                className="max-h-full max-w-full object-contain object-center"
+              />
+            </button>
           ) : (
             <div className="flex h-full items-center justify-center text-4xl text-green-700">
               <FaSeedling />
@@ -121,6 +139,34 @@ export default function LotDetails() {
             ))}
           </div>
         )}
+        <div className="mt-3 grid gap-2 rounded-md bg-green-50 px-3 py-3 text-xs sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+          <div className="min-w-0">
+            <p className="font-extrabold text-gray-950">{growerName}</p>
+            <p className="mt-1 flex flex-wrap items-center gap-2 font-bold text-gray-600">
+              <span className="inline-flex items-center gap-1 text-amber-600">
+                <FaStar />
+                {growerRating ? growerRating.toFixed(1) : "No rating yet"}
+              </span>
+              <span>{product.location || "Fruit Mandi"}</span>
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => navigate(`/lots/${product._id}/rating`)}
+              className="rounded-full bg-white px-3 py-2 text-[11px] font-extrabold text-green-800 ring-1 ring-green-200"
+            >
+              Rate Grower
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(`/lots/${product._id}/quote`)}
+              className="rounded-full bg-green-700 px-3 py-2 text-[11px] font-extrabold text-white"
+            >
+              Quote Your Price
+            </button>
+          </div>
+        </div>
       </section>
 
       <section className="mt-3 rounded-md border border-gray-200 bg-white p-3">
@@ -200,6 +246,49 @@ export default function LotDetails() {
           </span>
         </div>
       </section>
+      {imagePreviewOpen && (
+        <ImageZoomModal
+          imageUrl={toAssetUrl(activeImage)}
+          title={product.title || "Fruit Lot"}
+          zoom={imageZoom}
+          onZoomIn={() => setImageZoom((value) => Math.min(3, Number((value + 0.25).toFixed(2))))}
+          onZoomOut={() => setImageZoom((value) => Math.max(0.5, Number((value - 0.25).toFixed(2))))}
+          onReset={() => setImageZoom(1)}
+          onClose={() => setImagePreviewOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ImageZoomModal({ imageUrl, title, zoom, onZoomIn, onZoomOut, onReset, onClose }) {
+  return (
+    <div className="fixed inset-0 z-[1000] flex flex-col bg-black/90 p-3">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <p className="min-w-0 truncate text-sm font-extrabold text-white">{title}</p>
+        <div className="flex shrink-0 items-center gap-2">
+          <button type="button" onClick={onZoomOut} className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-900" aria-label="Zoom out">
+            <FaSearchMinus />
+          </button>
+          <button type="button" onClick={onReset} className="rounded-full bg-white px-3 py-2 text-xs font-extrabold text-gray-900">
+            {Math.round(zoom * 100)}%
+          </button>
+          <button type="button" onClick={onZoomIn} className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-900" aria-label="Zoom in">
+            <FaSearchPlus />
+          </button>
+          <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-900" aria-label="Close image preview">
+            <FaTimes />
+          </button>
+        </div>
+      </div>
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-md bg-black">
+        <img
+          src={imageUrl}
+          alt={title}
+          className="max-h-full max-w-full object-contain transition-transform"
+          style={{ transform: `scale(${zoom})` }}
+        />
+      </div>
     </div>
   );
 }
