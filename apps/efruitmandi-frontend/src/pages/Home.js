@@ -348,7 +348,7 @@ function HeroCard({ onList }) {
             Search lots, fruit, mandi...
           </h1>
           <p className="mt-2 max-w-xl text-sm text-green-100">
-            Discover live fruit lots, upcoming auctions and trusted growers across the market.
+            Discover live fruit lots, upcoming deals and trusted growers across the market.
           </p>
           <button
             type="button"
@@ -483,7 +483,7 @@ function ListingScroller({ items, emptyText, onView }) {
         <MarketCard
           key={product._id}
           item={product}
-          badge={product.status || "AVAILABLE"}
+          badge={formatLotStatus(product.status)}
           buttonLabel="View Listing"
           icon={<FaSeedling />}
           onView={() => onView(product)}
@@ -510,7 +510,7 @@ function MarketCard({ item, amount, badge, buttonLabel, icon, onView, showPrice 
           <img
             src={imageUrl}
             alt={item.title}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-contain"
             loading="lazy"
           />
         ) : (
@@ -754,20 +754,23 @@ function WebSectionPost({ title, text, children }) {
 }
 
 function DesktopLotPost({ items, emptyText, onOpenLot }) {
+  const [showAllDetails, setShowAllDetails] = useState(false);
   if (!items.length) return <DesktopEmptyState text={emptyText} />;
 
   const product = items[0];
   const images = getProductImages(product);
+  const lotDetails = getLotDetails(product);
+  const visibleDetails = showAllDetails ? lotDetails : lotDetails.slice(0, 5);
 
   return (
     <article className="overflow-hidden rounded-md border border-gray-200 bg-white">
-      <button
-        type="button"
-        onClick={() => onOpenLot(product._id)}
-        className="block w-full p-3 text-left hover:bg-green-50/50"
-      >
+      <div className="p-3">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
+          <button
+            type="button"
+            onClick={() => onOpenLot(product._id)}
+            className="min-w-0 flex-1 text-left"
+          >
             <h3 className="line-clamp-1 text-base font-extrabold text-black">
               {product.title || "Fruit Lot"}
             </h3>
@@ -777,12 +780,42 @@ function DesktopLotPost({ items, emptyText, onOpenLot }) {
             <p className="mt-2 text-sm font-bold text-black">
               {product.quantity || 0} Box Lot
             </p>
+          </button>
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <span className="rounded bg-green-100 px-2 py-1 text-[10px] font-extrabold text-green-800">
+              {formatLotStatus(product.status)}
+            </span>
+            <button
+              type="button"
+              onClick={() => onOpenLot(product._id)}
+              className="rounded-full bg-green-700 px-3 py-1.5 text-[11px] font-extrabold text-white hover:bg-green-800"
+            >
+              Quote Your Price
+            </button>
           </div>
-          <span className="shrink-0 rounded bg-green-100 px-2 py-1 text-[10px] font-extrabold text-green-800">
-            {formatLotStatus(product.status)}
-          </span>
         </div>
-      </button>
+
+        {visibleDetails.length > 0 && (
+          <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+            {visibleDetails.map((detail) => (
+              <div key={detail.label} className="rounded-md bg-gray-50 px-3 py-2">
+                <p className="font-bold text-gray-500">{detail.label}</p>
+                <p className="mt-0.5 font-extrabold text-gray-950">{detail.value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {lotDetails.length > 5 && (
+          <button
+            type="button"
+            onClick={() => setShowAllDetails((value) => !value)}
+            className="mt-3 text-xs font-extrabold text-green-700 hover:text-green-800"
+          >
+            {showAllDetails ? "Show less" : "Show more lot information"}
+          </button>
+        )}
+      </div>
       <DesktopLotImageCarousel
         images={images}
         title={product.title || "Fruit Lot"}
@@ -818,17 +851,17 @@ function DesktopLotImageCarousel({ images, title, onOpen }) {
   };
 
   return (
-    <div className="relative bg-green-50">
+    <div className="relative bg-white">
       <button
         type="button"
         onClick={onOpen}
-        className="block w-full"
+        className="flex w-full items-center justify-center bg-white"
         aria-label={`Open ${title}`}
       >
         <img
           src={images[activeImage]}
           alt={`${title} ${activeImage + 1}`}
-          className="h-[420px] w-full object-cover"
+          className="max-h-[560px] w-full object-contain"
           loading="lazy"
         />
       </button>
@@ -1056,7 +1089,7 @@ function FeedPost({ item, onOpen }) {
       </div>
 
       <button type="button" onClick={onOpen} className="mt-3 block w-full bg-gray-100 text-left">
-        <img src={item.imageUrl} alt={item.title} className="h-auto max-h-[420px] w-full object-cover" />
+        <img src={item.imageUrl} alt={item.title} className="h-auto max-h-[420px] w-full object-contain" />
       </button>
     </article>
   );
@@ -1223,6 +1256,53 @@ function normalizeProductImageUrl(image = "") {
 }
 
 function formatLotStatus(status = "") {
-  const normalized = String(status || "AVAILABLE").replace(/_/g, " ");
-  return normalized.toUpperCase();
+  const normalized = String(status || "AVAILABLE").trim().toUpperCase();
+  const labels = {
+    IN_AUCTION: "Deal Open",
+    ACTIVE: "Deal Open",
+    AVAILABLE: "Available",
+    SCHEDULED: "Upcoming Deal",
+    UPCOMING: "Upcoming Deal",
+    SOLD: "Deal Closed",
+    ENDED: "Deal Closed",
+  };
+  return labels[normalized] || normalized.replace(/_/g, " ");
+}
+
+function getLotDetails(product = {}) {
+  const gradeSummary = Array.isArray(product.gradeLots)
+    ? product.gradeLots
+        .filter((lot) => lot?.grade || lot?.boxes || lot?.weightKg)
+        .map((lot) =>
+          [
+            lot.grade || "Grade",
+            lot.boxes ? `${lot.boxes} boxes` : "",
+            lot.weightKg ? `${lot.weightKg} kg` : "",
+          ]
+            .filter(Boolean)
+            .join(" - ")
+        )
+        .join(", ")
+    : "";
+  const growerName =
+    product.createdBy?.orchardName ||
+    product.createdBy?.businessName ||
+    product.createdBy?.name ||
+    "";
+
+  return [
+    { label: "Fruit", value: product.fruitName },
+    { label: "Variety", value: product.variety },
+    { label: "Quality", value: product.quality },
+    { label: "Grower", value: growerName },
+    { label: "Lot No.", value: product.lotNo },
+    { label: "Packing", value: product.packingType },
+    { label: "Total quantity", value: product.quantity ? `${product.quantity} boxes` : "" },
+    { label: "Total weight", value: product.totalWeightKg ? `${product.totalWeightKg} kg` : "" },
+    { label: "Packing weight", value: product.packingWeightKg ? `${product.packingWeightKg} kg each` : "" },
+    { label: "Base price", value: product.basePrice ? `Rs. ${product.basePrice} per box` : "" },
+    { label: "Location", value: product.location },
+    { label: "Grades", value: gradeSummary },
+    { label: "Description", value: product.description },
+  ].filter((detail) => detail.value !== undefined && detail.value !== null && String(detail.value).trim());
 }

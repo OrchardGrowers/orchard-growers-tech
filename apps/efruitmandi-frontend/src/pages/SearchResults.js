@@ -92,7 +92,7 @@ export default function SearchResults() {
                   <img
                     src={getImageUrl(product)}
                     alt={product.title || "Fruit Lot"}
-                    className="h-full w-full object-cover object-center"
+                    className="h-full w-full object-contain object-center"
                     loading="lazy"
                   />
                 ) : (
@@ -107,7 +107,7 @@ export default function SearchResults() {
                   {product.title || "Fruit Lot"}
                 </h3>
                 <span className="rounded bg-green-100 px-2 py-0.5 text-[8px] font-extrabold text-green-800">
-                  {product.status || "AVAILABLE"}
+                  {formatDealStatus(product.status)}
                 </span>
               </div>
 
@@ -156,4 +156,18 @@ function getImageUrl(product) {
 
   if (/^https?:\/\//i.test(normalizedImage)) return normalizedImage;
   return normalizedImage ? `${FILE_BASE_URL}/${normalizedImage}` : "";
+}
+
+function formatDealStatus(status = "") {
+  const normalized = String(status || "AVAILABLE").trim().toUpperCase();
+  const labels = {
+    IN_AUCTION: "Deal Open",
+    ACTIVE: "Deal Open",
+    AVAILABLE: "Available",
+    SCHEDULED: "Upcoming Deal",
+    UPCOMING: "Upcoming Deal",
+    SOLD: "Deal Closed",
+    ENDED: "Deal Closed",
+  };
+  return labels[normalized] || normalized.replace(/_/g, " ");
 }

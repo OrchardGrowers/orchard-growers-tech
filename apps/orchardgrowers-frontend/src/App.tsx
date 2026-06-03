@@ -481,11 +481,11 @@ function Home() {
     const load = async () => {
       try {
         const [productRes, auctionRes] = await Promise.all([
-          API.get<Product[]>("/products").catch(() => ({ data: [] as Product[] })),
+          API.get<Product[]>("/products?platform=orchardgrowers").catch(() => ({ data: [] as Product[] })),
           API.get<Auction[]>("/auctions").catch(() => ({ data: [] as Auction[] })),
         ]);
-        setProducts((productRes.data || []).filter((product) => product.inventoryType !== "raw_material"));
-        setAuctions(auctionRes.data || []);
+        setProducts((productRes.data || []).filter(isOrchardStorefrontProduct));
+        setAuctions((auctionRes.data || []).filter((auction) => isOrchardStorefrontProduct(auction.product)));
       } finally {
         setLoading(false);
       }
@@ -4646,6 +4646,14 @@ function getProductImage(product: Product) {
 function getProductImages(product: Product) {
   if (!Array.isArray(product.images)) return [];
   return product.images.map(normalizeProductImage).filter(Boolean);
+}
+
+function isOrchardStorefrontProduct(product?: Product | null) {
+  if (!product || product.inventoryType === "raw_material") return false;
+  if (product.createdSource === "grower" || product.createdSource === "efruitmandi") return false;
+  if (Array.isArray(product.gradeLots) && product.gradeLots.length > 0) return false;
+  if (product.status === "IN_AUCTION") return false;
+  return true;
 }
 
 function normalizeProductImage(image: string) {

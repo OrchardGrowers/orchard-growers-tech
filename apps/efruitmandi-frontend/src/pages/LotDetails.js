@@ -92,7 +92,7 @@ export default function LotDetails() {
             <img
               src={toAssetUrl(activeImage)}
               alt={product.title || "Fruit Lot"}
-              className="h-full w-full object-cover object-center"
+              className="h-full w-full object-contain object-center"
             />
           ) : (
             <div className="flex h-full items-center justify-center text-4xl text-green-700">
@@ -115,7 +115,7 @@ export default function LotDetails() {
                 <img
                   src={toAssetUrl(image)}
                   alt=""
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-contain"
                 />
               </button>
             ))}
@@ -135,7 +135,7 @@ export default function LotDetails() {
             </p>
           </div>
           <span className="shrink-0 rounded bg-green-100 px-2 py-1 text-[9px] font-extrabold text-green-800">
-            {product.status || "AVAILABLE"}
+            {formatDealStatus(product.status)}
           </span>
         </div>
         {isOrganicCertified && (
@@ -170,7 +170,7 @@ export default function LotDetails() {
           <InfoTile label="Total boxes" value={product.quantity || 0} />
           <InfoTile label="Packing" value={product.packingType || "Not set"} />
           <InfoTile label="Total weight" value={formatWeight(product.totalWeightKg)} />
-          <InfoTile label="Deal status" value={auction?.status || "Not started"} />
+          <InfoTile label="Deal status" value={formatDealStatus(auction?.status || "Not started")} />
           {canSeeBasePrice && (
             <InfoTile label="Base price" value={`Rs. ${product.basePrice || 0}`} />
           )}
@@ -221,7 +221,7 @@ function AuctionPanel({ auction }) {
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-xs font-extrabold text-black">Deal Details</h2>
         <span className="rounded bg-green-100 px-2 py-1 text-[9px] font-extrabold text-green-800">
-          {auction.status}
+          {formatDealStatus(auction.status)}
         </span>
       </div>
 
@@ -268,8 +268,8 @@ function GradeLots({ lots }) {
                   <img
                     key={image}
                     src={toAssetUrl(image)}
-                    alt={`Grade ${lot.grade}`}
-                    className="h-20 w-24 shrink-0 rounded object-cover"
+                    alt={`${lot.grade || "Grade"} fruit sample`}
+                    className="h-20 w-24 shrink-0 rounded bg-white object-contain"
                   />
                 ))}
               </div>
@@ -364,4 +364,19 @@ function formatWeight(value) {
   if (!number) return "0 KG";
   if (number < 1) return `${number.toFixed(1)} KG`;
   return `${Math.round(number * 10) / 10} KG`;
+}
+
+function formatDealStatus(status = "") {
+  const normalized = String(status || "").trim().toUpperCase();
+  const labels = {
+    IN_AUCTION: "Deal Open",
+    ACTIVE: "Deal Open",
+    AVAILABLE: "Available",
+    SCHEDULED: "Upcoming Deal",
+    UPCOMING: "Upcoming Deal",
+    SOLD: "Deal Closed",
+    ENDED: "Deal Closed",
+    "NOT STARTED": "Not started",
+  };
+  return labels[normalized] || String(status || "Available").replace(/_/g, " ");
 }

@@ -69,7 +69,7 @@ export default function Notifications() {
                       </p>
                     </div>
                     <span className="shrink-0 rounded bg-green-100 px-2 py-0.5 text-[8px] font-extrabold text-green-800">
-                      {lot.status || "AVAILABLE"}
+                      {formatDealStatus(lot.status)}
                     </span>
                   </div>
 
@@ -112,4 +112,18 @@ function formatNotificationTime(value) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatDealStatus(status = "") {
+  const normalized = String(status || "AVAILABLE").trim().toUpperCase();
+  const labels = {
+    IN_AUCTION: "Deal Open",
+    ACTIVE: "Deal Open",
+    AVAILABLE: "Available",
+    SCHEDULED: "Upcoming Deal",
+    UPCOMING: "Upcoming Deal",
+    SOLD: "Deal Closed",
+    ENDED: "Deal Closed",
+  };
+  return labels[normalized] || normalized.replace(/_/g, " ");
 }

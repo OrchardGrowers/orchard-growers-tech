@@ -11,7 +11,7 @@ const terms = [
   },
   {
     title: "Marketplace activity",
-    body: "Fruit listings, bids, orders, logistics requests, and settlement information must be genuine and lawful. E-Fruit Mandi may review suspicious or disputed marketplace activity.",
+    body: "Fruit listings, quotes, orders, logistics requests, and settlement information must be genuine and lawful. E-Fruit Mandi may review suspicious or disputed marketplace activity.",
   },
   {
     title: "Verification and disputes",

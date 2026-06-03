@@ -202,7 +202,7 @@ function LiveLotCard({
           <img
             src={imageUrl}
             alt={product.title || "Fruit Lot"}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-contain"
             loading="lazy"
           />
         ) : (
@@ -217,7 +217,7 @@ function LiveLotCard({
           {product.title || "Fruit Lot"}
         </h3>
         <span className="rounded bg-green-100 px-2 py-0.5 text-[8px] font-extrabold text-green-800">
-          LIVE
+          Deal Open
         </span>
       </div>
 
@@ -300,7 +300,7 @@ function LiveLotCard({
             className="inline-flex items-center gap-1 rounded-full bg-gray-200 px-2 py-1 text-[9px] font-bold text-gray-700"
           >
             <FaEye />
-            Deal
+            Quote Your Price
           </button>
         </div>
       ) : (

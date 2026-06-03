@@ -38,7 +38,7 @@ const policyContent = {
       {
         title: "Account responsibility",
         body:
-          "Users are responsible for their login details, OTP access, submitted profile information, listed lots, bids, orders, payment actions, and communication made from their account.",
+          "Users are responsible for their login details, OTP access, submitted profile information, listed lots, quotes, orders, payment actions, and communication made from their account.",
       },
       {
         title: "Marketplace conduct",

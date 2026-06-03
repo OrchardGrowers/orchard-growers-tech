@@ -8,7 +8,8 @@ export const fetchProducts = async (): Promise<Product[]> => {
       product.inventoryType !== "raw_material" &&
       product.createdSource !== "grower" &&
       product.createdSource !== "efruitmandi" &&
-      !product.gradeLots?.length
+      !product.gradeLots?.length &&
+      product.status !== "IN_AUCTION"
   );
 };
 
