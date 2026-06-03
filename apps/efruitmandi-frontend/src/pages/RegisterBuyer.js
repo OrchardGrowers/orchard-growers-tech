@@ -56,6 +56,20 @@ export default function RegisterBuyer() {
         const latestUser = res.data || currentUser;
         setAccountUser(latestUser);
         localStorage.setItem("user", JSON.stringify(latestUser));
+        setForm({
+          businessName: latestUser.businessName || "",
+          buyerContactPerson: latestUser.buyerContactPerson || latestUser.name || "",
+          designation: latestUser.designation || "",
+          location: latestUser.buyerLocation || latestUser.location || "",
+          pinCode: latestUser.buyerPinCode || latestUser.pinCode || "",
+          contact: latestUser.contact || latestUser.phone || "",
+          gstNumber: latestUser.gstNumber || "",
+          tradeLicenseNumber: latestUser.tradeLicenseNumber || "",
+        });
+        const latestContact = latestUser.contact || latestUser.phone || "";
+        if (hasBuyerProfile(latestUser) && latestContact) {
+          setVerifiedPhone(latestContact);
+        }
       })
       .catch(() => {});
   }, []);
