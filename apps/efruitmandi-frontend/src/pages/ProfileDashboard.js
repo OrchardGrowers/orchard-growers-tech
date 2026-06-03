@@ -188,7 +188,8 @@ function formatCurrency(value) {
 
 export default function ProfileDashboard() {
   const navigate = useNavigate();
-  const locationState = useLocation().state;
+  const routeLocation = useLocation();
+  const locationState = routeLocation.state;
   const hasAccessToken = Boolean(localStorage.getItem("accessToken"));
   const [profile, setProfile] = useState(null);
   const [notice, setNotice] = useState("");
@@ -256,12 +257,12 @@ export default function ProfileDashboard() {
   }, []);
 
   useEffect(() => {
-    const mode = new URLSearchParams(location.search).get("mode");
+    const mode = new URLSearchParams(routeLocation.search).get("mode");
     if (mode) {
       localStorage.setItem("efruitmandiProfileMode", mode);
       setActiveProfileMode(mode);
     }
-  }, [location.search]);
+  }, [routeLocation.search]);
 
   const storedUser = useMemo(() => {
     try {
@@ -370,7 +371,7 @@ export default function ProfileDashboard() {
         : profileMode === "buyer"
           ? user.businessName || "Fruit Buyer"
           : user.name || "Visitor";
-  const location =
+  const profileLocation =
     profileMode === "grower"
       ? growerAddress || "Grower orchard location not added"
       : profileMode === "buyer"
@@ -1043,7 +1044,7 @@ export default function ProfileDashboard() {
                   <>
                     <p className="mt-1 text-base text-gray-950">{headline}</p>
                     <p className="mt-1 text-sm text-gray-600">
-                      {location} <span className="text-gray-400">-</span>{" "}
+                      {profileLocation} <span className="text-gray-400">-</span>{" "}
                       <button className="font-semibold text-blue-700" type="button">
                         Contact info
                       </button>
