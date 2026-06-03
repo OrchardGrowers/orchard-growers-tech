@@ -24,7 +24,7 @@ export default function LotDetails() {
   useEffect(() => {
     const loadLot = async () => {
       try {
-        const res = await API.get(`/products/${lotId}`);
+        const res = await API.get(`/products/${lotId}?platform=efruitmandi`);
         const lot = res.data?.product || null;
         const linkedAuction = res.data?.auction || null;
 

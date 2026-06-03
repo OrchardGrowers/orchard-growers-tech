@@ -216,6 +216,7 @@ export default function ProfileDashboard() {
   const [emailOtpCooldown, setEmailOtpCooldown] = useState(0);
   const [socialDraft, setSocialDraft] = useState(createSocialDraft());
   const [detectingAddress, setDetectingAddress] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
 
   useEffect(() => {
     if (!contactOtpCooldown && !emailOtpCooldown) return undefined;
@@ -269,7 +270,7 @@ export default function ProfileDashboard() {
       try {
         const [profileRes, productRes, auctionRes, orderRes, mandiRateRes] = await Promise.all([
           API.get("/user/profile").catch(() => ({ data: storedUser })),
-          API.get("/products").catch(() => ({ data: [] })),
+          API.get("/products?platform=efruitmandi").catch(() => ({ data: [] })),
           API.get("/auctions").catch(() => ({ data: [] })),
           API.get("/orders").catch(() => ({ data: [] })),
           API.get("/mandi-rates").catch(() => ({
@@ -589,6 +590,8 @@ export default function ProfileDashboard() {
   };
 
   const saveProfileDetails = async () => {
+    if (profileSaving) return;
+
     const location = formatBusinessAddress(businessAddressDraft) || formatProfileAddress(addressDraft);
     const nextPhone = contactDraft.phone.trim();
     const nextEmail = emailDraft.email.trim();
@@ -605,6 +608,8 @@ export default function ProfileDashboard() {
     }
 
     try {
+      setProfileSaving(true);
+      setNotice("Saving profile. Please wait...");
       const res = await API.patch("/user/profile", {
         ...profileDraft,
         ...addressDraft,
@@ -648,6 +653,8 @@ export default function ProfileDashboard() {
           err.response?.data?.message ||
           "Profile could not be saved. Please verify contact and try again."
       );
+    } finally {
+      setProfileSaving(false);
     }
   };
 
@@ -1455,16 +1462,18 @@ export default function ProfileDashboard() {
               <button
                 type="button"
                 onClick={closeEditProfile}
-                className="flex-1 rounded-md bg-gray-100 py-2 text-sm font-bold text-gray-700"
+                disabled={profileSaving}
+                className="flex-1 rounded-md bg-gray-100 py-2 text-sm font-bold text-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={saveProfileDetails}
-                className="flex-1 rounded-md bg-green-700 py-2 text-sm font-bold text-white"
+                disabled={profileSaving}
+                className="flex-1 rounded-md bg-green-700 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-300"
               >
-                Save
+                {profileSaving ? "Saving... Please wait" : "Save"}
               </button>
             </div>
           </section>

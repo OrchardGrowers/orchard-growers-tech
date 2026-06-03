@@ -370,7 +370,27 @@ export const createProduct = async (req, res) => {
 // GET PRODUCTS
 export const getProducts = async (req, res) => {
   try {
-    const products = await Product.find({ active: { $ne: false }, inventoryType: { $ne: "raw_material" } })
+    const platform = String(req.query.platform || "").trim().toLowerCase();
+    const filters = { active: { $ne: false }, inventoryType: { $ne: "raw_material" } };
+
+    if (["orchard", "orchardgrowers", "orchard-growers"].includes(platform)) {
+      filters.$or = [
+        { createdSource: "admin-panel" },
+        {
+          createdSource: { $exists: false },
+          "gradeLots.0": { $exists: false },
+        },
+      ];
+    }
+
+    if (["efruitmandi", "efruit", "mandi"].includes(platform)) {
+      filters.$or = [
+        { createdSource: "grower" },
+        { "gradeLots.0": { $exists: true } },
+      ];
+    }
+
+    const products = await Product.find(filters)
       .populate("createdBy", "name orchardName businessName role")
       .sort({ createdAt: -1 });
     res.json(products.map((product) => serializeProduct(product, req.user)));
@@ -382,12 +402,20 @@ export const getProducts = async (req, res) => {
 // GET SINGLE PRODUCT WITH AUCTION DETAIL
 export const getProductById = async (req, res) => {
   try {
+    const platform = String(req.query.platform || "").trim().toLowerCase();
     const product = await Product.findById(req.params.id).populate(
       "createdBy",
       "name orchardName businessName role location"
     );
 
-    if (!product || product.inventoryType === "raw_material") {
+    const isOrchardPlatform = ["orchard", "orchardgrowers", "orchard-growers"].includes(platform);
+    const isEfruitPlatform = ["efruitmandi", "efruit", "mandi"].includes(platform);
+    const hasGradeLots = Array.isArray(product?.gradeLots) && product.gradeLots.length > 0;
+    const isWrongPlatform =
+      (isOrchardPlatform && product?.createdSource !== "admin-panel" && hasGradeLots) ||
+      (isEfruitPlatform && product?.createdSource === "admin-panel");
+
+    if (!product || product.inventoryType === "raw_material" || isWrongPlatform) {
       return res.status(404).json({ msg: "Product not found" });
     }
 

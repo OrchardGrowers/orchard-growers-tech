@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
+  FaChevronLeft,
+  FaChevronRight,
   FaChevronDown,
   FaEllipsisH,
   FaEye,
@@ -128,7 +130,7 @@ export default function Home() {
     const loadHome = async () => {
       try {
         const [productRes, auctionRes] = await Promise.all([
-          API.get("/products").catch(() => ({ data: [] })),
+          API.get("/products?platform=efruitmandi").catch(() => ({ data: [] })),
           API.get("/auctions").catch(() => ({ data: [] })),
         ]);
 
@@ -755,45 +757,102 @@ function DesktopLotPost({ items, emptyText, onOpenLot }) {
   if (!items.length) return <DesktopEmptyState text={emptyText} />;
 
   const product = items[0];
-  const imageUrl = getProductImage(product);
+  const images = getProductImages(product);
 
   return (
-    <button
-      type="button"
-      onClick={() => onOpenLot(product._id)}
-      className="flex w-full overflow-hidden rounded-md border border-gray-200 bg-white text-left hover:border-green-400"
-    >
-      <div className="h-36 w-44 shrink-0 bg-green-50">
-        {imageUrl ? (
-          <img src={imageUrl} alt={product.title} className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full items-center justify-center text-2xl text-green-700">
-            <FaSeedling />
+    <article className="overflow-hidden rounded-md border border-gray-200 bg-white">
+      <button
+        type="button"
+        onClick={() => onOpenLot(product._id)}
+        className="block w-full p-3 text-left hover:bg-green-50/50"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="line-clamp-1 text-base font-extrabold text-black">
+              {product.title || "Fruit Lot"}
+            </h3>
+            <p className="mt-1 truncate text-sm font-semibold text-gray-600">
+              {product.location || "Fruit Mandi"}
+            </p>
+            <p className="mt-2 text-sm font-bold text-black">
+              {product.quantity || 0} Box Lot
+            </p>
           </div>
-        )}
-      </div>
-      <div className="min-w-0 flex-1 p-4">
-        <div className="mb-2 flex items-start justify-between gap-3">
-          <h3 className="line-clamp-1 text-base font-extrabold text-black">
-            {product.title || "Fruit Lot"}
-          </h3>
-          <span className="rounded bg-green-100 px-2 py-1 text-[10px] font-extrabold text-green-800">
-            {product.status || "AVAILABLE"}
+          <span className="shrink-0 rounded bg-green-100 px-2 py-1 text-[10px] font-extrabold text-green-800">
+            {formatLotStatus(product.status)}
           </span>
         </div>
-        <p className="truncate text-sm font-semibold text-gray-600">
-          {product.location || "Fruit Mandi"}
-        </p>
-        <p className="mt-2 text-sm font-bold text-black">
-          {product.quantity || 0} Box Lot
-        </p>
-        {product.basePrice !== undefined && (
-          <p className="mt-1 text-sm font-bold text-black">
-            Rs. {product.basePrice || 0} Per box
-          </p>
-        )}
-      </div>
-    </button>
+      </button>
+      <DesktopLotImageCarousel
+        images={images}
+        title={product.title || "Fruit Lot"}
+        onOpen={() => onOpenLot(product._id)}
+      />
+    </article>
+  );
+}
+
+function DesktopLotImageCarousel({ images, title, onOpen }) {
+  const [activeImage, setActiveImage] = useState(0);
+
+  if (!images.length) {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex h-[420px] w-full items-center justify-center bg-green-50 text-4xl text-green-700"
+        aria-label={`Open ${title}`}
+      >
+        <FaSeedling />
+      </button>
+    );
+  }
+
+  const showPrevious = (event) => {
+    event.stopPropagation();
+    setActiveImage((current) => (current === 0 ? images.length - 1 : current - 1));
+  };
+  const showNext = (event) => {
+    event.stopPropagation();
+    setActiveImage((current) => (current + 1) % images.length);
+  };
+
+  return (
+    <div className="relative bg-green-50">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="block w-full"
+        aria-label={`Open ${title}`}
+      >
+        <img
+          src={images[activeImage]}
+          alt={`${title} ${activeImage + 1}`}
+          className="h-[420px] w-full object-cover"
+          loading="lazy"
+        />
+      </button>
+      {images.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={showPrevious}
+            className="absolute left-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-xl text-slate-700 shadow hover:bg-white"
+            aria-label="Show previous lot image"
+          >
+            <FaChevronLeft />
+          </button>
+          <button
+            type="button"
+            onClick={showNext}
+            className="absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-xl text-slate-700 shadow hover:bg-white"
+            aria-label="Show next lot image"
+          >
+            <FaChevronRight />
+          </button>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -1140,11 +1199,30 @@ function buildFeed(products, auctions) {
 }
 
 function getProductImage(product) {
-  const image = Array.isArray(product.images) ? product.images[0] : "";
+  return getProductImages(product)[0] || "";
+}
+
+function getProductImages(product) {
+  const imageSources = [
+    ...(Array.isArray(product.images) ? product.images : []),
+    ...(Array.isArray(product.gradeLots)
+      ? product.gradeLots.flatMap((lot) => lot.images || [])
+      : []),
+  ];
+
+  return Array.from(new Set(imageSources.map(normalizeProductImageUrl).filter(Boolean)));
+}
+
+function normalizeProductImageUrl(image = "") {
   const normalized = image ? image.replace(/\\/g, "/") : "";
 
   if (/^https?:\/\//i.test(normalized)) return normalized;
   return normalized
     ? `${FILE_BASE_URL}/${normalized}`
     : "";
+}
+
+function formatLotStatus(status = "") {
+  const normalized = String(status || "AVAILABLE").replace(/_/g, " ");
+  return normalized.toUpperCase();
 }

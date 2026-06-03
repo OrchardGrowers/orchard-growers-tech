@@ -14,7 +14,7 @@ export default function SearchResults() {
   useEffect(() => {
     const loadProducts = async () => {
       try {
-        const res = await API.get("/products");
+        const res = await API.get("/products?platform=efruitmandi");
         setProducts(getEfruitMandiProducts(res.data));
       } catch (err) {
         console.error(err);

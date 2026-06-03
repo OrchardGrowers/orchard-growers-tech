@@ -12,7 +12,7 @@ export default function Notifications() {
   useEffect(() => {
     const loadLots = async () => {
       try {
-        const res = await API.get("/products");
+        const res = await API.get("/products?platform=efruitmandi");
         const latestLots = getEfruitMandiProducts(res.data)
           .slice()
           .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))

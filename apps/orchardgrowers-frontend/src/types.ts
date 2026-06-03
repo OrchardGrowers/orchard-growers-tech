@@ -19,7 +19,9 @@ export interface Product {
   basePrice: number;
   discountPercent?: number;
   images?: string[];
+  gradeLots?: { grade?: string; boxes?: number; weightKg?: number; images?: string[] }[];
   status?: string;
+  createdSource?: string;
   createdAt?: string;
   updatedAt?: string;
   createdBy?: {
