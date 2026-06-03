@@ -12,9 +12,7 @@ export default function MainLayout() {
       <main className={`flex-1 ${isHome ? "pt-[106px] md:pt-[74px]" : "pt-[64px]"} px-3 md:px-4`}>
         <Outlet />
       </main>
-      <footer className="px-3 pb-[104px] pt-4 text-center text-xs font-semibold text-gray-600 md:pb-6">
-        (c) All rights reserved by Orchard Growers Pvt. Ltd.
-      </footer>
+      <footer className="pb-[104px] md:pb-6" />
       <BottomNav />
     </div>
   );

@@ -114,28 +114,31 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
       icon: <FaUserCircle />,
       path: "/profile-dashboard",
     },
-    ...(!isDriver
+    ...(isBuyer || !isDriver
       ? [
           {
-            label: isBuyer ? "Update Buyer Profile" : "Register as Buyer",
+            label: isBuyer ? "Switch to Buyer Dashboard" : "Register as Buyer",
             icon: <FaHandshake />,
-            path: "/register-buyer",
+            path: isBuyer ? "/profile-dashboard" : "/register-buyer",
+            mode: isBuyer ? "buyer" : "",
             hasChevron: true,
           },
         ]
       : []),
     {
-      label: isGrower ? "Update Grower Profile" : "Register as Grower",
+      label: isGrower ? "Switch to Grower Dashboard" : "Register as Grower",
       icon: <FaSeedling />,
-      path: "/register-grower",
+      path: isGrower ? "/profile-dashboard" : "/register-grower",
+      mode: isGrower ? "grower" : "",
       hasChevron: true,
     },
-    ...(!isBuyer
+    ...(!isBuyer || isDriver
       ? [
           {
-            label: isDriver ? "Update Logistic Partner Profile" : "Register as Logistic Partner",
+            label: isDriver ? "Switch to Logistic Partner Dashboard" : "Register as Logistic Partner",
             icon: <FaTruck />,
-            path: "/register-driver",
+            path: isDriver ? "/profile-dashboard" : "/register-driver",
+            mode: isDriver ? "driver" : "",
             hasChevron: true,
           },
         ]
@@ -146,7 +149,17 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
     <button
       key={item.label}
       type="button"
-      onClick={() => onAction(item.path)}
+      onClick={() => {
+        if (item.mode) {
+          localStorage.setItem("efruitmandiProfileMode", item.mode);
+          window.dispatchEvent(
+            new CustomEvent("efruitmandi-profile-mode-change", {
+              detail: { mode: item.mode },
+            })
+          );
+        }
+        onAction(item.path);
+      }}
       className="flex w-full items-center gap-4 px-4 py-2.5 text-left text-sm font-semibold text-white transition hover:bg-green-800"
     >
       <span className={`flex w-6 justify-center text-lg ${iconColor}`}>

@@ -244,6 +244,17 @@ export default function ProfileDashboard() {
     () => localStorage.getItem("efruitmandiProfileMode") || ""
   );
 
+  useEffect(() => {
+    const handleProfileModeChange = (event) => {
+      const mode = event.detail?.mode || localStorage.getItem("efruitmandiProfileMode") || "";
+      if (mode) setActiveProfileMode(mode);
+    };
+
+    window.addEventListener("efruitmandi-profile-mode-change", handleProfileModeChange);
+    return () =>
+      window.removeEventListener("efruitmandi-profile-mode-change", handleProfileModeChange);
+  }, []);
+
   const storedUser = useMemo(() => {
     try {
       const parsedUser = JSON.parse(localStorage.getItem("user")) || {};
@@ -359,13 +370,41 @@ export default function ProfileDashboard() {
         ? "Logistic Partner Profile Dashboard"
         : "User Profile Dashboard";
   const registrationActions = [
-    ...(!isDriver
+    ...(isBuyer && profileMode !== "buyer"
       ? [
           {
-            title: isBuyer ? "Update Buyer Profile" : "Register as Buyer",
-            description: isBuyer
-              ? "Update buyer details used for fruit deals and payments."
-              : "Create a buyer profile and participate in live fruit deals.",
+            title: "Switch to Buyer Dashboard",
+            description: "Open your buyer dashboard for fruit deals and payments.",
+            icon: <FaHandshake />,
+            mode: "buyer",
+          },
+        ]
+      : []),
+    ...(isGrower && profileMode !== "grower"
+      ? [
+          {
+            title: "Switch to Grower Dashboard",
+            description: "Open your grower dashboard for listings and orchard activity.",
+            icon: <FaSeedling />,
+            mode: "grower",
+          },
+        ]
+      : []),
+    ...(isDriver && profileMode !== "driver"
+      ? [
+          {
+            title: "Switch to Logistic Partner Dashboard",
+            description: "Open your logistic partner dashboard for delivery activity.",
+            icon: <FaTruck />,
+            mode: "driver",
+          },
+        ]
+      : []),
+    ...(!isBuyer
+      ? [
+          {
+            title: "Register as Buyer",
+            description: "Create a buyer profile and participate in live fruit deals.",
             icon: <FaHandshake />,
             path: "/register-buyer",
           },
@@ -384,10 +423,8 @@ export default function ProfileDashboard() {
     ...(!isBuyer
       ? [
           {
-            title: isDriver ? "Update Logistic Partner Profile" : "Register as Logistic Partner",
-            description: isDriver
-              ? "Update logistic partner profile and vehicle details."
-              : "Create a logistic partner profile and manage fruit lot deliveries.",
+            title: "Register as Logistic Partner",
+            description: "Create a logistic partner profile and manage fruit lot deliveries.",
             icon: <FaTruck />,
             path: "/register-driver",
           },
@@ -1006,7 +1043,14 @@ export default function ProfileDashboard() {
         {registrationActions.length > 0 && (
           <RoleRegistrationCards
             options={registrationActions}
-            onSelect={(path) => navigate(path)}
+            onSelect={(option) => {
+              if (option.mode) {
+                switchProfileMode(option.mode);
+                return;
+              }
+
+              navigate(option.path);
+            }}
           />
         )}
 
@@ -1017,6 +1061,9 @@ export default function ProfileDashboard() {
             </p>
             <p className="mt-1 text-xs font-semibold leading-5 text-amber-800">
               Submit Udyan card, bank/passbook, and Aadhaar details to complete your profile.
+            </p>
+            <p className="mt-1 text-xs font-extrabold leading-5 text-amber-900">
+              KYC Pending: Complete KYC to become Eligible to Buy (For Buyer) and List Fruit Consignment Lots (for Growers).
             </p>
             <button
               type="button"
@@ -1583,7 +1630,7 @@ function RoleRegistrationCards({ options, onSelect }) {
         <button
           key={option.title}
           type="button"
-          onClick={() => onSelect(option.path)}
+          onClick={() => onSelect(option)}
           className="rounded-lg border border-green-100 bg-green-50 p-4 text-left transition hover:border-green-500 hover:bg-green-100 focus-visible:border-green-500 focus-visible:bg-green-100 focus-visible:outline-none"
         >
           <span className="flex h-11 w-11 items-center justify-center rounded-full bg-green-700 text-lg text-white">

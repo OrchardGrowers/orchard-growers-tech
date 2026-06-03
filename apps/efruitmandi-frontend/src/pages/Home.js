@@ -112,6 +112,9 @@ const newsItems = [
   "Delivery partners available for orchard dispatch",
 ];
 
+const LOT_OPEN_HOUR = 12;
+const LOT_CLOSE_HOUR = 16;
+
 export default function Home() {
   const navigate = useNavigate();
   const [user, setUser] = useState(() => getCurrentUser());
@@ -119,6 +122,7 @@ export default function Home() {
   const [auctions, setAuctions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [desktopSection, setDesktopSection] = useState("liveLots");
+  const [marketClock, setMarketClock] = useState(() => Date.now());
   const isGrower = isGrowerAccount(user);
   const openProfileEntry = () => {
     if (localStorage.getItem("accessToken")) {
@@ -191,20 +195,39 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setMarketClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const feedItems = useMemo(
     () => buildFeed(products, auctions),
     [products, auctions]
   );
   const [activeMobileTab, setActiveMobileTab] = useState("liveLots");
-  const visibleListings = products.slice(0, 6);
-  const upcomingLots = auctions
-    .filter((auction) => auction.status === "SCHEDULED" && auction.product)
-    .map((auction) => ({
-      ...(auction.product || {}),
-      auctionStartTime: auction.startTime || auction.product?.auctionStartTime,
-      status: "UPCOMING",
-    }))
+  const lotTiming = useMemo(() => getDailyLotTiming(new Date(marketClock)), [marketClock]);
+  const timedProducts = useMemo(
+    () => products.map((product) => attachLotTiming(product, lotTiming)),
+    [products, lotTiming]
+  );
+  const visibleListings = timedProducts
+    .filter((product) => product.dealTiming?.state === "live")
     .slice(0, 6);
+  const upcomingLots = [
+    ...timedProducts.filter((product) => product.dealTiming?.state === "upcoming"),
+    ...auctions
+      .filter((auction) => auction.status === "SCHEDULED" && auction.product)
+      .map((auction) =>
+        attachLotTiming(
+          {
+            ...(auction.product || {}),
+            auctionStartTime: auction.startTime || auction.product?.auctionStartTime,
+            status: "UPCOMING",
+          },
+          lotTiming
+        )
+      ),
+  ].slice(0, 6);
   const highestDeals = getHighestDealsByCategory(auctions);
   const selectedInfoSection = previousSections.find(
     (section) => section.title === desktopSection
@@ -548,7 +571,7 @@ function MarketCard({ item, amount, badge, buttonLabel, icon, onView, showPrice 
           {item.title || "Fruit Lot"}
         </h3>
         <span className="rounded bg-green-100 px-2 py-0.5 text-[8px] font-extrabold text-green-800">
-          {badge}
+          {formatLotStatus(item.status, item.dealTiming)}
         </span>
       </div>
 
@@ -558,6 +581,7 @@ function MarketCard({ item, amount, badge, buttonLabel, icon, onView, showPrice 
       <p className="text-[10px] font-bold text-black">
         {item.quantity || 0} Box Lot
       </p>
+      <LotCountdownText timing={item.dealTiming} compact />
       {showPrice && (
         <p className="text-[10px] font-bold text-black">
           Rs. {amount || 0} Per box
@@ -820,8 +844,9 @@ function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) 
           </button>
           <div className="flex shrink-0 flex-col items-end gap-2">
             <span className="rounded bg-green-100 px-2 py-1 text-[10px] font-extrabold text-green-800">
-              {formatLotStatus(product.status)}
+              {formatLotStatus(product.status, product.dealTiming)}
             </span>
+            <LotCountdownText timing={product.dealTiming} />
           </div>
         </div>
 
@@ -1156,6 +1181,7 @@ function PolicyMiniLinks() {
       <Link to="/terms-of-service" className="hover:text-green-700 hover:underline">Terms of Service</Link>
       <span> · </span>
       <Link to="/user-data-deletion" className="hover:text-green-700 hover:underline">User data deletion</Link>
+      <p className="mt-2">(c) All rights reserved by Orchard Growers Pvt. Ltd.</p>
     </nav>
   );
 }
@@ -1387,7 +1413,89 @@ function getImageGradeLabel(product = {}, imageUrl = "") {
   return grade ? `Grade ${grade}` : "";
 }
 
-function formatLotStatus(status = "") {
+function getDailyLotTiming(now = new Date()) {
+  const openAt = new Date(now);
+  openAt.setHours(LOT_OPEN_HOUR, 0, 0, 0);
+
+  const closeAt = new Date(now);
+  closeAt.setHours(LOT_CLOSE_HOUR, 0, 0, 0);
+
+  if (now >= openAt && now <= closeAt) {
+    return {
+      state: "live",
+      label: "Deal Open",
+      targetAt: closeAt.toISOString(),
+      countdownPrefix: "Closes in",
+    };
+  }
+
+  const nextOpenAt = new Date(openAt);
+  if (now > closeAt) {
+    nextOpenAt.setDate(nextOpenAt.getDate() + 1);
+  }
+
+  return {
+    state: "upcoming",
+    label: "Upcoming Deal",
+    targetAt: nextOpenAt.toISOString(),
+    countdownPrefix: "Starts in",
+  };
+}
+
+function attachLotTiming(product = {}, timing) {
+  const normalizedStatus = String(product.status || "").trim().toUpperCase();
+  if (["SOLD", "ENDED", "CLOSED"].includes(normalizedStatus)) {
+    return {
+      ...product,
+      dealTiming: {
+        state: "closed",
+        label: "Deal Closed",
+        targetAt: "",
+        countdownPrefix: "",
+      },
+    };
+  }
+
+  return {
+    ...product,
+    status: timing.state === "live" ? "ACTIVE" : "UPCOMING",
+    dealTiming: timing,
+  };
+}
+
+function formatCountdown(targetAt = "") {
+  const targetTime = targetAt ? new Date(targetAt).getTime() : 0;
+  const remaining = targetTime - Date.now();
+
+  if (!targetTime || remaining <= 0) return "00:00:00";
+
+  const totalSeconds = Math.floor(remaining / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return [hours, minutes, seconds]
+    .map((part) => String(part).padStart(2, "0"))
+    .join(":");
+}
+
+function LotCountdownText({ timing, compact = false }) {
+  if (!timing?.targetAt || timing.state === "closed") return null;
+
+  return (
+    <p
+      className={`font-extrabold ${
+        compact ? "mt-1 text-[9px]" : "text-[10px]"
+      } ${timing.state === "live" ? "text-red-600" : "text-amber-700"}`}
+    >
+      {timing.countdownPrefix}: {formatCountdown(timing.targetAt)}
+    </p>
+  );
+}
+
+function formatLotStatus(status = "", timing = null) {
+  if (timing?.label) return timing.label;
+
   const normalized = String(status || "AVAILABLE").trim().toUpperCase();
   const labels = {
     IN_AUCTION: "Deal Open",
