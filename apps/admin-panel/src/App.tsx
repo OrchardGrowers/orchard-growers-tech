@@ -2035,6 +2035,7 @@ function App() {
           editing={Boolean(editingProductId)}
           onCancelEdit={cancelProductEdit}
           modeLabel="Raw Material"
+          platform="orchardgrowers"
         />;
       }
       return <OrchardSubOptionPanel module="master" activePage={activeMasterPage} />;
@@ -2067,6 +2068,7 @@ function App() {
             editing={Boolean(editingProductId)}
             onCancelEdit={cancelProductEdit}
             modeLabel={productModeLabel}
+            platform="orchardgrowers"
           />
           <OrchardProductsTable products={searchedProducts} onEdit={editOrchardProduct} onDelete={deleteOrchardProduct} onViewFile={setViewingFile} />
         </section>
@@ -4402,6 +4404,7 @@ function ProductAdminPanel({
   editing,
   onCancelEdit,
   modeLabel = 'Product',
+  platform = 'orchardgrowers',
 }: {
   draft: ProductDraft;
   onChange: (draft: ProductDraft) => void;
@@ -4411,6 +4414,7 @@ function ProductAdminPanel({
   editing: boolean;
   onCancelEdit: () => void;
   modeLabel?: string;
+  platform?: 'orchardgrowers' | 'efruitmandi';
 }) {
   const update = (field: keyof ProductDraft, value: string | boolean | ProductImageUpload[]) => {
     const nextDraft = { ...draft, [field]: value };
@@ -4511,6 +4515,7 @@ function ProductAdminPanel({
     if (!nextFiles.length) return;
 
     const formData = new FormData();
+    formData.append('platform', platform);
     nextFiles.forEach((file) => formData.append('images', file));
 
     try {

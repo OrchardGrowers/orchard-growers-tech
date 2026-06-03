@@ -119,6 +119,7 @@ const SETTINGS_WRITE_ROLES = ["SUPER_ADMIN", "ADMIN", "FINANCE_MANAGER"];
 const VERIFICATION_READ_ROLES = ADMIN_ACCESS_ROLES;
 const VERIFICATION_WRITE_ROLES = ["SUPER_ADMIN", "ADMIN", "VERIFICATION_OFFICER", "EMPLOYEE"];
 const requireRoles = (...roles) => authorize(...roles);
+const ADMIN_PRODUCT_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 const adminOnly = [
   protect,
   authorize(...ADMIN_ACCESS_ROLES),
@@ -127,8 +128,10 @@ const adminOnly = [
 const adminProductImageUpload = multer({
   storage: multer.memoryStorage(),
   fileFilter: (req, file, cb) => {
-    if (file.mimetype?.startsWith("image/")) return cb(null, true);
-    return cb(new Error("Only product image uploads are allowed"));
+    if (ADMIN_PRODUCT_IMAGE_MIME_TYPES.has(file.mimetype)) return cb(null, true);
+    const error = new Error("Only JPG, PNG, or WebP product image uploads are allowed");
+    error.statusCode = 400;
+    return cb(error);
   },
   limits: {
     files: 10,

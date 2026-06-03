@@ -1,35 +1,28 @@
-import fs from "fs";
 import multer from "multer";
-import path from "path";
 
-const kycUploadDir = "uploads/kyc";
-
-if (!fs.existsSync(kycUploadDir)) {
-  fs.mkdirSync(kycUploadDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, kycUploadDir);
-  },
-  filename: (req, file, cb) => {
-    const safeExt = path.extname(file.originalname).toLowerCase();
-    cb(null, `${req.user.id}-${file.fieldname}-${Date.now()}${safeExt}`);
-  },
-});
+const ALLOWED_DOCUMENT_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+]);
 
 const fileFilter = (req, file, cb) => {
   const allowedFields = ["udyanCardFile", "passbookFile", "aadhaarCardFile"];
-  const isAllowedType =
-    file.mimetype.startsWith("image/") || file.mimetype === "application/pdf";
+  const isAllowedType = ALLOWED_DOCUMENT_MIME_TYPES.has(file.mimetype);
 
   if (!allowedFields.includes(file.fieldname)) {
-    cb(new Error("Only KYC document files are allowed"));
+    const error = new Error("Only KYC document files are allowed");
+    error.statusCode = 400;
+    cb(error);
     return;
   }
 
   if (!isAllowedType) {
-    cb(new Error("Only image or PDF files are allowed"));
+    const error = new Error("Only JPG, PNG, WebP, or PDF files are allowed");
+    error.statusCode = 400;
+    cb(error);
     return;
   }
 
@@ -37,7 +30,7 @@ const fileFilter = (req, file, cb) => {
 };
 
 const kycUpload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   fileFilter,
   limits: {
     fileSize: 10 * 1024 * 1024,

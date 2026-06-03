@@ -6,8 +6,11 @@ import VerificationRequest from "../models/VerificationRequest.js";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import { v2 as cloudinary } from "cloudinary";
 import { sendEmail, sendOtpEmail } from "../services/mailService.js";
+import {
+  getAdminProductFolder,
+  uploadBufferToCloudinary,
+} from "../services/cloudinaryService.js";
 
 const ADMIN_SELECT = "-password -__v";
 const USER_SELECT = "-password -__v";
@@ -1466,6 +1469,7 @@ const PRODUCT_ADMIN_FIELDS = [
   "totalWeightKg",
   "images",
   "imagePublicIds",
+  "platform",
 ];
 const parseBooleanInput = (value) => {
   if (typeof value === "boolean") return value;
@@ -1567,45 +1571,14 @@ const calculatePackWeights = (payload) => {
   };
 };
 
-const isCloudinaryConfigured = () =>
-  Boolean(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
-
-const configureCloudinary = () => {
-  if (!isCloudinaryConfigured()) {
-    const error = new Error("Cloudinary is not configured");
-    error.statusCode = 500;
-    throw error;
-  }
-
-  cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-    secure: true,
-  });
-};
-
-const uploadAdminProductImage = (file) =>
-  new Promise((resolve, reject) => {
-    if (!file) return resolve(null);
-    configureCloudinary();
-
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        folder: process.env.CLOUDINARY_PRODUCT_FOLDER || "orchard-growers/products",
-        resource_type: "image",
-      },
-      (error, result) => {
-        if (error) return reject(error);
-        return resolve(result);
-      }
-    );
-
-    stream.end(file.buffer);
+const uploadAdminProductImage = (file, platform = "orchardgrowers") =>
+  uploadBufferToCloudinary(file, {
+    folder: getAdminProductFolder(platform),
+    resourceType: "image",
   });
 
-const uploadAdminProductImages = async (files = []) => {
-  const uploadedImages = await Promise.all(files.map((file) => uploadAdminProductImage(file)));
+const uploadAdminProductImages = async (files = [], platform = "orchardgrowers") => {
+  const uploadedImages = await Promise.all(files.map((file) => uploadAdminProductImage(file, platform)));
   return uploadedImages.filter(Boolean);
 };
 
@@ -1701,11 +1674,22 @@ export const uploadProductImagesByAdmin = async (req, res) => {
     return res.status(400).json({ msg: "Select at least one product image" });
   }
 
-  const uploadedImages = await uploadAdminProductImages(imageFiles);
+  const platform = req.body?.platform || req.query?.platform || "orchardgrowers";
+  const uploadedImages = await uploadAdminProductImages(imageFiles, platform);
+  const files = uploadedImages.map((image) => ({
+    url: image.secure_url,
+    secure_url: image.secure_url,
+    publicId: image.publicId,
+    folder: image.folder,
+    resourceType: image.resourceType,
+  }));
+
   res.status(201).json({
-    images: uploadedImages.map((image) => ({
+    success: true,
+    files,
+    images: files.map((image) => ({
       url: image.secure_url,
-      publicId: image.public_id,
+      publicId: image.publicId,
     })),
   });
 };
@@ -1774,9 +1758,9 @@ export const createProductByAdmin = async (req, res) => {
     return res.status(400).json({ msg: "Invalid product status" });
   }
 
-  const uploadedImages = await uploadAdminProductImages(imageFiles);
+  const uploadedImages = await uploadAdminProductImages(imageFiles, payload.platform);
   const uploadedUrls = uploadedImages.map((image) => image.secure_url);
-  const uploadedPublicIds = uploadedImages.map((image) => image.public_id);
+  const uploadedPublicIds = uploadedImages.map((image) => image.publicId);
   const packWeights = calculatePackWeights(payload);
 
   const product = await Product.create({
@@ -1793,6 +1777,20 @@ export const createProductByAdmin = async (req, res) => {
     sgst: Number(payload.gstRate) / 2,
     quantity: Number(payload.quantity || 0),
     images: [...existingImageUrls, ...uploadedUrls],
+    imageObjects: [
+      ...existingImageUrls.map((url, index) => ({
+        url,
+        publicId: existingPublicIds[index] || "",
+        alt: `${payload.title} image ${index + 1}`,
+        isPrimary: index === 0,
+      })),
+      ...uploadedImages.map((image, index) => ({
+        url: image.secure_url,
+        publicId: image.publicId,
+        alt: `${payload.title} image ${existingImageUrls.length + index + 1}`,
+        isPrimary: existingImageUrls.length + index === 0,
+      })),
+    ],
     imagePublicIds: [...existingPublicIds, ...uploadedPublicIds],
     status: payload.status || "AVAILABLE",
     packingType: payload.packingType || "0 x 0 x 0 cm",

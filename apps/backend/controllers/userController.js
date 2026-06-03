@@ -1,5 +1,9 @@
 import User from "../models/User.js";
 import {
+  getResourceType,
+  uploadBufferToCloudinary,
+} from "../services/cloudinaryService.js";
+import {
   consumeOtpVerification,
   isOtpVerified,
   parseIdentifier,
@@ -365,27 +369,40 @@ export const updateProfileMedia = async (req, res) => {
   try {
     const { avatarUrl, bannerUrl, companyLogoUrl } = req.body;
     const updates = {};
-    const fileUrl = (file) =>
-      `${req.protocol}://${req.get("host")}/${file.path.replace(/\\/g, "/")}`;
     const avatarFile = req.files?.avatar?.[0] || req.files?.avatarUrl?.[0];
     const bannerFile = req.files?.banner?.[0] || req.files?.bannerUrl?.[0];
     const companyLogoFile =
       req.files?.companyLogo?.[0] || req.files?.companyLogoUrl?.[0];
+    const profileTypes = new Set(req.user?.profileTypes || []);
+    if (req.user?.role) profileTypes.add(req.user.role);
+    const profileFolder = profileTypes.has("driver")
+      ? "efruitmandi/drivers"
+      : profileTypes.has("buyer")
+        ? "efruitmandi/buyers"
+        : "efruitmandi/growers";
+    const uploadProfileFile = (file) =>
+      uploadBufferToCloudinary(file, {
+        folder: profileFolder,
+        resourceType: "image",
+      });
 
     if (avatarFile) {
-      updates.avatarUrl = fileUrl(avatarFile);
+      const uploaded = await uploadProfileFile(avatarFile);
+      updates.avatarUrl = uploaded.secure_url;
     } else if (typeof avatarUrl === "string" && !avatarUrl.startsWith("data:")) {
       updates.avatarUrl = avatarUrl;
     }
 
     if (bannerFile) {
-      updates.bannerUrl = fileUrl(bannerFile);
+      const uploaded = await uploadProfileFile(bannerFile);
+      updates.bannerUrl = uploaded.secure_url;
     } else if (typeof bannerUrl === "string" && !bannerUrl.startsWith("data:")) {
       updates.bannerUrl = bannerUrl;
     }
 
     if (companyLogoFile) {
-      updates.companyLogoUrl = fileUrl(companyLogoFile);
+      const uploaded = await uploadProfileFile(companyLogoFile);
+      updates.companyLogoUrl = uploaded.secure_url;
     } else if (
       typeof companyLogoUrl === "string" &&
       !companyLogoUrl.startsWith("data:")
@@ -414,9 +431,6 @@ export const updateProfileMedia = async (req, res) => {
 // ================= UPDATE KYC =================
 export const updateKyc = async (req, res) => {
   try {
-    const fileUrl = (file) =>
-      `${req.protocol}://${req.get("host")}/${file.path.replace(/\\/g, "/")}`;
-
     const existingUser = await User.findById(req.user.id).select("kyc");
 
     if (!existingUser) {
@@ -427,6 +441,11 @@ export const updateKyc = async (req, res) => {
     const udyanCardFile = req.files?.udyanCardFile?.[0];
     const passbookFile = req.files?.passbookFile?.[0];
     const aadhaarCardFile = req.files?.aadhaarCardFile?.[0];
+    const uploadKycFile = (file) =>
+      uploadBufferToCloudinary(file, {
+        folder: "efruitmandi/kyc",
+        resourceType: getResourceType(file),
+      });
 
     const kyc = {
       ...existingKyc,
@@ -442,9 +461,9 @@ export const updateKyc = async (req, res) => {
       submittedAt: new Date(),
     };
 
-    if (udyanCardFile) kyc.udyanCardFileUrl = fileUrl(udyanCardFile);
-    if (passbookFile) kyc.passbookFileUrl = fileUrl(passbookFile);
-    if (aadhaarCardFile) kyc.aadhaarCardFileUrl = fileUrl(aadhaarCardFile);
+    if (udyanCardFile) kyc.udyanCardFileUrl = (await uploadKycFile(udyanCardFile)).secure_url;
+    if (passbookFile) kyc.passbookFileUrl = (await uploadKycFile(passbookFile)).secure_url;
+    if (aadhaarCardFile) kyc.aadhaarCardFileUrl = (await uploadKycFile(aadhaarCardFile)).secure_url;
 
     const missingKycDetails = [
       !kyc.udyanCardNo && "Udyan card number",

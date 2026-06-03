@@ -1,8 +1,11 @@
-import fs from "fs/promises";
-import { v2 as cloudinary } from "cloudinary";
 import Product from "../models/Product.js";
 import Auction from "../models/Auction.js";
 import User from "../models/User.js";
+import {
+  getResourceType,
+  uploadBufferToCloudinary,
+  uploadBuffersToCloudinary,
+} from "../services/cloudinaryService.js";
 
 const AUCTION_DELAY_MS = 5 * 60 * 1000;
 const AUCTION_DURATION_MS = 5 * 60 * 1000;
@@ -55,53 +58,39 @@ const generateLotNo = async (userId) => {
   return `${makeFirmPrefix(user)}/${year}/${sequence}`;
 };
 
-const isCloudinaryConfigured = () =>
-  Boolean(
-    process.env.CLOUDINARY_CLOUD_NAME &&
-      process.env.CLOUDINARY_API_KEY &&
-      process.env.CLOUDINARY_API_SECRET
-  );
-
-const configureCloudinary = () => {
-  cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-    secure: true,
-  });
-};
-
-const deleteLocalFileQuietly = async (filePath = "") => {
-  if (!filePath) return;
-  await fs.unlink(filePath).catch(() => {});
-};
-
 const uploadLotFile = async (file, resourceType = "image") => {
   if (!file) return null;
 
-  if (!isCloudinaryConfigured()) {
-    return {
-      url: file.path,
-      publicId: "",
-    };
-  }
-
-  configureCloudinary();
-  const result = await cloudinary.uploader.upload(file.path, {
-    folder: process.env.CLOUDINARY_LOT_FOLDER || process.env.CLOUDINARY_PRODUCT_FOLDER || "efruitmandi/lots",
-    resource_type: resourceType,
+  const folder =
+    resourceType === "raw"
+      ? "efruitmandi/kyc"
+      : process.env.CLOUDINARY_LOT_FOLDER || "efruitmandi/lots";
+  const uploaded = await uploadBufferToCloudinary(file, {
+    folder,
+    resourceType: resourceType || getResourceType(file),
   });
-  await deleteLocalFileQuietly(file.path);
 
   return {
-    url: result.secure_url,
-    publicId: result.public_id,
+    url: uploaded.secure_url,
+    secure_url: uploaded.secure_url,
+    publicId: uploaded.publicId,
+    folder: uploaded.folder,
+    resourceType: uploaded.resourceType,
   };
 };
 
 const uploadLotFiles = async (files = [], resourceType = "image") => {
-  const uploaded = await Promise.all(files.map((file) => uploadLotFile(file, resourceType)));
-  return uploaded.filter(Boolean);
+  const uploaded = await uploadBuffersToCloudinary(files, {
+    folder: process.env.CLOUDINARY_LOT_FOLDER || "efruitmandi/lots",
+    resourceType,
+  });
+  return uploaded.map((file) => ({
+    url: file.secure_url,
+    secure_url: file.secure_url,
+    publicId: file.publicId,
+    folder: file.folder,
+    resourceType: file.resourceType,
+  }));
 };
 
 const ORGANIC_CERTIFIED_QUALITIES = new Set([
@@ -301,6 +290,12 @@ export const createProduct = async (req, res) => {
         boxes,
         weightKg,
         images: uploadedFiles.map((file) => file.url),
+        imageObjects: uploadedFiles.map((file, index) => ({
+          url: file.url,
+          publicId: file.publicId,
+          alt: `${title} ${lot.grade || "grade"} image ${index + 1}`,
+          isPrimary: index === 0,
+        })),
       };
     });
 
@@ -314,6 +309,7 @@ export const createProduct = async (req, res) => {
     }
 
     const imagePaths = gradeLots.flatMap((lot) => lot.images);
+    const imageObjects = gradeLots.flatMap((lot) => lot.imageObjects || []);
     const sampleVideoFile = getUploadedFiles(req, "sampleVideo")[0];
     const uploadedSampleVideo = sampleVideoFile
       ? await uploadLotFile(sampleVideoFile, "video")
@@ -343,6 +339,7 @@ export const createProduct = async (req, res) => {
       auctionStartTime: auctionStartAt,
       location,
       images: imagePaths,
+      imageObjects,
       imagePublicIds: uploadedPublicIds,
       gradeLots,
       sampleVideo,
@@ -365,7 +362,7 @@ export const createProduct = async (req, res) => {
       auction,
     });
   } catch (err) {
-    console.error(err);
+    console.error("Product creation failed:", err.message || err);
     res.status(500).json({ msg: err.message });
   }
 };

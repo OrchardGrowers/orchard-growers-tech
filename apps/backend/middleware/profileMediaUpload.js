@@ -1,22 +1,6 @@
-import fs from "fs";
 import multer from "multer";
-import path from "path";
 
-const profileUploadDir = "uploads/profile";
-
-if (!fs.existsSync(profileUploadDir)) {
-  fs.mkdirSync(profileUploadDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, profileUploadDir);
-  },
-  filename: (req, file, cb) => {
-    const safeExt = path.extname(file.originalname).toLowerCase();
-    cb(null, `${req.user.id}-${file.fieldname}-${Date.now()}${safeExt}`);
-  },
-});
+const ALLOWED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 
 const fileFilter = (req, file, cb) => {
   const allowedFields = [
@@ -29,12 +13,16 @@ const fileFilter = (req, file, cb) => {
   ];
 
   if (!allowedFields.includes(file.fieldname)) {
-    cb(new Error("Only profile avatar, banner, and company logo images are allowed"));
+    const error = new Error("Only profile avatar, banner, and company logo images are allowed");
+    error.statusCode = 400;
+    cb(error);
     return;
   }
 
-  if (!file.mimetype.startsWith("image/")) {
-    cb(new Error("Only image files are allowed"));
+  if (!ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) {
+    const error = new Error("Only JPG, PNG, or WebP image files are allowed");
+    error.statusCode = 400;
+    cb(error);
     return;
   }
 
@@ -42,7 +30,7 @@ const fileFilter = (req, file, cb) => {
 };
 
 const profileMediaUpload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   fileFilter,
   limits: {
     fileSize: 5 * 1024 * 1024,

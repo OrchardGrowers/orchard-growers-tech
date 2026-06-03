@@ -35,6 +35,14 @@ const productSchema = new mongoose.Schema(
 
     images: [String], // image URLs
     imagePublicIds: [String],
+    imageObjects: [
+      {
+        url: { type: String, trim: true, default: "" },
+        publicId: { type: String, trim: true, default: "" },
+        alt: { type: String, trim: true, default: "" },
+        isPrimary: { type: Boolean, default: false },
+      },
+    ],
     createdSource: {
       type: String,
       enum: ["grower", "admin-panel"],
@@ -46,6 +54,14 @@ const productSchema = new mongoose.Schema(
         boxes: Number,
         weightKg: Number,
         images: [String],
+        imageObjects: [
+          {
+            url: { type: String, trim: true, default: "" },
+            publicId: { type: String, trim: true, default: "" },
+            alt: { type: String, trim: true, default: "" },
+            isPrimary: { type: Boolean, default: false },
+          },
+        ],
       },
     ],
     sampleVideo: String,
