@@ -290,6 +290,28 @@ const userSchema = new mongoose.Schema(
       min: 0,
     },
 
+    growerRatingAverage: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5,
+    },
+    growerRatingCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    growerRatings: [
+      {
+        lot: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
+        rater: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        rating: { type: Number, min: 1, max: 5, required: true },
+        comment: { type: String, trim: true, default: "" },
+        createdAt: { type: Date, default: Date.now },
+        updatedAt: { type: Date, default: Date.now },
+      },
+    ],
+
     isVerified: {
       type: Boolean,
       default: false,

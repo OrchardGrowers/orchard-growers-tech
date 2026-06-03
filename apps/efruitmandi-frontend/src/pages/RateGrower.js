@@ -11,6 +11,7 @@ export default function RateGrower() {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
   const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const loadLot = async () => {
@@ -32,10 +33,42 @@ export default function RateGrower() {
     product?.createdBy?.businessName ||
     product?.createdBy?.name ||
     "Grower's Orchard";
+  const currentRating = Number(product?.createdBy?.growerRatingAverage || 0);
+  const currentRatingCount = Number(product?.createdBy?.growerRatingCount || 0);
 
-  const submitRating = (event) => {
+  const submitRating = async (event) => {
     event.preventDefault();
-    setMessage("Rating saved locally for now. It will sync when rating submission is connected.");
+    if (saving) return;
+
+    try {
+      setSaving(true);
+      setMessage("");
+      const res = await API.post(`/user/grower-rating/${lotId}`, {
+        rating,
+        comment,
+      });
+
+      const updatedGrower = res.data?.grower;
+      if (updatedGrower) {
+        setProduct((current) => ({
+          ...current,
+          createdBy: {
+            ...(current?.createdBy || {}),
+            ...updatedGrower,
+          },
+        }));
+      }
+
+      setMessage(res.data?.message || "Rating submitted.");
+    } catch (err) {
+      setMessage(
+        err.response?.data?.msg ||
+          err.response?.data?.message ||
+          "Rating could not be submitted. Please login and try again."
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -57,6 +90,10 @@ export default function RateGrower() {
         <p className="mt-2 flex items-center gap-2 text-sm font-bold text-gray-600">
           <FaMapMarkerAlt className="text-green-700" />
           {product?.location || "Fruit Mandi"}
+        </p>
+        <p className="mt-2 flex items-center gap-2 text-sm font-bold text-amber-600">
+          <FaStar />
+          {currentRating ? `${currentRating.toFixed(1)} from ${currentRatingCount} ratings` : "No rating yet"}
         </p>
       </section>
 
@@ -102,10 +139,11 @@ export default function RateGrower() {
 
           <button
             type="submit"
+            disabled={saving}
             className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-green-700 px-4 py-3 text-sm font-extrabold text-white"
           >
             <FaStar />
-            Submit Rating
+            {saving ? "Submitting..." : "Submit Rating"}
           </button>
         </form>
       )}

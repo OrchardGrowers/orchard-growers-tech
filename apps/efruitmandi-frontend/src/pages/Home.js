@@ -209,6 +209,15 @@ export default function Home() {
   const selectedInfoSection = previousSections.find(
     (section) => section.title === desktopSection
   );
+  const openQuoteFlow = (productId) => {
+    const quotePath = `/lots/${productId}/quote`;
+    if (!hasBuyerProfile(user)) {
+      navigate("/register-buyer", { state: { from: quotePath } });
+      return;
+    }
+
+    navigate(quotePath);
+  };
 
   return (
     <>
@@ -320,7 +329,7 @@ export default function Home() {
             selectedInfoSection={selectedInfoSection}
             onAdd={() => navigate(isGrower ? "/list-new-lot" : "/profile")}
             onOpenLot={(productId) => navigate(`/lots/${productId}`)}
-            onQuoteLot={(productId) => navigate(`/lots/${productId}/quote`)}
+            onQuoteLot={openQuoteFlow}
             onRateLot={(productId) => navigate(`/lots/${productId}/rating`)}
           />
         )}
@@ -778,6 +787,8 @@ function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) 
     product.createdBy?.name ||
     "Grower's Orchard";
   const rating = Number(product.createdBy?.rating || product.growerRating || 0);
+  const growerRating = Number(product.createdBy?.growerRatingAverage || rating || 0);
+  const growerRatingCount = Number(product.createdBy?.growerRatingCount || 0);
 
   return (
     <article className="overflow-hidden rounded-md border border-gray-200 bg-white">
@@ -838,7 +849,7 @@ function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) 
             <p className="mt-1 flex flex-wrap items-center gap-2 font-bold text-gray-600">
               <span className="inline-flex items-center gap-1 text-amber-600">
                 <FaStar />
-                {rating ? rating.toFixed(1) : "No rating yet"}
+                {growerRating ? `${growerRating.toFixed(1)} (${growerRatingCount})` : "No rating yet"}
               </span>
               <span>{product.location || "Fruit Mandi"}</span>
             </p>

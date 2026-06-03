@@ -391,7 +391,7 @@ export const getProducts = async (req, res) => {
     }
 
     const products = await Product.find(filters)
-      .populate("createdBy", "name orchardName businessName role")
+      .populate("createdBy", "name orchardName businessName role location growerRatingAverage growerRatingCount")
       .sort({ createdAt: -1 });
     res.json(products.map((product) => serializeProduct(product, req.user)));
   } catch (err) {
@@ -405,7 +405,7 @@ export const getProductById = async (req, res) => {
     const platform = String(req.query.platform || "").trim().toLowerCase();
     const product = await Product.findById(req.params.id).populate(
       "createdBy",
-      "name orchardName businessName role location"
+      "name orchardName businessName role location growerRatingAverage growerRatingCount"
     );
 
     const isOrchardPlatform = ["orchard", "orchardgrowers", "orchard-growers"].includes(platform);

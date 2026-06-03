@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   FaBriefcase,
   FaCheck,
@@ -24,6 +24,8 @@ import { getCurrentUser, hasBuyerProfile, hasDriverProfile } from "../utils/auth
 
 export default function RegisterBuyer() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = location.state?.from || "/profile-dashboard";
   const currentUser = getCurrentUser();
   const [accountUser, setAccountUser] = useState(currentUser);
   const isUpdate = hasBuyerProfile(accountUser);
@@ -177,7 +179,7 @@ export default function RegisterBuyer() {
       });
 
       localStorage.setItem("user", JSON.stringify(res.data.user));
-      navigate("/profile-dashboard");
+      navigate(returnTo);
     } catch (err) {
       setMessage(err.response?.data?.msg || "Buyer registration failed.");
     } finally {

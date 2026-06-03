@@ -1,4 +1,5 @@
 import User from "../models/User.js";
+import Product from "../models/Product.js";
 import {
   getResourceType,
   uploadBufferToCloudinary,
@@ -488,6 +489,83 @@ export const updateKyc = async (req, res) => {
     ).select("-password -__v");
 
     res.json(user);
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+export const rateGrowerForLot = async (req, res) => {
+  try {
+    const rating = Number(req.body.rating || 0);
+    const comment = String(req.body.comment || "").trim().slice(0, 1000);
+
+    if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+      return res.status(400).json({ msg: "Rating must be between 1 and 5" });
+    }
+
+    const product = await Product.findById(req.params.lotId).select("title createdBy gradeLots createdSource");
+    if (!product || product.createdSource === "admin-panel") {
+      return res.status(404).json({ msg: "Fruit lot not found" });
+    }
+
+    const growerId = product.createdBy?.toString();
+    const raterId = req.user.id?.toString();
+    if (!growerId) {
+      return res.status(404).json({ msg: "Grower not found for this lot" });
+    }
+
+    if (growerId === raterId) {
+      return res.status(400).json({ msg: "You cannot rate your own grower profile" });
+    }
+
+    const grower = await User.findById(growerId);
+    if (!grower) {
+      return res.status(404).json({ msg: "Grower not found" });
+    }
+
+    const existingRating = grower.growerRatings.find(
+      (item) =>
+        item.lot?.toString() === product._id.toString() &&
+        item.rater?.toString() === raterId
+    );
+
+    if (existingRating) {
+      existingRating.rating = rating;
+      existingRating.comment = comment;
+      existingRating.updatedAt = new Date();
+    } else {
+      grower.growerRatings.push({
+        lot: product._id,
+        rater: req.user.id,
+        rating,
+        comment,
+      });
+    }
+
+    const ratings = grower.growerRatings.map((item) => Number(item.rating || 0)).filter((value) => value > 0);
+    grower.growerRatingCount = ratings.length;
+    grower.growerRatingAverage = ratings.length
+      ? Number((ratings.reduce((sum, value) => sum + value, 0) / ratings.length).toFixed(2))
+      : 0;
+
+    await grower.save();
+
+    res.status(existingRating ? 200 : 201).json({
+      success: true,
+      message: existingRating ? "Rating updated." : "Rating submitted.",
+      rating: {
+        rating,
+        comment,
+      },
+      grower: {
+        _id: grower._id,
+        name: grower.name,
+        orchardName: grower.orchardName,
+        businessName: grower.businessName,
+        growerRatingAverage: grower.growerRatingAverage,
+        growerRatingCount: grower.growerRatingCount,
+      },
+    });
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }

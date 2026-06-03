@@ -5,6 +5,7 @@ import {
   updateProfile,
   updateProfileMedia,
   updateKyc,
+  rateGrowerForLot,
 } from "../controllers/userController.js";
 import protect from "../middleware/authMiddleware.js";
 import profileMediaUpload from "../middleware/profileMediaUpload.js";
@@ -43,5 +44,6 @@ router.patch(
   ]),
   updateKyc
 );
+router.post("/grower-rating/:lotId", protect, rateGrowerForLot);
 
 export default router;

@@ -14,7 +14,7 @@ import {
 } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
 import CountdownTimer from "../components/CountdownTimer";
-import { getCurrentUser } from "../utils/auth";
+import { getCurrentUser, hasBuyerProfile } from "../utils/auth";
 
 export default function LotDetails() {
   const { lotId } = useParams();
@@ -55,7 +55,17 @@ export default function LotDetails() {
   const canSeeBasePrice = ownerId && currentUserId && ownerId === currentUserId;
   const isOrganicCertified = isOrganicCertifiedProduct(product);
   const growerName = createdBy.orchardName || createdBy.businessName || createdBy.name || "Grower's Orchard";
-  const growerRating = Number(createdBy.rating || product.growerRating || 0);
+  const growerRating = Number(createdBy.growerRatingAverage || createdBy.rating || product.growerRating || 0);
+  const growerRatingCount = Number(createdBy.growerRatingCount || 0);
+  const openQuoteFlow = () => {
+    const quotePath = `/lots/${product._id}/quote`;
+    if (!hasBuyerProfile(user)) {
+      navigate("/register-buyer", { state: { from: quotePath } });
+      return;
+    }
+
+    navigate(quotePath);
+  };
 
   if (loading) {
     return (
@@ -145,7 +155,7 @@ export default function LotDetails() {
             <p className="mt-1 flex flex-wrap items-center gap-2 font-bold text-gray-600">
               <span className="inline-flex items-center gap-1 text-amber-600">
                 <FaStar />
-                {growerRating ? growerRating.toFixed(1) : "No rating yet"}
+                {growerRating ? `${growerRating.toFixed(1)} (${growerRatingCount})` : "No rating yet"}
               </span>
               <span>{product.location || "Fruit Mandi"}</span>
             </p>
@@ -160,7 +170,7 @@ export default function LotDetails() {
             </button>
             <button
               type="button"
-              onClick={() => navigate(`/lots/${product._id}/quote`)}
+              onClick={openQuoteFlow}
               className="rounded-full bg-green-700 px-3 py-2 text-[11px] font-extrabold text-white"
             >
               Quote Your Price
