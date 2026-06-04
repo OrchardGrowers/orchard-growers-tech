@@ -514,11 +514,11 @@ function FloatingLotActions({ onList, onBuy }) {
   if (hidden) return null;
 
   return (
-    <div className="fixed inset-x-2 bottom-[calc(3.85rem+env(safe-area-inset-bottom))] z-40 flex gap-2 pr-7 md:inset-x-auto md:bottom-5 md:right-5 md:w-52 md:flex-col md:pr-0 md:pt-7">
+    <div className="fixed inset-x-2 bottom-[calc(3.85rem+env(safe-area-inset-bottom))] z-40 flex gap-2 md:inset-x-auto md:bottom-5 md:right-5 md:w-52 md:flex-col md:pt-7">
       <button
         type="button"
         onClick={() => setHidden(true)}
-        className="absolute -right-1 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-white/95 text-[11px] text-green-800 shadow md:right-0 md:top-0"
+        className="absolute right-1 -top-7 flex h-6 w-6 items-center justify-center rounded-full bg-white/95 text-[11px] text-green-800 shadow md:right-0 md:top-0"
         aria-label="Hide lot action buttons"
       >
         <FaTimes />
