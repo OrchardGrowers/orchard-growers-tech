@@ -334,7 +334,7 @@ export default function Home() {
         </div>
 
         <FruitIconRail
-          className="px-2 pt-2"
+          className="-mx-3 pt-2"
           onSelect={(name) => navigate(`/search?q=${encodeURIComponent(name)}`)}
         />
 
@@ -470,7 +470,7 @@ function FruitIconRail({ className = "", onSelect }) {
         <button
           type="button"
           onClick={() => scroll(-1)}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-transparent text-green-800 hover:bg-green-50"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-transparent text-green-800 hover:bg-green-50 md:ml-0"
           aria-label="Scroll fruit icons left"
         >
           <FaChevronLeft />
@@ -498,7 +498,7 @@ function FruitIconRail({ className = "", onSelect }) {
         <button
           type="button"
           onClick={() => scroll(1)}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-transparent text-green-800 hover:bg-green-50"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-transparent text-green-800 hover:bg-green-50 md:mr-0"
           aria-label="Scroll fruit icons right"
         >
           <FaChevronRight />
@@ -509,8 +509,20 @@ function FruitIconRail({ className = "", onSelect }) {
 }
 
 function FloatingLotActions({ onList, onBuy }) {
+  const [hidden, setHidden] = useState(false);
+
+  if (hidden) return null;
+
   return (
-    <div className="fixed inset-x-2 bottom-[calc(3.85rem+env(safe-area-inset-bottom))] z-40 flex gap-2 md:inset-x-auto md:bottom-5 md:right-5 md:w-52 md:flex-col">
+    <div className="fixed inset-x-2 bottom-[calc(3.85rem+env(safe-area-inset-bottom))] z-40 flex gap-2 pr-7 md:inset-x-auto md:bottom-5 md:right-5 md:w-52 md:flex-col md:pr-0 md:pt-7">
+      <button
+        type="button"
+        onClick={() => setHidden(true)}
+        className="absolute -right-1 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-white/95 text-[11px] text-green-800 shadow md:right-0 md:top-0"
+        aria-label="Hide lot action buttons"
+      >
+        <FaTimes />
+      </button>
       <button
         type="button"
         onClick={onList}

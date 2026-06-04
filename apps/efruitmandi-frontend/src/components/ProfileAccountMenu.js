@@ -193,7 +193,7 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
       : []),
   ].filter((item) => item.path !== "/register-driver" || !isBuyer);
 
-  const renderMenuButton = (item, iconColor = "text-white") => (
+  const renderMenuButton = (item, iconColor = "text-yellow-300") => (
     <button
       key={item.label}
       type="button"
@@ -319,7 +319,7 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
 
       <div className="min-h-0 flex-1 overflow-y-auto border-t border-white/15 py-2 [scrollbar-color:#facc15_#15803d] [scrollbar-width:thin] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-yellow-400 [&::-webkit-scrollbar-track]:bg-green-700 [&::-webkit-scrollbar]:w-2">
         <div className="border-b border-white/15 pb-2">
-          {profileActionItems.map((item) => renderMenuButton(item, "text-white"))}
+          {profileActionItems.map((item) => renderMenuButton(item))}
         </div>
 
         {activeMode === "grower" && isGrower ? (
