@@ -324,7 +324,7 @@ export default function Home() {
         onBuy={() => navigate("/auctions")}
       />
 
-      <div className="pb-4 md:hidden">
+      <div className="pb-32 md:hidden">
         <BannerSlider />
 
         <div className="-mx-3 pt-1">
@@ -518,7 +518,7 @@ function FloatingLotActions({ onList, onBuy }) {
   if (hidden) return null;
 
   return (
-    <div className="fixed inset-x-2 bottom-[calc(3.85rem+env(safe-area-inset-bottom))] z-40 flex gap-2 md:inset-x-auto md:bottom-5 md:right-5 md:w-52 md:flex-col md:pt-7">
+    <div className="fixed inset-x-2 bottom-[calc(3.85rem+env(safe-area-inset-bottom))] z-40 grid grid-cols-2 gap-2 md:inset-x-auto md:bottom-5 md:right-5 md:flex md:w-52 md:flex-col md:pt-7">
       <button
         type="button"
         onClick={() => setHidden(true)}
@@ -530,14 +530,14 @@ function FloatingLotActions({ onList, onBuy }) {
       <button
         type="button"
         onClick={onList}
-        className="min-h-10 flex-1 rounded-full border border-green-700/30 bg-green-700/90 px-3 text-center text-[11px] font-black text-white shadow-lg backdrop-blur transition hover:bg-green-800 md:flex-none"
+        className="min-h-10 min-w-0 rounded-full border border-green-700/30 bg-green-700/90 px-2 text-center text-[10px] font-black leading-tight text-white shadow-lg backdrop-blur transition hover:bg-green-800 sm:text-[11px] md:flex-none md:px-3"
       >
         List a fruit lot
       </button>
       <button
         type="button"
         onClick={onBuy}
-        className="min-h-10 flex-1 rounded-full border border-green-700/30 bg-green-700/90 px-3 text-center text-[11px] font-black text-white shadow-lg backdrop-blur transition hover:bg-green-800 md:flex-none"
+        className="min-h-10 min-w-0 rounded-full border border-green-700/30 bg-green-700/90 px-2 text-center text-[10px] font-black leading-tight text-white shadow-lg backdrop-blur transition hover:bg-green-800 sm:text-[11px] md:flex-none md:px-3"
       >
         Buy Bulk Fruit Lots
       </button>
@@ -979,7 +979,7 @@ function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) 
         <div className="grid gap-2 rounded-md bg-green-50 px-3 py-3 text-xs sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
           <div className="min-w-0">
             <p className="font-extrabold text-gray-950">{growerName}</p>
-            <p className="mt-1 flex flex-wrap items-center gap-2 font-bold text-gray-600">
+            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-bold text-gray-600">
               <span className="inline-flex items-center gap-1 text-amber-600">
                 <FaStar />
                 {growerRating ? `${growerRating.toFixed(1)} (${growerRatingCount})` : "No rating yet"}
@@ -987,18 +987,18 @@ function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) 
               <span>{product.location || "Fruit Mandi"}</span>
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             <button
               type="button"
               onClick={() => onRateLot(product._id)}
-              className="rounded-full bg-white px-3 py-2 text-[11px] font-extrabold text-green-800 ring-1 ring-green-200 hover:bg-green-100"
+              className="min-w-0 rounded-full bg-white px-2 py-2 text-[10px] font-extrabold leading-tight text-green-800 ring-1 ring-green-200 hover:bg-green-100 sm:px-3 sm:text-[11px]"
             >
               Rate Grower
             </button>
             <button
               type="button"
               onClick={() => onQuoteLot(product._id)}
-              className="rounded-full bg-green-700 px-3 py-2 text-[11px] font-extrabold text-white hover:bg-green-800"
+              className="min-w-0 rounded-full bg-green-700 px-2 py-2 text-[10px] font-extrabold leading-tight text-white hover:bg-green-800 sm:px-3 sm:text-[11px]"
             >
               Quote Your Price
             </button>

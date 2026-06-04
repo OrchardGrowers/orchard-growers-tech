@@ -106,7 +106,7 @@ export default function InstallAppPrompt() {
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-2xl leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700"
             aria-label="Close install app popup"
           >
-            ×
+            x
           </button>
         </div>
         <div className="mt-4 flex gap-3">
