@@ -153,18 +153,20 @@ export default function LotDetails() {
               className="flex h-full w-full items-center justify-center"
               aria-label="Open image preview"
             >
-              <img
-                src={toAssetUrl(activeImage)}
-                alt={product.title || "Fruit Lot"}
-                className="max-h-full max-w-full object-contain object-center"
-              />
+              <span className="relative inline-flex max-h-full max-w-full">
+                <img
+                  src={toAssetUrl(activeImage)}
+                  alt={product.title || "Fruit Lot"}
+                  className="max-h-full max-w-full object-contain object-center"
+                />
+                {activeGradeLabel && <FruitGradeBadge label={activeGradeLabel} />}
+              </span>
             </button>
           ) : (
             <div className="flex h-full items-center justify-center text-4xl text-green-700">
               <FaSeedling />
             </div>
           )}
-          {activeGradeLabel && <FruitGradeBadge label={activeGradeLabel} />}
         </div>
 
         {images.length > 1 && (

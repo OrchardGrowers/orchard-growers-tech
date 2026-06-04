@@ -82,6 +82,37 @@ const normalizeKycStatus = (status = "") => {
   if (normalized === "SUBMITTED") return "PENDING";
   return normalized;
 };
+const getKycProfileTypes = (user = {}) => {
+  const profiles = new Set(Array.isArray(user.profileTypes) ? user.profileTypes.map((role) => String(role).toLowerCase()) : []);
+  const role = String(user.role || "").toLowerCase();
+
+  if (role) profiles.add(role);
+  if (user.orchardName || user.kyc?.orchardName) profiles.add("grower");
+  if (user.businessName) profiles.add("buyer");
+  if (user.logisticsName || user.kyc?.vehicleNumber || user.kyc?.drivingLicenseNumber) profiles.add("driver");
+
+  return profiles;
+};
+const hasGrowerKycFields = (user = {}) =>
+  Boolean(
+    user.kyc?.orchardName ||
+      user.kyc?.orchardLocation ||
+      user.kyc?.udyanCardNo ||
+      user.kyc?.udyanCardFileUrl
+  );
+const getKycRoleType = (user = {}) => {
+  const profiles = getKycProfileTypes(user);
+  const kycRole = String(user.kyc?.roleType || "").toLowerCase();
+  const userRole = String(user.role || "").toLowerCase();
+
+  if (hasGrowerKycFields(user)) return "grower";
+  if (USER_ROLES.includes(kycRole) && (profiles.size === 0 || profiles.has(kycRole))) return kycRole;
+  if (USER_ROLES.includes(userRole) && (profiles.size === 0 || profiles.has(userRole))) return userRole;
+  if (profiles.has("grower")) return "grower";
+  if (profiles.has("buyer")) return "buyer";
+  if (profiles.has("driver")) return "driver";
+  return kycRole || userRole || "";
+};
 const PASSWORD_RULE_MESSAGE = "Password must be at least 8 characters and include a letter and a number";
 const ADMIN_NOT_APPROVED_MESSAGE = "This email is not approved for admin access.";
 const ADMIN_RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
@@ -1985,6 +2016,8 @@ export const reviewKycRequest = async (req, res) => {
     return res.status(400).json({ msg: "KYC is not completed by user" });
   }
   if (user.kyc.status !== kycStatus) user.kyc.status = kycStatus;
+  const kycRoleType = getKycRoleType(user);
+  if (kycRoleType && user.kyc.roleType !== kycRoleType) user.kyc.roleType = kycRoleType;
 
   if (["REJECT", "CORRECTION_REQUIRED"].includes(action) && !String(req.body.note || req.body.adminRemarks || "").trim()) {
     return res.status(400).json({ msg: "Admin remarks are required for rejection or correction." });
@@ -2035,9 +2068,9 @@ export const reviewKycRequest = async (req, res) => {
     user.kyc.reviewedAt = new Date();
     user.kyc.adminRemarks = req.body.note || req.body.adminRemarks || "";
     user.isVerified = true;
-    if (user.kyc.roleType === "buyer") user.buyerVerified = true;
-    if (user.kyc.roleType === "grower") user.growerVerified = true;
-    if (user.kyc.roleType === "driver") user.driverVerified = true;
+    if (kycRoleType === "buyer") user.buyerVerified = true;
+    if (kycRoleType === "grower") user.growerVerified = true;
+    if (kycRoleType === "driver") user.driverVerified = true;
     user.accountStatus = "ACTIVE";
   }
 
@@ -2049,9 +2082,9 @@ export const reviewKycRequest = async (req, res) => {
     user.kyc.reviewedAt = new Date();
     user.kyc.adminRemarks = req.body.note || req.body.adminRemarks || "";
     user.isVerified = false;
-    if (user.kyc.roleType === "buyer") user.buyerVerified = false;
-    if (user.kyc.roleType === "grower") user.growerVerified = false;
-    if (user.kyc.roleType === "driver") user.driverVerified = false;
+    if (kycRoleType === "buyer") user.buyerVerified = false;
+    if (kycRoleType === "grower") user.growerVerified = false;
+    if (kycRoleType === "driver") user.driverVerified = false;
   }
 
   await user.save();

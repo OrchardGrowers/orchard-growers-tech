@@ -45,6 +45,15 @@ const getUserProfileTypes = (user) => {
   return profiles;
 };
 
+const hasGrowerKycPayload = (body = {}, files = {}) =>
+  Boolean(
+    String(body.roleType || "").trim().toLowerCase() === "grower" ||
+      String(body.orchardName || "").trim() ||
+      String(body.orchardLocation || "").trim() ||
+      String(body.udyanCardNo || "").trim() ||
+      files?.udyanCardFile?.[0]
+  );
+
 // ================= SET ROLE =================
 export const setUserRole = async (req, res) => {
   try {
@@ -518,7 +527,8 @@ export const updateKyc = async (req, res) => {
         resourceType: getResourceType(file),
       });
     const roleTypes = new Set(getUserProfileTypes(existingUser));
-    const requestedRoleType = String(req.body.roleType || existingKyc.roleType || existingUser.role || "").trim().toLowerCase();
+    const inferredBodyRoleType = hasGrowerKycPayload(req.body, req.files) ? "grower" : "";
+    const requestedRoleType = String(inferredBodyRoleType || req.body.roleType || existingKyc.roleType || existingUser.role || "").trim().toLowerCase();
     const ownsRequestedRoleType = roleTypes.size === 0 || roleTypes.has(requestedRoleType);
     const roleType = ["buyer", "grower", "driver"].includes(requestedRoleType) && ownsRequestedRoleType
       ? requestedRoleType

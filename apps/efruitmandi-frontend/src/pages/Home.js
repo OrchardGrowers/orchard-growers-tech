@@ -832,7 +832,7 @@ function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) 
   const product = items[0];
   const images = getProductImages(product);
   const lotDetails = getLotDetails(product);
-  const visibleDetails = showAllDetails ? lotDetails : lotDetails.slice(0, 5);
+  const visibleDetails = showAllDetails ? lotDetails : [];
   const growerName =
     product.createdBy?.orchardName ||
     product.createdBy?.businessName ||
@@ -886,7 +886,7 @@ function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) 
             onClick={() => setShowAllDetails((value) => !value)}
             className="mt-3 text-xs font-extrabold text-green-700 hover:text-green-800"
           >
-            {showAllDetails ? "Show less" : "Show more lot information"}
+            {showAllDetails ? "Show less" : "Show Full Lot Information........"}
           </button>
         )}
       </div>
@@ -970,14 +970,16 @@ function DesktopLotImageCarousel({ images, product, title, onOpen }) {
         className="flex h-[560px] w-full items-center justify-center bg-white"
         aria-label={`Open ${title}`}
       >
-        <img
-          src={images[activeImage]}
-          alt={`${title} ${activeImage + 1}`}
-          className="max-h-full max-w-full object-contain"
-          loading="lazy"
-        />
+        <span className="relative inline-flex max-h-full max-w-full">
+          <img
+            src={images[activeImage]}
+            alt={`${title} ${activeImage + 1}`}
+            className="max-h-full max-w-full object-contain"
+            loading="lazy"
+          />
+          {gradeLabel && <FruitGradeBadge label={gradeLabel} />}
+        </span>
       </button>
-      {gradeLabel && <FruitGradeBadge label={gradeLabel} />}
       {images.length > 1 && (
         <>
           <button

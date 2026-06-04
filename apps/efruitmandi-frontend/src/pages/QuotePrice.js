@@ -266,17 +266,19 @@ function LotMediaPanel({ product, images, activeImage, onSelectImage }) {
       <h2 className="mb-3 text-sm font-extrabold text-gray-950">Lot media</h2>
       <div className="relative flex min-h-[320px] items-center justify-center rounded-md bg-white">
         {activeImage ? (
-          <img
-            src={activeImage.url}
-            alt={product?.title || "Fruit Lot"}
-            className="max-h-[560px] max-w-full object-contain"
-          />
+          <span className="relative inline-flex max-h-[560px] max-w-full">
+            <img
+              src={activeImage.url}
+              alt={product?.title || "Fruit Lot"}
+              className="max-h-[560px] max-w-full object-contain"
+            />
+            {activeImage?.gradeLabel && <FruitGradeBadge label={activeImage.gradeLabel} />}
+          </span>
         ) : (
           <div className="flex h-56 w-full items-center justify-center rounded-md bg-green-50 text-4xl text-green-700">
             <FaSeedling />
           </div>
         )}
-        {activeImage?.gradeLabel && <FruitGradeBadge label={activeImage.gradeLabel} />}
       </div>
 
       {images.length > 1 && (

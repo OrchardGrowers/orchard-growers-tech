@@ -3564,7 +3564,6 @@ function KycVerificationPanel({
 
   return (
     <section className="space-y-4">
-      <ModulePlanPanel plan={modulePlans.kyc} />
       <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
         <p className="text-sm font-bold text-slate-300">KYC filters</p>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -6602,11 +6601,21 @@ function getKycUserProfileTypes(user: KycUser) {
   return profiles;
 }
 
+function hasGrowerKycFields(user: KycUser) {
+  return Boolean(
+    user.kyc?.orchardName ||
+      user.kyc?.orchardLocation ||
+      user.kyc?.udyanCardNo ||
+      user.kyc?.udyanCardFileUrl
+  );
+}
+
 function getKycUserRoleType(user: KycUser) {
   const profiles = getKycUserProfileTypes(user);
   const kycRole = String(user.kyc?.roleType || '').toLowerCase();
   const userRole = String(user.role || '').toLowerCase();
 
+  if (hasGrowerKycFields(user)) return 'grower';
   if (validKycRoleTypes.has(kycRole) && (profiles.size === 0 || profiles.has(kycRole))) return kycRole;
   if (validKycRoleTypes.has(userRole) && (profiles.size === 0 || profiles.has(userRole))) return userRole;
   if (profiles.has('grower')) return 'grower';
