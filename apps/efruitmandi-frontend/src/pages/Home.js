@@ -150,13 +150,12 @@ const resolveProfileMediaUrl = (value = "") => {
 const newsItems = [
   "Fresh apple lots opening in Himachal mandis",
   "Verified growers can list new lots in minutes",
-  "Live price quoting closes automatically after 5 minutes",
+  "Live price quoting stays open for 24 hours",
   "Organic fruit demand rises across buyer network",
   "Delivery partners available for orchard dispatch",
 ];
 
 const LOT_OPEN_HOUR = 12;
-const LOT_CLOSE_HOUR = 16;
 
 export default function Home() {
   const navigate = useNavigate();
@@ -1482,7 +1481,7 @@ function getDailyLotTiming(now = new Date()) {
   openAt.setHours(LOT_OPEN_HOUR, 0, 0, 0);
 
   const closeAt = new Date(now);
-  closeAt.setHours(LOT_CLOSE_HOUR, 0, 0, 0);
+  closeAt.setTime(openAt.getTime() + 24 * 60 * 60 * 1000);
 
   if (now >= openAt && now <= closeAt) {
     return {

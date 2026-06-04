@@ -79,22 +79,7 @@ app.set("trust proxy", 1);
 })();
 
 // ================= TIME LOGIC =================
-const AUCTION_DURATION_MS = 5 * 60 * 1000;
-
-const getIstHour = (date = new Date()) => {
-  const parts = new Intl.DateTimeFormat("en-IN", {
-    timeZone: "Asia/Kolkata",
-    hour: "numeric",
-    hour12: false,
-  }).formatToParts(date);
-
-  return Number(parts.find((part) => part.type === "hour")?.value || 0);
-};
-
-const isDealOpen = (date = new Date()) => {
-  const istHour = getIstHour(date);
-  return istHour >= 9 && istHour < 16;
-};
+const AUCTION_DURATION_MS = 24 * 60 * 60 * 1000;
 
 // ================= MIDDLEWARE =================
 const isProductionLike = () => {
@@ -306,13 +291,6 @@ io.on("connection", (socket) => {
 
   socket.on("placeDeal", async ({ auctionId, dealAmount, userId, token, distanceKm = 0 }) => {
     try {
-      if (!isDealOpen()) {
-        socket.emit("dealRejected", {
-          msg: "Deal is open from 9:00 AM to 4:00 PM IST.",
-        });
-        return;
-      }
-
       if (!token) {
         socket.emit("dealRejected", { msg: "Login as a buyer to make a deal." });
         return;
@@ -389,12 +367,6 @@ io.on("connection", (socket) => {
   socket.on("submitQuote", async ({ auctionId, quotedPrice, buyerId, token, distanceKm = 0 }) => {
     try {
       // reuse same validation and update logic as placeDeal
-      if (!isDealOpen()) {
-        socket.emit("dealRejected", {
-          msg: "Deal is open from 9:00 AM to 4:00 PM IST.",
-        });
-        return;
-      }
 
       if (!token) {
         socket.emit("dealRejected", { msg: "Login as a buyer to make a deal." });
@@ -482,10 +454,6 @@ setInterval(async () => {
 
     for (let auction of auctions) {
       if (auction.status === "SCHEDULED" && now >= auction.startTime) {
-        if (!isDealOpen(now)) {
-          continue;
-        }
-
         auction.status = "ACTIVE";
 
         if (!auction.endTime || now >= auction.endTime) {
@@ -508,7 +476,7 @@ setInterval(async () => {
         console.log("Deal started:", auction._id);
       }
 
-      if ((now >= auction.endTime || !isDealOpen(now)) && auction.status === "ACTIVE") {
+      if (now >= auction.endTime && auction.status === "ACTIVE") {
         auction.status = "ENDED";
         await auction.save();
 

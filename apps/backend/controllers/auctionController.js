@@ -1,6 +1,6 @@
 import Auction from "../models/Auction.js";
 
-const AUCTION_DURATION_MS = 5 * 60 * 1000;
+const AUCTION_DURATION_MS = 24 * 60 * 60 * 1000;
 
 // CREATE DEAL
 export const createAuction = async (req, res) => {

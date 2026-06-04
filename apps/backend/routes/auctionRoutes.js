@@ -14,22 +14,7 @@ import {
 
 const router = express.Router();
 
-const AUCTION_DURATION_MS = 5 * 60 * 1000;
-
-const getIstHour = (date = new Date()) => {
-  const parts = new Intl.DateTimeFormat("en-IN", {
-    timeZone: "Asia/Kolkata",
-    hour: "numeric",
-    hour12: false,
-  }).formatToParts(date);
-
-  return Number(parts.find((part) => part.type === "hour")?.value || 0);
-};
-
-const isDealOpen = (date = new Date()) => {
-  const istHour = getIstHour(date);
-  return istHour >= 9 && istHour < 16;
-};
+const AUCTION_DURATION_MS = 24 * 60 * 60 * 1000;
 
 const canSeeProductBasePrice = (product, user) =>
   (user?.role === "grower" ||
@@ -135,10 +120,7 @@ router.post("/", protect, authorize("grower"), async (req, res) => {
       ? new Date(startTime)
       : productExists.auctionStartTime || new Date();
     const auctionEndTime = new Date(auctionStartTime.getTime() + AUCTION_DURATION_MS);
-    const status =
-      auctionStartTime > new Date() || !isDealOpen()
-        ? "SCHEDULED"
-        : "ACTIVE";
+    const status = auctionStartTime > new Date() ? "SCHEDULED" : "ACTIVE";
     const openingPrice = Number(startingPrice || productExists.basePrice || 0);
     const openingBreakdown = calculateProductDeal
       ? await calculateProductDeal(productExists, Number(currentBid || openingPrice), distanceKm)

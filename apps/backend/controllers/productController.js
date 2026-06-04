@@ -9,7 +9,7 @@ import {
 } from "../services/cloudinaryService.js";
 
 const AUCTION_DELAY_MS = 5 * 60 * 1000;
-const AUCTION_DURATION_MS = 5 * 60 * 1000;
+const AUCTION_DURATION_MS = 24 * 60 * 60 * 1000;
 
 const canSeeBasePrice = (product, user) =>
   (user?.role === "grower" ||
