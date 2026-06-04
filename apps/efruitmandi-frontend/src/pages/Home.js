@@ -1053,7 +1053,7 @@ function DesktopLotImageCarousel({ images, product, title, onOpen }) {
           <img
             src={images[activeImage]}
             alt={`${title} ${activeImage + 1}`}
-            className="max-h-full max-w-full object-contain"
+            className="h-full w-full object-cover md:max-h-full md:max-w-full md:object-contain"
             loading="lazy"
           />
           {gradeLabel && <FruitGradeBadge label={gradeLabel} />}
