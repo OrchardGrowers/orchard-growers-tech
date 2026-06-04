@@ -336,7 +336,7 @@ export default function Home() {
         </div>
 
         <FruitIconRail
-          className="-mx-3 pt-2"
+          className="-mx-3 pt-1"
           onSelect={(name) => navigate(`/search?q=${encodeURIComponent(name)}`)}
         />
 
@@ -352,7 +352,9 @@ export default function Home() {
           upcomingLots={upcomingLots}
           highestDeals={highestDeals}
           selectedInfoSection={previousSections.find((section) => section.title === activeMobileTab)}
-          onOpenLot={(product) => navigate(`/lots/${product._id}`)}
+          onOpenLotById={(productId) => navigate(`/lots/${productId}`)}
+          onQuoteLot={openQuoteFlow}
+          onRateLot={openRateGrowerFlow}
         />
       </div>
 
@@ -549,7 +551,9 @@ function MobileSectionContent({
   upcomingLots,
   highestDeals,
   selectedInfoSection,
-  onOpenLot,
+  onOpenLotById,
+  onQuoteLot,
+  onRateLot,
 }) {
   if (activeTab === "highestDeals") {
     return (
@@ -576,11 +580,13 @@ function MobileSectionContent({
   };
 
   return (
-    <section className="mt-3 px-3">
-      <ListingScroller
+    <section className="mt-1 px-3">
+      <DesktopLotPost
         items={filteredListings}
         emptyText={emptyTextByTab[activeTab] || emptyTextByTab.liveLots}
-        onView={(product) => onOpenLot(product)}
+        onOpenLot={onOpenLotById}
+        onQuoteLot={onQuoteLot}
+        onRateLot={onRateLot}
       />
     </section>
   );
