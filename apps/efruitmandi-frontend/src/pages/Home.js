@@ -1046,7 +1046,7 @@ function DesktopLotImageCarousel({ images, product, title, onOpen }) {
       <button
         type="button"
         onClick={openPreview}
-        className="flex h-[560px] w-full items-center justify-center bg-white"
+        className="flex h-[300px] w-full items-center justify-center bg-white sm:h-[380px] md:h-[560px]"
         aria-label={`Open ${title}`}
       >
         <span className="relative inline-flex max-h-full max-w-full">
