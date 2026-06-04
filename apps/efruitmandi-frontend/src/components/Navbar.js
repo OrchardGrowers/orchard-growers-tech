@@ -14,8 +14,20 @@ import {
 import { getCountries } from "../services/countryService";
 import { getCurrentUser, logoutUser } from "../utils/auth";
 import ProfileAccountMenu from "./ProfileAccountMenu";
+import API from "../services/api";
+import { getEfruitMandiProducts } from "../utils/marketProducts";
 
 const logoUrl = `${process.env.PUBLIC_URL || ""}/logo.png`;
+const READ_NOTIFICATIONS_KEY = "efruitmandiReadNotifications";
+const NOTIFICATION_STATE_EVENT = "efruitmandi-notifications-updated";
+
+const loadReadNotificationIds = () => {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(READ_NOTIFICATIONS_KEY) || "[]"));
+  } catch {
+    return new Set();
+  }
+};
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -27,6 +39,7 @@ export default function Navbar() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
   const [selected, setSelected] = useState({
     code: "IN",
     flag: "https://flagcdn.com/w40/in.png",
@@ -50,6 +63,46 @@ export default function Navbar() {
   useEffect(() => {
     setProfileMenuOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const refreshUnreadNotifications = async () => {
+      try {
+        const res = await API.get("/products?platform=efruitmandi");
+        if (cancelled) return;
+        const latestLotIds = getEfruitMandiProducts(res.data)
+          .slice()
+          .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+          .slice(0, 24)
+          .map((lot) => lot._id)
+          .filter(Boolean);
+        const readIds = loadReadNotificationIds();
+
+        setHasUnreadNotifications(latestLotIds.some((id) => !readIds.has(id)));
+      } catch {
+        if (!cancelled) setHasUnreadNotifications(false);
+      }
+    };
+
+    refreshUnreadNotifications();
+
+    const handleNotificationUpdate = () => refreshUnreadNotifications();
+    const handleStorage = (event) => {
+      if (!event.key || event.key === READ_NOTIFICATIONS_KEY) refreshUnreadNotifications();
+    };
+
+    window.addEventListener(NOTIFICATION_STATE_EVENT, handleNotificationUpdate);
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("focus", handleNotificationUpdate);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(NOTIFICATION_STATE_EVENT, handleNotificationUpdate);
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", handleNotificationUpdate);
+    };
+  }, []);
 
   useEffect(() => {
     const handleOutsideClick = (event) => {
@@ -176,7 +229,9 @@ export default function Navbar() {
               className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-green-700"
             >
               <FaBell className="text-sm" />
-              <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" />
+              {hasUnreadNotifications && (
+                <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" />
+              )}
             </Link>
           </div>
         </div>
@@ -304,7 +359,9 @@ export default function Navbar() {
               className="relative flex h-full items-center justify-center text-xl text-yellow-400 hover:text-white"
             >
               <FaBell />
-              <span className="absolute right-0 top-3 h-2 w-2 rounded-full bg-red-500" />
+              {hasUnreadNotifications && (
+                <span className="absolute right-0 top-3 h-2 w-2 rounded-full bg-red-500" />
+              )}
             </Link>
           </div>
         </div>

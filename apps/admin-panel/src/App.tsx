@@ -6635,6 +6635,12 @@ function KycRequestCard({
 }) {
   const kyc = user.kyc || {};
   const roleType = getKycUserRoleType(user);
+  const premisesAddressLabel =
+    roleType === 'buyer'
+      ? 'Buyer Premises'
+      : roleType === 'grower'
+        ? 'Grower Premises'
+        : 'Premises Address';
   return (
     <article className="rounded-xl border border-slate-800 bg-slate-950 p-4">
       <RequestHeader
@@ -6646,7 +6652,7 @@ function KycRequestCard({
         <Info label="Role Type" value={roleType} />
         <Info label="Phone" value={kyc.phone || user.phone} />
         <Info label="Email" value={kyc.email || user.email} />
-        <Info label="Address" value={kyc.address} />
+        <Info label={premisesAddressLabel} value={kyc.address} />
         <Info label="District / State" value={[kyc.district, kyc.state].filter(Boolean).join(', ')} />
         <Info label="PIN Code" value={kyc.pinCode} />
         <Info label="ID Proof" value={[kyc.idProofType, kyc.idProofNumber].filter(Boolean).join(' - ')} />

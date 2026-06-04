@@ -67,6 +67,41 @@ const resolveLockedRoleType = (user = {}, kyc = {}, routeRoleType = "") => {
   return "buyer";
 };
 
+const joinAddressParts = (...parts) =>
+  parts
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .join(", ");
+
+const getBuyerPremisesAddress = (user = {}) =>
+  user.buyerLocation ||
+  joinAddressParts(
+    user.businessAddressLine1,
+    user.businessAddressLine2,
+    user.businessAddressLine3
+  ) ||
+  user.location ||
+  "";
+
+const getGrowerPremisesAddress = (user = {}) =>
+  joinAddressParts(
+    user.addressLine1,
+    user.addressLine2,
+    user.addressLine3,
+    user.location
+  ) || user.location || "";
+
+const getRolePremisesAddress = (user = {}, roleType = "") => {
+  if (roleType === "buyer") return getBuyerPremisesAddress(user);
+  if (roleType === "grower") return getGrowerPremisesAddress(user);
+  return user.location || "";
+};
+
+const getRolePinCode = (user = {}, roleType = "") => {
+  if (roleType === "buyer") return user.buyerPinCode || user.businessPinCode || user.pinCode || "";
+  return user.pinCode || "";
+};
+
 export default function Kyc() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -82,6 +117,12 @@ export default function Kyc() {
   const [loading, setLoading] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const canEdit = editableStatuses.has(kycStatus);
+  const premisesAddressLabel =
+    form.roleType === "buyer"
+      ? "Buyer Premises Address"
+      : form.roleType === "grower"
+        ? "Grower Premises Address"
+        : "Premises Address";
 
   useEffect(() => {
     const loadKyc = async () => {
@@ -97,10 +138,10 @@ export default function Kyc() {
           fullName: kyc.fullName || user.name || "",
           phone: kyc.phone || user.phone || "",
           email: kyc.email || user.email || "",
-          address: kyc.address || user.location || "",
+          address: kyc.address || getRolePremisesAddress(user, roleType),
           district: kyc.district || "",
           state: kyc.state || "",
-          pinCode: kyc.pinCode || user.pinCode || "",
+          pinCode: kyc.pinCode || getRolePinCode(user, roleType),
           idProofType: kyc.idProofType || "Aadhaar",
           idProofNumber: kyc.idProofNumber || kyc.aadhaarCardNo || "",
           panNumber: kyc.panNumber || "",
@@ -111,7 +152,7 @@ export default function Kyc() {
           ifscCode: kyc.ifscCode || "",
           upiId: kyc.upiId || "",
           orchardName: kyc.orchardName || user.orchardName || "",
-          orchardLocation: kyc.orchardLocation || user.location || "",
+          orchardLocation: kyc.orchardLocation || getGrowerPremisesAddress(user),
           vehicleNumber: kyc.vehicleNumber || "",
           drivingLicenseNumber: kyc.drivingLicenseNumber || "",
         });
@@ -236,7 +277,7 @@ export default function Kyc() {
               <KycInput label="Full Name" value={form.fullName} disabled={!canEdit} onChange={(value) => updateForm("fullName", value)} />
               <KycInput label="Phone" value={form.phone} disabled={!canEdit} onChange={(value) => updateForm("phone", value)} />
               <KycInput label="Email" value={form.email} disabled={!canEdit} onChange={(value) => updateForm("email", value)} />
-              <KycInput label="Address" value={form.address} disabled={!canEdit} onChange={(value) => updateForm("address", value)} />
+              <KycInput label={premisesAddressLabel} value={form.address} disabled={!canEdit} onChange={(value) => updateForm("address", value)} />
               <KycInput label="District" value={form.district} disabled={!canEdit} onChange={(value) => updateForm("district", value)} />
               <KycInput label="State" value={form.state} disabled={!canEdit} onChange={(value) => updateForm("state", value)} />
               <KycInput label="PIN Code" value={form.pinCode} disabled={!canEdit} onChange={(value) => updateForm("pinCode", value)} />

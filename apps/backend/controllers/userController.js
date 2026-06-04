@@ -54,6 +54,41 @@ const hasGrowerKycPayload = (body = {}, files = {}) =>
       files?.udyanCardFile?.[0]
   );
 
+const joinAddressParts = (...parts) =>
+  parts
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .join(", ");
+
+const getBuyerPremisesAddress = (user = {}) =>
+  user.buyerLocation ||
+  joinAddressParts(
+    user.businessAddressLine1,
+    user.businessAddressLine2,
+    user.businessAddressLine3
+  ) ||
+  user.location ||
+  "";
+
+const getGrowerPremisesAddress = (user = {}) =>
+  joinAddressParts(
+    user.addressLine1,
+    user.addressLine2,
+    user.addressLine3,
+    user.location
+  ) || user.location || "";
+
+const getKycAddressFallback = (user = {}, roleType = "") => {
+  if (roleType === "buyer") return getBuyerPremisesAddress(user);
+  if (roleType === "grower") return getGrowerPremisesAddress(user);
+  return user.location || "";
+};
+
+const getKycPinCodeFallback = (user = {}, roleType = "") => {
+  if (roleType === "buyer") return user.buyerPinCode || user.businessPinCode || user.pinCode || "";
+  return user.pinCode || "";
+};
+
 // ================= SET ROLE =================
 export const setUserRole = async (req, res) => {
   try {
@@ -278,6 +313,15 @@ export const getMyKyc = async (req, res) => {
         logisticsName: user.logisticsName,
         location: user.location,
         pinCode: user.pinCode,
+        buyerLocation: user.buyerLocation,
+        buyerPinCode: user.buyerPinCode,
+        businessAddressLine1: user.businessAddressLine1,
+        businessAddressLine2: user.businessAddressLine2,
+        businessAddressLine3: user.businessAddressLine3,
+        businessPinCode: user.businessPinCode,
+        addressLine1: user.addressLine1,
+        addressLine2: user.addressLine2,
+        addressLine3: user.addressLine3,
       },
       kyc: user.kyc || {},
     });
@@ -544,10 +588,10 @@ export const updateKyc = async (req, res) => {
       fullName: String(req.body.fullName || existingKyc.fullName || existingUser.name || "").trim(),
       phone: String(req.body.phone || existingKyc.phone || existingUser.contact || existingUser.phone || "").trim(),
       email: String(req.body.email || existingKyc.email || existingUser.email || "").trim().toLowerCase(),
-      address: String(req.body.address || existingKyc.address || existingUser.location || "").trim(),
+      address: String(req.body.address || existingKyc.address || getKycAddressFallback(existingUser, roleType)).trim(),
       district: String(req.body.district || existingKyc.district || "").trim(),
       state: String(req.body.state || existingKyc.state || "").trim(),
-      pinCode: String(req.body.pinCode || existingKyc.pinCode || existingUser.pinCode || "").trim(),
+      pinCode: String(req.body.pinCode || existingKyc.pinCode || getKycPinCodeFallback(existingUser, roleType)).trim(),
       idProofType: String(req.body.idProofType || existingKyc.idProofType || "Aadhaar").trim(),
       idProofNumber: String(req.body.idProofNumber || existingKyc.idProofNumber || req.body.aadhaarCardNo || existingKyc.aadhaarCardNo || "").trim(),
       panNumber: String(req.body.panNumber || existingKyc.panNumber || "").trim().toUpperCase(),
@@ -557,7 +601,7 @@ export const updateKyc = async (req, res) => {
       accountNumber: String(req.body.accountNumber || existingKyc.accountNumber || req.body.bankAccountNo || existingKyc.bankAccountNo || "").trim(),
       upiId: String(req.body.upiId || existingKyc.upiId || "").trim(),
       orchardName: String(req.body.orchardName || existingKyc.orchardName || existingUser.orchardName || "").trim(),
-      orchardLocation: String(req.body.orchardLocation || existingKyc.orchardLocation || existingUser.location || "").trim(),
+      orchardLocation: String(req.body.orchardLocation || existingKyc.orchardLocation || getGrowerPremisesAddress(existingUser)).trim(),
       vehicleNumber: String(req.body.vehicleNumber || existingKyc.vehicleNumber || existingUser.vehicleNumber || "").trim().toUpperCase(),
       drivingLicenseNumber: String(req.body.drivingLicenseNumber || existingKyc.drivingLicenseNumber || existingUser.licenseNumber || "").trim().toUpperCase(),
       udyanCardNo: String(req.body.udyanCardNo || existingKyc.udyanCardNo || "")

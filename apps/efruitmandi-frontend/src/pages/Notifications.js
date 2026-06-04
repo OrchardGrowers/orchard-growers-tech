@@ -20,6 +20,8 @@ const filters = [
   { key: "upcoming", label: "Upcoming" },
   { key: "closed", label: "Closed" },
 ];
+const READ_NOTIFICATIONS_KEY = "efruitmandiReadNotifications";
+const NOTIFICATION_STATE_EVENT = "efruitmandi-notifications-updated";
 
 export default function Notifications() {
   const navigate = useNavigate();
@@ -347,14 +349,15 @@ function getImageUrl(product) {
 
 function loadReadNotifications() {
   try {
-    return new Set(JSON.parse(localStorage.getItem("efruitmandiReadNotifications") || "[]"));
+    return new Set(JSON.parse(localStorage.getItem(READ_NOTIFICATIONS_KEY) || "[]"));
   } catch {
     return new Set();
   }
 }
 
 function saveReadNotifications(ids) {
-  localStorage.setItem("efruitmandiReadNotifications", JSON.stringify(Array.from(ids)));
+  localStorage.setItem(READ_NOTIFICATIONS_KEY, JSON.stringify(Array.from(ids)));
+  window.dispatchEvent(new Event(NOTIFICATION_STATE_EVENT));
 }
 
 function formatNotificationTime(value) {
