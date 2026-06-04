@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#18a64b" />
+    <title>E-Fruit Mandi Offline</title>
+    <style>
+      html,
+      body {
+        min-height: 100%;
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #eef7f0;
+        color: #073b22;
+      }
+
+      main {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+
+      section {
+        width: min(420px, 100%);
+        border: 1px solid #bfe8ce;
+        border-radius: 12px;
+        background: #ffffff;
+        padding: 28px;
+        text-align: center;
+        box-shadow: 0 20px 48px rgba(7, 59, 34, 0.12);
+      }
+
+      img {
+        width: 132px;
+        max-width: 60%;
+        margin-bottom: 18px;
+      }
+
+      h1 {
+        margin: 0 0 10px;
+        font-size: 26px;
+      }
+
+      p {
+        margin: 0 0 22px;
+        color: #315f46;
+        line-height: 1.5;
+      }
+
+      button {
+        border: 0;
+        border-radius: 999px;
+        background: #18a64b;
+        color: #ffffff;
+        cursor: pointer;
+        font-size: 15px;
+        font-weight: 700;
+        padding: 12px 22px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section>
+        <img src="/logo.png" alt="E-Fruit Mandi" />
+        <h1>You are offline</h1>
+        <p>Please reconnect to view live fruit lots, quotes, KYC, logistics, and account updates.</p>
+        <button type="button" onclick="window.location.reload()">Try Again</button>
+      </section>
+    </main>
+  </body>
+</html>
