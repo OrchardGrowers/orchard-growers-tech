@@ -49,19 +49,19 @@ const roleTitleLabels = {
 };
 
 const resolveLockedRoleType = (user = {}, kyc = {}, routeRoleType = "") => {
+  const profiles = getProfileTypes(user);
   const routeRole = String(routeRoleType || "").toLowerCase();
-  if (validRoleTypes.has(routeRole)) return routeRole;
+  if (validRoleTypes.has(routeRole) && (profiles.size === 0 || profiles.has(routeRole))) return routeRole;
 
   const switchedMode = String(localStorage.getItem("efruitmandiProfileMode") || "").toLowerCase();
-  if (validRoleTypes.has(switchedMode)) return switchedMode;
+  if (validRoleTypes.has(switchedMode) && profiles.has(switchedMode)) return switchedMode;
 
   const userRole = String(user.role || "").toLowerCase();
-  if (validRoleTypes.has(userRole)) return userRole;
+  if (validRoleTypes.has(userRole) && (profiles.size === 0 || profiles.has(userRole))) return userRole;
 
   const kycRole = String(kyc.roleType || "").toLowerCase();
-  if (validRoleTypes.has(kycRole)) return kycRole;
+  if (validRoleTypes.has(kycRole) && (profiles.size === 0 || profiles.has(kycRole))) return kycRole;
 
-  const profiles = getProfileTypes(user);
   if (profiles.has("grower")) return "grower";
   if (profiles.has("driver")) return "driver";
   return "buyer";

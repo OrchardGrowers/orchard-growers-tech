@@ -142,6 +142,7 @@ type KycUser = {
   email?: string;
   phone?: string;
   role?: string;
+  profileTypes?: string[];
   businessName?: string;
   orchardName?: string;
   logisticsName?: string;
@@ -3555,7 +3556,7 @@ function KycVerificationPanel({
   const normalizedFilter = filter.toLowerCase();
   const filteredKycRequests = kycRequests.filter((user) => {
     const status = String(user.kyc?.status || '').toLowerCase();
-    const roleType = String(user.kyc?.roleType || user.role || '').toLowerCase();
+    const roleType = getKycUserRoleType(user);
     if (normalizedFilter === 'all') return true;
     if (['buyer', 'grower', 'driver'].includes(normalizedFilter)) return roleType === normalizedFilter;
     return status === normalizedFilter || (normalizedFilter === 'pending' && status === 'completed');
@@ -6587,6 +6588,33 @@ function RequestSection({
   );
 }
 
+const validKycRoleTypes = new Set(['buyer', 'grower', 'driver']);
+
+function getKycUserProfileTypes(user: KycUser) {
+  const profiles = new Set(Array.isArray(user.profileTypes) ? user.profileTypes.map((role) => String(role).toLowerCase()) : []);
+  const role = String(user.role || '').toLowerCase();
+
+  if (role) profiles.add(role);
+  if (user.orchardName || user.kyc?.orchardName) profiles.add('grower');
+  if (user.businessName) profiles.add('buyer');
+  if (user.logisticsName || user.kyc?.vehicleNumber || user.kyc?.drivingLicenseNumber) profiles.add('driver');
+
+  return profiles;
+}
+
+function getKycUserRoleType(user: KycUser) {
+  const profiles = getKycUserProfileTypes(user);
+  const kycRole = String(user.kyc?.roleType || '').toLowerCase();
+  const userRole = String(user.role || '').toLowerCase();
+
+  if (validKycRoleTypes.has(kycRole) && (profiles.size === 0 || profiles.has(kycRole))) return kycRole;
+  if (validKycRoleTypes.has(userRole) && (profiles.size === 0 || profiles.has(userRole))) return userRole;
+  if (profiles.has('grower')) return 'grower';
+  if (profiles.has('buyer')) return 'buyer';
+  if (profiles.has('driver')) return 'driver';
+  return kycRole || userRole || 'user';
+}
+
 function KycRequestCard({
   user,
   onReview,
@@ -6597,7 +6625,7 @@ function KycRequestCard({
   onViewFile: (file: UploadedFile) => void;
 }) {
   const kyc = user.kyc || {};
-  const roleType = kyc.roleType || user.role || 'user';
+  const roleType = getKycUserRoleType(user);
   return (
     <article className="rounded-xl border border-slate-800 bg-slate-950 p-4">
       <RequestHeader

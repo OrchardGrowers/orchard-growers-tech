@@ -519,7 +519,8 @@ export const updateKyc = async (req, res) => {
       });
     const roleTypes = new Set(getUserProfileTypes(existingUser));
     const requestedRoleType = String(req.body.roleType || existingKyc.roleType || existingUser.role || "").trim().toLowerCase();
-    const roleType = ["buyer", "grower", "driver"].includes(requestedRoleType)
+    const ownsRequestedRoleType = roleTypes.size === 0 || roleTypes.has(requestedRoleType);
+    const roleType = ["buyer", "grower", "driver"].includes(requestedRoleType) && ownsRequestedRoleType
       ? requestedRoleType
       : roleTypes.has("grower")
         ? "grower"
