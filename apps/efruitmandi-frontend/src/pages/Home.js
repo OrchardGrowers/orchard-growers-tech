@@ -255,10 +255,12 @@ export default function Home() {
   const visibleListings = timedProducts
     .filter((product) => product.dealTiming?.state === "live")
     .slice(0, 6);
-  const mobileLiveLots = auctions
-    .filter((auction) => auction.status === "ACTIVE" && auction.product)
-    .map((auction) => normalizeAuctionLot(auction, lotTiming))
-    .slice(0, 12);
+  const mobileLiveLots = mergeUniqueLots([
+    ...auctions
+      .filter((auction) => auction.status === "ACTIVE" && auction.product)
+      .map((auction) => normalizeAuctionLot(auction, lotTiming)),
+    ...visibleListings,
+  ]).slice(0, 12);
   const upcomingLots = [
     ...timedProducts.filter((product) => product.dealTiming?.state === "upcoming"),
     ...auctions
@@ -1557,6 +1559,18 @@ function normalizeAuctionLot(auction = {}, timing) {
     currentBid: auction.currentBid || auction.startingPrice || product.currentBid,
     dealTiming: auctionTiming,
   };
+}
+
+function mergeUniqueLots(lots = []) {
+  const seen = new Set();
+  return lots.filter((lot) => {
+    const key = lot?._id || lot?.id || lot?.lotNo || lot?.title;
+    if (!key) return false;
+    const normalizedKey = String(key);
+    if (seen.has(normalizedKey)) return false;
+    seen.add(normalizedKey);
+    return true;
+  });
 }
 
 function formatCountdown(targetAt = "") {
