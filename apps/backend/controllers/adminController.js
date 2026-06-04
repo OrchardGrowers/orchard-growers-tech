@@ -40,6 +40,8 @@ const ADMIN_ROLES = [
 const ADMIN_STATUSES = ["PENDING", "ACTIVE", "SUSPENDED", "REJECTED", "TERMINATED"];
 const USER_ROLES = [null, "grower", "buyer", "driver"];
 const USER_STATUSES = ["ACTIVE", "HOLD", "SUSPENDED", "TERMINATED"];
+const KYC_REVIEW_STATUSES = ["PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED", "CORRECTION_REQUIRED", "COMPLETED"];
+const KYC_SUBMITTED_STATUS_PATTERN = /^(pending|under_review|approved|rejected|correction_required|completed|submitted)$/i;
 const ROLE_LABELS = {
   SUPER_ADMIN: "Super Admin",
   ADMIN: "Admin",
@@ -75,6 +77,11 @@ const ROLE_INTERNAL_CLASS = {
 };
 
 const normalizeEmail = (email = "") => email.trim().toLowerCase();
+const normalizeKycStatus = (status = "") => {
+  const normalized = String(status || "").trim().toUpperCase();
+  if (normalized === "SUBMITTED") return "PENDING";
+  return normalized;
+};
 const PASSWORD_RULE_MESSAGE = "Password must be at least 8 characters and include a letter and a number";
 const ADMIN_NOT_APPROVED_MESSAGE = "This email is not approved for admin access.";
 const ADMIN_RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
@@ -1885,7 +1892,16 @@ export const listKycRequests = async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const users = await User.find({
-    "kyc.status": { $in: ["PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED", "CORRECTION_REQUIRED", "COMPLETED"] },
+    $or: [
+      { "kyc.status": { $in: KYC_REVIEW_STATUSES } },
+      { "kyc.status": KYC_SUBMITTED_STATUS_PATTERN },
+      { "kyc.submittedAt": { $exists: true, $ne: null } },
+      {
+        "kyc.fullName": { $exists: true, $ne: "" },
+        "kyc.idProofNumber": { $exists: true, $ne: "" },
+        "kyc.accountNumber": { $exists: true, $ne: "" },
+      },
+    ],
   })
     .select("-password -__v")
     .populate("kyc.adminReviews.admin", "name email role")
@@ -1901,7 +1917,7 @@ export const getKycRequestByAdmin = async (req, res) => {
     .select("-password -__v")
     .populate("kyc.adminReviews.admin", "name email role");
 
-  if (!user || !user.kyc || user.kyc.status === "NOT_SUBMITTED") {
+  if (!user || !user.kyc || normalizeKycStatus(user.kyc.status) === "NOT_SUBMITTED") {
     return res.status(404).json({ msg: "KYC request not found" });
   }
 
@@ -1964,9 +1980,11 @@ export const reviewKycRequest = async (req, res) => {
 
   const user = await User.findById(req.params.userId);
   if (!user) return res.status(404).json({ msg: "User not found" });
-  if (!["PENDING", "UNDER_REVIEW", "COMPLETED", "APPROVED", "REJECTED", "CORRECTION_REQUIRED"].includes(user.kyc?.status)) {
+  const kycStatus = normalizeKycStatus(user.kyc?.status);
+  if (!KYC_REVIEW_STATUSES.includes(kycStatus)) {
     return res.status(400).json({ msg: "KYC is not completed by user" });
   }
+  if (user.kyc.status !== kycStatus) user.kyc.status = kycStatus;
 
   if (["REJECT", "CORRECTION_REQUIRED"].includes(action) && !String(req.body.note || req.body.adminRemarks || "").trim()) {
     return res.status(400).json({ msg: "Admin remarks are required for rejection or correction." });
@@ -2057,7 +2075,7 @@ export const updateKycStatusByAdmin = async (req, res) => {
     const currentAdmin = requireAdmin(req, res);
     if (!currentAdmin) return;
     const user = await User.findById(req.params.id);
-    if (!user || !user.kyc || user.kyc.status === "NOT_SUBMITTED") {
+    if (!user || !user.kyc || normalizeKycStatus(user.kyc.status) === "NOT_SUBMITTED") {
       return res.status(404).json({ msg: "KYC request not found" });
     }
     user.kyc.status = "PENDING";

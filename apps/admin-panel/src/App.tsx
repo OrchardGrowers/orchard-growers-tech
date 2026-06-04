@@ -6660,6 +6660,7 @@ function KycRequestCard({
           { label: 'View ID Proof', path: kyc.idProofImage || kyc.aadhaarCardFileUrl },
           { label: 'View PAN', path: kyc.panImage },
           { label: 'View GST Certificate', path: kyc.gstCertificate },
+          { label: 'View Bank Proof / Passbook', path: kyc.passbookFileUrl },
           { label: 'View Driving License', path: kyc.drivingLicenseImage },
         ]}
       />
