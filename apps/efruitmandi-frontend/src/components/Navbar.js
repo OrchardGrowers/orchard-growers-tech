@@ -176,14 +176,14 @@ export default function Navbar() {
 
   return (
     <>
-      <div className="fixed inset-x-0 top-0 z-50 bg-green-700 px-2.5 pb-2 pt-2 shadow-sm md:hidden">
-        <div className="flex items-center gap-1.5">
+      <div className="fixed inset-x-0 top-0 z-50 bg-green-700 px-2 pb-2 pt-2 shadow-sm md:hidden">
+        <div className="grid grid-cols-[40px_minmax(0,1fr)_112px] items-center gap-1.5">
           <Link
             to="/"
             aria-label="Go to home"
-            className="shrink-0 p-1"
+            className="flex h-8 items-center justify-center overflow-hidden"
           >
-            <img src={logoUrl} className="h-7 w-auto" alt="Orchard Growers" />
+            <img src={logoUrl} className="max-h-7 max-w-full object-contain" alt="Orchard Growers" />
           </Link>
 
           <SearchForm
@@ -195,13 +195,13 @@ export default function Navbar() {
             mobile
           />
 
-          <div className="flex shrink-0 items-center gap-0.5">
-            <div className="flex h-7 items-center gap-0.5 rounded-full bg-white px-1.5">
+          <div className="flex min-w-0 items-center justify-end gap-1">
+            <div className="flex h-7 w-[46px] shrink-0 items-center gap-0.5 rounded-full bg-white px-1">
               <img src={selected.flag} className="h-3 w-4 rounded-[2px]" alt="" />
               <select
                 value={selected.code}
                 onChange={(event) => handleChange(event.target.value)}
-                className="w-7 bg-white text-[10px] font-semibold outline-none"
+                className="min-w-0 flex-1 bg-white text-[10px] font-semibold outline-none"
               >
                 {countries.map((country) => (
                   <option key={country.code} value={country.code}>
@@ -215,7 +215,7 @@ export default function Navbar() {
               href="https://www.youtube.com/results?search_query=Efruit+Mandi"
               target="_blank"
               rel="noreferrer"
-              className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-red-600"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-red-600"
               aria-label="Learn us on YouTube"
               title="YouTube"
             >
@@ -386,7 +386,7 @@ function SearchForm({
       }}
       className={
         mobile
-          ? "flex min-w-[92px] flex-1 items-center rounded-full bg-white px-2 py-1.5"
+          ? "flex min-w-0 w-full items-center rounded-full bg-white px-2 py-1.5"
           : "flex h-9 w-full max-w-[360px] items-center gap-2 rounded-full border border-green-300 bg-green-50 px-4 text-green-800"
       }
     >

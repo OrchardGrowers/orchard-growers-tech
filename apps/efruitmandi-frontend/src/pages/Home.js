@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   FaChevronLeft,
@@ -31,22 +31,62 @@ import { getEfruitMandiProducts } from "../utils/marketProducts";
 import { saveUserToStorage } from "../utils/userStorage";
 
 const categories = [
-  { name: "Pear", img: "https://cdn-icons-png.flaticon.com/128/590/590685.png" },
-  { name: "Apple", img: "https://cdn-icons-png.flaticon.com/128/415/415682.png" },
-  { name: "Banana", img: "https://cdn-icons-png.flaticon.com/128/590/590684.png" },
-  { name: "Mango", img: "https://cdn-icons-png.flaticon.com/128/590/590679.png" },
-  { name: "Persimmon", img: "https://cdn-icons-png.flaticon.com/128/1625/1625048.png" },
-  { name: "Orange", img: "https://cdn-icons-png.flaticon.com/128/135/135620.png" },
-  { name: "Grapes", img: "https://cdn-icons-png.flaticon.com/128/765/765560.png" },
-  { name: "Kiwi", img: "https://cdn-icons-png.flaticon.com/128/1412/1412511.png" },
-  { name: "Pomegranate", img: "https://cdn-icons-png.flaticon.com/128/6866/6866550.png" },
-  { name: "Cherry", img: "https://cdn-icons-png.flaticon.com/128/590/590682.png" },
-  { name: "Peach", img: "https://cdn-icons-png.flaticon.com/128/6866/6866506.png" },
-  { name: "Plum", img: "https://cdn-icons-png.flaticon.com/128/2224/2224312.png" },
-  { name: "Apricot", img: "https://cdn-icons-png.flaticon.com/128/2224/2224242.png" },
-  { name: "Walnut", img: "https://cdn-icons-png.flaticon.com/128/590/590722.png" },
-  { name: "Almond", img: "https://cdn-icons-png.flaticon.com/128/2909/2909761.png" },
-  { name: "Cashew", img: "https://cdn-icons-png.flaticon.com/128/2224/2224318.png" },
+  { name: "Apple", icon: "🍎" },
+  { name: "Pear", icon: "🍐" },
+  { name: "Banana", icon: "🍌" },
+  { name: "Mango", icon: "🥭" },
+  { name: "Orange", icon: "🍊" },
+  { name: "Grapes", icon: "🍇" },
+  { name: "Kiwi", icon: "🥝" },
+  { name: "Pomegranate", icon: "🔴" },
+  { name: "Cherry", icon: "🍒" },
+  { name: "Peach", icon: "🍑" },
+  { name: "Plum", icon: "🟣" },
+  { name: "Apricot", icon: "🟠" },
+  { name: "Strawberry", icon: "🍓" },
+  { name: "Blueberry", icon: "🔵" },
+  { name: "Raspberry", icon: "🔴" },
+  { name: "Blackberry", icon: "⚫" },
+  { name: "Watermelon", icon: "🍉" },
+  { name: "Muskmelon", icon: "🍈" },
+  { name: "Pineapple", icon: "🍍" },
+  { name: "Papaya", icon: "🟧" },
+  { name: "Guava", icon: "🟢" },
+  { name: "Lychee", icon: "🌸" },
+  { name: "Dragon Fruit", icon: "🌺" },
+  { name: "Fig", icon: "🟤" },
+  { name: "Date", icon: "🌴" },
+  { name: "Coconut", icon: "🥥" },
+  { name: "Lemon", icon: "🍋" },
+  { name: "Lime", icon: "🟢" },
+  { name: "Sweet Lime", icon: "🍋" },
+  { name: "Grapefruit", icon: "🟠" },
+  { name: "Mandarin", icon: "🍊" },
+  { name: "Persimmon", icon: "🟠" },
+  { name: "Jamun", icon: "🟣" },
+  { name: "Custard Apple", icon: "🟢" },
+  { name: "Sapota", icon: "🟤" },
+  { name: "Avocado", icon: "🥑" },
+  { name: "Passion Fruit", icon: "🟣" },
+  { name: "Star Fruit", icon: "⭐" },
+  { name: "Mulberry", icon: "🟣" },
+  { name: "Cranberry", icon: "🔴" },
+  { name: "Gooseberry", icon: "🟢" },
+  { name: "Amla", icon: "🟢" },
+  { name: "Jackfruit", icon: "🟡" },
+  { name: "Breadfruit", icon: "🟢" },
+  { name: "Rambutan", icon: "🔴" },
+  { name: "Mangosteen", icon: "🟣" },
+  { name: "Longan", icon: "🟤" },
+  { name: "Durian", icon: "🟡" },
+  { name: "Olive", icon: "🫒" },
+  { name: "Quince", icon: "🟡" },
+  { name: "Ber", icon: "🟢" },
+  { name: "Bael", icon: "🟡" },
+  { name: "Tamarind", icon: "🟤" },
+  { name: "Walnut", icon: "🌰" },
+  { name: "Almond", icon: "🌰" },
+  { name: "Cashew", icon: "🌰" },
 ];
 
 const previousSections = [
@@ -66,7 +106,6 @@ const categoryKeywords = categories.map((category) => category.name);
 const desktopSections = [
   { key: "liveLots", label: "Live Fruit Lots" },
   { key: "upcomingLots", label: "Upcoming Fruit Lots" },
-  { key: "categories", label: "Fruit Categories" },
   { key: "highestDeals", label: "Highest Deals of The Day" },
   ...previousSections.map((section) => ({
     key: section.title,
@@ -214,6 +253,10 @@ export default function Home() {
   const visibleListings = timedProducts
     .filter((product) => product.dealTiming?.state === "live")
     .slice(0, 6);
+  const mobileLiveLots = auctions
+    .filter((auction) => auction.status === "ACTIVE" && auction.product)
+    .map((auction) => normalizeAuctionLot(auction, lotTiming))
+    .slice(0, 12);
   const upcomingLots = [
     ...timedProducts.filter((product) => product.dealTiming?.state === "upcoming"),
     ...auctions
@@ -272,6 +315,11 @@ export default function Home() {
 
   return (
     <>
+      <FloatingLotActions
+        onList={() => navigate(isGrower ? "/list-new-lot" : "/profile")}
+        onBuy={() => navigate("/auctions")}
+      />
+
       <div className="pb-4 md:hidden">
         <BannerSlider />
 
@@ -283,7 +331,10 @@ export default function Home() {
           />
         </div>
 
-        <HeroCard onList={() => navigate(isGrower ? "/list-new-lot" : "/profile")} />
+        <FruitIconRail
+          className="px-2 pt-2"
+          onSelect={(name) => navigate(`/search?q=${encodeURIComponent(name)}`)}
+        />
 
         {loading && (
           <p className="px-3 py-3 text-sm font-semibold text-green-700">
@@ -293,41 +344,18 @@ export default function Home() {
 
         <MobileSectionContent
           activeTab={activeMobileTab}
-          visibleListings={visibleListings}
+          visibleListings={mobileLiveLots}
           upcomingLots={upcomingLots}
           onOpenLot={(product) => navigate(`/lots/${product._id}`)}
-          onAdd={() => navigate(isGrower ? "/list-new-lot" : "/profile")}
         />
-
-        <section className="mt-4 px-3">
-          <h2 className="mb-2 text-sm font-extrabold text-black">Fruit Categories</h2>
-          <div className="grid grid-cols-4 gap-3">
-            {categories.slice(0, 8).map((category) => (
-              <button
-                key={category.name}
-                type="button"
-                className="rounded-2xl border border-green-100 bg-green-50 p-3 text-center transition hover:bg-green-100"
-              >
-                <img src={category.img} alt={category.name} className="mx-auto h-9 w-9" />
-                <p className="mt-2 text-[11px] font-semibold text-gray-900">
-                  {category.name}
-                </p>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <div className="px-3">
-          <HighestDealsSection items={highestDeals} />
-          {previousSections.map((section) => (
-            <InfoSection
-              key={section.title}
-              title={section.title}
-              text={section.text}
-            />
-          ))}
-        </div>
       </div>
+
+    <div className="hidden md:block">
+      <FruitIconRail
+        className="-mx-4 px-4 pb-3"
+        onSelect={(name) => navigate(`/search?q=${encodeURIComponent(name)}`)}
+      />
+    </div>
 
     <div className="hidden w-full gap-5 md:grid md:grid-cols-[218px_minmax(0,1fr)] lg:grid-cols-[218px_minmax(0,1fr)_314px] xl:grid-cols-[240px_minmax(0,1fr)_340px]">
       <aside className="auto-hide-column-scroll sticky top-16 max-h-[calc(100vh-5rem)] self-start space-y-2.5 overflow-y-auto pr-1">
@@ -342,11 +370,6 @@ export default function Home() {
 
       <section className="min-w-0 space-y-3">
         <BannerSlider />
-
-        <PostComposer
-          user={user}
-          onPost={() => navigate(isGrower ? "/list-new-lot" : "/profile")}
-        />
 
         <div className="flex items-center gap-3">
           <div className="h-px flex-1 bg-gray-300" />
@@ -428,87 +451,123 @@ function HeroCard({ onList }) {
   );
 }
 
+function FruitIconRail({ className = "", onSelect }) {
+  const railRef = useRef(null);
+  const scroll = (direction) => {
+    railRef.current?.scrollBy({
+      left: direction * 280,
+      behavior: "smooth",
+    });
+  };
+
+  return (
+    <section className={className} aria-label="Browse fruits">
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => scroll(-1)}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-transparent text-green-800 hover:bg-green-50"
+          aria-label="Scroll fruit icons left"
+        >
+          <FaChevronLeft />
+        </button>
+        <div
+          ref={railRef}
+          className="no-scrollbar flex flex-1 gap-3 overflow-x-auto scroll-smooth px-1 py-1"
+        >
+          {categories.map((category) => (
+            <button
+              key={category.name}
+              type="button"
+              onClick={() => onSelect?.(category.name)}
+              className="flex min-w-[68px] shrink-0 flex-col items-center justify-center gap-1 rounded-lg bg-transparent px-2 py-1.5 text-center transition hover:bg-green-50"
+            >
+              <span className="text-3xl leading-none" aria-hidden="true">
+                {category.icon}
+              </span>
+              <span className="max-w-[72px] truncate text-[10px] font-semibold text-gray-950">
+                {category.name}
+              </span>
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => scroll(1)}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-transparent text-green-800 hover:bg-green-50"
+          aria-label="Scroll fruit icons right"
+        >
+          <FaChevronRight />
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function FloatingLotActions({ onList, onBuy }) {
+  return (
+    <div className="fixed inset-x-3 bottom-[calc(4.8rem+env(safe-area-inset-bottom))] z-40 flex gap-2 md:inset-x-auto md:bottom-5 md:right-5 md:w-60 md:flex-col">
+      <button
+        type="button"
+        onClick={onList}
+        className="min-h-11 flex-1 rounded-full border border-green-700/30 bg-green-700/90 px-4 text-center text-xs font-black text-white shadow-lg backdrop-blur transition hover:bg-green-800 md:flex-none"
+      >
+        List a fruit lot
+      </button>
+      <button
+        type="button"
+        onClick={onBuy}
+        className="min-h-11 flex-1 rounded-full border border-green-700/30 bg-green-700/90 px-4 text-center text-xs font-black text-white shadow-lg backdrop-blur transition hover:bg-green-800 md:flex-none"
+      >
+        Buy Bulk Fruit Lots
+      </button>
+    </div>
+  );
+}
+
 function MobileSectionContent({
   activeTab,
   visibleListings,
   upcomingLots,
   onOpenLot,
-  onAdd,
 }) {
-  if (activeTab === "liveLots") {
-    return (
-      <section className="mt-4 px-3">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-extrabold text-black">Live Fruit Lots</h2>
-          <button
-            type="button"
-            onClick={onAdd}
-            className="rounded-full bg-green-700 px-4 py-1 text-[10px] font-bold text-white"
-          >
-            {"View Lots"}
-          </button>
-        </div>
-        <ListingScroller
-          items={visibleListings}
-          emptyText="No live fruit lot yet. New mandi lots will appear here."
-          onView={(product) => onOpenLot(product._id)}
-        />
-      </section>
-    );
-  }
-
-  if (activeTab === "upcomingLots") {
-    return (
-      <section className="mt-4 px-3">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-extrabold text-black">Upcoming Lots</h2>
-          <button
-            type="button"
-            onClick={onAdd}
-            className="rounded-full bg-green-700 px-4 py-1 text-[10px] font-bold text-white"
-          >
-            View Lots
-          </button>
-        </div>
-        <ListingScroller
-          items={upcomingLots}
-          emptyText="No upcoming fruit lot yet. Scheduled lots will appear here."
-          onView={(product) => onOpenLot(product._id)}
-        />
-      </section>
-    );
-  }
-
-  if (activeTab === "trustedGrowers") {
-    return (
-      <section className="mt-4 px-3">
-        <div className="rounded-3xl border border-green-100 bg-green-50 p-4">
-          <h2 className="text-sm font-extrabold text-black">Trusted Growers</h2>
-          <p className="mt-2 text-xs text-gray-700">
-            Verified grower accounts and orchards will appear here once they are approved.
-          </p>
-          <div className="mt-3 grid gap-3">
-            {[1, 2, 3].map((index) => (
-              <div key={index} className="rounded-2xl bg-white p-3 shadow-sm">
-                <p className="text-sm font-bold text-green-800">Grower Profile #{index}</p>
-                <p className="mt-1 text-xs text-gray-600">Verified orchards and mandi trust score coming soon.</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-    );
-  }
+  const filteredListings = getMobileFilterListings(activeTab, visibleListings, upcomingLots);
+  const emptyTextByTab = {
+    liveLots: "No live fruit lots yet.",
+    upcomingLots: "No upcoming fruit lots yet.",
+    trustedGrowers: "No trusted grower live lots yet.",
+    organicFarms: "No organic farm live lots yet.",
+  };
 
   return (
-    <section className="mt-4 px-3">
-      <div className="rounded-3xl border border-green-100 bg-green-50 p-4">
-        <h2 className="text-sm font-extrabold text-black">Organic Farms</h2>
-        <p className="mt-2 text-xs text-gray-700">
-          Organic farms and premium produce listings will be displayed here soon.
-        </p>
-      </div>
+    <section className="mt-3 px-3">
+      <ListingScroller
+        items={filteredListings}
+        emptyText={emptyTextByTab[activeTab] || emptyTextByTab.liveLots}
+        onView={(product) => onOpenLot(product)}
+      />
     </section>
+  );
+}
+
+function getMobileFilterListings(activeTab, liveLots, upcomingLots) {
+  if (activeTab === "upcomingLots") return upcomingLots;
+  if (activeTab === "trustedGrowers") {
+    return liveLots.filter((lot) =>
+      Boolean(lot.createdBy?.isVerified || lot.createdBy?.kycStatus === "approved" || lot.createdBy?.trusted)
+    );
+  }
+  if (activeTab === "organicFarms") {
+    return liveLots.filter((lot) => isOrganicLot(lot));
+  }
+  return liveLots;
+}
+
+function isOrganicLot(lot = {}) {
+  const quality = String(lot.quality || "").toLowerCase();
+  return (
+    quality.includes("organic") ||
+    Boolean(lot.organicCertificationNo || lot.organicCertificateUrl)
   );
 }
 
@@ -721,28 +780,6 @@ function DesktopSection({
           onQuoteLot={onQuoteLot}
           onRateLot={onRateLot}
         />
-      </WebSectionPost>
-    );
-  }
-
-  if (section === "categories") {
-    return (
-      <WebSectionPost
-        title="Fruit Categories"
-        text="Browse fruit and dry fruit categories used across the app home page."
-      >
-        <div className="grid grid-cols-4 gap-3">
-          {categories.map((category) => (
-            <button
-              key={category.name}
-              type="button"
-              className="rounded-md border border-green-100 bg-green-50 p-3 text-center hover:bg-green-100"
-            >
-              <img src={category.img} alt={category.name} className="mx-auto h-9 w-9" />
-              <p className="mt-2 text-xs font-semibold text-gray-900">{category.name}</p>
-            </button>
-          ))}
-        </div>
       </WebSectionPost>
     );
   }
@@ -1207,23 +1244,6 @@ function PolicyMiniLinks() {
   );
 }
 
-function PostComposer({ user, onPost }) {
-  return (
-    <section className="rounded-lg border border-gray-200 bg-white p-3">
-      <div className="flex items-center gap-3">
-        <Avatar name={user.name || "Pavan Kumar"} className="h-12 w-12 text-base" />
-        <button
-          type="button"
-          onClick={onPost}
-          className="min-h-11 flex-1 rounded-full bg-green-700 px-5 text-center text-sm font-bold text-white shadow-sm hover:bg-green-800"
-        >
-          List a fruit lot
-        </button>
-      </div>
-    </section>
-  );
-}
-
 function FeedPost({ item, onOpen }) {
   return (
     <article className="overflow-hidden rounded-lg border border-gray-200 bg-white">
@@ -1481,6 +1501,27 @@ function attachLotTiming(product = {}, timing) {
     ...product,
     status: timing.state === "live" ? "ACTIVE" : "UPCOMING",
     dealTiming: timing,
+  };
+}
+
+function normalizeAuctionLot(auction = {}, timing) {
+  const product = auction.product || {};
+  const auctionTiming =
+    auction.endTime || auction.closeTime
+      ? {
+          state: "live",
+          label: "Deal Open",
+          targetAt: auction.endTime || auction.closeTime,
+          countdownPrefix: "Closes in",
+        }
+      : timing;
+
+  return {
+    ...product,
+    _id: product._id,
+    status: "ACTIVE",
+    currentBid: auction.currentBid || auction.startingPrice || product.currentBid,
+    dealTiming: auctionTiming,
   };
 }
 
