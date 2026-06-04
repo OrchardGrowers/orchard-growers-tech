@@ -580,7 +580,7 @@ function MobileSectionContent({
   };
 
   return (
-    <section className="mt-1 px-3">
+    <section className="-mx-3 mt-1">
       <DesktopLotPost
         items={filteredListings}
         emptyText={emptyTextByTab[activeTab] || emptyTextByTab.liveLots}
@@ -922,7 +922,7 @@ function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) 
   const growerRatingCount = Number(product.createdBy?.growerRatingCount || 0);
 
   return (
-    <article className="overflow-hidden rounded-md border border-gray-200 bg-white">
+    <article className="overflow-hidden border border-gray-200 bg-white md:rounded-md">
       <div className="p-3">
         <div className="flex items-start justify-between gap-3">
           <button
