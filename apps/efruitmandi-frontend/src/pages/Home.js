@@ -115,9 +115,12 @@ const desktopSections = [
 
 const mobileTabs = [
   { key: "liveLots", label: "Live Fruit Lots" },
-  { key: "upcomingLots", label: "Upcoming Lots" },
-  { key: "trustedGrowers", label: "Trusted Growers" },
-  { key: "organicFarms", label: "Organic Farms" },
+  { key: "upcomingLots", label: "Upcoming Fruit Lots" },
+  { key: "highestDeals", label: "Highest Deals of The Day" },
+  ...previousSections.map((section) => ({
+    key: section.title,
+    label: section.title,
+  })),
 ];
 
 const orchardCover = `${process.env.PUBLIC_URL || ""}/profile-banners/efruitmandi-profile-cover.png`;
@@ -323,7 +326,7 @@ export default function Home() {
       <div className="pb-4 md:hidden">
         <BannerSlider />
 
-        <div className="px-3 pt-3">
+        <div className="-mx-3 pt-1">
           <TopFilters
             tabs={mobileTabs}
             active={activeMobileTab}
@@ -346,6 +349,8 @@ export default function Home() {
           activeTab={activeMobileTab}
           visibleListings={mobileLiveLots}
           upcomingLots={upcomingLots}
+          highestDeals={highestDeals}
+          selectedInfoSection={previousSections.find((section) => section.title === activeMobileTab)}
           onOpenLot={(product) => navigate(`/lots/${product._id}`)}
         />
       </div>
@@ -480,12 +485,12 @@ function FruitIconRail({ className = "", onSelect }) {
               key={category.name}
               type="button"
               onClick={() => onSelect?.(category.name)}
-              className="flex min-w-[68px] shrink-0 flex-col items-center justify-center gap-1 rounded-lg bg-transparent px-2 py-1.5 text-center transition hover:bg-green-50"
+              className="flex min-w-[52px] shrink-0 flex-col items-center justify-center gap-1 rounded-lg bg-transparent px-1 py-1.5 text-center transition hover:bg-green-50"
             >
-              <span className="text-3xl leading-none" aria-hidden="true">
+              <span className="text-2xl leading-none" aria-hidden="true">
                 {category.icon}
               </span>
-              <span className="max-w-[72px] truncate text-[10px] font-semibold text-gray-950">
+              <span className="max-w-[54px] truncate text-[8px] font-semibold text-gray-950">
                 {category.name}
               </span>
             </button>
@@ -506,18 +511,18 @@ function FruitIconRail({ className = "", onSelect }) {
 
 function FloatingLotActions({ onList, onBuy }) {
   return (
-    <div className="fixed inset-x-3 bottom-[calc(4.8rem+env(safe-area-inset-bottom))] z-40 flex gap-2 md:inset-x-auto md:bottom-5 md:right-5 md:w-60 md:flex-col">
+    <div className="fixed inset-x-2 bottom-[calc(3.85rem+env(safe-area-inset-bottom))] z-40 flex gap-2 md:inset-x-auto md:bottom-5 md:right-5 md:w-52 md:flex-col">
       <button
         type="button"
         onClick={onList}
-        className="min-h-11 flex-1 rounded-full border border-green-700/30 bg-green-700/90 px-4 text-center text-xs font-black text-white shadow-lg backdrop-blur transition hover:bg-green-800 md:flex-none"
+        className="min-h-10 flex-1 rounded-full border border-green-700/30 bg-green-700/90 px-3 text-center text-[11px] font-black text-white shadow-lg backdrop-blur transition hover:bg-green-800 md:flex-none"
       >
         List a fruit lot
       </button>
       <button
         type="button"
         onClick={onBuy}
-        className="min-h-11 flex-1 rounded-full border border-green-700/30 bg-green-700/90 px-4 text-center text-xs font-black text-white shadow-lg backdrop-blur transition hover:bg-green-800 md:flex-none"
+        className="min-h-10 flex-1 rounded-full border border-green-700/30 bg-green-700/90 px-3 text-center text-[11px] font-black text-white shadow-lg backdrop-blur transition hover:bg-green-800 md:flex-none"
       >
         Buy Bulk Fruit Lots
       </button>
@@ -529,8 +534,26 @@ function MobileSectionContent({
   activeTab,
   visibleListings,
   upcomingLots,
+  highestDeals,
+  selectedInfoSection,
   onOpenLot,
 }) {
+  if (activeTab === "highestDeals") {
+    return (
+      <div className="px-3">
+        <HighestDealsSection items={highestDeals} />
+      </div>
+    );
+  }
+
+  if (selectedInfoSection) {
+    return (
+      <div className="px-3">
+        <InfoSection title={selectedInfoSection.title} text={selectedInfoSection.text} />
+      </div>
+    );
+  }
+
   const filteredListings = getMobileFilterListings(activeTab, visibleListings, upcomingLots);
   const emptyTextByTab = {
     liveLots: "No live fruit lots yet.",

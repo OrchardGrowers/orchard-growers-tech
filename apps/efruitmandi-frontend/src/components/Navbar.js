@@ -400,18 +400,22 @@ function SearchForm({
           mobile ? "text-xs placeholder:text-gray-400" : "placeholder:text-green-700/70"
         }`}
       />
-      {mobile && (
-        <button
-          type="button"
-          onClick={startVoiceSearch}
-          aria-label="Voice search"
-          className={`ml-1 flex h-6 w-6 items-center justify-center rounded-full ${
-            isListening ? "bg-red-50 text-red-600" : "bg-gray-100 text-black"
-          }`}
-        >
-          <FaMicrophone />
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={startVoiceSearch}
+        aria-label="Voice search"
+        className={
+          mobile
+            ? `ml-1 flex h-6 w-6 items-center justify-center rounded-full ${
+                isListening ? "bg-red-50 text-red-600" : "bg-gray-100 text-black"
+              }`
+            : `flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+                isListening ? "bg-red-50 text-red-600" : "bg-white text-green-800"
+              }`
+        }
+      >
+        <FaMicrophone className={mobile ? "" : "text-xs"} />
+      </button>
       {mobile ? (
         <button
           type="submit"
@@ -421,8 +425,12 @@ function SearchForm({
           <FaSearch className="text-[10px]" />
         </button>
       ) : (
-        <button type="submit" aria-label="Search">
-          <FaSearch />
+        <button
+          type="submit"
+          aria-label="Search"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-700 text-white"
+        >
+          <FaSearch className="text-xs" />
         </button>
       )}
     </form>
