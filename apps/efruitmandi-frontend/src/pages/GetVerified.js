@@ -13,6 +13,7 @@ import {
 import API from "../services/api";
 import BackHomeButton from "../components/BackHomeButton";
 import { getCurrentUser, hasBuyerProfile } from "../utils/auth";
+import { confirmVideoCaptureConsent } from "../utils/permissionConsent";
 import {
   getEfruitMandiWidgetId,
   getEfruitMandiTokenAuth,
@@ -277,6 +278,7 @@ export default function GetVerified() {
                 fileName={form.orchardVideoName}
                 accept="video/*"
                 icon={<FaVideo />}
+                onClickConsent={confirmVideoCaptureConsent}
                 onChange={(file) => {
                   updateForm("orchardVideoFile", file);
                   updateForm("orchardVideoName", file?.name || "");
@@ -407,7 +409,7 @@ function FormInput({ label, value, placeholder, inputMode, onChange }) {
   );
 }
 
-function FileInput({ label, fileName, accept, icon, onChange }) {
+function FileInput({ label, fileName, accept, icon, onClickConsent, onChange }) {
   return (
     <label className="block">
       <span className="mb-1.5 block text-xs font-extrabold text-gray-700">{label}</span>
@@ -418,7 +420,11 @@ function FileInput({ label, fileName, accept, icon, onChange }) {
       <input
         type="file"
         accept={accept}
+        capture={accept === "video/*" ? "environment" : undefined}
         className="hidden"
+        onClick={(event) => {
+          if (onClickConsent && !onClickConsent()) event.preventDefault();
+        }}
         onChange={(event) => onChange(event.target.files?.[0] || null)}
       />
     </label>

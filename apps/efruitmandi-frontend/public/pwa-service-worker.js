@@ -1,9 +1,10 @@
-const CACHE_VERSION = "efruitmandi-pwa-v2";
+const CACHE_VERSION = "efruitmandi-pwa-v3";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
 const APP_SHELL = [
   "/",
+  "/?source=pwa",
   "/index.html",
   "/offline.html",
   "/manifest.json",

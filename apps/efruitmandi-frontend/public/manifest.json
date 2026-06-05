@@ -3,7 +3,7 @@
   "short_name": "E-Fruit",
   "description": "Automated fresh produce marketplace for growers, buyers, and logistics partners.",
   "id": "/",
-  "start_url": "/",
+  "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],

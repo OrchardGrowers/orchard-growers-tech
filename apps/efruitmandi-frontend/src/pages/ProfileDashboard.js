@@ -19,6 +19,7 @@ import {
   FaYoutube,
 } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
+import { confirmImageCaptureConsent, requestLocationPermission } from "../utils/permissionConsent";
 import {
   hasBuyerProfile,
   hasDriverProfile,
@@ -804,8 +805,8 @@ export default function ProfileDashboard() {
     }
 
     setDetectingAddress(true);
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
+    requestLocationPermission({
+      onSuccess: async (position) => {
         const { latitude, longitude } = position.coords;
 
         try {
@@ -842,12 +843,12 @@ export default function ProfileDashboard() {
           setDetectingAddress(false);
         }
       },
-      () => {
+      onError: () => {
         setDetectingAddress(false);
         setNotice("Location permission was not allowed.");
       },
-      { enableHighAccuracy: true, timeout: 12000 }
-    );
+      options: { enableHighAccuracy: true, timeout: 12000 },
+    });
   };
 
   const requestVerification = () => {
@@ -1311,13 +1312,16 @@ export default function ProfileDashboard() {
               />
               <label className="mt-3 inline-flex cursor-pointer items-center justify-center rounded-md bg-green-700 px-4 py-2 text-xs font-extrabold text-white hover:bg-green-800">
                 Upload banner
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(event) =>
-                    updateMediaDraft("bannerUrl", event.target.files?.[0])
-                  }
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onClick={(event) => {
+                      if (!confirmImageCaptureConsent()) event.preventDefault();
+                    }}
+                    onChange={(event) =>
+                      updateMediaDraft("bannerUrl", event.target.files?.[0])
+                    }
                 />
               </label>
             </div>
@@ -1341,6 +1345,9 @@ export default function ProfileDashboard() {
                     type="file"
                     accept="image/*"
                     className="hidden"
+                    onClick={(event) => {
+                      if (!confirmImageCaptureConsent()) event.preventDefault();
+                    }}
                     onChange={(event) =>
                       updateMediaDraft("avatarUrl", event.target.files?.[0])
                     }
@@ -1371,6 +1378,9 @@ export default function ProfileDashboard() {
                       type="file"
                       accept="image/*"
                       className="hidden"
+                      onClick={(event) => {
+                        if (!confirmImageCaptureConsent()) event.preventDefault();
+                      }}
                       onChange={(event) =>
                         updateMediaDraft("companyLogoUrl", event.target.files?.[0])
                       }

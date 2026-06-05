@@ -95,12 +95,12 @@ export default function InstallAppPrompt() {
                 : isIosDevice()
                   ? "On iPhone/iPad, tap Share, then Add to Home Screen."
                   : isAndroidDevice()
-                    ? "If Android shows only a shortcut, open Chrome menu and choose Install app when available."
+                    ? "Please install from Chrome/Edge for full app experience."
                     : "Use your browser menu and choose Install app or Add to Home Screen."}
             </p>
             {!canInstall && (
               <p className="mt-1 text-xs font-semibold text-gray-500">
-                Some mobile browsers support only a home-screen shortcut. Chrome/Edge usually provide full PWA install when the browser allows it.
+                If your browser shows only Add to home screen, it may create a shortcut instead of a standalone PWA.
               </p>
             )}
           </div>
@@ -119,7 +119,7 @@ export default function InstallAppPrompt() {
             onClick={installApp}
             className="flex-1 rounded-full bg-green-700 px-4 py-2 text-sm font-bold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {canInstall ? "Download App" : "How to Install"}
+            {canInstall ? "Install App" : "How to Install"}
           </button>
           <button
             type="button"

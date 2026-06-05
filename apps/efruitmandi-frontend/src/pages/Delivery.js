@@ -20,6 +20,7 @@ import {
   hasDriverProfile,
   hasGrowerProfile,
 } from "../utils/auth";
+import { requestLocationPermission } from "../utils/permissionConsent";
 
 const statusSteps = [
   { key: "PLACED", label: "Order placed" },
@@ -156,17 +157,17 @@ export default function Delivery() {
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) =>
+    requestLocationPermission({
+      onSuccess: (position) =>
         updateLocation({
           lat: position.coords.latitude,
           lng: position.coords.longitude,
           accuracy: position.coords.accuracy,
           source: "AUTO",
         }),
-      () => setMessage("Location permission denied or unavailable."),
-      { enableHighAccuracy: true, timeout: 12000 }
-    );
+      onError: () => setMessage("Location permission denied or unavailable."),
+      options: { enableHighAccuracy: true, timeout: 12000 },
+    });
   };
 
   const saveManualLocation = () =>
