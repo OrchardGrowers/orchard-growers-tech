@@ -19,7 +19,7 @@ reportWebVitals();
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/pwa-service-worker.js")
+      .register("/pwa-service-worker.js", { scope: "/" })
       .catch(() => undefined);
   });
 }
