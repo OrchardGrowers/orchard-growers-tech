@@ -121,6 +121,52 @@ const resolveRequestedKycRole = (user = {}, requestedRoleType = "") => {
   return "buyer";
 };
 
+const parseKycDocuments = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const normalizeKycDocument = (doc = {}, userId = "", roleType = "") => {
+  const url = String(doc.url || doc.secure_url || "").trim();
+  if (!url) return null;
+  return {
+    label: String(doc.label || doc.field || "").trim(),
+    url,
+    publicId: String(doc.publicId || doc.public_id || "").trim(),
+    resourceType: String(doc.resourceType || doc.resource_type || "").trim(),
+    originalFilename: String(doc.originalFilename || doc.original_filename || doc.fileName || "").trim(),
+    sizeBytes: Number(doc.sizeBytes || doc.bytes || 0) || 0,
+    mimeType: String(doc.mimeType || doc.mimetype || "").trim(),
+    roleType,
+    uploadedBy: userId,
+    uploadedAt: doc.uploadedAt || new Date(),
+  };
+};
+
+const KYC_DOCUMENT_FIELD_BY_LABEL = {
+  idProof: "idProofImage",
+  idProofImage: "idProofImage",
+  aadhaarCard: "aadhaarCardFileUrl",
+  aadhaarCardFile: "aadhaarCardFileUrl",
+  pan: "panImage",
+  panImage: "panImage",
+  gst: "gstCertificate",
+  gstCertificate: "gstCertificate",
+  passbook: "passbookFileUrl",
+  passbookFile: "passbookFileUrl",
+  bankProof: "passbookFileUrl",
+  udyanCard: "udyanCardFileUrl",
+  udyanCardFile: "udyanCardFileUrl",
+  drivingLicense: "drivingLicenseImage",
+  drivingLicenseImage: "drivingLicenseImage",
+};
+
 const getAvailableRoles = (user = {}) => Array.from(getUserProfileTypes(user)).filter((role) => VALID_KYC_ROLE_TYPES.has(role));
 
 const getAllowedCreateRoles = (roles = []) => {
@@ -746,6 +792,20 @@ export const updateKyc = async (req, res) => {
     if (panImage) kyc.panImage = (await uploadKycFile(panImage)).secure_url;
     if (gstCertificate) kyc.gstCertificate = (await uploadKycFile(gstCertificate)).secure_url;
     if (drivingLicenseImage) kyc.drivingLicenseImage = (await uploadKycFile(drivingLicenseImage)).secure_url;
+
+    const uploadedDocuments = parseKycDocuments(req.body.documents)
+      .map((doc) => normalizeKycDocument(doc, req.user.id, roleType))
+      .filter(Boolean);
+    uploadedDocuments.forEach((doc) => {
+      const kycField = KYC_DOCUMENT_FIELD_BY_LABEL[doc.label];
+      if (kycField) kyc[kycField] = doc.url;
+    });
+    if (uploadedDocuments.length) {
+      const previousDocuments = Array.isArray(existingKyc.documents) ? existingKyc.documents : [];
+      const byLabel = new Map(previousDocuments.map((doc) => [doc.label, doc]));
+      uploadedDocuments.forEach((doc) => byLabel.set(doc.label, doc));
+      kyc.documents = Array.from(byLabel.values());
+    }
 
     const missingKycDetails = [
       !kyc.roleType && "role type",

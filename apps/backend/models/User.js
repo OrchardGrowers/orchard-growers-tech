@@ -309,6 +309,7 @@ const userSchema = new mongoose.Schema(
       passbookFileUrl: { type: String, trim: true, default: "" },
       aadhaarCardNo: { type: String, trim: true, default: "" },
       aadhaarCardFileUrl: { type: String, trim: true, default: "" },
+      documents: { type: [mongoose.Schema.Types.Mixed], default: [] },
       status: {
         type: String,
         enum: ["NOT_SUBMITTED", "PENDING", "UNDER_REVIEW", "APPROVED", "REJECTED", "CORRECTION_REQUIRED", "COMPLETED"],

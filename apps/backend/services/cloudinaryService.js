@@ -113,3 +113,21 @@ export const uploadBuffersToCloudinary = async (files = [], options = {}) => {
   );
   return uploaded.filter(Boolean);
 };
+
+export const createSignedUploadParams = ({ folder, publicIdPrefix = "" } = {}) => {
+  const client = configureCloudinary();
+  const timestamp = Math.round(Date.now() / 1000);
+  const params = {
+    folder,
+    timestamp,
+  };
+  if (publicIdPrefix) params.public_id_prefix = publicIdPrefix;
+
+  return {
+    cloudName: client.config().cloud_name,
+    apiKey: client.config().api_key,
+    timestamp,
+    folder,
+    signature: client.utils.api_sign_request(params, client.config().api_secret),
+  };
+};
