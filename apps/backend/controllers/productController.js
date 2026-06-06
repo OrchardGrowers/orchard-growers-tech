@@ -422,7 +422,7 @@ export const getProductById = async (req, res) => {
     const platform = String(req.query.platform || "").trim().toLowerCase();
     const product = await Product.findById(req.params.id).populate(
       "createdBy",
-      "name orchardName businessName companyLogoUrl avatarUrl bannerUrl role location mapLatitude mapLongitude googleMapUrl growerRatingAverage growerRatingCount"
+      "name orchardName businessName phone companyLogoUrl avatarUrl bannerUrl role location mapLatitude mapLongitude googleMapUrl growerRatingAverage growerRatingCount"
     );
 
     const isOrchardPlatform = ["orchard", "orchardgrowers", "orchard-growers"].includes(platform);

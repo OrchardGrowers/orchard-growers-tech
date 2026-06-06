@@ -62,6 +62,7 @@ export default function QuotePrice() {
   const images = useMemo(() => getLotImages(product), [product]);
   const availableGrades = useMemo(() => getAvailableGradeLots(product), [product]);
   const quoteUnit = getQuoteUnit(product);
+  const isOwnLot = useMemo(() => isOwnListedLot(product, profileUser), [product, profileUser]);
   const preview = useMemo(
     () => calculateBuyerPreview(availableGrades, gradePrices, autoDistanceKm ?? distanceKm),
     [availableGrades, gradePrices, autoDistanceKm, distanceKm]
@@ -75,6 +76,11 @@ export default function QuotePrice() {
 
   const submitQuote = async (event) => {
     event.preventDefault();
+    if (isOwnLot) {
+      setMessage("You cannot quote on your own listed lot.");
+      return;
+    }
+
     const missingGrade = availableGrades.find((gradeLot) => Number(gradePrices[gradeLot.grade] || 0) <= 0);
     if (missingGrade) {
       setMessage(`Enter a price greater than 0 for Grade ${missingGrade.grade}.`);
@@ -103,8 +109,8 @@ export default function QuotePrice() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-6xl overflow-x-hidden pb-[calc(120px+env(safe-area-inset-bottom))] md:pb-20">
-      <section className="rounded-md border border-gray-200 bg-white p-3 md:p-4">
+    <div className="mx-auto w-full max-w-full overflow-x-hidden pb-[calc(160px+env(safe-area-inset-bottom))] md:max-w-6xl md:pb-20">
+      <section className="section w-full max-w-full rounded-md border border-gray-200 bg-white p-3 md:p-4">
         <p className="text-xs font-extrabold uppercase tracking-wide text-green-700">Quote Your Price</p>
         <div className="mt-1 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
           <div className="min-w-0">
@@ -174,7 +180,7 @@ export default function QuotePrice() {
           </div>
         </section>
       ) : (
-        <section className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-4">
+        <section className="mt-3 grid w-full max-w-full gap-3 overflow-x-hidden lg:grid-cols-[minmax(0,1fr)_420px] lg:gap-4">
           <LotMediaPanel
             product={product}
             images={images}
@@ -182,8 +188,8 @@ export default function QuotePrice() {
             onSelectImage={setActiveImage}
           />
 
-          <form onSubmit={submitQuote} className="rounded-md border border-gray-200 bg-white p-3 md:p-4 lg:sticky lg:top-20 lg:self-start">
-            <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
+          <form onSubmit={submitQuote} className="quote-panel min-w-0 rounded-md border border-gray-200 bg-white p-3 md:p-4 lg:sticky lg:top-20 lg:self-start">
+            <div className="grid w-full max-w-full grid-cols-2 gap-2 lg:grid-cols-1">
               <InfoTile label="Available grades" value={`${availableGrades.length} grades`} />
               <InfoTile label="Packing" value={product?.packingType || "Not set"} />
               <InfoTile label="Variety" value={product?.variety || "Not set"} />
@@ -196,7 +202,7 @@ export default function QuotePrice() {
                 const price = Number(gradePrices[gradeLot.grade] || 0);
                 const amount = price * gradeLot.quantity;
                 return (
-                  <label key={gradeLot.grade} className="block rounded-md border border-gray-200 bg-white p-2.5 md:p-3">
+                  <label key={gradeLot.grade} className="block w-full max-w-full rounded-md border border-gray-200 bg-white p-2.5 md:p-3">
                     <span className="flex items-start justify-between gap-2 text-sm font-extrabold leading-tight text-gray-800">
                       <span className="min-w-0">{gradeLot.grade} Grade Price <span className="whitespace-nowrap">(Rs. per {quoteUnit.singular})</span></span>
                       <span className="shrink-0 text-xs text-gray-500">
@@ -220,7 +226,7 @@ export default function QuotePrice() {
               })}
             </div>
 
-            <div className="mt-3 rounded-md border border-green-100 bg-green-50 px-3 py-3 text-sm font-bold text-gray-700">
+            <div className="mt-3 w-full max-w-full rounded-md border border-green-100 bg-green-50 px-3 py-3 text-sm font-bold text-gray-700">
               <p className="text-gray-900">Delivery distance</p>
               {autoDistanceKm !== null ? (
                 <>
@@ -247,7 +253,7 @@ export default function QuotePrice() {
               )}
             </div>
 
-            <div className="mt-4 rounded-md bg-green-50 p-3 text-sm font-bold text-green-900">
+            <div className="mt-4 w-full max-w-full rounded-md bg-green-50 p-3 text-sm font-bold text-green-900">
               <div className="flex items-center gap-2">
                 <FaCalculator />
                 <span>Buyer quote preview</span>
@@ -263,7 +269,7 @@ export default function QuotePrice() {
 
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || isOwnLot}
               className="mt-4 hidden w-full items-center justify-center gap-2 rounded-md bg-green-700 px-4 py-3 text-sm font-extrabold text-white md:inline-flex"
             >
               <FaSeedling />
@@ -272,7 +278,7 @@ export default function QuotePrice() {
             <div className="mt-3 hidden justify-center md:flex">
               <BackHomeButton />
             </div>
-            <MobileQuoteSubmitBar saving={saving} preview={quotation || preview} onSubmit={submitQuote} />
+            <MobileQuoteSubmitBar saving={saving} disabled={isOwnLot} preview={quotation || preview} onSubmit={submitQuote} />
           </form>
         </section>
       )}
@@ -284,7 +290,7 @@ function LotMediaPanel({ product, images, activeImage, onSelectImage }) {
   const gradeGroups = getGradeImageGroups(product);
 
   return (
-    <section className="rounded-md border border-gray-200 bg-white p-2.5 md:p-3">
+    <section className="gallery-section section min-w-0 rounded-md border border-gray-200 bg-white p-2.5 md:p-3">
       <div className="mb-2 flex items-center justify-between gap-2 md:mb-3">
         <h2 className="text-sm font-extrabold text-gray-950">Lot media</h2>
         {activeImage?.gradeLabel && (
@@ -293,13 +299,13 @@ function LotMediaPanel({ product, images, activeImage, onSelectImage }) {
           </span>
         )}
       </div>
-      <div className="relative flex min-h-[220px] items-center justify-center rounded-md bg-white md:min-h-[320px]">
+      <div className="relative flex min-h-[220px] w-full max-w-full items-center justify-center overflow-hidden rounded-md bg-white md:min-h-[320px]">
         {activeImage ? (
-          <span className="relative inline-flex max-h-[360px] max-w-full md:max-h-[560px]">
+          <span className="relative inline-flex max-h-[360px] max-w-full min-w-0 md:max-h-[560px]">
             <img
               src={activeImage.url}
               alt={product?.title || "Fruit Lot"}
-              className="max-h-[360px] max-w-full object-contain md:max-h-[560px]"
+              className="h-auto max-h-[360px] w-full max-w-full object-contain md:max-h-[560px]"
             />
             {activeImage?.gradeLabel && <FruitGradeBadge label={activeImage.gradeLabel} />}
           </span>
@@ -313,7 +319,7 @@ function LotMediaPanel({ product, images, activeImage, onSelectImage }) {
       {gradeGroups.length > 0 ? (
         <div className="mt-3 space-y-3">
           {gradeGroups.map((group) => (
-            <div key={group.grade} className="rounded-md border border-green-100 bg-green-50 p-2">
+            <div key={group.grade} className="w-full max-w-full rounded-md border border-green-100 bg-green-50 p-2">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <span className="rounded bg-green-800 px-2 py-1 text-[10px] font-extrabold uppercase text-white">
                   Grade {group.grade}
@@ -322,18 +328,18 @@ function LotMediaPanel({ product, images, activeImage, onSelectImage }) {
                   {group.quantity} {group.quantity === 1 ? "crate" : "crates"}
                 </span>
               </div>
-              <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+              <div className="flex w-full max-w-full gap-2 overflow-x-auto pb-1 no-scrollbar">
                 {group.images.map((image) => (
                   <button
                     key={image.url}
                     type="button"
                     onClick={() => onSelectImage(image)}
-                    className={`relative h-16 w-20 shrink-0 overflow-hidden rounded border bg-white md:h-20 md:w-24 ${
+                    className={`relative h-16 w-20 max-w-[5rem] shrink-0 overflow-hidden rounded border bg-white md:h-20 md:w-24 md:max-w-[6rem] ${
                       activeImage?.url === image.url ? "border-green-700 ring-2 ring-green-200" : "border-gray-200"
                     }`}
                     aria-label={`View Grade ${group.grade} image`}
                   >
-                    <img src={image.url} alt={`Grade ${group.grade}`} className="h-full w-full object-contain" />
+                    <img src={image.url} alt={`Grade ${group.grade}`} className="h-full w-full max-w-full object-cover" />
                   </button>
                 ))}
               </div>
@@ -341,17 +347,17 @@ function LotMediaPanel({ product, images, activeImage, onSelectImage }) {
           ))}
         </div>
       ) : images.length > 1 ? (
-        <div className="mt-2 flex gap-2 overflow-x-auto pb-1 no-scrollbar md:mt-3">
+        <div className="mt-2 flex w-full max-w-full gap-2 overflow-x-auto pb-1 no-scrollbar md:mt-3">
           {images.map((image) => (
             <button
               key={image.url}
               type="button"
               onClick={() => onSelectImage(image)}
-              className={`relative h-14 w-16 shrink-0 overflow-hidden rounded border bg-white md:h-16 md:w-20 ${
+              className={`relative h-14 w-16 max-w-[4rem] shrink-0 overflow-hidden rounded border bg-white md:h-16 md:w-20 md:max-w-[5rem] ${
                 activeImage?.url === image.url ? "border-green-700" : "border-gray-200"
               }`}
             >
-              <img src={image.url} alt="" className="h-full w-full object-contain" />
+              <img src={image.url} alt="" className="h-full w-full max-w-full object-cover" />
               {image.gradeLabel && (
                 <span className="absolute left-1 top-1 rounded bg-green-800 px-1.5 py-0.5 text-[8px] font-extrabold uppercase text-white shadow">
                   {image.gradeLabel}
@@ -363,12 +369,14 @@ function LotMediaPanel({ product, images, activeImage, onSelectImage }) {
       ) : null}
 
       {product?.sampleVideo && (
-        <div className="mt-3 md:mt-4">
+        <div className="video-section mt-3 w-full max-w-full md:mt-4">
           <h3 className="mb-2 flex items-center gap-2 text-xs font-extrabold text-gray-800">
             <FaVideo className="text-green-700" />
             Sample lot video
           </h3>
-          <video src={toAssetUrl(product.sampleVideo)} controls className="aspect-video w-full rounded-md bg-black" />
+          <div className="aspect-video w-full max-w-full overflow-hidden rounded-md bg-black">
+            <video src={toAssetUrl(product.sampleVideo)} controls className="block h-full w-full max-w-full bg-black object-contain" />
+          </div>
         </div>
       )}
     </section>
@@ -420,7 +428,7 @@ function BuyerQuoteSummary({ breakdown = {} }) {
   const grades = breakdown.grades || [];
 
   return (
-    <div className="mt-2 space-y-1.5 md:space-y-2">
+    <div className="mt-2 w-full max-w-full space-y-1.5 md:space-y-2">
       {grades.length > 0 && (
         <div className="space-y-1">
           {grades.map((grade) => (
@@ -436,9 +444,9 @@ function BuyerQuoteSummary({ breakdown = {} }) {
       <SummaryRow label="Total deal amount" value={breakdown.dealAmount} />
       <SummaryRow label="Driver charge" value={breakdown.driverCharge} />
       <SummaryRow label="Commission" value={breakdown.commissionAmount} />
-      <div className="flex items-center justify-between gap-2 border-t border-green-200 pt-2 text-base font-extrabold">
-        <span>Final payable</span>
-        <span>Rs. {breakdown.buyerPayable || 0}</span>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-green-200 pt-2 text-base font-extrabold">
+        <span className="min-w-0 truncate">Final payable</span>
+        <span className="shrink-0">Rs. {breakdown.buyerPayable || 0}</span>
       </div>
     </div>
   );
@@ -453,19 +461,19 @@ function SummaryRow({ label, value }) {
   );
 }
 
-function MobileQuoteSubmitBar({ saving, preview = {}, onSubmit }) {
+function MobileQuoteSubmitBar({ saving, disabled = false, preview = {}, onSubmit }) {
   return (
-    <div className="fixed inset-x-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-40 border-t border-green-100 bg-white/95 px-3 py-2 shadow-[0_-8px_20px_rgba(0,0,0,0.08)] backdrop-blur md:hidden">
-      <div className="mx-auto flex max-w-md items-center gap-3">
+    <div className="fixed left-0 right-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-40 w-full max-w-[100vw] border-t border-green-100 bg-white/95 px-4 pb-[calc(10px+env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-8px_20px_rgba(0,0,0,0.08)] backdrop-blur md:hidden">
+      <div className="flex w-full max-w-full items-center gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-extrabold uppercase text-gray-500">Final payable</p>
           <p className="truncate text-base font-extrabold text-green-800">Rs. {preview.buyerPayable || 0}</p>
         </div>
         <button
           type="button"
-          disabled={saving}
+          disabled={saving || disabled}
           onClick={onSubmit}
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-green-700 px-5 py-2.5 text-sm font-extrabold text-white disabled:bg-gray-300"
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-green-700 px-4 py-2.5 text-sm font-extrabold text-white disabled:bg-gray-300"
         >
           <FaSeedling />
           {saving ? "Submitting..." : "Submit"}
@@ -473,6 +481,37 @@ function MobileQuoteSubmitBar({ saving, preview = {}, onSubmit }) {
       </div>
     </div>
   );
+}
+
+function normalizeId(value) {
+  if (!value) return "";
+  return String(value._id || value.id || value.userId || value).trim();
+}
+
+function normalizePhone(value = "") {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function isOwnListedLot(product = {}, user = {}) {
+  if (!product || !user) return false;
+  const owner = product.createdBy || {};
+  const userIds = new Set(
+    [normalizeId(user._id), normalizeId(user.id), normalizeId(user.userId)].filter(Boolean)
+  );
+  const ownerIds = new Set(
+    [
+      normalizeId(owner),
+      normalizeId(product.growerUserId),
+      normalizeId(product.growerId),
+      normalizeId(product.growerId?.userId),
+      normalizeId(product.ownerId),
+    ].filter(Boolean)
+  );
+  const sameId = [...userIds].some((id) => ownerIds.has(id));
+  const userPhone = normalizePhone(user.phone);
+  const ownerPhone = normalizePhone(owner.phone || product.growerPhone);
+
+  return Boolean(sameId || (userPhone && ownerPhone && userPhone === ownerPhone));
 }
 
 function getLotImages(product) {

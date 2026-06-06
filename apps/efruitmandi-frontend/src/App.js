@@ -29,6 +29,7 @@ import PolicyPage from "./pages/PolicyPage";
 import GpsTracking from "./pages/GpsTracking";
 import EscrowWorkflow from "./pages/EscrowWorkflow";
 import QuotePrice from "./pages/QuotePrice";
+import QuoteDetails from "./pages/QuoteDetails";
 import RateGrower from "./pages/RateGrower";
 
 function App() {
@@ -91,6 +92,7 @@ function App() {
             <Route path="/user-data-deletion" element={<PolicyPage type="deletion" />} />
             <Route path="/lots/:lotId" element={<LotDetails />} />
             <Route path="/lots/:lotId/quote" element={<QuotePrice />} />
+            <Route path="/quotes/:quoteId" element={<QuoteDetails />} />
             <Route path="/lots/:lotId/rating" element={<RateGrower />} />
             <Route path="/search" element={<SearchResults />} />
 

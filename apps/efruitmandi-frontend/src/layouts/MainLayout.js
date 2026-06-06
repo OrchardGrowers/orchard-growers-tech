@@ -7,9 +7,9 @@ export default function MainLayout() {
   const isHome = location.pathname === "/";
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#eef3ef]">
+    <div className="flex min-h-screen w-full max-w-full flex-col overflow-x-hidden bg-[#eef3ef]">
       <Navbar />
-      <main className={`flex-1 ${isHome ? "pt-[54px] md:pt-[74px]" : "pt-[64px]"} px-3 md:px-4`}>
+      <main className={`page-container flex-1 ${isHome ? "pt-[54px] md:pt-[74px]" : "pt-[64px]"} px-3 md:px-4`}>
         <Outlet />
       </main>
       <footer className="pb-[104px] md:pb-6" />

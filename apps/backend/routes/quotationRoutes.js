@@ -125,11 +125,43 @@ const populateQuoteQuery = (query) =>
     .populate("buyer", "name businessName buyerContactPerson phone")
     .populate("grower", "name orchardName businessName phone");
 
+const normalizeId = (value) => {
+  if (!value) return "";
+  return String(value._id || value.id || value.userId || value).trim();
+};
+
+const normalizePhone = (value = "") => String(value || "").replace(/\D/g, "");
+
+const isOwnListedLot = (product = {}, buyer = {}, authenticatedUser = {}) => {
+  const requesterIds = new Set(
+    [
+      normalizeId(authenticatedUser.id),
+      normalizeId(authenticatedUser._id),
+      normalizeId(buyer._id),
+      normalizeId(buyer.id),
+    ].filter(Boolean)
+  );
+  const ownerIds = new Set(
+    [
+      normalizeId(product.createdBy),
+      normalizeId(product.growerUserId),
+      normalizeId(product.growerId),
+      normalizeId(product.growerId?.userId),
+      normalizeId(product.ownerId),
+    ].filter(Boolean)
+  );
+  const sameUserId = [...requesterIds].some((id) => ownerIds.has(id));
+  const buyerPhone = normalizePhone(buyer.phone || authenticatedUser.phone);
+  const growerPhone = normalizePhone(product.createdBy?.phone || product.growerPhone);
+
+  return Boolean(sameUserId || (buyerPhone && growerPhone && buyerPhone === growerPhone));
+};
+
 const createQuoteForLot = async (req, res) => {
   try {
     const lotId = req.params.lotId || req.body.lotId;
     const [product, buyer] = await Promise.all([
-      Product.findById(lotId).populate("createdBy", "name orchardName businessName mapLatitude mapLongitude"),
+      Product.findById(lotId).populate("createdBy", "name orchardName businessName phone mapLatitude mapLongitude"),
       User.findById(req.user.id).select("role profileTypes name phone businessName buyerContactPerson kyc kycByRole buyerVerified mapLatitude mapLongitude"),
     ]);
 
@@ -154,8 +186,8 @@ const createQuoteForLot = async (req, res) => {
       return res.status(404).json({ msg: "Grower not found for this lot" });
     }
 
-    if (String(product.createdBy._id || product.createdBy) === String(req.user.id)) {
-      return res.status(400).json({ msg: "Growers cannot quote on their own lot" });
+    if (isOwnListedLot(product, buyer, req.user)) {
+      return res.status(400).json({ msg: "You cannot quote on your own listed lot." });
     }
 
     const existingActiveQuote = await Quotation.findOne({

@@ -51,8 +51,8 @@ export default function BottomNav() {
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-green-800 bg-green-700 pb-[max(env(safe-area-inset-bottom),0.35rem)] pt-2 md:hidden">
-      <nav className="mx-auto flex max-w-md items-center justify-around px-2">
+    <div className="fixed bottom-0 left-0 right-0 z-50 w-full max-w-[100vw] overflow-x-hidden border-t border-green-800 bg-green-700 pb-[max(env(safe-area-inset-bottom),0.35rem)] pt-2 md:hidden">
+      <nav className="mx-auto flex w-full max-w-md items-center justify-around px-2">
         {navItems.map((item, i) => {
           const isActive =
             selectedItem === item.label ||

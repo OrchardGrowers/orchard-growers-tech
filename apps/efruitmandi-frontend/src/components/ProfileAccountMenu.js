@@ -53,7 +53,7 @@ const resolveProfileMode = (user = {}, requestedMode = "") => {
   if (mode === "buyer" && hasBuyerProfile(user)) return "buyer";
   if (mode === "grower" && hasGrowerProfile(user)) return "grower";
   if (mode === "driver" && hasDriverProfile(user)) return "driver";
-  const role = String(user.role || "").toLowerCase();
+  const role = String(user.activeRole || user.selectedRole || user.role || "").toLowerCase();
   if (role === "grower" && hasGrowerProfile(user)) return "grower";
   if (role === "buyer" && hasBuyerProfile(user)) return "buyer";
   if (role === "driver" && hasDriverProfile(user)) return "driver";

@@ -176,14 +176,14 @@ export default function Navbar() {
 
   return (
     <>
-      <div className="fixed inset-x-0 top-0 z-50 bg-green-700 px-1.5 pb-2 pt-2 shadow-sm md:hidden">
-        <div className="grid grid-cols-[44px_minmax(112px,1fr)_116px] items-center gap-2">
+      <div className="fixed inset-x-0 top-0 z-50 w-full max-w-full overflow-x-hidden bg-green-700 px-1.5 pb-2 pt-2 shadow-sm md:hidden">
+        <div className="grid w-full max-w-full grid-cols-[38px_minmax(0,1fr)_auto] items-center gap-1.5">
           <Link
             to="/"
             aria-label="Go to home"
-            className="flex h-8 items-center justify-start overflow-hidden"
+            className="flex h-8 min-w-0 items-center justify-start overflow-hidden"
           >
-            <img src={logoUrl} className="max-h-7 max-w-[42px] object-contain" alt="Orchard Growers" />
+            <img src={logoUrl} className="max-h-7 max-w-[36px] object-contain" alt="Orchard Growers" />
           </Link>
 
           <SearchForm
@@ -196,7 +196,7 @@ export default function Navbar() {
           />
 
           <div className="flex min-w-0 items-center justify-end gap-1">
-            <div className="flex h-8 w-[48px] shrink-0 items-center gap-0.5 rounded-full bg-white px-1">
+            <div className="flex h-8 w-[44px] shrink-0 items-center gap-0.5 rounded-full bg-white px-1">
               <img src={selected.flag} className="h-3 w-4 rounded-[2px]" alt="" />
               <select
                 value={selected.code}

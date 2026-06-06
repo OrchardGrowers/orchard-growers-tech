@@ -113,7 +113,7 @@ export default function LotDetails() {
 
   if (loading) {
     return (
-      <div className="pb-20">
+      <div className="w-full max-w-full overflow-x-hidden pb-[calc(160px+env(safe-area-inset-bottom))]">
         <p className="py-3 text-sm font-semibold text-green-700">
           Loading lot details...
         </p>
@@ -123,7 +123,7 @@ export default function LotDetails() {
 
   if (!product) {
     return (
-      <div className="pb-20">
+      <div className="w-full max-w-full overflow-x-hidden pb-[calc(160px+env(safe-area-inset-bottom))]">
         <button
           type="button"
           onClick={() => navigate(-1)}
@@ -138,7 +138,7 @@ export default function LotDetails() {
   }
 
   return (
-    <div className="pb-20">
+    <div className="w-full max-w-full overflow-x-hidden pb-[calc(160px+env(safe-area-inset-bottom))]">
       <button
         type="button"
         onClick={() => navigate(-1)}
@@ -148,8 +148,8 @@ export default function LotDetails() {
         Back
       </button>
 
-      <section className="rounded-md border border-gray-200 bg-white p-2">
-        <div className="relative flex h-[70vh] max-h-[680px] min-h-[320px] w-full items-center justify-center rounded-md bg-white">
+      <section className="gallery-section section w-full max-w-full rounded-md border border-gray-200 bg-white p-2">
+        <div className="relative flex h-[58vh] max-h-[680px] min-h-[240px] w-full max-w-full items-center justify-center overflow-hidden rounded-md bg-white md:h-[70vh] md:min-h-[320px]">
           {activeImage ? (
             <button
               type="button"
@@ -157,15 +157,15 @@ export default function LotDetails() {
                 setImageZoom(1);
                 setImagePreviewOpen(true);
               }}
-              className="flex h-full w-full items-center justify-center"
+              className="flex h-full w-full max-w-full items-center justify-center"
               aria-label="Open image preview"
             >
-              <span className="relative inline-flex max-h-full max-w-full">
+              <span className="relative inline-flex max-h-full max-w-full min-w-0">
                 <img
                   src={toAssetUrl(activeImage)}
                   alt={product.title || "Fruit Lot"}
                   onError={() => setActiveImage(images.find((image) => toAssetUrl(image) !== toAssetUrl(activeImage)) || "")}
-                  className="max-h-full max-w-full object-contain object-center"
+                  className="h-auto max-h-full w-full max-w-full object-contain object-center"
                 />
                 {activeGradeLabel && <FruitGradeBadge label={activeGradeLabel} />}
               </span>
@@ -178,13 +178,13 @@ export default function LotDetails() {
         </div>
 
         {images.length > 1 && (
-          <div className="mt-2 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+          <div className="mt-2 flex w-full max-w-full gap-2 overflow-x-auto pb-1 no-scrollbar">
             {images.map((image) => (
               <button
                 key={getAssetKey(image)}
                 type="button"
                 onClick={() => setActiveImage(image)}
-                className={`h-14 w-16 shrink-0 overflow-hidden rounded border ${
+                className={`h-14 w-16 max-w-[4rem] shrink-0 overflow-hidden rounded border ${
                   activeImage === image ? "border-green-700" : "border-gray-200"
                 }`}
               >
@@ -194,13 +194,13 @@ export default function LotDetails() {
                   onError={(event) => {
                     event.currentTarget.style.display = "none";
                   }}
-                  className="h-full w-full object-contain"
+                  className="h-full w-full max-w-full object-contain"
                 />
               </button>
             ))}
           </div>
         )}
-        <div className="mt-3 grid gap-2 rounded-md bg-green-50 px-3 py-3 text-xs sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <div className="mt-3 grid w-full max-w-full gap-2 rounded-md bg-green-50 px-3 py-3 text-xs sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
           <div className="min-w-0">
             <p className="font-extrabold text-gray-950">{growerName}</p>
             <p className="mt-1 flex flex-wrap items-center gap-2 font-bold text-gray-600">
@@ -211,7 +211,7 @@ export default function LotDetails() {
               <span>{product.location || "Fruit Mandi"}</span>
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex min-w-0 flex-wrap gap-2">
             <button
               type="button"
               onClick={openRateGrowerFlow}
@@ -230,8 +230,8 @@ export default function LotDetails() {
         </div>
       </section>
 
-      <section className="mt-3 rounded-md border border-gray-200 bg-white p-3">
-        <div className="flex items-start justify-between gap-3">
+      <section className="section mt-3 w-full max-w-full rounded-md border border-gray-200 bg-white p-3">
+        <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-base font-extrabold text-black">
               {product.title || "Fruit Lot"}
@@ -269,7 +269,7 @@ export default function LotDetails() {
           </div>
         )}
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="mt-3 grid w-full max-w-full grid-cols-2 gap-2">
           <InfoTile label="Fruit" value={product.fruitName || product.title} />
           <InfoTile label="Variety" value={product.variety || "Not set"} />
           <InfoTile label="Quality" value={product.quality || "Not set"} />
@@ -298,7 +298,7 @@ export default function LotDetails() {
       <GradeLots lots={product.gradeLots || []} />
       <SampleVideo video={product.sampleVideo} />
 
-      <section className="mt-3 rounded-md border border-gray-200 bg-white p-3">
+      <section className="section mt-3 w-full max-w-full rounded-md border border-gray-200 bg-white p-3">
         <h2 className="mb-2 text-xs font-extrabold text-black">Grower Information</h2>
         <div className="flex items-center gap-2 text-xs font-bold text-gray-700">
           <FaUser className="text-green-700" />
@@ -324,10 +324,10 @@ export default function LotDetails() {
 
 function ImageZoomModal({ imageUrl, title, zoom, onZoomIn, onZoomOut, onReset, onClose }) {
   return (
-    <div className="fixed inset-0 z-[1000] flex flex-col bg-black/90 p-3">
-      <div className="mb-3 flex items-center justify-between gap-2">
+    <div className="fixed inset-0 z-[1000] flex max-w-full flex-col overflow-x-hidden bg-black/90 p-3">
+      <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-2">
         <p className="min-w-0 truncate text-sm font-extrabold text-white">{title}</p>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5">
           <button type="button" onClick={onZoomOut} className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-900" aria-label="Zoom out">
             <FaSearchMinus />
           </button>
@@ -365,7 +365,7 @@ function FruitGradeBadge({ label }) {
 function AuctionPanel({ auction }) {
   if (!auction) {
     return (
-      <section className="mt-3 rounded-md border border-green-100 bg-green-50 p-3">
+    <section className="section mt-3 w-full max-w-full rounded-md border border-green-100 bg-green-50 p-3">
         <h2 className="text-xs font-extrabold text-green-900">Deal Details</h2>
         <p className="mt-1 text-xs font-bold text-green-800">
           This lot is listed, but deal details are not confirmed yet.
@@ -375,15 +375,15 @@ function AuctionPanel({ auction }) {
   }
 
   return (
-    <section className="mt-3 rounded-md border border-gray-200 bg-white p-3">
-      <div className="flex items-center justify-between gap-2">
+    <section className="section mt-3 w-full max-w-full rounded-md border border-gray-200 bg-white p-3">
+      <div className="flex min-w-0 items-center justify-between gap-2">
         <h2 className="text-xs font-extrabold text-black">Deal Details</h2>
         <span className="rounded bg-green-100 px-2 py-1 text-[9px] font-extrabold text-green-800">
           {formatDealStatus(auction.status)}
         </span>
       </div>
 
-      <div className="mt-2 grid grid-cols-2 gap-2">
+      <div className="mt-2 grid w-full max-w-full grid-cols-2 gap-2">
         <InfoTile label="Current deal price" value={`Rs. ${auction.currentBid || 0}`} />
         {auction.startingPrice !== undefined && (
           <InfoTile label="Starting price" value={`Rs. ${auction.startingPrice || 0}`} />
@@ -405,23 +405,23 @@ function GradeLots({ lots }) {
   if (!lots.length) return null;
 
   return (
-    <section className="mt-3 rounded-md border border-gray-200 bg-white p-3">
+    <section className="gallery-section section mt-3 w-full max-w-full rounded-md border border-gray-200 bg-white p-3">
       <h2 className="mb-2 text-xs font-extrabold text-black">
         Grade-wise Lot Samples
       </h2>
       <div className="space-y-3">
         {lots.map((lot) => (
-          <div key={lot.grade} className="rounded-md bg-gray-50 p-2">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-extrabold text-black">
+          <div key={lot.grade} className="w-full max-w-full rounded-md bg-gray-50 p-2">
+            <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
+              <span className="min-w-0 truncate text-xs font-extrabold text-black">
                 Grade {lot.grade}
               </span>
-              <span className="rounded bg-white px-2 py-1 text-[9px] font-extrabold text-gray-700">
+              <span className="shrink-0 rounded bg-white px-2 py-1 text-[9px] font-extrabold text-gray-700">
                 {lot.boxes || 0} boxes | {formatWeight(lot.weightKg)}
               </span>
             </div>
             {getLotImages(lot).length ? (
-              <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+              <div className="flex w-full max-w-full gap-2 overflow-x-auto pb-1 no-scrollbar">
                 {getLotImages(lot).map((image) => (
                   <img
                     key={getAssetKey(image)}
@@ -430,7 +430,7 @@ function GradeLots({ lots }) {
                     onError={(event) => {
                       event.currentTarget.style.display = "none";
                     }}
-                    className="h-20 w-24 shrink-0 rounded bg-white object-contain"
+                    className="h-20 w-24 max-w-[6rem] shrink-0 rounded bg-white object-cover"
                   />
                 ))}
               </div>
@@ -450,23 +450,25 @@ function SampleVideo({ video }) {
   if (!video) return null;
 
   return (
-    <section className="mt-3 rounded-md border border-gray-200 bg-white p-3">
+    <section className="video-section section mt-3 w-full max-w-full rounded-md border border-gray-200 bg-white p-3">
       <h2 className="mb-2 flex items-center gap-2 text-xs font-extrabold text-black">
         <FaVideo className="text-green-700" />
         Sample Lot Video
       </h2>
-      <video
-        src={toAssetUrl(video)}
-        controls
-        className="aspect-video w-full rounded-md bg-black"
-      />
+      <div className="aspect-video w-full max-w-full overflow-hidden rounded-md bg-black">
+        <video
+          src={toAssetUrl(video)}
+          controls
+          className="block h-full w-full max-w-full bg-black object-contain"
+        />
+      </div>
     </section>
   );
 }
 
 function InfoTile({ label, value }) {
   return (
-    <div className="rounded-md bg-green-50 px-3 py-2">
+    <div className="min-w-0 rounded-md bg-green-50 px-3 py-2">
       <p className="text-[9px] font-extrabold text-gray-500">{label}</p>
       <p className="mt-1 truncate text-xs font-extrabold text-black">
         {value || "Not set"}

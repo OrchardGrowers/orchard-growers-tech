@@ -404,7 +404,8 @@ export default function ProfileDashboard() {
     isGrower && { key: "grower", label: "Grower", icon: <FaSeedling /> },
     isDriver && { key: "driver", label: "Driver", icon: <FaTruck /> },
   ].filter(Boolean);
-  const roleProfileMode = availableProfileModes.find((mode) => mode.key === user.role)?.key;
+  const currentRoleMode = String(user.activeRole || user.selectedRole || user.role || "").toLowerCase();
+  const roleProfileMode = availableProfileModes.find((mode) => mode.key === currentRoleMode)?.key;
   const profileMode = availableProfileModes.some((mode) => mode.key === activeProfileMode)
     ? activeProfileMode
     : roleProfileMode || availableProfileModes[0]?.key || "visitor";
@@ -1396,9 +1397,8 @@ export default function ProfileDashboard() {
             onSeeRates={() => navigate("/auctions")}
             onUpdateLot={updateLot}
             onDeleteLot={deleteLot}
-            onViewLot={(lotId) => navigate(`/lots/${lotId}`)}
+            onViewQuoteDetails={(quoteId) => navigate(`/quotes/${quoteId}`)}
             onAcceptQuote={acceptBuyerQuote}
-            onRejectQuote={rejectBuyerQuote}
           />
         )}
 
@@ -2009,9 +2009,8 @@ function ProfileMarketPanel({
   onSeeRates,
   onUpdateLot,
   onDeleteLot,
-  onViewLot,
+  onViewQuoteDetails,
   onAcceptQuote,
-  onRejectQuote,
 }) {
   return (
     <div className="mt-4 space-y-3 rounded-lg border border-gray-200 bg-white p-3">
@@ -2024,9 +2023,8 @@ function ProfileMarketPanel({
       <GrowerBuyerQuotesSection
         quotes={quotes}
         actionId={quoteActionId}
-        onViewLot={onViewLot}
+        onViewDetails={onViewQuoteDetails}
         onAccept={onAcceptQuote}
-        onReject={onRejectQuote}
       />
 
       <MarketLotSection
@@ -2395,7 +2393,7 @@ function MarketLotCard({ item, onUpdateLot, onDeleteLot }) {
   );
 }
 
-function GrowerBuyerQuotesSection({ quotes = [], actionId = "", onViewLot, onAccept, onReject }) {
+function GrowerBuyerQuotesSection({ quotes = [], actionId = "", onViewDetails, onAccept }) {
   return (
     <section>
       <div className="mb-2 flex items-center justify-between">
@@ -2436,19 +2434,25 @@ function GrowerBuyerQuotesSection({ quotes = [], actionId = "", onViewLot, onAcc
                     )}
                   </div>
                   <div className="text-left md:text-right">
-                    <p className="text-sm font-black text-green-900">Rs. {quote.quotedTotalValue || quote.dealAmount || 0}</p>
+                    <p className="text-[10px] font-extrabold uppercase text-gray-500">
+                      Grower Receives
+                    </p>
+                    <p className="text-sm font-black text-green-900">Rs. {quote.sellerReceivable || 0}</p>
+                    <p className="text-[10px] font-bold text-gray-500">
+                      Quote value: Rs. {quote.quotedTotalValue || quote.dealAmount || 0}
+                    </p>
                     <p className="text-[10px] font-bold text-gray-500">
                       {quote.createdAt ? new Date(quote.createdAt).toLocaleString("en-IN") : "Date not available"}
                     </p>
                   </div>
                 </div>
-                <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="mt-3 grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => onViewLot?.(quote.lotId)}
+                    onClick={() => onViewDetails?.(quote._id)}
                     className="rounded bg-white px-2 py-2 text-[10px] font-extrabold text-green-800 ring-1 ring-green-100"
                   >
-                    View Lot
+                    View Quote Details
                   </button>
                   <button
                     type="button"
@@ -2456,15 +2460,7 @@ function GrowerBuyerQuotesSection({ quotes = [], actionId = "", onViewLot, onAcc
                     onClick={() => onAccept?.(quote)}
                     className="rounded bg-green-700 px-2 py-2 text-[10px] font-extrabold text-white disabled:bg-gray-200 disabled:text-gray-500"
                   >
-                    {actionId === quote._id ? "Working..." : "Accept Quote"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => onReject?.(quote)}
-                    className="rounded bg-red-50 px-2 py-2 text-[10px] font-extrabold text-red-700 ring-1 ring-red-100 disabled:bg-gray-100 disabled:text-gray-400 disabled:ring-gray-100"
-                  >
-                    Reject Quote
+                    {actionId === quote._id ? "Working..." : "Accept Deal"}
                   </button>
                 </div>
               </article>
