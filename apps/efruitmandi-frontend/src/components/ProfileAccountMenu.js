@@ -63,6 +63,11 @@ const resolveProfileMode = (user = {}, requestedMode = "") => {
   return "visitor";
 };
 
+const getRequestedProfileMode = () => {
+  const queryMode = new URLSearchParams(window.location.search).get("mode");
+  return queryMode || localStorage.getItem("efruitmandiProfileMode") || "";
+};
+
 export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobile = false }) {
   const [activeGrowerMenuItem, setActiveGrowerMenuItem] = useState(
     () => localStorage.getItem("activeGrowerMenuItem") || ""
@@ -70,19 +75,23 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
   const isGrower = hasGrowerProfile(user);
   const isBuyer = hasBuyerProfile(user);
   const isDriver = hasDriverProfile(user);
-  const [activeMode, setActiveMode] = useState(() => resolveProfileMode(user));
+  const [activeMode, setActiveMode] = useState(() => resolveProfileMode(user, getRequestedProfileMode()));
   const hasBuyerDriverConflict = isBuyer && isDriver;
   const canCreateBuyer = !isBuyer && !isDriver && !hasBuyerDriverConflict;
   const canCreateDriver = !isDriver && !isBuyer && !hasBuyerDriverConflict;
 
   useEffect(() => {
     const syncMode = (event) => {
-      setActiveMode(resolveProfileMode(user, event.detail?.mode || ""));
+      setActiveMode(resolveProfileMode(user, event.detail?.mode || getRequestedProfileMode()));
     };
 
     syncMode({ detail: {} });
+    window.addEventListener("popstate", syncMode);
     window.addEventListener("efruitmandi-profile-mode-change", syncMode);
-    return () => window.removeEventListener("efruitmandi-profile-mode-change", syncMode);
+    return () => {
+      window.removeEventListener("popstate", syncMode);
+      window.removeEventListener("efruitmandi-profile-mode-change", syncMode);
+    };
   }, [user]);
 
   const displayName =

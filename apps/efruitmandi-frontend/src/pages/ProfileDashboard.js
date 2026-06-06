@@ -400,6 +400,16 @@ export default function ProfileDashboard() {
   const profileMode = availableProfileModes.some((mode) => mode.key === activeProfileMode)
     ? activeProfileMode
     : roleProfileMode || availableProfileModes[0]?.key || "visitor";
+  useEffect(() => {
+    if (!profileMode || profileMode === "visitor") return;
+    localStorage.setItem("efruitmandiProfileMode", profileMode);
+    window.dispatchEvent(
+      new CustomEvent("efruitmandi-profile-mode-change", {
+        detail: { mode: profileMode },
+      })
+    );
+  }, [profileMode]);
+
   const switchProfileMode = (mode) => {
     setActiveProfileMode(mode);
     localStorage.setItem("efruitmandiProfileMode", mode);
@@ -539,7 +549,15 @@ export default function ProfileDashboard() {
   const verifiedContactNo = profileContactNo || "Add contact no.";
   const verifiedEmail = profileEmail || "Add email";
   const visitorAddress = profileAddress || user.location || "not available";
-  const isTrustedAccount = Boolean(user.isVerified);
+  const isRoleKycApproved = kycStatus === "APPROVED" || Boolean(roleVerificationStatus?.kycVerified);
+  const isTrustedAccount =
+    profileMode === "buyer"
+      ? Boolean(user.buyerVerified || isRoleKycApproved)
+      : profileMode === "grower"
+        ? Boolean(user.growerVerified || isRoleKycApproved)
+        : profileMode === "driver"
+          ? Boolean(user.driverVerified || isRoleKycApproved)
+          : false;
   const organizationLabel = displayName;
   const trustedLabel = isTrustedAccount
     ? "Orchard Growers Verified"
