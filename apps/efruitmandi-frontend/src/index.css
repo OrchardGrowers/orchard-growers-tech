@@ -133,6 +133,18 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
+.kyc-page,
+.kyc-page * {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+.kyc-page input,
+.kyc-page select,
+.kyc-page textarea {
+  width: 100%;
+}
+
 /* Hide native browser password reveal icons so custom eye buttons do not duplicate. */
 input[type="password"]::-ms-reveal,
 input[type="password"]::-ms-clear {

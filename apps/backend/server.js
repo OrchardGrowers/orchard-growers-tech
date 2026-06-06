@@ -117,10 +117,19 @@ const corsOrigin = (origin, callback) => {
   // Allow health checks, server-to-server requests, Postman, and Render checks.
   if (!origin) return callback(null, true);
 
+  const isLoopbackOrigin = (value) => {
+    try {
+      const { hostname } = new URL(value);
+      return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+    } catch {
+      return false;
+    }
+  };
+
   if (
     allowedOrigins.includes(origin) ||
     origin.includes("vercel.app") ||
-    origin.includes("localhost")
+    isLoopbackOrigin(origin)
   ) {
     return callback(null, true);
   }

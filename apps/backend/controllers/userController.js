@@ -169,6 +169,10 @@ const KYC_DOCUMENT_FIELD_BY_LABEL = {
 
 const getAvailableRoles = (user = {}) => Array.from(getUserProfileTypes(user)).filter((role) => VALID_KYC_ROLE_TYPES.has(role));
 
+const isAadhaarProof = (value = "") => String(value || "").trim().toLowerCase() === "aadhaar";
+const normalizeAadhaar = (value = "") => String(value || "").replace(/\D/g, "").slice(0, 12);
+const PAN_PATTERN = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+
 const getAllowedCreateRoles = (roles = []) => {
   const roleSet = new Set(roles);
   return ["grower", "buyer", "driver"].filter((role) => {
@@ -754,6 +758,11 @@ export const updateKyc = async (req, res) => {
           ? "driver"
           : "buyer";
 
+    const rawIdProofType = String(req.body.idProofType || existingKyc.idProofType || "Aadhaar").trim();
+    const rawIdProofNumber = String(req.body.idProofNumber || existingKyc.idProofNumber || req.body.aadhaarCardNo || existingKyc.aadhaarCardNo || "").trim();
+    const normalizedAadhaar = normalizeAadhaar(req.body.aadhaarCardNo || rawIdProofNumber);
+    const rawPanNumber = String(req.body.panNumber || existingKyc.panNumber || "").trim().toUpperCase();
+
     const kyc = {
       ...existingKyc,
       roleType,
@@ -764,9 +773,9 @@ export const updateKyc = async (req, res) => {
       district: String(req.body.district || existingKyc.district || "").trim(),
       state: String(req.body.state || existingKyc.state || "").trim(),
       pinCode: String(req.body.pinCode || existingKyc.pinCode || getKycPinCodeFallback(existingUser, roleType)).trim(),
-      idProofType: String(req.body.idProofType || existingKyc.idProofType || "Aadhaar").trim(),
-      idProofNumber: String(req.body.idProofNumber || existingKyc.idProofNumber || req.body.aadhaarCardNo || existingKyc.aadhaarCardNo || "").trim(),
-      panNumber: String(req.body.panNumber || existingKyc.panNumber || "").trim().toUpperCase(),
+      idProofType: rawIdProofType,
+      idProofNumber: isAadhaarProof(rawIdProofType) ? normalizedAadhaar : rawIdProofNumber,
+      panNumber: rawPanNumber,
       gstNumber: String(req.body.gstNumber || existingKyc.gstNumber || existingUser.gstNumber || "").trim().toUpperCase(),
       bankAccountHolderName: String(req.body.bankAccountHolderName || existingKyc.bankAccountHolderName || existingUser.name || "").trim(),
       bankName: String(req.body.bankName || existingKyc.bankName || "").trim(),
@@ -783,7 +792,7 @@ export const updateKyc = async (req, res) => {
       ifscCode: String(req.body.ifscCode || existingKyc.ifscCode || "")
         .trim()
         .toUpperCase(),
-      aadhaarCardNo: String(req.body.aadhaarCardNo || existingKyc.aadhaarCardNo || "").trim(),
+      aadhaarCardNo: isAadhaarProof(rawIdProofType) ? normalizedAadhaar : String(req.body.aadhaarCardNo || existingKyc.aadhaarCardNo || "").trim(),
       status: "PENDING",
       adminRemarks: "",
       submittedAt: new Date(),
@@ -811,28 +820,40 @@ export const updateKyc = async (req, res) => {
       kyc.documents = Array.from(byLabel.values());
     }
 
-    const missingKycDetails = [
-      !kyc.roleType && "role type",
-      !kyc.fullName && "full name",
-      !kyc.phone && "phone",
-      !kyc.address && "address",
-      !kyc.pinCode && "PIN code",
-      !kyc.idProofType && "ID proof type",
-      !kyc.idProofNumber && "ID proof number",
-      !kyc.idProofImage && "ID proof image",
-      !kyc.accountNumber && "bank account number",
-      !kyc.ifscCode && "IFSC code",
-      !kyc.bankAccountHolderName && "bank account holder name",
-      !kyc.bankName && "bank name",
-      !kyc.passbookFileUrl && "bank proof/passbook file",
-      roleType === "driver" && !kyc.vehicleNumber && "vehicle number",
-      roleType === "driver" && !kyc.drivingLicenseNumber && "driving license number",
-      roleType === "driver" && !kyc.drivingLicenseImage && "driving license image",
-    ].filter(Boolean);
+    const fieldErrors = {};
+    if (!kyc.roleType) fieldErrors.roleType = "Role type is required.";
+    if (!kyc.fullName) fieldErrors.fullName = "Full name is required.";
+    if (!kyc.phone) fieldErrors.phone = "Phone is required.";
+    if (!kyc.address) fieldErrors.address = roleType === "buyer" ? "Buyer premises address is required." : "Address is required.";
+    if (!kyc.pinCode) fieldErrors.pinCode = "PIN code is required.";
+    if (!kyc.idProofType) fieldErrors.idProofType = "ID proof type is required.";
+    if (!kyc.idProofNumber) fieldErrors.idProofNumber = "ID proof number is required.";
+    if (isAadhaarProof(kyc.idProofType) && normalizeAadhaar(kyc.idProofNumber).length !== 12) {
+      fieldErrors.idProofNumber = "Aadhaar must be exactly 12 digits.";
+    }
+    if (kyc.panNumber && !PAN_PATTERN.test(kyc.panNumber)) {
+      fieldErrors.panNumber = "Enter a valid PAN, for example ABCDE1234F.";
+    }
+    if (!kyc.idProofImage) fieldErrors.idProof = "ID proof image is required.";
+    if (!kyc.accountNumber) fieldErrors.accountNumber = "Bank account number is required.";
+    if (!kyc.ifscCode) fieldErrors.ifscCode = "IFSC code is required.";
+    if (!kyc.bankAccountHolderName) fieldErrors.bankAccountHolderName = "Bank account holder name is required.";
+    if (!kyc.bankName) fieldErrors.bankName = "Bank name is required.";
+    if (!kyc.passbookFileUrl) fieldErrors.passbookFile = "Bank proof/passbook file is required.";
+    if (roleType === "driver" && !kyc.vehicleNumber) fieldErrors.vehicleNumber = "Vehicle number is required.";
+    if (roleType === "driver" && !kyc.drivingLicenseNumber) {
+      fieldErrors.drivingLicenseNumber = "Driving license number is required.";
+    }
+    if (roleType === "driver" && !kyc.drivingLicenseImage) {
+      fieldErrors.drivingLicense = "Driving license image is required.";
+    }
+
+    const missingKycDetails = Object.values(fieldErrors);
 
     if (missingKycDetails.length) {
       return res.status(400).json({
-        msg: `Complete KYC details: ${missingKycDetails.join(", ")}`,
+        msg: `Complete KYC details: ${missingKycDetails.join(" ")}`,
+        errors: fieldErrors,
       });
     }
 

@@ -31,6 +31,7 @@ export const FILE_BASE_URL = normalizeBaseUrl(process.env.VITE_FILE_BASE_URL || 
 export const SOCKET_URL = normalizeBaseUrl(process.env.VITE_SOCKET_URL || process.env.REACT_APP_SOCKET_URL || API_ORIGIN);
 const EFRUITMANDI_PLATFORM = "efruitmandi";
 const PLATFORM_TAGGED_AUTH_PATHS = /^\/?auth\/(send-otp|resend-otp|verify-otp|forgot-password|reset-password|login|register)$/i;
+const isDevelopment = process.env.NODE_ENV !== "production";
 
 const shouldTagAuthPlatform = (url = "") => {
   const path = String(url).replace(/^https?:\/\/[^/]+\/api\/?/i, "").replace(/^\/api\/?/i, "");
@@ -47,6 +48,40 @@ const addEfruitmandiPlatform = (data) => {
     return { ...data, platform: data.platform || EFRUITMANDI_PLATFORM };
   }
   return data;
+};
+
+export const getApiFieldErrors = (error) => {
+  const data = error?.response?.data;
+  if (!data) return {};
+
+  if (data.errors && typeof data.errors === "object" && !Array.isArray(data.errors)) {
+    return data.errors;
+  }
+
+  if (Array.isArray(data.fieldErrors)) {
+    return data.fieldErrors.reduce((acc, item) => {
+      if (item?.field) acc[item.field] = item.message || "Invalid value";
+      return acc;
+    }, {});
+  }
+
+  return {};
+};
+
+export const getApiErrorMessage = (error, fallback = "Request failed.") => {
+  const data = error?.response?.data;
+  if (isDevelopment && error?.response) {
+    console.error("API request failed", {
+      status: error.response.status,
+      url: error.config?.url,
+      data,
+    });
+  }
+
+  if (typeof data?.msg === "string" && data.msg.trim()) return data.msg;
+  if (typeof data?.message === "string" && data.message.trim()) return data.message;
+  if (typeof error?.message === "string" && error.message.trim()) return error.message;
+  return fallback;
 };
 
 // ================= AXIOS INSTANCE =================
