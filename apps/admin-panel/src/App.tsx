@@ -331,15 +331,19 @@ type AdminProduct = {
 };
 type AdminUser = {
   _id: string;
+  originalUserId?: string;
   name?: string;
   email?: string;
   phone?: string;
   role?: string | null;
+  roleType?: string;
+  profileName?: string;
   businessName?: string;
   orchardName?: string;
   location?: string;
   accountStatus?: string;
   isVerified?: boolean;
+  kyc?: { status?: string; roleType?: string };
   adminNotes?: string;
   createdAt?: string;
 };
@@ -5027,10 +5031,11 @@ function UsersPanel({
           <article key={user._id} className="rounded-xl border border-slate-800 bg-slate-950 p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
-                <h3 className="truncate text-base font-bold text-white">{user.businessName || user.orchardName || user.name || 'Unnamed user'}</h3>
+                <h3 className="truncate text-base font-bold text-white">{user.profileName || user.businessName || user.orchardName || user.name || 'Unnamed user'}</h3>
                 <p className="mt-1 text-sm font-semibold text-slate-400">{user.email || 'No email'} | {user.phone || 'No phone'}</p>
                 <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold">
-                  <span className="rounded-full bg-slate-900 px-2 py-1 text-slate-300">Role: {user.role || 'not set'}</span>
+                  <span className="rounded-full bg-slate-900 px-2 py-1 text-slate-300">Role: {user.roleType || user.role || 'not set'}</span>
+                  <span className="rounded-full bg-slate-900 px-2 py-1 text-slate-300">KYC: {user.kyc?.status || 'NOT_SUBMITTED'}</span>
                   <span className="rounded-full bg-slate-900 px-2 py-1 text-slate-300">Status: {user.accountStatus || 'ACTIVE'}</span>
                   <span className="rounded-full bg-slate-900 px-2 py-1 text-slate-300">{user.isVerified ? 'Verified' : 'Not verified'}</span>
                 </div>

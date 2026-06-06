@@ -1,7 +1,10 @@
 import express from "express";
 import {
   setUserRole,
+  createRoleProfile,
+  getMyRoles,
   getProfile,
+  switchMyRole,
   updateProfile,
   updateProfileMedia,
   updateKyc,
@@ -16,6 +19,9 @@ const router = express.Router();
 // ================= SET ROLE =================
 // 🔐 Protected (requires login)
 router.post("/set-role", protect, setUserRole);
+router.get("/roles", protect, getMyRoles);
+router.post("/switch-role", protect, switchMyRole);
+router.post("/create-role-profile", protect, createRoleProfile);
 
 // ================= GET PROFILE =================
 // 🔐 Get logged-in user profile

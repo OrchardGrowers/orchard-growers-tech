@@ -82,6 +82,11 @@ const userSchema = new mongoose.Schema(
         enum: ["grower", "buyer", "driver"],
       },
     ],
+    activeRole: {
+      type: String,
+      enum: ["grower", "buyer", "driver", ""],
+      default: "",
+    },
 
     // Grower profile
     orchardName: {

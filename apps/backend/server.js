@@ -150,6 +150,7 @@ app.use("/uploads", express.static("uploads"));
 // ================= ROUTES =================
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/me", userRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/auctions", auctionRoutes);

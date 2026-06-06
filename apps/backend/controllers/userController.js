@@ -121,6 +121,79 @@ const resolveRequestedKycRole = (user = {}, requestedRoleType = "") => {
   return "buyer";
 };
 
+const getAvailableRoles = (user = {}) => Array.from(getUserProfileTypes(user)).filter((role) => VALID_KYC_ROLE_TYPES.has(role));
+
+const getAllowedCreateRoles = (roles = []) => {
+  const roleSet = new Set(roles);
+  return ["grower", "buyer", "driver"].filter((role) => {
+    if (roleSet.has(role)) return false;
+    if (role === "buyer" && roleSet.has("driver")) return false;
+    if (role === "driver" && roleSet.has("buyer")) return false;
+    return true;
+  });
+};
+
+const getRoleKycSummary = (user = {}, roleType = "") => {
+  const kyc = getRoleKyc(user, roleType);
+  const status = normalizeKycStatus(kyc.status).toLowerCase();
+  return {
+    roleType: roleType === "driver" ? "logistic" : roleType,
+    exists: true,
+    profileId: `${user._id}:${roleType}`,
+    kycStatus: status,
+    kycVerified: status === "approved" || Boolean(roleType === "buyer" ? user.buyerVerified : roleType === "grower" ? user.growerVerified : user.driverVerified),
+    verificationRequestId: kyc.submittedAt ? `${user._id}:${roleType}` : "",
+    status: user.accountStatus || "ACTIVE",
+  };
+};
+
+export const getMyRoles = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("-password -__v");
+    if (!user) return res.status(404).json({ msg: "User not found" });
+
+    const roles = getAvailableRoles(user);
+    const activeRole = resolveRequestedKycRole(user, user.activeRole || user.role || roles[0] || "");
+    res.json({
+      userId: user._id,
+      phone: user.phone || user.contact,
+      activeRole: activeRole === "driver" ? "logistic" : activeRole,
+      roles: roles.map((role) => getRoleKycSummary(user, role)),
+      allowedCreateRoles: getAllowedCreateRoles(roles).map((role) => (role === "driver" ? "logistic" : role)),
+    });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+export const switchMyRole = async (req, res) => {
+  try {
+    const requestedRole = String(req.body.roleType || req.body.role || "").trim().toLowerCase();
+    const role = requestedRole === "logistic" ? "driver" : requestedRole;
+    if (!VALID_KYC_ROLE_TYPES.has(role)) return res.status(400).json({ msg: "Invalid role" });
+
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ msg: "User not found" });
+
+    const roles = getAvailableRoles(user);
+    const currentRole = resolveRequestedKycRole(user, user.activeRole || user.role || roles[0] || "");
+    if (!roles.includes(role)) return res.status(400).json({ msg: "Requested role profile does not exist" });
+    if (currentRole === role) return res.status(400).json({ msg: "This role is already active" });
+
+    user.activeRole = role;
+    await user.save();
+    const safeUser = await User.findById(user._id).select("-password -__v");
+    res.json({ success: true, activeRole: role === "driver" ? "logistic" : role, user: safeUser });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+};
+
+export const createRoleProfile = async (req, res) => {
+  req.body.role = String(req.body.roleType || req.body.role || "").trim().toLowerCase() === "logistic" ? "driver" : req.body.role || req.body.roleType;
+  return setUserRole(req, res);
+};
+
 // ================= SET ROLE =================
 export const setUserRole = async (req, res) => {
   try {
@@ -285,6 +358,7 @@ export const setUserRole = async (req, res) => {
 
     profileTypes.add(role);
     user.profileTypes = Array.from(profileTypes);
+    user.activeRole = role;
 
     await user.save();
 

@@ -26,7 +26,8 @@ import {
   hasDriverProfile,
   hasGrowerProfile,
 } from "../utils/auth";
-import { FILE_BASE_URL } from "../services/api";
+import API, { FILE_BASE_URL } from "../services/api";
+import { saveUserToStorage } from "../utils/userStorage";
 
 const resolveProfileMediaUrl = (value = "") => {
   const url = String(value || "").trim();
@@ -70,6 +71,9 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
   const isBuyer = hasBuyerProfile(user);
   const isDriver = hasDriverProfile(user);
   const [activeMode, setActiveMode] = useState(() => resolveProfileMode(user));
+  const hasBuyerDriverConflict = isBuyer && isDriver;
+  const canCreateBuyer = !isBuyer && !isDriver && !hasBuyerDriverConflict;
+  const canCreateDriver = !isDriver && !isBuyer && !hasBuyerDriverConflict;
 
   useEffect(() => {
     const syncMode = (event) => {
@@ -161,7 +165,7 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
       icon: <FaUserCircle />,
       path: activeDashboardPath,
     },
-    ...(isBuyer || !isDriver
+    ...((isBuyer && activeMode !== "buyer") || canCreateBuyer
       ? [
           {
             label: isBuyer ? "Switch to Buyer Dashboard" : "Register as Buyer",
@@ -172,14 +176,18 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
           },
         ]
       : []),
-    {
-      label: isGrower ? "Switch to Grower Dashboard" : "Register as Grower",
-      icon: <FaSeedling />,
-      path: isGrower ? "/profile-dashboard?mode=grower" : "/register-grower",
-      mode: isGrower ? "grower" : "",
-      hasChevron: true,
-    },
-    ...(!isBuyer || isDriver
+    ...((isGrower && activeMode !== "grower") || !isGrower
+      ? [
+          {
+            label: isGrower ? "Switch to Grower Dashboard" : "Register as Grower",
+            icon: <FaSeedling />,
+            path: isGrower ? "/profile-dashboard?mode=grower" : "/register-grower",
+            mode: isGrower ? "grower" : "",
+            hasChevron: true,
+          },
+        ]
+      : []),
+    ...((isDriver && activeMode !== "driver") || canCreateDriver
       ? [
           {
             label: isDriver ? "Switch to Logistic Partner Dashboard" : "Register as Logistic Partner",
@@ -190,13 +198,13 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
           },
         ]
       : []),
-  ].filter((item) => item.path !== "/register-driver" || !isBuyer);
+  ];
 
   const renderMenuButton = (item, iconColor = "text-yellow-300") => (
     <button
       key={item.label}
       type="button"
-      onClick={() => {
+      onClick={async () => {
         if (item.mode) {
           localStorage.setItem("efruitmandiProfileMode", item.mode);
           window.dispatchEvent(
@@ -204,6 +212,12 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
               detail: { mode: item.mode },
             })
           );
+          try {
+            const res = await API.post("/user/switch-role", { roleType: item.mode });
+            if (res.data?.user) saveUserToStorage(res.data.user);
+          } catch {
+            // Local mode switch remains the fallback for older sessions.
+          }
         }
         onAction(item.path);
       }}

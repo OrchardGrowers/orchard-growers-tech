@@ -389,6 +389,8 @@ export default function ProfileDashboard() {
   const isBuyer = hasBuyerProfile(user);
   const isDriver = hasDriverProfile(user);
   const isVisitor = !isGrower && !isBuyer && !isDriver;
+  const canCreateBuyerProfile = !isBuyer && !isDriver;
+  const canCreateDriverProfile = !isDriver && !isBuyer;
   const availableProfileModes = [
     isBuyer && { key: "buyer", label: "Buyer", icon: <FaHandshake /> },
     isGrower && { key: "grower", label: "Grower", icon: <FaSeedling /> },
@@ -462,7 +464,7 @@ export default function ProfileDashboard() {
         ? "Logistic Partner Profile Dashboard"
         : "User Profile Dashboard";
   const registrationActions = [
-    ...(!isBuyer && !isDriver
+    ...(canCreateBuyerProfile
       ? [
           {
             title: "Register as Buyer",
@@ -482,7 +484,7 @@ export default function ProfileDashboard() {
           },
         ]
       : []),
-    ...(!isBuyer
+    ...(canCreateDriverProfile
       ? [
           {
             title: "Register as Logistic Partner",

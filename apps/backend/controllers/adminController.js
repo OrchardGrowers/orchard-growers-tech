@@ -172,6 +172,46 @@ const flattenKycUsers = (users = []) =>
 
     return rows;
   });
+
+const hasRoleProfile = (user = {}, roleType = "") => getKycProfileTypes(user).has(roleType);
+const getRoleDisplayName = (user = {}, roleType = "") => {
+  if (roleType === "buyer") return user.businessName || user.buyerContactPerson || user.name || "Buyer";
+  if (roleType === "grower") return user.orchardName || user.name || "Grower";
+  if (roleType === "driver") return user.logisticsName || user.driverName || user.name || "Logistic Partner";
+  return user.name || "User";
+};
+const flattenRoleUsers = (users = []) =>
+  users.flatMap((userDoc) => {
+    const user = userDoc.toObject?.() || userDoc;
+    const roles = VALID_KYC_ROLE_TYPES.filter((roleType) => hasRoleProfile(user, roleType));
+    const effectiveRoles = roles.length ? roles : [user.role || "user"];
+
+    return effectiveRoles.map((roleType) => {
+      const role = String(roleType || "").toLowerCase();
+      const roleKyc = VALID_KYC_ROLE_TYPES.includes(role) ? getRoleKyc(user, role) : user.kyc || {};
+      return {
+        ...user,
+        _id: VALID_KYC_ROLE_TYPES.includes(role) ? `${user._id}:${role}` : String(user._id),
+        originalUserId: user._id,
+        role,
+        roleType: role === "driver" ? "logistic" : role,
+        profileName: getRoleDisplayName(user, role),
+        kyc: {
+          ...roleKyc,
+          roleType: role,
+          status: normalizeKycStatus(roleKyc.status),
+        },
+        isVerified:
+          role === "buyer"
+            ? Boolean(user.buyerVerified)
+            : role === "grower"
+              ? Boolean(user.growerVerified)
+              : role === "driver"
+                ? Boolean(user.driverVerified)
+                : Boolean(user.isVerified),
+      };
+    });
+  });
 const PASSWORD_RULE_MESSAGE = "Password must be at least 8 characters and include a letter and a number";
 const ADMIN_NOT_APPROVED_MESSAGE = "This email is not approved for admin access.";
 const ADMIN_RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
@@ -1430,7 +1470,7 @@ export const listUsers = async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const users = await User.find().select(USER_SELECT).sort({ createdAt: -1 });
-  res.json(users);
+  res.json(flattenRoleUsers(users));
 };
 
 export const updateUserByAdmin = async (req, res) => {
@@ -1490,7 +1530,8 @@ export const updateUserByAdmin = async (req, res) => {
     updates.lockedAmount = lockedAmount;
   }
 
-  const user = await User.findByIdAndUpdate(req.params.id, updates, { new: true }).select(USER_SELECT);
+  const userId = String(req.params.id || "").split(":")[0];
+  const user = await User.findByIdAndUpdate(userId, updates, { new: true }).select(USER_SELECT);
   if (!user) return res.status(404).json({ msg: "User not found" });
 
   res.json(user);
@@ -1504,8 +1545,9 @@ export const setUserStatusByAdmin = async (req, res) => {
     return res.status(400).json({ msg: "Invalid user status" });
   }
 
+  const userId = String(req.params.id || "").split(":")[0];
   const user = await User.findByIdAndUpdate(
-    req.params.id,
+    userId,
     { accountStatus: status, adminNotes: req.body.note || "" },
     { new: true }
   ).select(USER_SELECT);

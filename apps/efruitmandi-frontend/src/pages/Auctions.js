@@ -17,6 +17,7 @@ import { useNavigate } from "react-router-dom";
 import API, { FILE_BASE_URL } from "../services/api";
 import socket from "../services/socket";
 import { canQuote, getCurrentUser, isBuyerAccount } from "../utils/auth";
+import { getEfruitMandiProducts } from "../utils/marketProducts";
 import CountdownTimer from "../components/CountdownTimer";
 
 const sortOptions = [
@@ -25,9 +26,12 @@ const sortOptions = [
   { key: "quantityHigh", label: "Quantity high" },
 ];
 
+const LOT_OPEN_HOUR = 12;
+
 export default function Auctions() {
   const navigate = useNavigate();
   const [auctions, setAuctions] = useState([]);
+  const [products, setProducts] = useState([]);
   const [dealAmounts, setDealAmounts] = useState({});
   const [distanceByAuction, setDistanceByAuction] = useState({});
   const [dealPreviews, setDealPreviews] = useState({});
@@ -42,11 +46,16 @@ export default function Auctions() {
   const fetchAuctions = async () => {
     try {
       setLoading(true);
-      const res = await API.get("/auctions");
-      setAuctions(res.data || []);
+      const [auctionRes, productRes] = await Promise.all([
+        API.get("/auctions"),
+        API.get("/products?platform=efruitmandi").catch(() => ({ data: [] })),
+      ]);
+      setAuctions(auctionRes.data || []);
+      setProducts(getEfruitMandiProducts(productRes.data));
     } catch (err) {
       console.error(err);
       setAuctions([]);
+      setProducts([]);
     } finally {
       setLoading(false);
     }
@@ -88,8 +97,8 @@ export default function Auctions() {
   }, []);
 
   const liveAuctions = useMemo(
-    () => auctions.filter((auction) => auction.status === "ACTIVE" && auction.product),
-    [auctions]
+    () => mergeLiveAuctionLots(auctions, products),
+    [auctions, products]
   );
 
   const filteredAuctions = useMemo(() => {
@@ -128,6 +137,7 @@ export default function Auctions() {
   useEffect(() => {
     const timeout = setTimeout(() => {
       liveAuctions.forEach((auction) => {
+        if (auction.syntheticProductLot) return;
         const baseRate = Number(dealAmounts[auction._id] || 0);
         if (!baseRate || !canDeal) return;
 
@@ -155,6 +165,7 @@ export default function Auctions() {
 
   useEffect(() => {
     liveAuctions.forEach((auction) => {
+      if (auction.syntheticProductLot) return;
       socket.emit("joinAuction", auction._id);
     });
   }, [liveAuctions]);
@@ -303,7 +314,13 @@ export default function Auctions() {
               }}
               onDealChange={(value) => updateDealAmount(auction._id, value)}
               onDistanceChange={(value) => updateDistance(auction._id, value)}
-              onDeal={() => placeDeal(auction._id)}
+              onDeal={() => {
+                if (auction.syntheticProductLot && auction.product?._id) {
+                  navigate(`/lots/${auction.product._id}/quote`);
+                  return;
+                }
+                placeDeal(auction._id);
+              }}
             />
           ))}
         </section>
@@ -572,6 +589,65 @@ function EmptyState() {
       </p>
     </div>
   );
+}
+
+function getDailyLotTiming(now = new Date()) {
+  const openAt = new Date(now);
+  openAt.setHours(LOT_OPEN_HOUR, 0, 0, 0);
+
+  const closeAt = new Date(openAt);
+  closeAt.setDate(openAt.getDate() + 1);
+
+  if (now >= openAt && now <= closeAt) {
+    return {
+      state: "live",
+      label: "Deal Open",
+      targetAt: closeAt.toISOString(),
+    };
+  }
+
+  return {
+    state: "upcoming",
+    label: "Upcoming Deal",
+    targetAt: openAt.toISOString(),
+  };
+}
+
+function normalizeProductToLiveAuction(product = {}, timing) {
+  return {
+    _id: `product-${product._id}`,
+    status: "ACTIVE",
+    product: {
+      ...product,
+      status: "ACTIVE",
+      dealTiming: timing,
+    },
+    syntheticProductLot: true,
+    currentBid: product.currentBid || product.basePrice || 0,
+    startingPrice: product.basePrice || product.currentBid || 0,
+    endTime: timing?.targetAt || "",
+    createdAt: product.createdAt,
+  };
+}
+
+function mergeLiveAuctionLots(auctions = [], products = []) {
+  const timing = getDailyLotTiming();
+  const activeAuctions = auctions.filter((auction) => auction.status === "ACTIVE" && auction.product);
+  const auctionProductIds = new Set(
+    activeAuctions
+      .map((auction) => auction.product?._id || auction.product?.id)
+      .filter(Boolean)
+      .map(String)
+  );
+  const liveProductLots = products
+    .filter((product) => {
+      const productId = product?._id || product?.id;
+      const status = String(product?.status || "").toUpperCase();
+      return productId && !auctionProductIds.has(String(productId)) && !["SOLD", "ENDED", "CLOSED"].includes(status);
+    })
+    .map((product) => normalizeProductToLiveAuction(product, timing));
+
+  return [...activeAuctions, ...liveProductLots];
 }
 
 function getImageUrl(product) {
