@@ -1,4 +1,4 @@
-const CACHE_VERSION = "efruitmandi-pwa-v4";
+const CACHE_VERSION = "efruitmandi-pwa-v5";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -16,9 +16,19 @@ const APP_SHELL = [
   "/maskable-icon-512.png",
   "/logo.png",
   "/apple-touch-icon.png",
+  "/notification-icon-192.png",
+  "/notification-icon-512.png",
+  "/notification-badge-96.png",
   "/pwa-screenshot-wide-1280x720.png",
   "/pwa-screenshot-mobile-390x844.png"
 ];
+
+const DEFAULT_NOTIFICATION_OPTIONS = {
+  icon: "/notification-icon-192.png",
+  badge: "/notification-badge-96.png",
+  image: "/notification-icon-512.png",
+  vibrate: [120, 80, 120],
+};
 
 const isApiRequest = (url) =>
   url.pathname.startsWith("/api") ||
@@ -94,4 +104,42 @@ self.addEventListener("fetch", (event) => {
       })
     );
   }
+});
+
+self.addEventListener("push", (event) => {
+  let payload = {};
+
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { body: event.data?.text() || "" };
+  }
+
+  const title = payload.title || "E-Fruit Mandi";
+  const options = {
+    ...DEFAULT_NOTIFICATION_OPTIONS,
+    ...payload,
+    data: {
+      url: payload.url || "/notifications",
+      ...(payload.data || {}),
+    },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || "/notifications";
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      const existingClient = clients.find((client) => "focus" in client);
+      if (existingClient) {
+        existingClient.navigate(targetUrl);
+        return existingClient.focus();
+      }
+      return self.clients.openWindow(targetUrl);
+    })
+  );
 });

@@ -243,12 +243,12 @@ export default function ProfileDashboard() {
     () => localStorage.getItem("profilePromoClaimed") === "true"
   );
   const [activeProfileMode, setActiveProfileMode] = useState(
-    () => new URLSearchParams(window.location.search).get("mode") || localStorage.getItem("efruitmandiProfileMode") || ""
+    () => new URLSearchParams(window.location.search).get("mode") || ""
   );
 
   useEffect(() => {
     const handleProfileModeChange = (event) => {
-      const mode = event.detail?.mode || localStorage.getItem("efruitmandiProfileMode") || "";
+      const mode = event.detail?.mode || "";
       if (mode) setActiveProfileMode(mode);
     };
 

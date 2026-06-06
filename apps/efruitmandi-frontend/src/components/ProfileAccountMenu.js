@@ -52,11 +52,12 @@ const resolveProfileMode = (user = {}, requestedMode = "") => {
   if (mode === "buyer" && hasBuyerProfile(user)) return "buyer";
   if (mode === "grower" && hasGrowerProfile(user)) return "grower";
   if (mode === "driver" && hasDriverProfile(user)) return "driver";
-  if (user.role === "buyer" && hasBuyerProfile(user)) return "buyer";
-  if (user.role === "grower" && hasGrowerProfile(user)) return "grower";
-  if (user.role === "driver" && hasDriverProfile(user)) return "driver";
-  if (hasBuyerProfile(user)) return "buyer";
+  const role = String(user.role || "").toLowerCase();
+  if (role === "grower" && hasGrowerProfile(user)) return "grower";
+  if (role === "buyer" && hasBuyerProfile(user)) return "buyer";
+  if (role === "driver" && hasDriverProfile(user)) return "driver";
   if (hasGrowerProfile(user)) return "grower";
+  if (hasBuyerProfile(user)) return "buyer";
   if (hasDriverProfile(user)) return "driver";
   return "visitor";
 };
@@ -68,13 +69,11 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
   const isGrower = hasGrowerProfile(user);
   const isBuyer = hasBuyerProfile(user);
   const isDriver = hasDriverProfile(user);
-  const [activeMode, setActiveMode] = useState(() =>
-    resolveProfileMode(user, localStorage.getItem("efruitmandiProfileMode") || "")
-  );
+  const [activeMode, setActiveMode] = useState(() => resolveProfileMode(user));
 
   useEffect(() => {
     const syncMode = (event) => {
-      setActiveMode(resolveProfileMode(user, event.detail?.mode || localStorage.getItem("efruitmandiProfileMode") || ""));
+      setActiveMode(resolveProfileMode(user, event.detail?.mode || ""));
     };
 
     syncMode({ detail: {} });

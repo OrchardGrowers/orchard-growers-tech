@@ -21,11 +21,11 @@ export default function StartupSplash() {
   if (!visible) return null;
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-[#18a64b]">
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-[#0B6B2F] px-8">
       <img
         src={logoUrl}
         alt="E-Fruit Mandi"
-        className="startup-logo-zoom w-[150px] max-w-[58vw]"
+        className="startup-logo-zoom w-[280px] max-w-[76vw] md:w-[360px]"
       />
     </div>
   );
