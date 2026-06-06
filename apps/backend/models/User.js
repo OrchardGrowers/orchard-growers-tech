@@ -346,6 +346,14 @@ const userSchema = new mongoose.Schema(
     buyerVerified: { type: Boolean, default: false },
     growerVerified: { type: Boolean, default: false },
     driverVerified: { type: Boolean, default: false },
+    buyerOgVerified: { type: Boolean, default: false },
+    growerOgVerified: { type: Boolean, default: false },
+    driverOgVerified: { type: Boolean, default: false },
+    ogVerificationByRole: {
+      buyer: { type: mongoose.Schema.Types.Mixed, default: {} },
+      grower: { type: mongoose.Schema.Types.Mixed, default: {} },
+      driver: { type: mongoose.Schema.Types.Mixed, default: {} },
+    },
 
     profileImpressions: {
       type: Number,

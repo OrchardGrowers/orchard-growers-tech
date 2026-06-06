@@ -481,6 +481,10 @@ export const getMyKyc = async (req, res) => {
         addressLine1: user.addressLine1,
         addressLine2: user.addressLine2,
         addressLine3: user.addressLine3,
+        buyerOgVerified: user.buyerOgVerified,
+        growerOgVerified: user.growerOgVerified,
+        driverOgVerified: user.driverOgVerified,
+        ogVerificationByRole: user.ogVerificationByRole,
       },
       kyc,
     });

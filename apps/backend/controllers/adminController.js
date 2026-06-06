@@ -2013,7 +2013,7 @@ export const listVerificationRequests = async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const requests = await VerificationRequest.find()
-    .populate("user", "name orchardName phone email role isVerified accountStatus")
+    .populate("user", "name orchardName phone email role isVerified accountStatus buyerOgVerified growerOgVerified driverOgVerified ogVerificationByRole")
     .populate("adminReviews.admin", "name email role")
     .sort({ createdAt: -1 });
 
@@ -2186,7 +2186,6 @@ export const reviewKycRequest = async (req, res) => {
     user.kyc.reviewedBy = currentAdmin.id;
     user.kyc.reviewedAt = new Date();
     user.kyc.adminRemarks = req.body.note || req.body.adminRemarks || "";
-    user.isVerified = true;
     if (kycRoleType === "buyer") user.buyerVerified = true;
     if (kycRoleType === "grower") user.growerVerified = true;
     if (kycRoleType === "driver") user.driverVerified = true;
@@ -2200,7 +2199,6 @@ export const reviewKycRequest = async (req, res) => {
     user.kyc.reviewedBy = currentAdmin.id;
     user.kyc.reviewedAt = new Date();
     user.kyc.adminRemarks = req.body.note || req.body.adminRemarks || "";
-    user.isVerified = false;
     if (kycRoleType === "buyer") user.buyerVerified = false;
     if (kycRoleType === "grower") user.growerVerified = false;
     if (kycRoleType === "driver") user.driverVerified = false;
@@ -2252,7 +2250,7 @@ export const reviewVerificationRequest = async (req, res) => {
   if (!currentAdmin) return;
 
   const action = String(req.body.action || "").toUpperCase();
-  const allowedActions = ["APPROVE", "REJECT", "DISAPPROVE", "HOLD", "SUSPEND", "TERMINATE"];
+  const allowedActions = ["APPROVE", "REJECT", "DISAPPROVE", "UNDER_REVIEW", "HOLD", "SUSPEND", "TERMINATE"];
 
   if (!allowedActions.includes(action)) {
     return res.status(400).json({ msg: "Invalid review action" });
@@ -2284,11 +2282,45 @@ export const reviewVerificationRequest = async (req, res) => {
   const hasTwoRejects = hasDualRejection(request.adminReviews);
   const canFinalizeImmediately = currentAdmin.role === "SUPER_ADMIN";
 
+  if (action === "UNDER_REVIEW") {
+    request.status = "UNDER_REVIEW";
+    const roleType = request.roleType || "grower";
+    await User.findByIdAndUpdate(request.user, {
+      [`ogVerificationByRole.${roleType}`]: {
+        status: "UNDER_REVIEW",
+        requestId: request._id,
+        verificationType: request.verificationType || "og_verified",
+        adminRemarks: req.body.note || "",
+        submittedAt: request.createdAt,
+        reviewedAt: new Date(),
+      },
+    });
+  }
+
   if ((action === "APPROVE" && (hasTwoApprovals || canFinalizeImmediately))) {
     request.status = "APPROVED";
     request.decidedBy = currentAdmin.id;
     request.decidedAt = new Date();
-    await User.findByIdAndUpdate(request.user, { isVerified: true, accountStatus: "ACTIVE" });
+    const roleType = request.roleType || "grower";
+    const ogStatus = {
+      status: "APPROVED",
+      requestId: request._id,
+      verificationType: request.verificationType || "og_verified",
+      youtubeVideoId: request.youtubeVideoId || "",
+      youtubeLink: request.youtubeLink || "",
+      adminRemarks: req.body.note || "",
+      submittedAt: request.createdAt,
+      decidedAt: request.decidedAt,
+      reviewedAt: new Date(),
+    };
+    const updates = {
+      accountStatus: "ACTIVE",
+      [`ogVerificationByRole.${roleType}`]: ogStatus,
+    };
+    if (roleType === "buyer") updates.buyerOgVerified = true;
+    if (roleType === "grower") updates.growerOgVerified = true;
+    if (roleType === "driver") updates.driverOgVerified = true;
+    await User.findByIdAndUpdate(request.user, updates);
   }
 
   if (["HOLD", "SUSPEND", "TERMINATE"].includes(action)) {
@@ -2297,20 +2329,49 @@ export const reviewVerificationRequest = async (req, res) => {
     request.decidedAt = new Date();
 
     const accountStatus = action === "SUSPEND" ? "SUSPENDED" : action === "TERMINATE" ? "TERMINATED" : "HOLD";
-    await User.findByIdAndUpdate(request.user, {
+    const roleType = request.roleType || "grower";
+    const updates = {
       accountStatus,
-      isVerified: false,
       adminNotes: req.body.note || `${request.status} by admin`,
-    });
-  } else if (action !== "APPROVE" && (hasTwoRejects || canFinalizeImmediately)) {
+      [`ogVerificationByRole.${roleType}`]: {
+        status: request.status,
+        requestId: request._id,
+        verificationType: request.verificationType || "og_verified",
+        adminRemarks: req.body.note || `${request.status} by admin`,
+        submittedAt: request.createdAt,
+        decidedAt: request.decidedAt,
+        reviewedAt: new Date(),
+      },
+    };
+    if (roleType === "buyer") updates.buyerOgVerified = false;
+    if (roleType === "grower") updates.growerOgVerified = false;
+    if (roleType === "driver") updates.driverOgVerified = false;
+    await User.findByIdAndUpdate(request.user, updates);
+  } else if (!["APPROVE", "UNDER_REVIEW"].includes(action) && (hasTwoRejects || canFinalizeImmediately)) {
     request.status = action === "DISAPPROVE" ? "DISAPPROVED" : "REJECTED";
     request.decidedBy = currentAdmin.id;
     request.decidedAt = new Date();
+    const roleType = request.roleType || "grower";
+    const updates = {
+      [`ogVerificationByRole.${roleType}`]: {
+        status: request.status,
+        requestId: request._id,
+        verificationType: request.verificationType || "og_verified",
+        adminRemarks: req.body.note || "",
+        submittedAt: request.createdAt,
+        decidedAt: request.decidedAt,
+        reviewedAt: new Date(),
+      },
+    };
+    if (roleType === "buyer") updates.buyerOgVerified = false;
+    if (roleType === "grower") updates.growerOgVerified = false;
+    if (roleType === "driver") updates.driverOgVerified = false;
+    await User.findByIdAndUpdate(request.user, updates);
   }
 
   await request.save();
   const populated = await VerificationRequest.findById(request._id)
-    .populate("user", "name orchardName phone email role isVerified accountStatus")
+    .populate("user", "name orchardName phone email role isVerified accountStatus buyerOgVerified growerOgVerified driverOgVerified ogVerificationByRole")
     .populate("adminReviews.admin", "name email role");
 
   res.json(populated);
@@ -2333,7 +2394,7 @@ export const updateVerificationRequestByAdmin = async (req, res) => {
   }
 
   const request = await VerificationRequest.findByIdAndUpdate(req.params.id, updates, { new: true })
-    .populate("user", "name orchardName phone email role isVerified accountStatus")
+    .populate("user", "name orchardName phone email role isVerified accountStatus buyerOgVerified growerOgVerified driverOgVerified ogVerificationByRole")
     .populate("adminReviews.admin", "name email role");
 
   if (!request) return res.status(404).json({ msg: "Verification request not found" });

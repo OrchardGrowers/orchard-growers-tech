@@ -408,7 +408,7 @@ export const getProducts = async (req, res) => {
     }
 
     const products = await Product.find(filters)
-      .populate("createdBy", "name orchardName businessName companyLogoUrl avatarUrl bannerUrl role location growerRatingAverage growerRatingCount")
+      .populate("createdBy", "name orchardName businessName companyLogoUrl avatarUrl bannerUrl role location growerRatingAverage growerRatingCount growerOgVerified buyerOgVerified driverOgVerified ogVerificationByRole")
       .sort({ createdAt: -1 });
     res.json(products.map((product) => serializeProduct(product, req.user)));
   } catch (err) {

@@ -293,6 +293,7 @@ export default function ProfileDashboard() {
     () => new URLSearchParams(window.location.search).get("mode") || ""
   );
   const [roleVerificationStatus, setRoleVerificationStatus] = useState(null);
+  const [roleOgVerificationStatus, setRoleOgVerificationStatus] = useState(null);
 
   useEffect(() => {
     const handleProfileModeChange = (event) => {
@@ -423,12 +424,21 @@ export default function ProfileDashboard() {
     }
 
     let cancelled = false;
-    API.get("/verification-requests/me", { params: { roleType: profileMode } })
-      .then((res) => {
-        if (!cancelled) setRoleVerificationStatus(res.data || null);
+    Promise.all([
+      API.get("/verification-requests/me", { params: { roleType: profileMode, verificationType: "kyc" } }),
+      API.get("/verification-requests/me", { params: { roleType: profileMode, verificationType: "og_verified" } }),
+    ])
+      .then(([kycRes, ogRes]) => {
+        if (!cancelled) {
+          setRoleVerificationStatus(kycRes.data || null);
+          setRoleOgVerificationStatus(ogRes.data || null);
+        }
       })
       .catch(() => {
-        if (!cancelled) setRoleVerificationStatus(null);
+        if (!cancelled) {
+          setRoleVerificationStatus(null);
+          setRoleOgVerificationStatus(null);
+        }
       });
 
     return () => {
@@ -549,21 +559,36 @@ export default function ProfileDashboard() {
   const verifiedContactNo = profileContactNo || "Add contact no.";
   const verifiedEmail = profileEmail || "Add email";
   const visitorAddress = profileAddress || user.location || "not available";
-  const isRoleKycApproved = kycStatus === "APPROVED" || Boolean(roleVerificationStatus?.kycVerified);
+  const roleOg = user.ogVerificationByRole?.[profileMode] || {};
+  const roleOgStatus = normalizeKycStatus(roleOgVerificationStatus?.status || roleOg.status);
+  const hasApprovedOgRequest = Boolean(
+    (roleOgVerificationStatus?.requestId || roleOg.requestId) &&
+      roleOgStatus === "APPROVED"
+  );
   const isTrustedAccount =
     profileMode === "buyer"
-      ? Boolean(user.buyerVerified || isRoleKycApproved)
+      ? hasApprovedOgRequest
       : profileMode === "grower"
-        ? Boolean(user.growerVerified || isRoleKycApproved)
+        ? hasApprovedOgRequest
         : profileMode === "driver"
-          ? Boolean(user.driverVerified || isRoleKycApproved)
+          ? hasApprovedOgRequest
           : false;
+  const ogStatusLabel =
+    roleOgStatus === "PENDING"
+      ? "OG verification pending"
+      : roleOgStatus === "UNDER_REVIEW"
+        ? "OG verification under review"
+        : roleOgStatus === "REJECTED"
+          ? "OG verification rejected"
+          : roleOgStatus === "CORRECTION_REQUIRED"
+            ? "OG verification correction required"
+            : "";
   const organizationLabel = displayName;
   const trustedLabel = isTrustedAccount
     ? "Orchard Growers Verified"
     : profileMode === "buyer"
-      ? "Get Verified to attract more Growers"
-      : "Get verified to attract more Buyers";
+      ? ogStatusLabel || "Apply for OG Verification"
+      : ogStatusLabel || "Apply for OG Verification";
   const trustedActionLabel = profileMode === "buyer" ? "Visit Buyers Space" : "Visit Growers Orchard";
   const editDetailsTitle =
     profileMode === "buyer"
@@ -1205,7 +1230,7 @@ export default function ProfileDashboard() {
                     onClick={requestVerification}
                     className="rounded-full bg-green-700 px-4 py-2 text-xs font-extrabold text-white hover:bg-green-800"
                   >
-                    Get Verified
+                    Apply for OG Verification
                   </button>
                 )}
               </div>

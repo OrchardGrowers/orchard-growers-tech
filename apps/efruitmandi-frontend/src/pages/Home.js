@@ -596,7 +596,11 @@ function getMobileFilterListings(activeTab, liveLots, upcomingLots) {
   if (activeTab === "upcomingLots") return upcomingLots;
   if (activeTab === "trustedGrowers") {
     return liveLots.filter((lot) =>
-      Boolean(lot.createdBy?.isVerified || lot.createdBy?.kycStatus === "approved" || lot.createdBy?.trusted)
+      Boolean(
+        lot.createdBy?.ogVerificationByRole?.grower?.requestId &&
+          String(lot.createdBy?.ogVerificationByRole?.grower?.status || "").toUpperCase() === "APPROVED" ||
+          lot.createdBy?.trusted
+      )
     );
   }
   if (activeTab === "organicFarms") {
@@ -1144,7 +1148,22 @@ function ProfileCard({ user, onOpen }) {
   const isGrower = hasGrowerProfile(user);
   const isBuyer = hasBuyerProfile(user);
   const isDriver = hasDriverProfile(user);
-  const isTrustedAccount = Boolean(user.isVerified);
+  const isTrustedAccount = isGrower
+    ? Boolean(
+        user.ogVerificationByRole?.grower?.requestId &&
+          String(user.ogVerificationByRole?.grower?.status || "").toUpperCase() === "APPROVED"
+      )
+    : isBuyer
+      ? Boolean(
+          user.ogVerificationByRole?.buyer?.requestId &&
+            String(user.ogVerificationByRole?.buyer?.status || "").toUpperCase() === "APPROVED"
+        )
+      : isDriver
+        ? Boolean(
+            user.ogVerificationByRole?.driver?.requestId &&
+              String(user.ogVerificationByRole?.driver?.status || "").toUpperCase() === "APPROVED"
+          )
+        : false;
   const firmName = isGrower
     ? user.orchardName
     : isBuyer

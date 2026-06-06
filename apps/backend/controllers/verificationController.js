@@ -25,6 +25,7 @@ const firstUploadedFile = (files, ...fieldNames) => {
 };
 
 const VALID_ROLE_TYPES = new Set(["buyer", "grower", "driver"]);
+const VALID_VERIFICATION_TYPES = new Set(["kyc", "og_verified"]);
 const normalizeKycStatus = (status = "") => {
   const normalized = String(status || "").trim().toUpperCase();
   if (normalized === "SUBMITTED") return "PENDING";
@@ -41,16 +42,71 @@ const getRoleKyc = (user = {}, roleType = "") => {
 
   return {};
 };
+const normalizeRequestStatus = (status = "") => {
+  const normalized = String(status || "").trim().toUpperCase();
+  if (normalized === "SUBMITTED") return "PENDING";
+  return normalized || "NOT_SUBMITTED";
+};
+const getOgVerification = (user = {}, roleType = "") => {
+  const role = String(roleType || "").trim().toLowerCase();
+  const og = user.ogVerificationByRole?.[role];
+  return og?.toObject?.() || og || {};
+};
 
 export const getMyVerificationStatus = async (req, res) => {
   try {
     const roleType = String(req.query.roleType || req.query.role || "").trim().toLowerCase();
+    const verificationType = String(req.query.verificationType || "kyc").trim().toLowerCase();
     if (!VALID_ROLE_TYPES.has(roleType)) {
       return res.status(400).json({ msg: "Valid roleType is required" });
     }
+    if (!VALID_VERIFICATION_TYPES.has(verificationType)) {
+      return res.status(400).json({ msg: "Valid verificationType is required" });
+    }
 
-    const user = await User.findById(req.user.id).select("kyc kycByRole buyerVerified growerVerified driverVerified");
+    const user = await User.findById(req.user.id).select("kyc kycByRole ogVerificationByRole buyerVerified growerVerified driverVerified buyerOgVerified growerOgVerified driverOgVerified");
     if (!user) return res.status(404).json({ msg: "User not found" });
+
+    if (verificationType === "og_verified") {
+      let og = getOgVerification(user, roleType);
+      if (!og.requestId) {
+        const latestRequest = await VerificationRequest.findOne({
+          user: req.user.id,
+          roleType,
+          verificationType: "og_verified",
+        })
+          .sort({ createdAt: -1 })
+          .select("_id status adminRemarks updatedAt createdAt decidedAt");
+
+        if (latestRequest) {
+          og = {
+            requestId: latestRequest._id,
+            status: latestRequest.status,
+            adminRemarks: latestRequest.adminRemarks,
+            submittedAt: latestRequest.createdAt,
+            decidedAt: latestRequest.decidedAt,
+            reviewedAt: latestRequest.updatedAt,
+          };
+        }
+      }
+      const status = normalizeRequestStatus(og.status);
+      const verifiedFlag =
+        roleType === "buyer"
+          ? user.buyerOgVerified
+          : roleType === "grower"
+            ? user.growerOgVerified
+            : user.driverOgVerified;
+
+      return res.json({
+        status: status.toLowerCase(),
+        roleType,
+        verificationType,
+        ogVerified: Boolean(og.requestId && (verifiedFlag || status === "APPROVED")),
+        requestId: og.requestId || "",
+        adminRemarks: og.adminRemarks || "",
+        updatedAt: og.reviewedAt || og.decidedAt || og.submittedAt || "",
+      });
+    }
 
     const kyc = getRoleKyc(user, roleType);
     const status = normalizeKycStatus(kyc.status);
@@ -76,6 +132,8 @@ export const getMyVerificationStatus = async (req, res) => {
 
 export const createVerificationRequest = async (req, res) => {
   try {
+    const requestedRole = String(req.body.roleType || req.body.role || "").trim().toLowerCase();
+    const roleType = VALID_ROLE_TYPES.has(requestedRole) ? requestedRole : "grower";
     const orchardName = String(req.body.orchardName || "").trim();
     const ownerName = String(req.body.ownerName || "").trim();
     const location = String(req.body.location || "").trim();
@@ -99,6 +157,8 @@ export const createVerificationRequest = async (req, res) => {
 
     const existingSubmitted = await VerificationRequest.findOne({
       user: req.user.id,
+      roleType,
+      verificationType: "og_verified",
       status: "SUBMITTED",
     }).select("_id");
 
@@ -110,6 +170,8 @@ export const createVerificationRequest = async (req, res) => {
 
     const request = await VerificationRequest.create({
       user: req.user.id,
+      roleType,
+      verificationType: "og_verified",
       orchardName,
       ownerName,
       location,
@@ -146,6 +208,7 @@ export const createVerificationRequest = async (req, res) => {
       });
 
       request.youtubeVideoId = videoData.id;
+      request.youtubeLink = videoData.id ? `https://www.youtube.com/watch?v=${videoData.id}` : "";
       await request.save();
     } catch (uploadErr) {
       console.error("YouTube upload failed:", uploadErr);
@@ -154,6 +217,21 @@ export const createVerificationRequest = async (req, res) => {
         error: uploadErr.message,
       });
     }
+
+    await User.findByIdAndUpdate(req.user.id, {
+      [`ogVerificationByRole.${roleType}`]: {
+        status: "SUBMITTED",
+        requestId: request._id,
+        verificationType: "og_verified",
+        youtubeVideoId: request.youtubeVideoId || "",
+        youtubeLink: request.youtubeLink || "",
+        adminRemarks: "",
+        submittedAt: request.createdAt,
+      },
+      ...(roleType === "buyer" ? { buyerOgVerified: false } : {}),
+      ...(roleType === "grower" ? { growerOgVerified: false } : {}),
+      ...(roleType === "driver" ? { driverOgVerified: false } : {}),
+    });
 
     consumeOtpVerification(parsedPhone);
 

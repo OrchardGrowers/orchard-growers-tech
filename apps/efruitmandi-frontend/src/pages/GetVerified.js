@@ -26,6 +26,7 @@ export default function GetVerified() {
   const navigate = useNavigate();
   const user = useMemo(() => getCurrentUser() || {}, []);
   const isBuyer = hasBuyerProfile(user);
+  const roleType = isBuyer ? "buyer" : "grower";
   const [form, setForm] = useState({
     orchardName: isBuyer ? user.businessName || "" : user.orchardName || "",
     ownerName: isBuyer ? user.buyerContactPerson || user.name || "" : user.name || "",
@@ -181,6 +182,8 @@ export default function GetVerified() {
       payload.append("ownerName", form.ownerName);
       payload.append("location", form.location);
       payload.append("phone", form.phone);
+      payload.append("roleType", roleType);
+      payload.append("verificationType", "og_verified");
       payload.append("udyanCard", form.udyanCardFile);
       payload.append("orchardVideo", form.orchardVideoFile);
 

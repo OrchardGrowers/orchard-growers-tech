@@ -195,16 +195,22 @@ type VerificationRequest = {
   ownerName: string;
   location: string;
   phone: string;
+  roleType?: string;
+  verificationType?: string;
   status: string;
   createdAt: string;
   youtubeVideoId?: string;
+  youtubeLink?: string;
   udyanCardFile?: FileMeta;
   orchardVideo?: FileMeta;
+  documents?: UploadedFile[];
+  adminRemarks?: string;
   adminReviews?: Review[];
   user?: {
     _id?: string;
     name?: string;
     email?: string;
+    phone?: string;
     role?: string;
     isVerified?: boolean;
     accountStatus?: string;
@@ -258,6 +264,7 @@ type AdminTab =
   | 'efruitDashboard'
   | 'users'
   | 'kyc'
+  | 'ogVerified'
   | 'produceLots'
   | 'quotes'
   | 'deals'
@@ -278,7 +285,7 @@ type AdminTab =
   | 'downloadApp';
 type OrchardModulePages = Partial<Record<AdminTab, string>>;
 type ReviewAction = 'APPROVE' | 'REJECT' | 'UNDER_REVIEW' | 'CORRECTION_REQUIRED' | 'HOLD' | 'SUSPEND' | 'TERMINATE';
-type UploadedFile = { label: string; path?: string; fileName?: string };
+type UploadedFile = { label: string; path?: string; url?: string; fileName?: string };
 type AdminProduct = {
   _id: string;
   title?: string;
@@ -619,6 +626,7 @@ const adminRoutePaths: Record<AdminTab, string> = {
   efruitDashboard: '/efruitmandi/dashboard',
   users: '/efruitmandi/users',
   kyc: '/efruitmandi/kyc-verification',
+  ogVerified: '/efruitmandi/og-verified',
   produceLots: '/efruitmandi/produce-lots',
   quotes: '/efruitmandi/quotes',
   deals: '/efruitmandi/deals',
@@ -656,6 +664,7 @@ const adminTabPlatforms: Record<AdminTab, AdminPlatform> = {
   efruitDashboard: 'efruitmandi',
   users: 'efruitmandi',
   kyc: 'efruitmandi',
+  ogVerified: 'efruitmandi',
   produceLots: 'efruitmandi',
   quotes: 'efruitmandi',
   deals: 'efruitmandi',
@@ -690,6 +699,7 @@ const platformTabs: Record<AdminPlatform, AdminTabButton[]> = {
     { id: 'efruitDashboard', label: 'Dashboard' },
     { id: 'users', label: 'Users' },
     { id: 'kyc', label: 'KYC Verification' },
+    { id: 'ogVerified', label: 'OG Verified' },
     { id: 'produceLots', label: 'Produce Lots' },
     { id: 'quotes', label: 'Quotes' },
     { id: 'deals', label: 'Deals' },
@@ -760,7 +770,7 @@ const adminRolePermissions: Record<AdminRole, AdminTab[]> = {
   SALES_EXECUTIVE: ['dashboard', 'billing', 'sales', 'logistics', 'customers', 'reports', 'notifications', 'downloadApp'],
   PURCHASE_MANAGER: ['dashboard', 'master', 'inventory', 'purchase', 'reports', 'notifications', 'downloadApp'],
   FINANCE_MANAGER: ['dashboard', 'billing', 'expenses', 'financials', 'transactions', 'efruitInvoices', 'reports', 'analytics', 'notifications', 'downloadApp'],
-  VERIFICATION_OFFICER: ['dashboard', 'efruitDashboard', 'users', 'kyc', 'produceLots', 'efruitInvoices', 'sellers', 'buyers', 'suspendedUsers', 'notifications', 'downloadApp'],
+  VERIFICATION_OFFICER: ['dashboard', 'efruitDashboard', 'users', 'kyc', 'ogVerified', 'produceLots', 'efruitInvoices', 'sellers', 'buyers', 'suspendedUsers', 'notifications', 'downloadApp'],
   SUPPORT_EXECUTIVE: ['dashboard', 'users', 'customers', 'sellers', 'buyers', 'supportDisputes', 'efruitInvoices', 'suspendedUsers', 'notifications', 'downloadApp'],
   VIEWER: ['dashboard', 'reports', 'efruitDashboard', 'efruitInvoices', 'analytics', 'notifications', 'downloadApp'],
 };
@@ -895,6 +905,13 @@ const modulePlans: Partial<Record<AdminTab, ModulePlan>> = {
     text: 'Review uploaded identity, business, farmer, banking, and address documents with approval, rejection, resubmission, and expiry statuses.',
     pages: ['Aadhaar / ID Proof', 'PAN', 'GST Certificate', 'Farmer Proof / Land Proof', 'Business Proof', 'Bank Details', 'Address Proof', 'Other Documents'],
     fields: ['Pending', 'Under Review', 'Approved', 'Rejected', 'Resubmission Required', 'Expired'],
+  },
+  ogVerified: {
+    title: 'OG Verification',
+    text: 'Review product quality, orchard quality, buyer/grower trust proof, uploaded media, and YouTube proof separately from KYC.',
+    pages: ['Pending Requests', 'Under Review', 'Approved OG Verified', 'Rejected Requests', 'Quality Proof', 'YouTube Proof', 'Admin Remarks'],
+    fields: ['Role Type', 'Company / Orchard Name', 'Owner / Contact Person', 'Location', 'Phone', 'YouTube Link', 'Uploaded Proof', 'Status'],
+    rules: ['KYC approval must not approve OG Verification.', 'OG approval applies only to the selected buyer/grower/logistic role.', 'Approve only after quality proof is reviewed by authorized admins.'],
   },
   produceLots: {
     title: 'Produce Lots',
@@ -1554,6 +1571,10 @@ function App() {
       return;
     }
 
+    if (type === 'verification' && action === 'APPROVE' && !confirmTwice('approve this OG Verification request')) {
+      return;
+    }
+
     if (['HOLD', 'SUSPEND', 'TERMINATE'].includes(action) && !confirmTwice(`${action.toLowerCase()} this request and user account`)) {
       return;
     }
@@ -1584,7 +1605,9 @@ function App() {
     }
     setMessage(
       action === 'APPROVE'
-        ? 'Approval saved. User verifies after Class1 and Class2 approval.'
+        ? type === 'verification'
+          ? 'OG Verification approval saved. Badge appears only after required admin approval is complete.'
+          : 'Approval saved. User verifies after Class1 and Class2 approval.'
         : 'Rejection saved.'
     );
     loadRequests();
@@ -2013,7 +2036,8 @@ function App() {
     sales: orders.length,
     logistics: orders.length,
     users: users.length,
-    kyc: kycRequests.length + verificationRequests.length,
+    kyc: kycRequests.length,
+    ogVerified: verificationRequests.length,
     sellers: users.filter((user) => user.role === 'grower').length,
     buyers: users.filter((user) => user.role === 'buyer').length,
     suspendedUsers: users.filter((user) => ['HOLD', 'SUSPENDED', 'TERMINATED'].includes(user.accountStatus || '')).length,
@@ -2220,6 +2244,14 @@ function App() {
       return (
         <KycVerificationPanel
           kycRequests={kycRequests}
+          onReview={review}
+          onViewFile={setViewingFile}
+        />
+      );
+    }
+    if (tab === 'ogVerified') {
+      return (
+        <OgVerificationPanel
           verificationRequests={verificationRequests}
           onReview={review}
           onEditVerification={editVerificationRequest}
@@ -2659,6 +2691,7 @@ function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: (
         { label: 'Dashboard', icon: 'dashboard', tab: 'efruitDashboard' },
         { label: 'Users', icon: 'users', tab: 'users' },
         { label: 'KYC Verification', icon: 'verify', tab: 'kyc' },
+        { label: 'OG Verified', icon: 'verify', tab: 'ogVerified', count: counts.ogVerified },
         { label: 'Produce Lots', icon: 'lot', tab: 'produceLots' },
         { label: 'Quotes', icon: 'quotes', tab: 'quotes' },
         { label: 'Deals', icon: 'deal', tab: 'deals' },
@@ -3275,6 +3308,7 @@ function getAdminTabTitle(activeTab: AdminTab, activePlatform: AdminPlatform) {
   if (activeTab === 'users') return 'eFruitMandi Users';
   if (activeTab === 'notifications') return 'Admin Notifications';
   if (activeTab === 'kyc') return 'eFruitMandi KYC Verification';
+  if (activeTab === 'ogVerified') return 'eFruitMandi OG Verification';
   if (activeTab === 'produceLots') return 'eFruitMandi Produce Lots';
   if (activeTab === 'quotes') return 'eFruitMandi Quotes';
   if (activeTab === 'deals') return 'eFruitMandi Deals';
@@ -3317,7 +3351,7 @@ function AdminDashboardPanel({
     { label: 'Orchard Products', value: productCount, action: 'Open Inventory', tab: 'inventory' as const },
     { label: 'Sales & Invoice', value: orderCount, action: 'Open Sales', tab: 'sales' as const },
     { label: 'eFruitMandi Users', value: userCount, action: 'Open Users', tab: 'users' as const },
-    { label: 'Review Queue', value: pendingKycCount + pendingVerificationCount, action: 'Open KYC', tab: 'kyc' as const },
+    { label: 'Review Queue', value: pendingKycCount + pendingVerificationCount, action: 'Open OG Verification', tab: 'ogVerified' as const },
   ];
 
   return (
@@ -3549,15 +3583,11 @@ function RolesPermissionsPanel() {
 
 function KycVerificationPanel({
   kycRequests,
-  verificationRequests,
   onReview,
-  onEditVerification,
   onViewFile,
 }: {
   kycRequests: KycUser[];
-  verificationRequests: VerificationRequest[];
   onReview: (type: 'kyc' | 'verification', id: string, action: ReviewAction) => void;
-  onEditVerification: (request: VerificationRequest) => void;
   onViewFile: (file: UploadedFile) => void;
 }) {
   const [filter, setFilter] = useState('all');
@@ -3603,8 +3633,69 @@ function KycVerificationPanel({
           <KycRequestCard key={user._id} user={user} onReview={onReview} onViewFile={onViewFile} />
         ))}
       </RequestSection>
-      <RequestSection title="User Verification Requests" count={verificationRequests.length}>
-        {verificationRequests.map((request) => (
+    </section>
+  );
+}
+
+function OgVerificationPanel({
+  verificationRequests,
+  onReview,
+  onEditVerification,
+  onViewFile,
+}: {
+  verificationRequests: VerificationRequest[];
+  onReview: (type: 'kyc' | 'verification', id: string, action: ReviewAction) => void;
+  onEditVerification: (request: VerificationRequest) => void;
+  onViewFile: (file: UploadedFile) => void;
+}) {
+  const [filter, setFilter] = useState('all');
+  const normalizedFilter = filter.toLowerCase();
+  const filteredRequests = verificationRequests.filter((request) => {
+    const status = String(request.status || '').toLowerCase();
+    const roleType = String(request.roleType || request.user?.role || '').toLowerCase();
+    if (normalizedFilter === 'all') return true;
+    if (['buyer', 'grower', 'driver'].includes(normalizedFilter)) return roleType === normalizedFilter;
+    return status === normalizedFilter || (normalizedFilter === 'pending' && status === 'submitted');
+  });
+  const pending = verificationRequests.filter((request) => String(request.status || '').toUpperCase() === 'SUBMITTED').length;
+  const approved = verificationRequests.filter((request) => String(request.status || '').toUpperCase() === 'APPROVED').length;
+  const underReview = verificationRequests.filter((request) => String(request.status || '').toUpperCase() === 'UNDER_REVIEW').length;
+
+  return (
+    <section className="space-y-4">
+      <ModulePlanPanel plan={modulePlans.ogVerified} />
+      <div className="grid gap-3 md:grid-cols-3">
+        <MetricCard label="Pending OG Requests" value={pending} />
+        <MetricCard label="Under Review" value={underReview} />
+        <MetricCard label="Approved OG Verified" value={approved} />
+      </div>
+      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+        <p className="text-sm font-bold text-slate-300">OG Verification filters</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {[
+            ['all', 'All'],
+            ['pending', 'Pending'],
+            ['under_review', 'Under Review'],
+            ['approved', 'Approved'],
+            ['rejected', 'Rejected'],
+            ['buyer', 'Buyer'],
+            ['grower', 'Grower'],
+            ['driver', 'Logistic'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setFilter(value)}
+              className={`rounded-full px-3 py-1 text-xs font-bold ${
+                filter === value ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <RequestSection title="OG Verification / Quality Requests" count={filteredRequests.length}>
+        {filteredRequests.map((request) => (
           <VerificationRequestCard
             key={request._id}
             request={request}
@@ -3648,7 +3739,7 @@ function HomePanel({
       : [
           { label: 'User Accounts', value: userCount, action: 'Open User Records', tab: 'users' as const },
           { label: 'KYC Queue', value: pendingKycCount, action: 'Open KYC Desk', tab: 'kyc' as const },
-          { label: 'Verification Queue', value: pendingVerificationCount, action: 'Open Verification Desk', tab: 'kyc' as const },
+          { label: 'OG Verification Queue', value: pendingVerificationCount, action: 'Open OG Desk', tab: 'ogVerified' as const },
           { label: 'Verified Accounts', value: approvedVerificationCount + approvedKycCount, action: 'Review Verified Users', tab: 'users' as const },
         ];
 
@@ -6716,18 +6807,31 @@ function VerificationRequestCard({
   onEdit: (request: VerificationRequest) => void;
   onViewFile: (file: UploadedFile) => void;
 }) {
+  const status = String(request.status || '').toUpperCase();
+  const roleType = String(request.roleType || request.user?.role || 'grower').toLowerCase();
+  const youtubeUrl = request.youtubeLink || (request.youtubeVideoId ? `https://www.youtube.com/watch?v=${request.youtubeVideoId}` : '');
+  const uploadedDocuments = (request.documents || []).map((file, index) => ({
+    label: file.label || `View Proof ${index + 1}`,
+    path: file.path || file.url,
+    fileName: file.fileName,
+  }));
+
   return (
     <article className="rounded-xl border border-slate-800 bg-slate-950 p-4">
       <RequestHeader
         title={request.orchardName}
-        subtitle={`${request.user?.role || 'user'} - ${request.user?.email || request.phone}`}
+        subtitle={`${roleType} OG verification - ${request.user?.email || request.user?.phone || request.phone}`}
         status={request.status}
       />
       <div className="mt-4 grid gap-2 text-sm text-slate-300">
+        <Info label="Role Type" value={roleType} />
+        <Info label="Verification Type" value={request.verificationType || 'og_verified'} />
         <Info label="Company / Orchard Name" value={request.orchardName} />
         <Info label="Owner / Contact Person" value={request.ownerName} />
         <Info label="Location" value={request.location} />
         <Info label="Phone" value={request.phone} />
+        <Info label="Submitted At" value={formatDate(request.createdAt)} />
+        <Info label="Admin Remarks" value={request.adminRemarks} />
       </div>
       <UploadedFilesPanel
         onViewFile={onViewFile}
@@ -6744,14 +6848,14 @@ function VerificationRequestCard({
           },
           {
             label: 'View YouTube Video',
-            path: request.youtubeVideoId
-              ? `https://www.youtube.com/watch?v=${request.youtubeVideoId}`
-              : '',
+            path: youtubeUrl,
           },
+          ...uploadedDocuments,
         ]}
       />
       <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <AdminActionButton label="Edit" onClick={() => onEdit(request)} />
+        <AdminActionButton label="Under Review" onClick={() => onReview('verification', request._id, 'UNDER_REVIEW')} />
         <AdminActionButton label="Hold" onClick={() => onReview('verification', request._id, 'HOLD')} />
         <AdminActionButton label="Suspend" onClick={() => onReview('verification', request._id, 'SUSPEND')} danger />
         <AdminActionButton label="Terminate" onClick={() => onReview('verification', request._id, 'TERMINATE')} danger />
@@ -6759,6 +6863,7 @@ function VerificationRequestCard({
       <ReviewButtons
         onApprove={() => onReview('verification', request._id, 'APPROVE')}
         onReject={() => onReview('verification', request._id, 'REJECT')}
+        approved={status === 'APPROVED'}
       />
     </article>
   );
@@ -6903,17 +7008,22 @@ function FilePreviewModal({ file, onClose }: { file: UploadedFile; onClose: () =
 function ReviewButtons({
   onApprove,
   onReject,
+  approved = false,
 }: {
   onApprove: () => void;
   onReject: () => void;
+  approved?: boolean;
 }) {
   return (
     <div className="mt-4 flex gap-2">
       <button
         onClick={onApprove}
-        className="flex-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-500"
+        disabled={approved}
+        className={`flex-1 rounded-lg px-3 py-2 text-sm font-bold text-white ${
+          approved ? 'cursor-not-allowed bg-emerald-700' : 'bg-emerald-600 hover:bg-emerald-500'
+        }`}
       >
-        Approve
+        {approved ? 'Approved' : 'Approve'}
       </button>
       <button
         onClick={onReject}

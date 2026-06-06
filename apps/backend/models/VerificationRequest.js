@@ -3,6 +3,16 @@ import mongoose from "mongoose";
 const verificationRequestSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    roleType: {
+      type: String,
+      enum: ["buyer", "grower", "driver"],
+      default: "grower",
+    },
+    verificationType: {
+      type: String,
+      enum: ["kyc", "og_verified"],
+      default: "og_verified",
+    },
     orchardName: { type: String, trim: true, required: true },
     ownerName: { type: String, trim: true, required: true },
     location: { type: String, trim: true, required: true },
@@ -18,6 +28,9 @@ const verificationRequestSchema = new mongoose.Schema(
       mimetype: String,
     },
     youtubeVideoId: String,
+    youtubeLink: { type: String, trim: true, default: "" },
+    documents: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    adminRemarks: { type: String, trim: true, default: "" },
     fee: {
       baseAmount: { type: Number, default: 5000 },
       taxRate: { type: Number, default: 0.05 },
