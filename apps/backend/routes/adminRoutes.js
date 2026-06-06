@@ -2,6 +2,7 @@ import express from "express";
 import multer from "multer";
 import Admin from "../models/Admin.js";
 import DealSettings from "../models/DealSettings.js";
+import Quotation from "../models/Quotation.js";
 import {
   createAdmin,
   activateAdmin,
@@ -182,6 +183,43 @@ router.get("/kyc/:id", ...adminOnly, requireRoles(...VERIFICATION_READ_ROLES), w
 router.patch("/kyc/:id/status", ...adminOnly, requireRoles(...VERIFICATION_WRITE_ROLES), wrapAsync(updateKycStatusByAdmin));
 router.get("/orders", ...adminOnly, requireRoles(...ORDER_READ_ROLES), wrapAsync(listOrders));
 router.patch("/orders/:id/logistics", ...adminOnly, requireRoles(...ORDER_READ_ROLES), wrapAsync(updateOrderLogistics));
+router.get("/quotes", ...adminOnly, requireRoles(...ORDER_READ_ROLES), wrapAsync(async (req, res) => {
+  const quotes = await Quotation.find()
+    .populate("lot", "title fruitName quantity status acceptedQuoteId acceptedBuyerId finalPrice finalDealValue")
+    .populate("buyer", "name businessName buyerContactPerson phone")
+    .populate("grower", "name orchardName businessName phone")
+    .sort({ createdAt: -1 })
+    .limit(500)
+    .lean();
+
+  res.json({
+    success: true,
+    quotes: quotes.map((quote) => ({
+      _id: quote._id,
+      lotId: quote.lot?._id || quote.lot,
+      buyerId: quote.buyer?._id || quote.buyer,
+      growerId: quote.grower?._id || quote.grower,
+      lotTitle: quote.lotTitle || quote.lot?.title || quote.lot?.fruitName || "Fruit Lot",
+      fruitType: quote.fruitType || quote.lot?.fruitName || "",
+      lotQuantity: quote.lotQuantity || quote.lot?.quantity || 0,
+      buyerName: quote.buyerName || quote.buyer?.businessName || quote.buyer?.buyerContactPerson || quote.buyer?.name || "Buyer",
+      buyerPhone: quote.buyerPhone || quote.buyer?.phone || "",
+      growerName: quote.growerName || quote.grower?.orchardName || quote.grower?.businessName || quote.grower?.name || "Grower",
+      quotedPrice: quote.quotedPrice || quote.grades?.[0]?.price || 0,
+      quotedTotalValue: quote.quotedTotalValue || quote.dealAmount || 0,
+      buyerPayable: quote.buyerPayable || 0,
+      sellerReceivable: quote.sellerReceivable || 0,
+      commissionAmount: quote.commissionAmount || 0,
+      commissionPercent: quote.commissionPercent || 0,
+      status: String(quote.status || "pending").toLowerCase().replace("submitted", "pending").replace("expired", "closed"),
+      acceptedAt: quote.acceptedAt,
+      rejectedAt: quote.rejectedAt,
+      createdAt: quote.createdAt,
+      updatedAt: quote.updatedAt,
+      lotStatus: quote.lot?.status,
+    })),
+  });
+}));
 
 router.get("/deal-settings", ...adminOnly, requireRoles(...ORDER_READ_ROLES), wrapAsync(async (req, res) => {
   const settings = await DealSettings.findOne({ key: "default" }).lean();

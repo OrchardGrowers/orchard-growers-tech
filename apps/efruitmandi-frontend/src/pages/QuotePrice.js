@@ -84,11 +84,13 @@ export default function QuotePrice() {
     try {
       setSaving(true);
       setMessage("");
-      const res = await API.post(`/quotations/lots/${lotId}`, {
+      const res = await API.post("/quotes", {
+        lotId,
         grades: availableGrades.map((gradeLot) => ({
           grade: gradeLot.grade,
           price: Number(gradePrices[gradeLot.grade] || 0),
         })),
+        quotedPrice: Number(Object.values(gradePrices).find((value) => Number(value || 0) > 0) || 0),
         distanceKm: effectiveDistanceKm,
       });
       setQuotation(res.data?.quotation || null);

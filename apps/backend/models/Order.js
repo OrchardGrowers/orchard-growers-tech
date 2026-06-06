@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 const orderSchema = new mongoose.Schema(
   {
     auction: { type: mongoose.Schema.Types.ObjectId, ref: "Auction" },
+    quote: { type: mongoose.Schema.Types.ObjectId, ref: "Quotation" },
     product: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
 
     buyer: { type: mongoose.Schema.Types.ObjectId, ref: "User" },

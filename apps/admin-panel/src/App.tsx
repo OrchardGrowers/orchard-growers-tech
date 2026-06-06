@@ -336,6 +336,30 @@ type AdminProduct = {
   createdBy?: { name?: string; orchardName?: string; businessName?: string } | string;
   createdAt?: string;
 };
+type AdminQuote = {
+  _id: string;
+  lotId?: string;
+  buyerId?: string;
+  growerId?: string;
+  lotTitle?: string;
+  fruitType?: string;
+  lotQuantity?: number;
+  buyerName?: string;
+  buyerPhone?: string;
+  growerName?: string;
+  quotedPrice?: number;
+  quotedTotalValue?: number;
+  buyerPayable?: number;
+  sellerReceivable?: number;
+  commissionAmount?: number;
+  commissionPercent?: number;
+  status?: string;
+  acceptedAt?: string;
+  rejectedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  lotStatus?: string;
+};
 type AdminUser = {
   _id: string;
   originalUserId?: string;
@@ -1022,6 +1046,7 @@ function App() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminAccount[]>([]);
   const [products, setProducts] = useState<AdminProduct[]>([]);
+  const [quotes, setQuotes] = useState<AdminQuote[]>([]);
   const [loading, setLoading] = useState(false);
   const [viewingFile, setViewingFile] = useState<UploadedFile | null>(null);
   const [adminSearch, setAdminSearch] = useState('');
@@ -1427,27 +1452,29 @@ function App() {
     setLoading(true);
     setMessage('');
     try {
-      const [kycRes, verificationRes, ordersRes, usersRes, productsRes, adminsRes] = await Promise.all([
+      const [kycRes, verificationRes, ordersRes, usersRes, productsRes, adminsRes, quotesRes] = await Promise.all([
         fetch(`${API_BASE}/admin/kyc-requests`, { headers: authHeaders }),
         fetch(`${API_BASE}/admin/verification-requests`, { headers: authHeaders }),
         fetch(`${API_BASE}/admin/orders`, { headers: authHeaders }),
         fetch(`${API_BASE}/admin/users`, { headers: authHeaders }),
         fetch(`${API_BASE}/admin/products`, { headers: authHeaders }),
         fetch(`${API_BASE}/admin/admins`, { headers: authHeaders }),
+        fetch(`${API_BASE}/admin/quotes`, { headers: authHeaders }),
       ]);
 
-      if ([kycRes, verificationRes, ordersRes, usersRes, productsRes, adminsRes].some((res) => [401, 403].includes(res.status))) {
+      if ([kycRes, verificationRes, ordersRes, usersRes, productsRes, adminsRes, quotesRes].some((res) => [401, 403].includes(res.status))) {
         clearAdminSession('Admin session expired or access was revoked. Please log in again.');
         return;
       }
 
-      const [kycData, verificationData, ordersData, usersData, productsData, adminsData] = await Promise.all([
+      const [kycData, verificationData, ordersData, usersData, productsData, adminsData, quotesData] = await Promise.all([
         readResponseJson(kycRes),
         readResponseJson(verificationRes),
         readResponseJson(ordersRes),
         readResponseJson(usersRes),
         readResponseJson(productsRes),
         readResponseJson(adminsRes),
+        readResponseJson(quotesRes),
       ]);
       if (!kycRes.ok) throw new Error(kycData.msg || 'Could not load KYC requests');
       if (!verificationRes.ok) {
@@ -1457,12 +1484,14 @@ function App() {
       if (!usersRes.ok) throw new Error(usersData.msg || 'Could not load users');
       if (!productsRes.ok) throw new Error(productsData.msg || 'Could not load products');
       if (!adminsRes.ok) throw new Error(adminsData.msg || 'Could not load admin users');
+      if (!quotesRes.ok) throw new Error(quotesData.msg || 'Could not load quotes');
       setKycRequests(kycData || []);
       setVerificationRequests(verificationData || []);
       setOrders(ordersData || []);
       setUsers(usersData || []);
       setProducts(productsData || []);
       setAdminUsers(adminsData || []);
+      setQuotes(quotesData.quotes || []);
     } catch (err) {
       setMessage(getNetworkErrorMessage(err));
     } finally {
@@ -2270,7 +2299,15 @@ function App() {
     if (tab === 'efruitInvoices') {
       return <EfruitInvoiceChalanPanel orders={orders} />;
     }
-    if (['quotes', 'deals', 'transactions', 'supportDisputes', 'analytics', 'efruitSettings'].includes(tab)) {
+    if (tab === 'quotes') {
+      return (
+        <section className="space-y-4">
+          <ModulePlanPanel plan={modulePlans.quotes} />
+          <AdminQuotesPanel quotes={quotes} />
+        </section>
+      );
+    }
+    if (['deals', 'transactions', 'supportDisputes', 'analytics', 'efruitSettings'].includes(tab)) {
       return <ModulePlanPanel plan={modulePlans[tab]} />;
     }
     if (tab === 'staffUsers' || tab === 'customers') return <ModulePlanPanel plan={modulePlans[tab]} />;
@@ -5289,6 +5326,92 @@ function SimpleAdminPanel({ title, text }: { title: string; text: string }) {
       </div>
     </section>
   );
+}
+
+function AdminQuotesPanel({ quotes }: { quotes: AdminQuote[] }) {
+  const totalValue = quotes.reduce((sum, quote) => sum + Number(quote.quotedTotalValue || 0), 0);
+  const accepted = quotes.filter((quote) => normalizeAdminQuoteStatus(quote.status) === 'accepted').length;
+  const pending = quotes.filter((quote) => normalizeAdminQuoteStatus(quote.status) === 'pending').length;
+
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+      <div className="mb-4 grid gap-3 md:grid-cols-3">
+        <MetricCard label="Total Quotes" value={quotes.length} />
+        <MetricCard label="Pending Quotes" value={pending} />
+        <MetricCard label="Accepted Deals" value={`${accepted} / Rs. ${totalValue.toLocaleString('en-IN')}`} />
+      </div>
+
+      {!quotes.length ? (
+        <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950 p-5 text-sm font-semibold text-slate-500">
+          No buyer quotes have been submitted yet.
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-slate-800">
+          <div className="hidden grid-cols-[1.2fr_1fr_1fr_0.8fr_0.8fr_0.8fr] gap-3 bg-slate-950 px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-400 lg:grid">
+            <span>Lot</span>
+            <span>Buyer</span>
+            <span>Grower</span>
+            <span>Quote</span>
+            <span>Status</span>
+            <span>Date</span>
+          </div>
+          <div className="divide-y divide-slate-800">
+            {quotes.map((quote) => (
+              <article key={quote._id} className="grid gap-3 bg-slate-900 px-3 py-3 text-sm lg:grid-cols-[1.2fr_1fr_1fr_0.8fr_0.8fr_0.8fr] lg:items-center">
+                <div className="min-w-0">
+                  <p className="truncate font-extrabold text-white">{quote.lotTitle || 'Fruit Lot'}</p>
+                  <p className="text-xs font-semibold text-slate-400">{quote.lotQuantity || 0} boxes | {quote.fruitType || 'Fruit'}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate font-bold text-slate-100">{quote.buyerName || 'Buyer'}</p>
+                  <p className="text-xs font-semibold text-slate-500">{maskAdminPhone(quote.buyerPhone)}</p>
+                </div>
+                <p className="min-w-0 truncate font-bold text-slate-100">{quote.growerName || 'Grower'}</p>
+                <div>
+                  <p className="font-black text-emerald-300">Rs. {Number(quote.quotedTotalValue || 0).toLocaleString('en-IN')}</p>
+                  <p className="text-xs font-semibold text-slate-500">Commission Rs. {Number(quote.commissionAmount || 0).toLocaleString('en-IN')}</p>
+                </div>
+                <AdminQuoteStatusBadge status={quote.status} />
+                <div className="text-xs font-semibold text-slate-400">
+                  <p>{formatDate(quote.createdAt)}</p>
+                  {quote.acceptedAt && <p className="text-emerald-300">Accepted: {formatDate(quote.acceptedAt)}</p>}
+                  {quote.rejectedAt && <p>Rejected: {formatDate(quote.rejectedAt)}</p>}
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function AdminQuoteStatusBadge({ status }: { status?: string }) {
+  const normalized = normalizeAdminQuoteStatus(status);
+  const classes =
+    normalized === 'accepted'
+      ? 'bg-emerald-500 text-white'
+      : normalized === 'rejected' || normalized === 'closed'
+        ? 'bg-slate-700 text-slate-200'
+        : 'bg-amber-300 text-amber-950';
+  return (
+    <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-black uppercase ${classes}`}>
+      {normalized}
+    </span>
+  );
+}
+
+function normalizeAdminQuoteStatus(status = '') {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (normalized === 'submitted') return 'pending';
+  if (normalized === 'expired') return 'closed';
+  return normalized || 'pending';
+}
+
+function maskAdminPhone(phone = '') {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length < 4) return 'Phone hidden';
+  return `${digits.slice(0, 2)}XXXX${digits.slice(-2)}`;
 }
 
 function MetricCard({ label, value }: { label: string; value: number | string }) {

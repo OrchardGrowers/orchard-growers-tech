@@ -97,9 +97,13 @@ const productSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["AVAILABLE", "IN_AUCTION", "SOLD"],
+      enum: ["AVAILABLE", "IN_AUCTION", "SOLD", "QUOTE_ACCEPTED", "DEAL_CONFIRMED", "quote_accepted", "deal_confirmed"],
       default: "AVAILABLE",
     },
+    acceptedQuoteId: { type: mongoose.Schema.Types.ObjectId, ref: "Quotation" },
+    acceptedBuyerId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    finalPrice: Number,
+    finalDealValue: Number,
   },
   { timestamps: true }
 );

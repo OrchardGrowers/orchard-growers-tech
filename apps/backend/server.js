@@ -166,7 +166,7 @@ app.use("/api/products", productRoutes);
 app.use("/api/auctions", auctionRoutes);
 // Compatibility aliases: expose the same auction routes under business-friendly paths
 app.use("/api/deals", auctionRoutes);
-app.use("/api/quotes", auctionRoutes);
+app.use("/api/quotes", quotationRoutes);
 app.use("/api/quotations", quotationRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/delivery", deliveryRoutes);

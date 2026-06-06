@@ -3,6 +3,7 @@ import Product from "../models/Product.js";
 import Quotation from "../models/Quotation.js";
 import User from "../models/User.js";
 import DealSettings from "../models/DealSettings.js";
+import Order from "../models/Order.js";
 import protect, { authorize } from "../middleware/authMiddleware.js";
 import {
   buildGradeQuantitiesFromProduct,
@@ -64,11 +65,72 @@ const buildGradePrices = (prices = []) => {
   }, {});
 };
 
-router.post("/lots/:lotId", protect, authorize("buyer"), async (req, res) => {
+const normalizeQuoteStatus = (status = "") => {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (normalized === "submitted") return "pending";
+  if (normalized === "expired") return "closed";
+  return normalized || "pending";
+};
+
+const formatQuote = (quotation = {}) => {
+  const lot = quotation.lot || {};
+  const buyer = quotation.buyer || {};
+  const grower = quotation.grower || {};
+  const buyerName =
+    quotation.buyerName ||
+    buyer.businessName ||
+    buyer.buyerContactPerson ||
+    buyer.name ||
+    "Buyer";
+  const growerName =
+    quotation.growerName ||
+    grower.orchardName ||
+    grower.businessName ||
+    grower.name ||
+    "Grower";
+
+  return {
+    _id: quotation._id,
+    lotId: lot._id || quotation.lot,
+    buyerId: buyer._id || quotation.buyer,
+    growerId: grower._id || quotation.grower,
+    lotTitle: quotation.lotTitle || lot.title || lot.fruitName || "Fruit Lot",
+    fruitType: quotation.fruitType || lot.fruitName || lot.title || "",
+    lotQuantity: quotation.lotQuantity || lot.quantity || 0,
+    buyerName,
+    buyerPhone: quotation.buyerPhone || buyer.phone || "",
+    growerName,
+    quotedPrice: quotation.quotedPrice || quotation.grades?.[0]?.price || 0,
+    quotedTotalValue: quotation.quotedTotalValue || quotation.dealAmount || 0,
+    dealAmount: quotation.dealAmount || 0,
+    buyerPayable: quotation.buyerPayable || 0,
+    sellerReceivable: quotation.sellerReceivable || 0,
+    commissionAmount: quotation.commissionAmount || 0,
+    commissionPercent: quotation.commissionPercent || 0,
+    driverCharge: quotation.driverCharge || 0,
+    grades: quotation.grades || [],
+    message: quotation.message || "",
+    status: normalizeQuoteStatus(quotation.status),
+    createdAt: quotation.createdAt,
+    updatedAt: quotation.updatedAt,
+    acceptedAt: quotation.acceptedAt,
+    rejectedAt: quotation.rejectedAt,
+    lotStatus: lot.status,
+  };
+};
+
+const populateQuoteQuery = (query) =>
+  query
+    .populate("lot", "title fruitName quantity status acceptedQuoteId acceptedBuyerId finalPrice finalDealValue createdBy")
+    .populate("buyer", "name businessName buyerContactPerson phone")
+    .populate("grower", "name orchardName businessName phone");
+
+const createQuoteForLot = async (req, res) => {
   try {
+    const lotId = req.params.lotId || req.body.lotId;
     const [product, buyer] = await Promise.all([
-      Product.findById(req.params.lotId).populate("createdBy", "name orchardName businessName mapLatitude mapLongitude"),
-      User.findById(req.user.id).select("role profileTypes businessName buyerContactPerson kyc kycByRole buyerVerified mapLatitude mapLongitude"),
+      Product.findById(lotId).populate("createdBy", "name orchardName businessName mapLatitude mapLongitude"),
+      User.findById(req.user.id).select("role profileTypes name phone businessName buyerContactPerson kyc kycByRole buyerVerified mapLatitude mapLongitude"),
     ]);
 
     if (!product || product.createdSource === "admin-panel") {
@@ -90,6 +152,22 @@ router.post("/lots/:lotId", protect, authorize("buyer"), async (req, res) => {
 
     if (!product.createdBy) {
       return res.status(404).json({ msg: "Grower not found for this lot" });
+    }
+
+    if (String(product.createdBy._id || product.createdBy) === String(req.user.id)) {
+      return res.status(400).json({ msg: "Growers cannot quote on their own lot" });
+    }
+
+    const existingActiveQuote = await Quotation.findOne({
+      lot: product._id,
+      buyer: buyer._id,
+      status: { $in: ["pending", "SUBMITTED"] },
+    });
+    if (existingActiveQuote) {
+      return res.status(409).json({
+        msg: "You already have a pending quote for this lot. Please wait for grower action before submitting another quote.",
+        quotation: formatQuote(existingActiveQuote),
+      });
     }
 
     const gradeQuantities = buildGradeQuantitiesFromProduct(product);
@@ -119,13 +197,25 @@ router.post("/lots/:lotId", protect, authorize("buyer"), async (req, res) => {
       distanceKm,
       ...settings,
     });
+    const primaryGrade = breakdown.grades?.[0] || {};
+    const buyerName = buyer.businessName || buyer.buyerContactPerson || buyer.name || "Buyer";
+    const growerName = product.createdBy.orchardName || product.createdBy.businessName || product.createdBy.name || "Grower";
 
     const quotation = await Quotation.create({
       lot: product._id,
       buyer: buyer._id,
       grower: product.createdBy._id || product.createdBy,
+      lotQuantity: Number(product.quantity || 0),
+      fruitType: product.fruitName || product.title || "",
+      lotTitle: product.title || product.fruitName || "Fruit Lot",
+      buyerName,
+      buyerPhone: buyer.phone || "",
+      growerName,
+      message: String(req.body.message || "").trim(),
       grades: breakdown.grades,
       distanceKm,
+      quotedPrice: Number(req.body.quotedPrice || primaryGrade.price || 0),
+      quotedTotalValue: breakdown.dealAmount,
       dealAmount: breakdown.dealAmount,
       driverCharge: breakdown.driverCharge,
       commissionBase: breakdown.commissionBase,
@@ -135,13 +225,236 @@ router.post("/lots/:lotId", protect, authorize("buyer"), async (req, res) => {
       sellerReceivable: breakdown.sellerReceivable,
     });
 
+    const populated = await populateQuoteQuery(Quotation.findById(quotation._id)).lean();
+
     res.status(201).json({
       success: true,
-      quotation,
+      quotation: formatQuote(populated || quotation.toObject()),
       distanceSource: autoDistanceKm === null ? "manual" : "profile",
     });
   } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(409).json({ msg: "You already have a pending quote for this lot." });
+    }
     res.status(400).json({ msg: err.message || "Quotation could not be saved" });
+  }
+};
+
+router.post("/", protect, authorize("buyer"), createQuoteForLot);
+
+router.post("/lots/:lotId", protect, authorize("buyer"), createQuoteForLot);
+
+router.get("/grower", protect, authorize("grower"), async (req, res) => {
+  try {
+    const quotations = await populateQuoteQuery(
+      Quotation.find({ grower: req.user.id }).sort({ createdAt: -1 })
+    ).lean();
+    res.json({ success: true, quotes: quotations.map(formatQuote) });
+  } catch (err) {
+    res.status(500).json({ msg: err.message || "Could not load grower quotes" });
+  }
+});
+
+router.get("/buyer", protect, authorize("buyer"), async (req, res) => {
+  try {
+    const quotations = await populateQuoteQuery(
+      Quotation.find({ buyer: req.user.id }).sort({ createdAt: -1 })
+    ).lean();
+    res.json({ success: true, quotes: quotations.map(formatQuote) });
+  } catch (err) {
+    res.status(500).json({ msg: err.message || "Could not load buyer quotes" });
+  }
+});
+
+router.get("/admin", protect, authorize("SUPER_ADMIN", "ADMIN", "UNIT_MANAGER", "INVENTORY_MANAGER", "SALES_EXECUTIVE", "PURCHASE_MANAGER", "FINANCE_MANAGER", "VERIFICATION_OFFICER", "SUPPORT_EXECUTIVE", "VIEWER", "EMPLOYEE"), async (req, res) => {
+  try {
+    const quotations = await populateQuoteQuery(Quotation.find().sort({ createdAt: -1 }).limit(500)).lean();
+    res.json({ success: true, quotes: quotations.map(formatQuote) });
+  } catch (err) {
+    res.status(500).json({ msg: err.message || "Could not load quotes" });
+  }
+});
+
+router.patch("/:quoteId", protect, authorize("buyer"), async (req, res) => {
+  try {
+    const quotation = await Quotation.findById(req.params.quoteId).populate({
+      path: "lot",
+      populate: { path: "createdBy", select: "name orchardName businessName mapLatitude mapLongitude" },
+    });
+
+    if (!quotation || !quotation.lot) {
+      return res.status(404).json({ msg: "Quote not found" });
+    }
+
+    if (quotation.buyer?.toString() !== req.user.id?.toString()) {
+      return res.status(403).json({ msg: "You can update only your own quote" });
+    }
+
+    if (!["pending", "submitted"].includes(normalizeQuoteStatus(quotation.status))) {
+      return res.status(400).json({ msg: "Only pending quotes can be updated" });
+    }
+
+    const buyer = await User.findById(req.user.id).select("name phone businessName buyerContactPerson mapLatitude mapLongitude");
+    const gradeQuantities = buildGradeQuantitiesFromProduct(quotation.lot);
+    const availableGrades = Object.entries(gradeQuantities)
+      .filter(([, quantity]) => Number(quantity || 0) > 0)
+      .map(([grade]) => grade);
+    const gradePrices = buildGradePrices(req.body.grades);
+    const missingGrade = availableGrades.find((grade) => !Number(gradePrices[grade] || 0));
+    if (missingGrade) {
+      return res.status(400).json({ msg: `Enter a price greater than 0 for Grade ${missingGrade}` });
+    }
+
+    const autoDistanceKm = calculateDistanceKm(quotation.lot.createdBy, buyer);
+    const fallbackDistance = req.body.distanceKm === undefined || req.body.distanceKm === ""
+      ? null
+      : Number(req.body.distanceKm);
+    const distanceKm = autoDistanceKm ?? (Number.isFinite(fallbackDistance) ? fallbackDistance : quotation.distanceKm || 0);
+    const settings = await loadDealSettings();
+    const breakdown = calculateDealBreakdown({
+      gradeQuantities,
+      gradePrices,
+      distanceKm,
+      ...settings,
+    });
+    const primaryGrade = breakdown.grades?.[0] || {};
+
+    quotation.grades = breakdown.grades;
+    quotation.distanceKm = distanceKm;
+    quotation.quotedPrice = Number(req.body.quotedPrice || primaryGrade.price || 0);
+    quotation.quotedTotalValue = breakdown.dealAmount;
+    quotation.dealAmount = breakdown.dealAmount;
+    quotation.driverCharge = breakdown.driverCharge;
+    quotation.commissionBase = breakdown.commissionBase;
+    quotation.commissionPercent = breakdown.commissionPercent;
+    quotation.commissionAmount = breakdown.commissionAmount;
+    quotation.buyerPayable = breakdown.buyerPayable;
+    quotation.sellerReceivable = breakdown.sellerReceivable;
+    quotation.message = String(req.body.message || quotation.message || "").trim();
+    await quotation.save();
+
+    const updated = await populateQuoteQuery(Quotation.findById(quotation._id)).lean();
+    res.json({ success: true, quotation: formatQuote(updated || quotation.toObject()) });
+  } catch (err) {
+    res.status(400).json({ msg: err.message || "Quote could not be updated" });
+  }
+});
+
+router.patch("/:quoteId/accept", protect, authorize("grower"), async (req, res) => {
+  try {
+    const quotation = await Quotation.findById(req.params.quoteId).populate("lot");
+    if (!quotation || !quotation.lot) {
+      return res.status(404).json({ msg: "Quote not found" });
+    }
+
+    const lotOwner = quotation.lot.createdBy?.toString();
+    if (lotOwner !== req.user.id?.toString() || quotation.grower?.toString() !== req.user.id?.toString()) {
+      return res.status(403).json({ msg: "You can accept quotes only on your own lots" });
+    }
+
+    if (quotation.lot.acceptedQuoteId && quotation.lot.acceptedQuoteId.toString() !== quotation._id.toString()) {
+      return res.status(409).json({ msg: "A quote has already been accepted for this lot" });
+    }
+
+    if (!["pending", "submitted"].includes(normalizeQuoteStatus(quotation.status))) {
+      return res.status(400).json({ msg: "Only pending quotes can be accepted" });
+    }
+
+    quotation.status = "accepted";
+    quotation.acceptedAt = new Date();
+    await quotation.save();
+
+    await Product.findByIdAndUpdate(quotation.lot._id, {
+      status: "DEAL_CONFIRMED",
+      acceptedQuoteId: quotation._id,
+      acceptedBuyerId: quotation.buyer,
+      finalPrice: quotation.quotedPrice || quotation.dealAmount,
+      finalDealValue: quotation.dealAmount,
+    });
+
+    await Quotation.updateMany(
+      {
+        lot: quotation.lot._id,
+        _id: { $ne: quotation._id },
+        status: { $in: ["pending", "SUBMITTED"] },
+      },
+      { $set: { status: "closed", rejectedAt: new Date() } }
+    );
+
+    await Order.findOneAndUpdate(
+      { quote: quotation._id },
+      {
+        quote: quotation._id,
+        product: quotation.lot._id,
+        buyer: quotation.buyer,
+        grower: quotation.grower,
+        auctionPrice: quotation.dealAmount,
+        finalPrice: quotation.buyerPayable || quotation.dealAmount,
+        dealBreakdown: {
+          grades: quotation.grades,
+          dealAmount: quotation.dealAmount,
+          buyerPayable: quotation.buyerPayable,
+          sellerReceivable: quotation.sellerReceivable,
+          commissionAmount: quotation.commissionAmount,
+          commissionPercent: quotation.commissionPercent,
+          driverCharge: quotation.driverCharge,
+        },
+        driverPayment: quotation.driverCharge || 0,
+        platformCommission: quotation.commissionAmount || 0,
+        growerPayout: quotation.sellerReceivable || 0,
+        paymentStatus: "PENDING",
+        deliveryStatus: "PENDING",
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+
+    const updated = await populateQuoteQuery(Quotation.findById(quotation._id)).lean();
+    res.json({ success: true, quote: formatQuote(updated || quotation.toObject()) });
+  } catch (err) {
+    res.status(500).json({ msg: err.message || "Quote could not be accepted" });
+  }
+});
+
+router.patch("/:quoteId/reject", protect, authorize("grower"), async (req, res) => {
+  try {
+    const quotation = await Quotation.findById(req.params.quoteId).populate("lot");
+    if (!quotation || !quotation.lot) {
+      return res.status(404).json({ msg: "Quote not found" });
+    }
+
+    if (quotation.lot.createdBy?.toString() !== req.user.id?.toString()) {
+      return res.status(403).json({ msg: "You can reject quotes only on your own lots" });
+    }
+
+    if (!["pending", "submitted"].includes(normalizeQuoteStatus(quotation.status))) {
+      return res.status(400).json({ msg: "Only pending quotes can be rejected" });
+    }
+
+    quotation.status = "rejected";
+    quotation.rejectedAt = new Date();
+    await quotation.save();
+
+    const updated = await populateQuoteQuery(Quotation.findById(quotation._id)).lean();
+    res.json({ success: true, quote: formatQuote(updated || quotation.toObject()) });
+  } catch (err) {
+    res.status(500).json({ msg: err.message || "Quote could not be rejected" });
+  }
+});
+
+router.get("/:quoteId", protect, authorize("buyer", "grower"), async (req, res) => {
+  try {
+    const quotation = await populateQuoteQuery(Quotation.findById(req.params.quoteId)).lean();
+    if (!quotation) return res.status(404).json({ msg: "Quote not found" });
+    const requesterId = req.user.id?.toString();
+    if (
+      quotation.buyer?._id?.toString() !== requesterId &&
+      quotation.grower?._id?.toString() !== requesterId
+    ) {
+      return res.status(403).json({ msg: "You cannot view this quote" });
+    }
+    res.json({ success: true, quote: formatQuote(quotation) });
+  } catch (err) {
+    res.status(500).json({ msg: err.message || "Could not load quote" });
   }
 });
 

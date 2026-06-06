@@ -15,8 +15,17 @@ const quotationSchema = new mongoose.Schema(
     lot: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true, index: true },
     buyer: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
     grower: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    lotQuantity: { type: Number, default: 0, min: 0 },
+    fruitType: { type: String, trim: true, default: "" },
+    lotTitle: { type: String, trim: true, default: "" },
+    buyerName: { type: String, trim: true, default: "" },
+    buyerPhone: { type: String, trim: true, default: "" },
+    growerName: { type: String, trim: true, default: "" },
+    message: { type: String, trim: true, default: "" },
     grades: [quotationGradeSchema],
     distanceKm: { type: Number, default: 0, min: 0 },
+    quotedPrice: { type: Number, default: 0, min: 0 },
+    quotedTotalValue: { type: Number, default: 0, min: 0 },
     dealAmount: { type: Number, required: true, min: 0 },
     driverCharge: { type: Number, required: true, min: 0 },
     commissionBase: { type: Number, required: true, min: 0 },
@@ -26,14 +35,23 @@ const quotationSchema = new mongoose.Schema(
     sellerReceivable: { type: Number, required: true, min: 0 },
     status: {
       type: String,
-      enum: ["SUBMITTED", "ACCEPTED", "REJECTED", "EXPIRED"],
-      default: "SUBMITTED",
+      enum: ["pending", "accepted", "rejected", "closed", "cancelled", "SUBMITTED", "ACCEPTED", "REJECTED", "EXPIRED"],
+      default: "pending",
       index: true,
     },
+    acceptedAt: Date,
+    rejectedAt: Date,
   },
   { timestamps: true }
 );
 
 quotationSchema.index({ lot: 1, buyer: 1, createdAt: -1 });
+quotationSchema.index(
+  { lot: 1, buyer: 1, status: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { status: { $in: ["pending", "SUBMITTED"] } },
+  }
+);
 
 export default mongoose.model("Quotation", quotationSchema);

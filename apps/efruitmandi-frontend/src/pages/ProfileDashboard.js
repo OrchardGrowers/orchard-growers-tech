@@ -279,6 +279,9 @@ export default function ProfileDashboard() {
   const [products, setProducts] = useState([]);
   const [auctions, setAuctions] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [buyerQuotes, setBuyerQuotes] = useState([]);
+  const [growerQuotes, setGrowerQuotes] = useState([]);
+  const [quoteActionId, setQuoteActionId] = useState("");
   const [mandiRateData, setMandiRateData] = useState(mandiRates);
   const [mandiRateSource, setMandiRateSource] = useState("fallback");
   const [marketLoading, setMarketLoading] = useState(true);
@@ -342,7 +345,7 @@ export default function ProfileDashboard() {
       if (!hasAccessToken) return;
 
       try {
-        const [profileRes, productRes, auctionRes, orderRes, mandiRateRes] = await Promise.all([
+        const [profileRes, productRes, auctionRes, orderRes, mandiRateRes, buyerQuoteRes, growerQuoteRes] = await Promise.all([
           API.get("/user/profile").catch(() => ({ data: storedUser })),
           API.get("/products?platform=efruitmandi").catch(() => ({ data: [] })),
           API.get("/auctions").catch(() => ({ data: [] })),
@@ -350,12 +353,16 @@ export default function ProfileDashboard() {
           API.get("/mandi-rates").catch(() => ({
             data: { source: "fallback", records: mandiRates },
           })),
+          API.get("/quotes/buyer").catch(() => ({ data: { quotes: [] } })),
+          API.get("/quotes/grower").catch(() => ({ data: { quotes: [] } })),
         ]);
 
         setProfile(profileRes.data || storedUser);
         setProducts(getEfruitMandiProducts(productRes.data));
         setAuctions(auctionRes.data || []);
         setOrders(orderRes.data || []);
+        setBuyerQuotes(buyerQuoteRes.data?.quotes || []);
+        setGrowerQuotes(growerQuoteRes.data?.quotes || []);
         setMandiRateData(mandiRateRes.data?.records || mandiRates);
         setMandiRateSource(mandiRateRes.data?.source || "fallback");
       } catch (err) {
@@ -416,6 +423,45 @@ export default function ProfileDashboard() {
     localStorage.setItem("efruitmandiProfileMode", mode);
     navigate(`/profile-dashboard?mode=${mode}`, { replace: true });
     setNotice(`Switched to ${mode} mode.`);
+  };
+
+  const refreshQuotes = async () => {
+    const [buyerQuoteRes, growerQuoteRes] = await Promise.all([
+      API.get("/quotes/buyer").catch(() => ({ data: { quotes: [] } })),
+      API.get("/quotes/grower").catch(() => ({ data: { quotes: [] } })),
+    ]);
+    setBuyerQuotes(buyerQuoteRes.data?.quotes || []);
+    setGrowerQuotes(growerQuoteRes.data?.quotes || []);
+  };
+
+  const acceptBuyerQuote = async (quote) => {
+    if (!window.confirm("After accepting this quote, other quotes for this lot will be closed. Continue?")) {
+      return;
+    }
+
+    try {
+      setQuoteActionId(quote._id);
+      await API.patch(`/quotes/${quote._id}/accept`);
+      setNotice("Quote accepted. The lot is now marked as deal confirmed.");
+      await refreshQuotes();
+    } catch (err) {
+      setNotice(err.response?.data?.msg || err.response?.data?.message || "Quote could not be accepted.");
+    } finally {
+      setQuoteActionId("");
+    }
+  };
+
+  const rejectBuyerQuote = async (quote) => {
+    try {
+      setQuoteActionId(quote._id);
+      await API.patch(`/quotes/${quote._id}/reject`);
+      setNotice("Quote rejected.");
+      await refreshQuotes();
+    } catch (err) {
+      setNotice(err.response?.data?.msg || err.response?.data?.message || "Quote could not be rejected.");
+    } finally {
+      setQuoteActionId("");
+    }
   };
   useEffect(() => {
     if (!hasAccessToken || !["buyer", "grower", "driver"].includes(profileMode)) {
@@ -1319,7 +1365,10 @@ export default function ProfileDashboard() {
         )}
 
         {profileMode === "buyer" && (
-          <BuyerLockedAmountCard amountLabel={lockedAmountLabel} />
+          <>
+            <BuyerLockedAmountCard amountLabel={lockedAmountLabel} />
+            <BuyerSubmittedQuotes quotes={buyerQuotes} onViewLot={(lotId) => navigate(`/lots/${lotId}`)} />
+          </>
         )}
 
       {notice && (
@@ -1340,11 +1389,16 @@ export default function ProfileDashboard() {
             rates={mandiRateData}
             rateSource={mandiRateSource}
             activeAuctions={activeAuctions}
+            quotes={growerQuotes}
+            quoteActionId={quoteActionId}
             onSeeListings={() => navigate("/profile-dashboard?mode=grower")}
             onSeeClosed={() => navigate("/orders")}
             onSeeRates={() => navigate("/auctions")}
             onUpdateLot={updateLot}
             onDeleteLot={deleteLot}
+            onViewLot={(lotId) => navigate(`/lots/${lotId}`)}
+            onAcceptQuote={acceptBuyerQuote}
+            onRejectQuote={rejectBuyerQuote}
           />
         )}
 
@@ -1948,11 +2002,16 @@ function ProfileMarketPanel({
   rates,
   rateSource,
   activeAuctions,
+  quotes,
+  quoteActionId,
   onSeeListings,
   onSeeClosed,
   onSeeRates,
   onUpdateLot,
   onDeleteLot,
+  onViewLot,
+  onAcceptQuote,
+  onRejectQuote,
 }) {
   return (
     <div className="mt-4 space-y-3 rounded-lg border border-gray-200 bg-white p-3">
@@ -1961,6 +2020,14 @@ function ProfileMarketPanel({
           Loading market activity...
         </p>
       )}
+
+      <GrowerBuyerQuotesSection
+        quotes={quotes}
+        actionId={quoteActionId}
+        onViewLot={onViewLot}
+        onAccept={onAcceptQuote}
+        onReject={onRejectQuote}
+      />
 
       <MarketLotSection
         title="Current Listings"
@@ -2326,6 +2393,167 @@ function MarketLotCard({ item, onUpdateLot, onDeleteLot }) {
       )}
     </article>
   );
+}
+
+function GrowerBuyerQuotesSection({ quotes = [], actionId = "", onViewLot, onAccept, onReject }) {
+  return (
+    <section>
+      <div className="mb-2 flex items-center justify-between">
+        <div>
+          <h2 className="text-[12px] font-extrabold text-black">Buyer Quotes Received</h2>
+          <p className="text-[10px] font-bold text-gray-500">Quotes on your own fruit lots only</p>
+        </div>
+        <span className="rounded-full bg-green-50 px-3 py-1 text-[9px] font-extrabold text-green-800">
+          {quotes.length} quotes
+        </span>
+      </div>
+
+      {!quotes.length ? (
+        <MarketEmptyState text="No buyer quotes received yet." />
+      ) : (
+        <div className="space-y-2">
+          {quotes.slice(0, 10).map((quote) => {
+            const pending = normalizeQuoteStatusLabel(quote.status) === "Pending";
+            const disabled = Boolean(actionId) || !pending;
+
+            return (
+              <article key={quote._id} className="rounded-md border border-green-100 bg-green-50 p-3">
+                <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="min-w-0 truncate text-sm font-extrabold text-gray-950">
+                        {quote.lotTitle || "Fruit Lot"}
+                      </h3>
+                      <QuoteStatusBadge status={quote.status} />
+                    </div>
+                    <p className="mt-1 text-xs font-bold text-gray-600">
+                      {quote.lotQuantity || 0} boxes | {quote.buyerName || "Buyer"} | {maskPhone(quote.buyerPhone)}
+                    </p>
+                    {quote.message && (
+                      <p className="mt-1 rounded bg-white px-2 py-1 text-xs font-semibold text-gray-700">
+                        {quote.message}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-left md:text-right">
+                    <p className="text-sm font-black text-green-900">Rs. {quote.quotedTotalValue || quote.dealAmount || 0}</p>
+                    <p className="text-[10px] font-bold text-gray-500">
+                      {quote.createdAt ? new Date(quote.createdAt).toLocaleString("en-IN") : "Date not available"}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onViewLot?.(quote.lotId)}
+                    className="rounded bg-white px-2 py-2 text-[10px] font-extrabold text-green-800 ring-1 ring-green-100"
+                  >
+                    View Lot
+                  </button>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onAccept?.(quote)}
+                    className="rounded bg-green-700 px-2 py-2 text-[10px] font-extrabold text-white disabled:bg-gray-200 disabled:text-gray-500"
+                  >
+                    {actionId === quote._id ? "Working..." : "Accept Quote"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onReject?.(quote)}
+                    className="rounded bg-red-50 px-2 py-2 text-[10px] font-extrabold text-red-700 ring-1 ring-red-100 disabled:bg-gray-100 disabled:text-gray-400 disabled:ring-gray-100"
+                  >
+                    Reject Quote
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function BuyerSubmittedQuotes({ quotes = [], onViewLot }) {
+  return (
+    <section className="mt-4 rounded-lg border border-green-100 bg-white p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-extrabold text-gray-950">Submitted Quotes</h2>
+          <p className="text-xs font-bold text-gray-500">Track quote status from growers.</p>
+        </div>
+        <span className="rounded-full bg-green-50 px-3 py-1 text-[10px] font-extrabold text-green-800">
+          {quotes.length}
+        </span>
+      </div>
+
+      {!quotes.length ? (
+        <MarketEmptyState text="No submitted buyer quotes yet." />
+      ) : (
+        <div className="space-y-2">
+          {quotes.slice(0, 10).map((quote) => (
+            <article key={quote._id} className="rounded-md border border-gray-200 bg-green-50 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h3 className="truncate text-sm font-extrabold text-gray-950">
+                    {quote.lotTitle || "Fruit Lot"}
+                  </h3>
+                  <p className="text-xs font-bold text-gray-600">
+                    Grower: {quote.growerName || "Grower"} | Rs. {quote.quotedTotalValue || quote.dealAmount || 0}
+                  </p>
+                </div>
+                <QuoteStatusBadge status={quote.status} />
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <span className="text-[10px] font-bold text-gray-500">
+                  {quote.createdAt ? new Date(quote.createdAt).toLocaleString("en-IN") : "Date not available"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onViewLot?.(quote.lotId)}
+                  className="rounded-full bg-white px-3 py-1 text-[10px] font-extrabold text-green-800 ring-1 ring-green-100"
+                >
+                  View Lot
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function QuoteStatusBadge({ status }) {
+  const label = normalizeQuoteStatusLabel(status);
+  const classes =
+    label === "Accepted"
+      ? "bg-green-700 text-white"
+      : label === "Rejected" || label === "Closed"
+        ? "bg-gray-200 text-gray-700"
+        : "bg-amber-100 text-amber-800";
+  return (
+    <span className={`rounded-full px-2 py-1 text-[9px] font-extrabold uppercase ${classes}`}>
+      {label}
+    </span>
+  );
+}
+
+function normalizeQuoteStatusLabel(status = "") {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (normalized === "accepted") return "Accepted";
+  if (normalized === "rejected") return "Rejected";
+  if (normalized === "closed" || normalized === "expired") return "Closed";
+  if (normalized === "cancelled") return "Cancelled";
+  return "Pending";
+}
+
+function maskPhone(phone = "") {
+  const digits = String(phone || "").replace(/\D/g, "");
+  if (digits.length < 4) return "Phone hidden";
+  return `${digits.slice(0, 2)}XXXX${digits.slice(-2)}`;
 }
 
 function SalesMetric({ icon, label, value }) {
