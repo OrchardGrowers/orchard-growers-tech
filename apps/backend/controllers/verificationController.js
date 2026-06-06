@@ -1,4 +1,5 @@
 import VerificationRequest from "../models/VerificationRequest.js";
+import User from "../models/User.js";
 import { uploadVideoToYouTube } from "../services/youtubeService.js";
 import {
   consumeOtpVerification,
@@ -21,6 +22,56 @@ const firstUploadedFile = (files, ...fieldNames) => {
     if (file) return file;
   }
   return null;
+};
+
+const VALID_ROLE_TYPES = new Set(["buyer", "grower", "driver"]);
+const normalizeKycStatus = (status = "") => {
+  const normalized = String(status || "").trim().toUpperCase();
+  if (normalized === "SUBMITTED") return "PENDING";
+  return normalized || "NOT_SUBMITTED";
+};
+const getRoleKyc = (user = {}, roleType = "") => {
+  const role = String(roleType || "").trim().toLowerCase();
+  const roleKyc = user.kycByRole?.[role];
+  if (roleKyc && Object.keys(roleKyc.toObject?.() || roleKyc).length) return roleKyc.toObject?.() || roleKyc;
+
+  const legacyKyc = user.kyc?.toObject?.() || user.kyc || {};
+  const legacyRole = String(legacyKyc.roleType || "").trim().toLowerCase();
+  if (legacyRole === role || (!legacyRole && role && Object.keys(legacyKyc).some((key) => legacyKyc[key]))) return legacyKyc;
+
+  return {};
+};
+
+export const getMyVerificationStatus = async (req, res) => {
+  try {
+    const roleType = String(req.query.roleType || req.query.role || "").trim().toLowerCase();
+    if (!VALID_ROLE_TYPES.has(roleType)) {
+      return res.status(400).json({ msg: "Valid roleType is required" });
+    }
+
+    const user = await User.findById(req.user.id).select("kyc kycByRole buyerVerified growerVerified driverVerified");
+    if (!user) return res.status(404).json({ msg: "User not found" });
+
+    const kyc = getRoleKyc(user, roleType);
+    const status = normalizeKycStatus(kyc.status);
+    const verifiedFlag =
+      roleType === "buyer"
+        ? user.buyerVerified
+        : roleType === "grower"
+          ? user.growerVerified
+          : user.driverVerified;
+
+    res.json({
+      status: status.toLowerCase(),
+      roleType,
+      kycVerified: Boolean(verifiedFlag || status === "APPROVED"),
+      requestId: kyc.submittedAt ? `${user._id}:${roleType}` : "",
+      adminRemarks: kyc.adminRemarks || "",
+      updatedAt: kyc.reviewedAt || kyc.decidedAt || kyc.submittedAt || "",
+    });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
 };
 
 export const createVerificationRequest = async (req, res) => {

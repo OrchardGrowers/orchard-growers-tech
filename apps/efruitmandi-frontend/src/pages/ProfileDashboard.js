@@ -41,6 +41,54 @@ const orchardCover = assetUrl("/profile-banners/efruitmandi-profile-cover.png");
 const buyerLogoUrl = assetUrl("/profile-images/green-valley-fruit-traders-logo.svg");
 const youtubeUrl = "https://www.youtube.com/results?search_query=Efruit+Mandi";
 
+const normalizeKycStatus = (status = "") => {
+  const normalized = String(status || "").trim().toUpperCase();
+  if (normalized === "SUBMITTED") return "PENDING";
+  return normalized || "NOT_SUBMITTED";
+};
+
+const getRoleKyc = (user = {}, roleType = "") => {
+  const role = String(roleType || "").trim().toLowerCase();
+  const roleKyc = user.kycByRole?.[role];
+  if (roleKyc && Object.keys(roleKyc).length) return roleKyc;
+
+  const legacyKyc = user.kyc || {};
+  const legacyRole = String(legacyKyc.roleType || "").trim().toLowerCase();
+  if (legacyRole === role || (!legacyRole && role && Object.keys(legacyKyc).some((key) => legacyKyc[key]))) {
+    return legacyKyc;
+  }
+
+  return {};
+};
+
+const getKycDashboardStatusCopy = (status = "") => {
+  const normalized = normalizeKycStatus(status);
+  const copy = {
+    PENDING: {
+      title: "KYC submitted and pending review",
+      description: "Your documents are waiting for authority verification.",
+    },
+    UNDER_REVIEW: {
+      title: "KYC under review",
+      description: "Your documents are being reviewed by the admin team.",
+    },
+    APPROVED: {
+      title: "KYC Verified",
+      description: "Your profile is ready for marketplace activity.",
+    },
+    REJECTED: {
+      title: "KYC rejected",
+      description: "Please check admin remarks and submit corrected documents.",
+    },
+    CORRECTION_REQUIRED: {
+      title: "Correction required",
+      description: "Please update the requested KYC details and resubmit.",
+    },
+  };
+
+  return copy[normalized] || null;
+};
+
 const resolveProfileMediaUrl = (value = "") => {
   const url = String(value || "").trim();
   if (!url) return "";
@@ -244,6 +292,7 @@ export default function ProfileDashboard() {
   const [activeProfileMode, setActiveProfileMode] = useState(
     () => new URLSearchParams(window.location.search).get("mode") || ""
   );
+  const [roleVerificationStatus, setRoleVerificationStatus] = useState(null);
 
   useEffect(() => {
     const handleProfileModeChange = (event) => {
@@ -355,6 +404,26 @@ export default function ProfileDashboard() {
     navigate(`/profile-dashboard?mode=${mode}`, { replace: true });
     setNotice(`Switched to ${mode} mode.`);
   };
+  useEffect(() => {
+    if (!hasAccessToken || !["buyer", "grower", "driver"].includes(profileMode)) {
+      setRoleVerificationStatus(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    API.get("/verification-requests/me", { params: { roleType: profileMode } })
+      .then((res) => {
+        if (!cancelled) setRoleVerificationStatus(res.data || null);
+      })
+      .catch(() => {
+        if (!cancelled) setRoleVerificationStatus(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasAccessToken, profileMode]);
+
   const profileAddress = formatProfileAddress(user);
   const businessAddress = formatBusinessAddress(user);
   const buyerAddress = [
@@ -436,8 +505,10 @@ export default function ProfileDashboard() {
     needsContactUpdate ? "Add verified contact number" : "",
     needsSocialUpdate ? "Add social media links" : "",
   ].filter(Boolean);
-  const kycStatus = user.kyc?.status || "NOT_SUBMITTED";
-  const isKycCompleted = ["COMPLETED", "APPROVED"].includes(kycStatus);
+  const roleKyc = getRoleKyc(user, profileMode);
+  const kycStatus = normalizeKycStatus(roleVerificationStatus?.status || roleKyc.status);
+  const kycStatusCopy = getKycDashboardStatusCopy(kycStatus);
+  const isKycCompleted = ["PENDING", "COMPLETED", "UNDER_REVIEW", "APPROVED", "REJECTED", "CORRECTION_REQUIRED"].includes(kycStatus);
   const needsKycUpdate = !isKycCompleted;
   const kycDashboardCopy =
     profileMode === "buyer"
@@ -1165,15 +1236,40 @@ export default function ProfileDashboard() {
             </button>
           </section>
         ) : (
-          <section className="mt-4 rounded-lg border border-green-200 bg-green-50 p-4">
-            <p className="text-sm font-extrabold text-green-900">
-              {kycStatus === "APPROVED" ? "KYC Verified" : "KYC Submitted"}
+          <section className={`mt-4 rounded-lg border p-4 ${
+            kycStatus === "APPROVED"
+              ? "border-green-200 bg-green-50"
+              : kycStatus === "REJECTED" || kycStatus === "CORRECTION_REQUIRED"
+                ? "border-red-200 bg-red-50"
+                : "border-amber-200 bg-amber-50"
+          }`}>
+            <p className={`text-sm font-extrabold ${
+              kycStatus === "APPROVED"
+                ? "text-green-900"
+                : kycStatus === "REJECTED" || kycStatus === "CORRECTION_REQUIRED"
+                  ? "text-red-900"
+                  : "text-amber-900"
+            }`}>
+              {kycStatusCopy?.title || "KYC submitted and pending review"}
             </p>
-            <p className="mt-1 text-xs font-semibold leading-5 text-green-800">
-              {kycStatus === "APPROVED"
-                ? "Your profile is ready for marketplace activity."
-                : "Your documents are waiting for authority verification within 24 hours."}
+            <p className={`mt-1 text-xs font-semibold leading-5 ${
+              kycStatus === "APPROVED"
+                ? "text-green-800"
+                : kycStatus === "REJECTED" || kycStatus === "CORRECTION_REQUIRED"
+                  ? "text-red-800"
+                  : "text-amber-800"
+            }`}>
+              {kycStatusCopy?.description || "Your documents are waiting for authority verification."}
             </p>
+            {(kycStatus === "REJECTED" || kycStatus === "CORRECTION_REQUIRED") && (
+              <button
+                type="button"
+                onClick={() => navigate("/kyc", { state: { roleType: profileMode } })}
+                className="mt-3 rounded-full bg-green-700 px-4 py-2 text-xs font-extrabold text-white hover:bg-green-800"
+              >
+                Update KYC
+              </button>
+            )}
           </section>
         )}
 

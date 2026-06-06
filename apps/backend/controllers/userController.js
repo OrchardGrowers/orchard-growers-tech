@@ -89,6 +89,38 @@ const getKycPinCodeFallback = (user = {}, roleType = "") => {
   return user.pinCode || "";
 };
 
+const VALID_KYC_ROLE_TYPES = new Set(["buyer", "grower", "driver"]);
+
+const normalizeKycStatus = (status = "") => {
+  const normalized = String(status || "").trim().toUpperCase();
+  if (normalized === "SUBMITTED") return "PENDING";
+  return normalized || "NOT_SUBMITTED";
+};
+
+const getRoleKyc = (user = {}, roleType = "") => {
+  const role = String(roleType || "").trim().toLowerCase();
+  const roleKyc = user.kycByRole?.[role];
+  if (roleKyc && Object.keys(roleKyc.toObject?.() || roleKyc).length) return roleKyc.toObject?.() || roleKyc;
+
+  const legacyKyc = user.kyc?.toObject?.() || user.kyc || {};
+  const legacyRole = String(legacyKyc.roleType || "").trim().toLowerCase();
+  if (legacyRole === role || (!legacyRole && role && Object.keys(legacyKyc).some((key) => legacyKyc[key]))) {
+    return legacyKyc;
+  }
+
+  return {};
+};
+
+const resolveRequestedKycRole = (user = {}, requestedRoleType = "") => {
+  const profiles = getUserProfileTypes(user);
+  const requestedRole = String(requestedRoleType || "").trim().toLowerCase();
+  if (VALID_KYC_ROLE_TYPES.has(requestedRole) && (profiles.size === 0 || profiles.has(requestedRole))) return requestedRole;
+  if (profiles.has("buyer")) return "buyer";
+  if (profiles.has("grower")) return "grower";
+  if (profiles.has("driver")) return "driver";
+  return "buyer";
+};
+
 // ================= SET ROLE =================
 export const setUserRole = async (req, res) => {
   try {
@@ -298,6 +330,13 @@ export const getMyKyc = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select("-password -__v");
     if (!user) return res.status(404).json({ msg: "User not found" });
+    const roleType = resolveRequestedKycRole(user, req.query.roleType || req.query.role || "");
+    const roleKyc = getRoleKyc(user, roleType);
+    const kyc = {
+      ...roleKyc,
+      roleType,
+      status: normalizeKycStatus(roleKyc.status),
+    };
 
     res.json({
       success: true,
@@ -323,7 +362,7 @@ export const getMyKyc = async (req, res) => {
         addressLine2: user.addressLine2,
         addressLine3: user.addressLine3,
       },
-      kyc: user.kyc || {},
+      kyc,
     });
   } catch (err) {
     res.status(500).json({ msg: err.message });
@@ -545,14 +584,16 @@ export const updateKyc = async (req, res) => {
       return res.status(404).json({ msg: "User not found" });
     }
 
-    const existingKyc = existingUser.kyc?.toObject?.() || {};
-    if (existingKyc.status === "APPROVED") {
+    const submittedRoleType = resolveRequestedKycRole(existingUser, req.body.roleType || req.body.role || "");
+    const existingKyc = getRoleKyc(existingUser, submittedRoleType);
+    const existingKycStatus = normalizeKycStatus(existingKyc.status);
+    if (existingKycStatus === "APPROVED") {
       return res.status(400).json({ msg: "KYC already approved." });
     }
 
     if (
-      ["PENDING", "UNDER_REVIEW", "COMPLETED"].includes(existingKyc.status) &&
-      !["REJECTED", "CORRECTION_REQUIRED"].includes(existingKyc.status) &&
+      ["PENDING", "UNDER_REVIEW", "COMPLETED"].includes(existingKycStatus) &&
+      !["REJECTED", "CORRECTION_REQUIRED"].includes(existingKycStatus) &&
       Object.keys(existingKyc).some((key) => existingKyc[key])
     ) {
       return res.status(400).json({ msg: "Only rejected or correction-required KYC can be edited." });
@@ -571,7 +612,7 @@ export const updateKyc = async (req, res) => {
         resourceType: getResourceType(file),
       });
     const roleTypes = new Set(getUserProfileTypes(existingUser));
-    const explicitBodyRoleType = String(req.body.roleType || "").trim().toLowerCase();
+    const explicitBodyRoleType = String(req.body.roleType || submittedRoleType || "").trim().toLowerCase();
     const inferredBodyRoleType = hasGrowerKycPayload(req.body, req.files) ? "grower" : "";
     const requestedRoleType = String(
       ["buyer", "grower", "driver"].includes(explicitBodyRoleType)
@@ -659,7 +700,12 @@ export const updateKyc = async (req, res) => {
 
     const user = await User.findByIdAndUpdate(
       req.user.id,
-      { kyc },
+      {
+        $set: {
+          kyc,
+          [`kycByRole.${roleType}`]: kyc,
+        },
+      },
       { new: true }
     ).select("-password -__v");
 

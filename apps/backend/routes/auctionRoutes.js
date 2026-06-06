@@ -36,10 +36,12 @@ const kycRequiredResponse = (res) =>
   });
 
 const requireApprovedKyc = async (userId, role) => {
-  const user = await User.findById(userId).select("kyc role profileTypes buyerVerified growerVerified");
+  const user = await User.findById(userId).select("kyc kycByRole role profileTypes buyerVerified growerVerified");
   if (!user) return false;
   const verifiedFlag = role === "buyer" ? user.buyerVerified : role === "grower" ? user.growerVerified : false;
-  return Boolean(verifiedFlag) || String(user.kyc?.status || "").toUpperCase() === "APPROVED";
+  const roleKyc = user.kycByRole?.[role] || {};
+  const legacyKyc = String(user.kyc?.roleType || "").toLowerCase() === role ? user.kyc : {};
+  return Boolean(verifiedFlag) || String(roleKyc.status || legacyKyc.status || "").toUpperCase() === "APPROVED";
 };
 
 const loadDealSettings = async () =>

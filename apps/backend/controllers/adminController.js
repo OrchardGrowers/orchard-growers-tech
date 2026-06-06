@@ -113,6 +113,65 @@ const getKycRoleType = (user = {}) => {
   if (profiles.has("driver")) return "driver";
   return kycRole || userRole || "";
 };
+const VALID_KYC_ROLE_TYPES = ["buyer", "grower", "driver"];
+const getRoleKyc = (user = {}, roleType = "") => {
+  const role = String(roleType || "").trim().toLowerCase();
+  const roleKyc = user.kycByRole?.[role];
+  if (roleKyc && Object.keys(roleKyc.toObject?.() || roleKyc).length) return roleKyc.toObject?.() || roleKyc;
+
+  const legacyKyc = user.kyc?.toObject?.() || user.kyc || {};
+  const legacyRole = String(legacyKyc.roleType || "").trim().toLowerCase();
+  if (legacyRole === role || (!legacyRole && role && Object.keys(legacyKyc).some((key) => legacyKyc[key]))) {
+    return legacyKyc;
+  }
+
+  return {};
+};
+const hasSubmittedKyc = (kyc = {}) =>
+  Boolean(
+    normalizeKycStatus(kyc.status) !== "NOT_SUBMITTED" ||
+      kyc.submittedAt ||
+      (kyc.fullName && kyc.idProofNumber && (kyc.accountNumber || kyc.bankAccountNo))
+  );
+const flattenKycUsers = (users = []) =>
+  users.flatMap((userDoc) => {
+    const user = userDoc.toObject?.() || userDoc;
+    const rows = [];
+    const seen = new Set();
+
+    VALID_KYC_ROLE_TYPES.forEach((roleType) => {
+      const roleKyc = getRoleKyc(user, roleType);
+      if (!hasSubmittedKyc(roleKyc)) return;
+      seen.add(roleType);
+      rows.push({
+        ...user,
+        _id: `${user._id}:${roleType}`,
+        originalUserId: user._id,
+        kyc: {
+          ...roleKyc,
+          roleType,
+          status: normalizeKycStatus(roleKyc.status),
+        },
+      });
+    });
+
+    const legacyKyc = user.kyc || {};
+    const legacyRoleType = getKycRoleType(user);
+    if (legacyRoleType && !seen.has(legacyRoleType) && hasSubmittedKyc(legacyKyc)) {
+      rows.push({
+        ...user,
+        _id: `${user._id}:${legacyRoleType}`,
+        originalUserId: user._id,
+        kyc: {
+          ...legacyKyc,
+          roleType: legacyRoleType,
+          status: normalizeKycStatus(legacyKyc.status),
+        },
+      });
+    }
+
+    return rows;
+  });
 const PASSWORD_RULE_MESSAGE = "Password must be at least 8 characters and include a letter and a number";
 const ADMIN_NOT_APPROVED_MESSAGE = "This email is not approved for admin access.";
 const ADMIN_RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
@@ -1932,13 +1991,19 @@ export const listKycRequests = async (req, res) => {
         "kyc.idProofNumber": { $exists: true, $ne: "" },
         "kyc.accountNumber": { $exists: true, $ne: "" },
       },
+      { "kycByRole.buyer.submittedAt": { $exists: true, $ne: null } },
+      { "kycByRole.grower.submittedAt": { $exists: true, $ne: null } },
+      { "kycByRole.driver.submittedAt": { $exists: true, $ne: null } },
+      { "kycByRole.buyer.status": { $in: KYC_REVIEW_STATUSES } },
+      { "kycByRole.grower.status": { $in: KYC_REVIEW_STATUSES } },
+      { "kycByRole.driver.status": { $in: KYC_REVIEW_STATUSES } },
     ],
   })
     .select("-password -__v")
     .populate("kyc.adminReviews.admin", "name email role")
     .sort({ "kyc.submittedAt": -1, createdAt: -1 });
 
-  res.json(users);
+  res.json(flattenKycUsers(users));
 };
 
 export const getKycRequestByAdmin = async (req, res) => {
@@ -2009,14 +2074,26 @@ export const reviewKycRequest = async (req, res) => {
     return res.status(400).json({ msg: "Invalid KYC review action" });
   }
 
-  const user = await User.findById(req.params.userId);
+  const [rawUserId, rawRoleType] = String(req.params.userId || "").split(":");
+  const requestedRoleType = String(rawRoleType || "").trim().toLowerCase();
+  const user = await User.findById(rawUserId);
   if (!user) return res.status(404).json({ msg: "User not found" });
+  const kycRoleType =
+    VALID_KYC_ROLE_TYPES.includes(requestedRoleType)
+      ? requestedRoleType
+      : getKycRoleType(user);
+  const roleKyc = getRoleKyc(user, kycRoleType);
+  user.kyc = {
+    ...roleKyc,
+    roleType: kycRoleType,
+    status: normalizeKycStatus(roleKyc.status),
+  };
+  if (!Array.isArray(user.kyc.adminReviews)) user.kyc.adminReviews = [];
   const kycStatus = normalizeKycStatus(user.kyc?.status);
   if (!KYC_REVIEW_STATUSES.includes(kycStatus)) {
     return res.status(400).json({ msg: "KYC is not completed by user" });
   }
   if (user.kyc.status !== kycStatus) user.kyc.status = kycStatus;
-  const kycRoleType = getKycRoleType(user);
   if (kycRoleType && user.kyc.roleType !== kycRoleType) user.kyc.roleType = kycRoleType;
 
   if (["REJECT", "CORRECTION_REQUIRED"].includes(action) && !String(req.body.note || req.body.adminRemarks || "").trim()) {
@@ -2087,6 +2164,7 @@ export const reviewKycRequest = async (req, res) => {
     if (kycRoleType === "driver") user.driverVerified = false;
   }
 
+  user.set(`kycByRole.${kycRoleType}`, user.kyc.toObject?.() || user.kyc);
   await user.save();
   const populated = await User.findById(user._id)
     .select("-password -__v")

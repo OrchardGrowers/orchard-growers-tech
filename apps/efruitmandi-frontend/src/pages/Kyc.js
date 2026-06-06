@@ -127,7 +127,10 @@ export default function Kyc() {
   useEffect(() => {
     const loadKyc = async () => {
       try {
-        const res = await API.get("/kyc/me");
+        const requestedRoleType = routeRoleType || localStorage.getItem("efruitmandiProfileMode") || "";
+        const res = await API.get("/kyc/me", {
+          params: requestedRoleType ? { roleType: requestedRoleType } : {},
+        });
         const user = res.data?.user || {};
         const kyc = res.data?.kyc || {};
         const roleType = resolveLockedRoleType(user, kyc, routeRoleType);

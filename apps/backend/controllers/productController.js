@@ -102,12 +102,16 @@ const ORGANIC_CERTIFIED_QUALITIES = new Set([
 const requiresOrganicCertificate = (quality = "") =>
   ORGANIC_CERTIFIED_QUALITIES.has(String(quality || "").trim().toLowerCase());
 
-const hasCompletedKyc = (user = {}) =>
-  String(user?.kyc?.status || "").toUpperCase() === "APPROVED";
+const hasCompletedKyc = (user = {}, roleType = "") => {
+  const role = String(roleType || "").toLowerCase();
+  const roleKyc = user?.kycByRole?.[role] || {};
+  const legacyKyc = String(user?.kyc?.roleType || "").toLowerCase() === role ? user.kyc : {};
+  return String(roleKyc.status || legacyKyc.status || "").toUpperCase() === "APPROVED";
+};
 
 const requireCompletedKyc = async (userId) => {
-  const user = await User.findById(userId).select("kyc");
-  return hasCompletedKyc(user);
+  const user = await User.findById(userId).select("kyc kycByRole growerVerified");
+  return Boolean(user?.growerVerified) || hasCompletedKyc(user, "grower");
 };
 
 export const getNextLotNo = async (req, res) => {

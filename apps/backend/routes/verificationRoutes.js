@@ -1,9 +1,11 @@
 import express from "express";
-import { createVerificationRequest } from "../controllers/verificationController.js";
+import { createVerificationRequest, getMyVerificationStatus } from "../controllers/verificationController.js";
 import protect, { authorize } from "../middleware/authMiddleware.js";
 import verificationUpload from "../middleware/verificationUpload.js";
 
 const router = express.Router();
+
+router.get("/me", protect, getMyVerificationStatus);
 
 router.post(
   "/",

@@ -331,6 +331,11 @@ const userSchema = new mongoose.Schema(
       reviewedAt: { type: Date },
       reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
     },
+    kycByRole: {
+      buyer: { type: mongoose.Schema.Types.Mixed, default: {} },
+      grower: { type: mongoose.Schema.Types.Mixed, default: {} },
+      driver: { type: mongoose.Schema.Types.Mixed, default: {} },
+    },
 
     buyerVerified: { type: Boolean, default: false },
     growerVerified: { type: Boolean, default: false },

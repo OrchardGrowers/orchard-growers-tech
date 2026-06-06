@@ -12,8 +12,12 @@ import {
 
 const router = express.Router();
 
-const hasCompletedKyc = (user = {}) =>
-  String(user?.kyc?.status || "").toUpperCase() === "APPROVED";
+const hasCompletedKyc = (user = {}, roleType = "") => {
+  const role = String(roleType || "").toLowerCase();
+  const roleKyc = user?.kycByRole?.[role] || {};
+  const legacyKyc = String(user?.kyc?.roleType || "").toLowerCase() === role ? user.kyc : {};
+  return String(roleKyc.status || legacyKyc.status || "").toUpperCase() === "APPROVED";
+};
 
 const getProfileTypes = (user = {}) => {
   const profiles = new Set(Array.isArray(user.profileTypes) ? user.profileTypes : []);
@@ -64,7 +68,7 @@ router.post("/lots/:lotId", protect, authorize("buyer"), async (req, res) => {
   try {
     const [product, buyer] = await Promise.all([
       Product.findById(req.params.lotId).populate("createdBy", "name orchardName businessName mapLatitude mapLongitude"),
-      User.findById(req.user.id).select("role profileTypes businessName buyerContactPerson kyc mapLatitude mapLongitude"),
+      User.findById(req.user.id).select("role profileTypes businessName buyerContactPerson kyc kycByRole buyerVerified mapLatitude mapLongitude"),
     ]);
 
     if (!product || product.createdSource === "admin-panel") {
@@ -75,7 +79,7 @@ router.post("/lots/:lotId", protect, authorize("buyer"), async (req, res) => {
       return res.status(403).json({ msg: "Register as Fruit Buyer first" });
     }
 
-    if (!hasCompletedKyc(buyer)) {
+    if (!buyer.buyerVerified && !hasCompletedKyc(buyer, "buyer")) {
       return res.status(403).json({
         success: false,
         code: "KYC_REQUIRED",

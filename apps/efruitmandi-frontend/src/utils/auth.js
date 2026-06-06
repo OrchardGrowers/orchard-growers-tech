@@ -40,6 +40,23 @@ export const hasDriverProfile = (user = getCurrentUser()) =>
 export const hasCompletedKyc = (user = getCurrentUser()) =>
   String(user?.kyc?.status || "").toUpperCase() === "APPROVED";
 
+export const getRoleKyc = (user = getCurrentUser(), roleType = "") => {
+  const role = String(roleType || "").trim().toLowerCase();
+  const roleKyc = user?.kycByRole?.[role];
+  if (roleKyc && Object.keys(roleKyc).length) return roleKyc;
+
+  const legacyKyc = user?.kyc || {};
+  const legacyRole = String(legacyKyc.roleType || "").trim().toLowerCase();
+  if (legacyRole === role || (!legacyRole && role && Object.keys(legacyKyc).some((key) => legacyKyc[key]))) {
+    return legacyKyc;
+  }
+
+  return {};
+};
+
+export const hasCompletedKycForRole = (user = getCurrentUser(), roleType = "") =>
+  String(getRoleKyc(user, roleType)?.status || "").toUpperCase() === "APPROVED";
+
 export const getKycStatus = (user = getCurrentUser()) =>
   String(user?.kyc?.status || "NOT_SUBMITTED").toUpperCase();
 
@@ -58,8 +75,8 @@ export const getKycStatusLabel = (user = getCurrentUser()) => {
 
 export const canQuote = (user = getCurrentUser()) => {
   if (!user || !(user._id || user.id || user.email || user.phone)) return false;
-  if (hasBuyerProfile(user)) return Boolean(user.buyerVerified) || hasCompletedKyc(user);
-  if (hasGrowerProfile(user)) return Boolean(user.growerVerified) || hasCompletedKyc(user);
+  if (hasBuyerProfile(user)) return Boolean(user.buyerVerified) || hasCompletedKycForRole(user, "buyer");
+  if (hasGrowerProfile(user)) return Boolean(user.growerVerified) || hasCompletedKycForRole(user, "grower");
   return false;
 };
 

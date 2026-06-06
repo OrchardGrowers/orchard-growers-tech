@@ -443,6 +443,7 @@ function resolveProfileMediaUrl(value = "") {
 }
 
 function getQuoteUnit(product = {}) {
+  product = product || {};
   const packing = String(product.packingType || "").toLowerCase();
   if (packing.includes("crate")) {
     return { singular: "crate", plural: "crates" };
