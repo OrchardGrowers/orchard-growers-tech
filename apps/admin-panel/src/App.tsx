@@ -3663,7 +3663,6 @@ function OgVerificationPanel({
 
   return (
     <section className="space-y-4">
-      <ModulePlanPanel plan={modulePlans.ogVerified} />
       <div className="grid gap-3 md:grid-cols-3">
         <MetricCard label="Pending OG Requests" value={pending} />
         <MetricCard label="Under Review" value={underReview} />

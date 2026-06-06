@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { FaCheckCircle, FaFileUpload, FaIdCard, FaUniversity } from "react-icons/fa";
+import { FaCheckCircle, FaFileUpload, FaIdCard, FaRedo, FaUniversity } from "react-icons/fa";
 import API from "../services/api";
 import BackHomeButton from "../components/BackHomeButton";
 import { getKycStatusLabel, getProfileTypes } from "../utils/auth";
@@ -64,6 +64,13 @@ const REQUIRED_DOCUMENT_LABELS_BY_ROLE = {
 };
 
 const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024;
+const DOCUMENT_PROGRESS_ITEMS = [
+  { label: "Aadhaar/ID Proof", key: "idProof", requiredFor: ["buyer", "grower", "driver"] },
+  { label: "PAN", key: "pan", optional: true },
+  { label: "GST", key: "gstCertificate", optional: true },
+  { label: "Bank Proof", key: "passbookFile", requiredFor: ["buyer", "grower", "driver"] },
+  { label: "Driving License", key: "drivingLicense", requiredFor: ["driver"] },
+];
 
 const resolveLockedRoleType = (user = {}, kyc = {}, routeRoleType = "") => {
   const profiles = getProfileTypes(user);
@@ -213,12 +220,19 @@ export default function Kyc() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [draftReady, setDraftReady] = useState(false);
   const canEdit = editableStatuses.has(kycStatus);
   const requiredDocumentLabels = REQUIRED_DOCUMENT_LABELS_BY_ROLE[form.roleType] || REQUIRED_DOCUMENT_LABELS_BY_ROLE.buyer;
   const requiredDocumentsUploaded = requiredDocumentLabels.every((label) => existingDocuments[label] || uploads[label]?.status === "uploaded");
-  const hasUploadingDocuments = Object.values(uploads).some((upload) => upload?.status === "uploading");
+  const hasUploadingDocuments = Object.values(uploads).some((upload) => ["uploading", "optimizing"].includes(upload?.status));
+  const hasRequiredUploadingDocuments = requiredDocumentLabels.some((label) => ["uploading", "optimizing"].includes(uploads[label]?.status));
   const hasRequiredUploadFailure = requiredDocumentLabels.some((label) => uploads[label]?.status === "failed" && !existingDocuments[label]);
-  const canSubmitWithUploads = requiredDocumentsUploaded && !hasUploadingDocuments && !hasRequiredUploadFailure;
+  const canSubmitWithUploads = requiredDocumentsUploaded && !hasRequiredUploadingDocuments && !hasRequiredUploadFailure;
+  const visibleProgressItems = DOCUMENT_PROGRESS_ITEMS.filter((item) =>
+    item.requiredFor ? item.requiredFor.includes(form.roleType) : true
+  );
+  const completedDocumentCount = visibleProgressItems.filter((item) => existingDocuments[item.key] || uploads[item.key]?.status === "uploaded").length;
+  const completionPercent = Math.round((completedDocumentCount / Math.max(1, visibleProgressItems.length)) * 100);
   const premisesAddressLabel =
     form.roleType === "buyer"
       ? "Buyer Premises Address"
@@ -237,16 +251,16 @@ export default function Kyc() {
         const kyc = res.data?.kyc || {};
         const roleType = resolveLockedRoleType(user, kyc, routeRoleType);
         setCurrentUserId(user._id || user.id || "");
-        setExistingDocuments({
+        const nextExistingDocuments = {
           idProof: kyc.idProofImage || kyc.aadhaarCardFileUrl || "",
           pan: kyc.panImage || "",
           gstCertificate: kyc.gstCertificate || "",
           passbookFile: kyc.passbookFileUrl || "",
           udyanCard: kyc.udyanCardFileUrl || "",
           drivingLicense: kyc.drivingLicenseImage || "",
-        });
+        };
 
-        setForm({
+        const nextForm = {
           ...initialForm,
           roleType,
           fullName: kyc.fullName || user.name || "",
@@ -269,16 +283,49 @@ export default function Kyc() {
           orchardLocation: kyc.orchardLocation || getGrowerPremisesAddress(user),
           vehicleNumber: kyc.vehicleNumber || "",
           drivingLicenseNumber: kyc.drivingLicenseNumber || "",
-        });
+        };
+        const draftKey = `efruitmandiKycDraft:${user._id || user.id || "guest"}:${roleType}`;
+        try {
+          const draft = JSON.parse(localStorage.getItem(draftKey) || "{}");
+          if (draft?.form && editableStatuses.has(kyc.status || "NOT_SUBMITTED")) {
+            Object.assign(nextForm, draft.form, { roleType });
+            setAcceptedTerms(Boolean(draft.acceptedTerms));
+            Object.assign(nextExistingDocuments, draft.existingDocuments || {});
+            if (draft.uploads) setUploads(draft.uploads);
+          }
+        } catch {
+          localStorage.removeItem(draftKey);
+        }
+        setExistingDocuments(nextExistingDocuments);
+        setForm(nextForm);
         setKycStatus(kyc.status || "NOT_SUBMITTED");
         setAdminRemarks(kyc.adminRemarks || "");
+        setDraftReady(true);
       } catch {
         setMessage("Please login to update KYC.");
+        setDraftReady(true);
       }
     };
 
     loadKyc();
   }, []);
+
+  useEffect(() => {
+    if (!draftReady || !canEdit) return;
+    const draftKey = `efruitmandiKycDraft:${currentUserId || getCurrentStoredUserId() || "guest"}:${form.roleType}`;
+    const timeout = window.setTimeout(() => {
+      const savedUploads = Object.fromEntries(
+        Object.entries(uploads)
+          .filter(([, upload]) => upload?.status === "uploaded" && upload.document)
+          .map(([key, upload]) => [key, { fileName: upload.fileName, status: "uploaded", progress: 100, document: upload.document }])
+      );
+      localStorage.setItem(
+        draftKey,
+        JSON.stringify({ form, acceptedTerms, existingDocuments, uploads: savedUploads, savedAt: new Date().toISOString() })
+      );
+    }, 250);
+    return () => window.clearTimeout(timeout);
+  }, [acceptedTerms, canEdit, currentUserId, draftReady, existingDocuments, form, uploads]);
 
   const title = useMemo(() => {
     if (kycStatus === "APPROVED") return "KYC Approved";
@@ -312,11 +359,15 @@ export default function Kyc() {
 
     setUploads((current) => ({
       ...current,
-      [label]: { file, fileName: file.name, status: "uploading", progress: 1, error: "" },
+      [label]: { file, fileName: file.name, status: file.type?.startsWith("image/") && file.size > 2 * 1024 * 1024 ? "optimizing" : "uploading", progress: 1, error: "" },
     }));
 
     try {
       const uploadFile = await compressImageFile(file);
+      setUploads((current) => ({
+        ...current,
+        [label]: { ...(current[label] || {}), status: "uploading", progress: 1 },
+      }));
       const folder = `efruitmandi/kyc/${getUploadFolderRole(form.roleType)}/${userId}`;
       const signatureRes = await API.get("/cloudinary/signature", { params: { folder } });
       const uploaded = await uploadToCloudinary({
@@ -390,7 +441,7 @@ export default function Kyc() {
       return;
     }
     if (!canSubmitWithUploads) {
-      setMessage("Upload required KYC documents before submitting.");
+      setMessage(hasRequiredUploadingDocuments ? "Please wait, required documents are still uploading." : "Upload required KYC documents before submitting.");
       return;
     }
 
@@ -416,6 +467,7 @@ export default function Kyc() {
       saveUserToStorage(res.data);
       setKycStatus(res.data?.kyc?.status || "PENDING");
       setMessage("KYC submitted successfully.");
+      localStorage.removeItem(`efruitmandiKycDraft:${currentUserId || getCurrentStoredUserId() || "guest"}:${form.roleType}`);
       if (returnTo) window.setTimeout(() => navigate(returnTo), 900);
     } catch (err) {
       setMessage(err.response?.data?.msg || "KYC submission failed.");
@@ -425,8 +477,8 @@ export default function Kyc() {
   };
 
   return (
-    <div className="mx-auto min-h-[calc(100vh-132px)] max-w-4xl px-4 pb-20 md:min-h-[calc(100vh-94px)]">
-      <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+    <div className="mx-auto min-h-[calc(100vh-132px)] max-w-4xl overflow-x-hidden px-3 pb-44 md:min-h-[calc(100vh-94px)] md:px-4 md:pb-20">
+      <section className="w-full overflow-hidden rounded-lg border border-gray-200 bg-white p-3 shadow-sm md:p-5">
         <div className="mb-5">
           <h1 className="text-2xl font-extrabold text-gray-950">
             eFruitMandi KYC {roleTitleLabels[form.roleType] || "Account"}
@@ -454,10 +506,18 @@ export default function Kyc() {
           </div>
         )}
 
+        <KycMobileProgressSummary
+          items={visibleProgressItems}
+          uploads={uploads}
+          existingDocuments={existingDocuments}
+          completed={completedDocumentCount}
+          total={visibleProgressItems.length}
+        />
+
         <form onSubmit={submitKyc} className="space-y-4">
-          <section className="rounded-lg border border-green-100 bg-green-50 p-4">
+          <section className="min-w-0 rounded-lg border border-green-100 bg-green-50 p-3 md:p-4">
             <h2 className="mb-3 text-base font-extrabold text-gray-950">User Details</h2>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid min-w-0 gap-3 md:grid-cols-2">
               <SelectField label="Role Type" value={form.roleType} disabled onChange={(value) => updateForm("roleType", value)} options={[
                 ["buyer", "Buyer"],
                 ["grower", "Grower / Seller"],
@@ -473,41 +533,49 @@ export default function Kyc() {
             </div>
           </section>
 
-          <section className="rounded-lg border border-green-100 bg-green-50 p-4">
+          <section className="min-w-0 rounded-lg border border-green-100 bg-green-50 p-3 md:p-4">
             <div className="mb-3 flex items-center gap-2 text-green-800">
               <FaIdCard />
               <h2 className="text-base font-extrabold text-gray-950">Identity Documents</h2>
             </div>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid min-w-0 gap-3 md:grid-cols-2">
               <KycInput label="ID Proof Type" value={form.idProofType} disabled={!canEdit} onChange={(value) => updateForm("idProofType", value)} />
               <KycInput label="ID Proof Number" value={form.idProofNumber} disabled={!canEdit} onChange={(value) => updateForm("idProofNumber", value)} />
-              <FileField label="Upload ID Proof" disabled={!canEdit} upload={uploads.idProof} existingUrl={existingDocuments.idProof} onFileChange={(file) => uploadKycFile("idProofImage", file)} onRetry={() => uploads.idProof?.file && uploadKycFile("idProofImage", uploads.idProof.file)} />
-              <KycInput label="PAN Number optional" value={form.panNumber} disabled={!canEdit} onChange={(value) => updateForm("panNumber", value)} />
-              <FileField label="Upload PAN optional" disabled={!canEdit} upload={uploads.pan} existingUrl={existingDocuments.pan} onFileChange={(file) => uploadKycFile("panImage", file)} onRetry={() => uploads.pan?.file && uploadKycFile("panImage", uploads.pan.file)} />
-              <KycInput label="GST Number optional" value={form.gstNumber} disabled={!canEdit} onChange={(value) => updateForm("gstNumber", value)} />
-              <FileField label="Upload GST Certificate optional" disabled={!canEdit} upload={uploads.gstCertificate} existingUrl={existingDocuments.gstCertificate} onFileChange={(file) => uploadKycFile("gstCertificate", file)} onRetry={() => uploads.gstCertificate?.file && uploadKycFile("gstCertificate", uploads.gstCertificate.file)} />
+              <FileField required label="Upload ID Proof" disabled={!canEdit} upload={uploads.idProof} existingUrl={existingDocuments.idProof} onFileChange={(file) => uploadKycFile("idProofImage", file)} onRetry={() => uploads.idProof?.file && uploadKycFile("idProofImage", uploads.idProof.file)} />
             </div>
+            <OptionalKycSection title="PAN Details Optional">
+              <div className="grid min-w-0 gap-3 md:grid-cols-2">
+                <KycInput label="PAN Number optional" value={form.panNumber} disabled={!canEdit} onChange={(value) => updateForm("panNumber", value)} />
+                <FileField label="Upload PAN optional" disabled={!canEdit} upload={uploads.pan} existingUrl={existingDocuments.pan} onFileChange={(file) => uploadKycFile("panImage", file)} onRetry={() => uploads.pan?.file && uploadKycFile("panImage", uploads.pan.file)} />
+              </div>
+            </OptionalKycSection>
+            <OptionalKycSection title="GST Details Optional">
+              <div className="grid min-w-0 gap-3 md:grid-cols-2">
+                <KycInput label="GST Number optional" value={form.gstNumber} disabled={!canEdit} onChange={(value) => updateForm("gstNumber", value)} />
+                <FileField label="Upload GST Certificate optional" disabled={!canEdit} upload={uploads.gstCertificate} existingUrl={existingDocuments.gstCertificate} onFileChange={(file) => uploadKycFile("gstCertificate", file)} onRetry={() => uploads.gstCertificate?.file && uploadKycFile("gstCertificate", uploads.gstCertificate.file)} />
+              </div>
+            </OptionalKycSection>
           </section>
 
-          <section className="rounded-lg border border-green-100 bg-green-50 p-4">
+          <section className="min-w-0 rounded-lg border border-green-100 bg-green-50 p-3 md:p-4">
             <div className="mb-3 flex items-center gap-2 text-green-800">
               <FaUniversity />
               <h2 className="text-base font-extrabold text-gray-950">Bank Details</h2>
             </div>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid min-w-0 gap-3 md:grid-cols-2">
               <KycInput label="Account Holder Name" value={form.bankAccountHolderName} disabled={!canEdit} onChange={(value) => updateForm("bankAccountHolderName", value)} />
               <KycInput label="Bank Name" value={form.bankName} disabled={!canEdit} onChange={(value) => updateForm("bankName", value)} />
               <KycInput label="Account Number" value={form.accountNumber} disabled={!canEdit} onChange={(value) => updateForm("accountNumber", value)} />
               <KycInput label="IFSC Code" value={form.ifscCode} disabled={!canEdit} onChange={(value) => updateForm("ifscCode", value)} />
               <KycInput label="UPI ID optional" value={form.upiId} disabled={!canEdit} onChange={(value) => updateForm("upiId", value)} />
-              <FileField label="Upload Bank Proof / Passbook" disabled={!canEdit} upload={uploads.passbookFile} existingUrl={existingDocuments.passbookFile} onFileChange={(file) => uploadKycFile("passbookFile", file)} onRetry={() => uploads.passbookFile?.file && uploadKycFile("passbookFile", uploads.passbookFile.file)} />
+              <FileField required label="Upload Bank Proof / Passbook" disabled={!canEdit} upload={uploads.passbookFile} existingUrl={existingDocuments.passbookFile} onFileChange={(file) => uploadKycFile("passbookFile", file)} onRetry={() => uploads.passbookFile?.file && uploadKycFile("passbookFile", uploads.passbookFile.file)} />
             </div>
           </section>
 
           {form.roleType === "grower" && (
-            <section className="rounded-lg border border-green-100 bg-green-50 p-4">
+            <section className="min-w-0 rounded-lg border border-green-100 bg-green-50 p-3 md:p-4">
               <h2 className="mb-3 text-base font-extrabold text-gray-950">Grower Details</h2>
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid min-w-0 gap-3 md:grid-cols-2">
                 <KycInput label="Orchard Name optional" value={form.orchardName} disabled={!canEdit} onChange={(value) => updateForm("orchardName", value)} />
                 <KycInput label="Orchard Location optional" value={form.orchardLocation} disabled={!canEdit} onChange={(value) => updateForm("orchardLocation", value)} />
               </div>
@@ -515,12 +583,12 @@ export default function Kyc() {
           )}
 
           {form.roleType === "driver" && (
-            <section className="rounded-lg border border-green-100 bg-green-50 p-4">
+            <section className="min-w-0 rounded-lg border border-green-100 bg-green-50 p-3 md:p-4">
               <h2 className="mb-3 text-base font-extrabold text-gray-950">Driver Details</h2>
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid min-w-0 gap-3 md:grid-cols-2">
                 <KycInput label="Vehicle Number" value={form.vehicleNumber} disabled={!canEdit} onChange={(value) => updateForm("vehicleNumber", value)} />
                 <KycInput label="Driving License Number" value={form.drivingLicenseNumber} disabled={!canEdit} onChange={(value) => updateForm("drivingLicenseNumber", value)} />
-                <FileField label="Upload Driving License" disabled={!canEdit} upload={uploads.drivingLicense} existingUrl={existingDocuments.drivingLicense} onFileChange={(file) => uploadKycFile("drivingLicenseImage", file)} onRetry={() => uploads.drivingLicense?.file && uploadKycFile("drivingLicenseImage", uploads.drivingLicense.file)} />
+                <FileField required label="Upload Driving License" disabled={!canEdit} upload={uploads.drivingLicense} existingUrl={existingDocuments.drivingLicense} onFileChange={(file) => uploadKycFile("drivingLicenseImage", file)} onRetry={() => uploads.drivingLicense?.file && uploadKycFile("drivingLicenseImage", uploads.drivingLicense.file)} />
               </div>
             </section>
           )}
@@ -550,7 +618,7 @@ export default function Kyc() {
           <button
             type="submit"
             disabled={loading || !canEdit || !canSubmitWithUploads}
-            className="w-full rounded-md bg-green-700 py-3 text-sm font-extrabold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-300"
+            className="hidden w-full rounded-md bg-green-700 py-3 text-sm font-extrabold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-300 md:block"
           >
             {loading
               ? "Submitting..."
@@ -567,19 +635,28 @@ export default function Kyc() {
           </div>
         </form>
       </section>
+      <MobileSubmitBar
+        loading={loading}
+        canEdit={canEdit}
+        canSubmit={canSubmitWithUploads}
+        hasUploading={hasUploadingDocuments}
+        requiredUploaded={requiredDocumentsUploaded}
+        percent={completionPercent}
+        onSubmit={(event) => submitKyc(event)}
+      />
     </div>
   );
 }
 
 function SelectField({ label, value, options, disabled, onChange }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <span className="text-sm font-bold text-gray-800">{label}</span>
       <select
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1 w-full rounded-md border border-green-100 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-green-700 disabled:bg-gray-100"
+        className="mt-1 w-full min-w-0 rounded-md border border-green-100 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-green-700 disabled:bg-gray-100"
       >
         {options.map(([optionValue, labelText]) => (
           <option key={optionValue} value={optionValue}>{labelText}</option>
@@ -589,10 +666,98 @@ function SelectField({ label, value, options, disabled, onChange }) {
   );
 }
 
-function FileField({ label, disabled, upload, existingUrl, onFileChange, onRetry }) {
+function OptionalKycSection({ title, children }) {
+  return (
+    <details className="mt-3 rounded-md border border-green-100 bg-white/70 p-3 md:open">
+      <summary className="cursor-pointer text-sm font-extrabold text-green-800">{title}</summary>
+      <div className="mt-3">{children}</div>
+    </details>
+  );
+}
+
+function getDocumentState(key, uploads = {}, existingDocuments = {}) {
+  const upload = uploads[key];
+  if (upload?.status) return upload.status;
+  if (existingDocuments[key]) return "uploaded";
+  return "pending";
+}
+
+function KycMobileProgressSummary({ items, uploads, existingDocuments, completed, total }) {
+  return (
+    <div className="sticky top-[56px] z-20 mb-3 rounded-lg border border-green-100 bg-white/95 p-2 shadow-sm backdrop-blur md:hidden">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-extrabold text-green-900">KYC Progress</p>
+        <p className="text-xs font-extrabold text-green-700">{completed}/{total} completed</p>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-1">
+        {items.map((item) => {
+          const state = getDocumentState(item.key, uploads, existingDocuments);
+          const label =
+            state === "uploaded"
+              ? "Uploaded"
+              : state === "uploading"
+                ? "Uploading"
+                : state === "optimizing"
+                  ? "Optimizing"
+                  : state === "failed"
+                    ? "Retry"
+                    : item.optional
+                      ? "Optional"
+                      : "Pending";
+          return (
+            <div key={item.key} className="min-w-0 rounded-md bg-green-50 px-2 py-1">
+              <p className="truncate text-[10px] font-bold text-gray-700">{item.label}</p>
+              <p className={`text-[10px] font-extrabold ${state === "failed" ? "text-red-700" : state === "uploaded" ? "text-green-700" : "text-gray-500"}`}>
+                {label}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MobileSubmitBar({ loading, canEdit, canSubmit, hasUploading, requiredUploaded, percent, onSubmit }) {
+  const label = loading
+    ? "Submitting..."
+    : !canEdit
+      ? "KYC Locked"
+      : hasUploading
+        ? "Uploading documents..."
+        : !requiredUploaded
+          ? "Upload required docs"
+          : "Submit KYC";
+
+  return (
+    <div className="fixed inset-x-0 bottom-16 z-40 border-t border-green-100 bg-white/95 px-3 py-2 shadow-[0_-8px_20px_rgba(0,0,0,0.08)] backdrop-blur md:hidden">
+      <div className="mx-auto max-w-md">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <span className="text-xs font-extrabold text-gray-800">KYC Completion</span>
+          <span className="text-xs font-extrabold text-green-700">{percent}%</span>
+        </div>
+        <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-green-100">
+          <div className="h-full bg-green-700 transition-all" style={{ width: `${percent}%` }} />
+        </div>
+        <button
+          type="button"
+          onClick={onSubmit}
+          disabled={loading || !canEdit || !canSubmit}
+          className="w-full rounded-full bg-green-700 py-2.5 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:bg-gray-300"
+        >
+          {label}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function FileField({ label, required = false, disabled, upload, existingUrl, onFileChange, onRetry }) {
   const [fileName, setFileName] = useState("");
   const statusText =
-    upload?.status === "uploading"
+    upload?.status === "optimizing"
+      ? "Optimizing image..."
+      : upload?.status === "uploading"
       ? `Uploading... ${upload.progress || 0}%`
       : upload?.status === "uploaded" || existingUrl
         ? "Uploaded"
@@ -600,12 +765,21 @@ function FileField({ label, disabled, upload, existingUrl, onFileChange, onRetry
           ? "Failed"
           : "";
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <span className="text-sm font-bold text-gray-800">{label}</span>
-      <span className="mt-1 flex items-center gap-2 rounded-md border border-dashed border-green-300 bg-white px-3 py-3 text-sm font-semibold text-gray-600">
-        <FaFileUpload className="text-green-700" />
-        <span className="min-w-0 flex-1 truncate">{fileName || upload?.fileName || (existingUrl ? "Already uploaded" : "Choose image or PDF")}</span>
-        {(upload?.status === "uploaded" || existingUrl) && <FaCheckCircle className="text-green-700" />}
+      <span className="mt-1 block rounded-md border border-dashed border-green-300 bg-white p-2 text-sm font-semibold text-gray-600">
+        <span className="flex min-w-0 items-center gap-2">
+          <FaFileUpload className="shrink-0 text-green-700" />
+          <span className="min-w-0 flex-1 truncate">
+            {fileName || upload?.fileName || (existingUrl ? "Already uploaded" : `+ ${label}`)}
+          </span>
+          {(upload?.status === "uploaded" || existingUrl) && <FaCheckCircle className="shrink-0 text-green-700" />}
+        </span>
+        {!upload?.status && !existingUrl && (
+          <span className="mt-1 block truncate text-[11px] font-bold text-gray-400">
+            JPEG, PNG, PDF | Max 10 MB{required ? " | Required" : " | Optional"}
+          </span>
+        )}
         <input
           type="file"
           disabled={disabled}
@@ -619,11 +793,12 @@ function FileField({ label, disabled, upload, existingUrl, onFileChange, onRetry
         />
       </span>
       {statusText && (
-        <div className="mt-1 text-xs font-extrabold text-green-800">
+        <div className={`mt-1 flex min-w-0 items-center gap-2 text-xs font-extrabold ${upload?.status === "failed" ? "text-red-700" : "text-green-800"}`}>
+          <span className="min-w-0 truncate">
           {statusText}
+          </span>
           {upload?.status === "failed" && (
             <>
-              <span className="ml-1 text-red-700">{upload.error || "Upload failed"}</span>
               <button
                 type="button"
                 onClick={(event) => {
@@ -631,17 +806,29 @@ function FileField({ label, disabled, upload, existingUrl, onFileChange, onRetry
                   event.stopPropagation();
                   onRetry?.();
                 }}
-                className="ml-2 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-extrabold text-red-700 ring-1 ring-red-100"
+                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-extrabold text-red-700 ring-1 ring-red-100"
               >
+                <FaRedo />
                 Retry
               </button>
             </>
           )}
+          {(upload?.status === "uploaded" || existingUrl) && existingUrl && (
+            <a
+              href={existingUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(event) => event.stopPropagation()}
+              className="shrink-0 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-extrabold text-green-700 ring-1 ring-green-100"
+            >
+              Preview
+            </a>
+          )}
         </div>
       )}
-      {upload?.status === "uploading" && (
+      {(upload?.status === "uploading" || upload?.status === "optimizing") && (
         <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-green-100">
-          <div className="h-full bg-green-700 transition-all" style={{ width: `${upload.progress || 0}%` }} />
+          <div className="h-full bg-green-700 transition-all" style={{ width: `${upload?.status === "optimizing" ? 12 : upload.progress || 0}%` }} />
         </div>
       )}
     </label>
@@ -650,13 +837,13 @@ function FileField({ label, disabled, upload, existingUrl, onFileChange, onRetry
 
 function KycInput({ label, value, disabled, onChange }) {
   return (
-    <label className="block">
+    <label className="block min-w-0">
       <span className="text-sm font-bold text-gray-800">{label}</span>
       <input
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1 w-full rounded-md border border-green-100 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-green-700 disabled:bg-gray-100"
+        className="mt-1 w-full min-w-0 rounded-md border border-green-100 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-green-700 disabled:bg-gray-100"
       />
     </label>
   );
