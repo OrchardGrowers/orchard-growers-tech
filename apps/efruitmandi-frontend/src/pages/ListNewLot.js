@@ -21,7 +21,6 @@ import {
 } from "../utils/fruitRecognition";
 import { getCurrentUser, hasCompletedKyc } from "../utils/auth";
 import { saveUserToStorage } from "../utils/userStorage";
-import { confirmImageCaptureConsent, confirmVideoCaptureConsent } from "../utils/permissionConsent";
 
 const DEFAULT_FRUITS = [
   "Almond",
@@ -995,9 +994,6 @@ export default function ListNewLot() {
                               capture="environment"
                               multiple={false}
                               disabled={isUploading}
-                              onClick={(event) => {
-                                if (!confirmImageCaptureConsent()) event.preventDefault();
-                              }}
                               onChange={(e) =>
                                 updateGradeImage(
                                   grade.key,
@@ -1030,11 +1026,7 @@ export default function ListNewLot() {
               <input
                 type="file"
                 accept="video/*"
-                capture="environment"
                 multiple={false}
-                onClick={(event) => {
-                  if (!confirmVideoCaptureConsent()) event.preventDefault();
-                }}
                 onChange={(e) => updateSampleVideo(e.target.files?.[0] || null)}
                 className="hidden"
               />

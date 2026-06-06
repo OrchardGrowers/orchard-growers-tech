@@ -19,7 +19,6 @@ import {
   FaYoutube,
 } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
-import { confirmImageCaptureConsent, requestLocationPermission } from "../utils/permissionConsent";
 import {
   hasBuyerProfile,
   hasDriverProfile,
@@ -805,8 +804,8 @@ export default function ProfileDashboard() {
     }
 
     setDetectingAddress(true);
-    requestLocationPermission({
-      onSuccess: async (position) => {
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
         const { latitude, longitude } = position.coords;
 
         try {
@@ -843,12 +842,12 @@ export default function ProfileDashboard() {
           setDetectingAddress(false);
         }
       },
-      onError: () => {
+      () => {
         setDetectingAddress(false);
         setNotice("Location permission was not allowed.");
       },
-      options: { enableHighAccuracy: true, timeout: 12000 },
-    });
+      { enableHighAccuracy: true, timeout: 12000 }
+    );
   };
 
   const requestVerification = () => {
@@ -1316,9 +1315,6 @@ export default function ProfileDashboard() {
                     type="file"
                     accept="image/*"
                     className="hidden"
-                    onClick={(event) => {
-                      if (!confirmImageCaptureConsent()) event.preventDefault();
-                    }}
                     onChange={(event) =>
                       updateMediaDraft("bannerUrl", event.target.files?.[0])
                     }
@@ -1345,9 +1341,6 @@ export default function ProfileDashboard() {
                     type="file"
                     accept="image/*"
                     className="hidden"
-                    onClick={(event) => {
-                      if (!confirmImageCaptureConsent()) event.preventDefault();
-                    }}
                     onChange={(event) =>
                       updateMediaDraft("avatarUrl", event.target.files?.[0])
                     }
@@ -1378,9 +1371,6 @@ export default function ProfileDashboard() {
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      onClick={(event) => {
-                        if (!confirmImageCaptureConsent()) event.preventDefault();
-                      }}
                       onChange={(event) =>
                         updateMediaDraft("companyLogoUrl", event.target.files?.[0])
                       }

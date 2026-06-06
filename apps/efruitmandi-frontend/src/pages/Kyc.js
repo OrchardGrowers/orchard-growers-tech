@@ -214,7 +214,13 @@ export default function Kyc() {
     try {
       setLoading(true);
       const data = new FormData();
-      Object.entries(form).forEach(([key, value]) => data.append(key, String(value || "").trim()));
+      const growerOnlyFields = new Set(["orchardName", "orchardLocation"]);
+      const driverOnlyFields = new Set(["vehicleNumber", "drivingLicenseNumber"]);
+      Object.entries(form).forEach(([key, value]) => {
+        if (growerOnlyFields.has(key) && form.roleType !== "grower") return;
+        if (driverOnlyFields.has(key) && form.roleType !== "driver") return;
+        data.append(key, String(value || "").trim());
+      });
       data.append("acceptedTerms", "true");
       Object.entries(files).forEach(([key, file]) => {
         if (file) data.append(key, file);

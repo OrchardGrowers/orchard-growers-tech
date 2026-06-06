@@ -3,7 +3,6 @@ import { useParams } from "react-router-dom";
 import API from "../services/api";
 import BackHomeButton from "../components/BackHomeButton";
 import { getCurrentUser, hasDriverProfile } from "../utils/auth";
-import { requestLocationPermission } from "../utils/permissionConsent";
 
 export default function GpsTracking() {
   const { orderId } = useParams();
@@ -43,17 +42,17 @@ export default function GpsTracking() {
       return;
     }
 
-    requestLocationPermission({
-      onSuccess: (position) =>
+    navigator.geolocation.getCurrentPosition(
+      (position) =>
         updateLocation({
           lat: position.coords.latitude,
           lng: position.coords.longitude,
           accuracy: position.coords.accuracy,
           source: "AUTO",
         }),
-      onError: () => setMessage("Location permission denied or unavailable."),
-      options: { enableHighAccuracy: true, timeout: 12000 },
-    });
+      () => setMessage("Location permission denied or unavailable."),
+      { enableHighAccuracy: true, timeout: 12000 }
+    );
   };
 
   const saveManualLocation = () =>

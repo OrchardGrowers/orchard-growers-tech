@@ -105,8 +105,8 @@ const getKycRoleType = (user = {}) => {
   const kycRole = String(user.kyc?.roleType || "").toLowerCase();
   const userRole = String(user.role || "").toLowerCase();
 
-  if (hasGrowerKycFields(user)) return "grower";
   if (USER_ROLES.includes(kycRole) && (profiles.size === 0 || profiles.has(kycRole))) return kycRole;
+  if (hasGrowerKycFields(user)) return "grower";
   if (USER_ROLES.includes(userRole) && (profiles.size === 0 || profiles.has(userRole))) return userRole;
   if (profiles.has("grower")) return "grower";
   if (profiles.has("buyer")) return "buyer";

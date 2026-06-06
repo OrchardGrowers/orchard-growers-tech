@@ -1546,6 +1546,10 @@ function App() {
     id: string,
     action: ReviewAction
   ) => {
+    if (type === 'kyc' && action === 'APPROVE' && !confirmTwice('approve this KYC request')) {
+      return;
+    }
+
     if (['HOLD', 'SUSPEND', 'TERMINATE'].includes(action) && !confirmTwice(`${action.toLowerCase()} this request and user account`)) {
       return;
     }
@@ -6615,8 +6619,8 @@ function getKycUserRoleType(user: KycUser) {
   const kycRole = String(user.kyc?.roleType || '').toLowerCase();
   const userRole = String(user.role || '').toLowerCase();
 
-  if (hasGrowerKycFields(user)) return 'grower';
   if (validKycRoleTypes.has(kycRole) && (profiles.size === 0 || profiles.has(kycRole))) return kycRole;
+  if (hasGrowerKycFields(user)) return 'grower';
   if (validKycRoleTypes.has(userRole) && (profiles.size === 0 || profiles.has(userRole))) return userRole;
   if (profiles.has('grower')) return 'grower';
   if (profiles.has('buyer')) return 'buyer';
@@ -6635,6 +6639,8 @@ function KycRequestCard({
 }) {
   const kyc = user.kyc || {};
   const roleType = getKycUserRoleType(user);
+  const kycStatus = String(kyc.status || '').toUpperCase();
+  const isApproved = kycStatus === 'APPROVED';
   const premisesAddressLabel =
     roleType === 'buyer'
       ? 'Buyer Premises'
@@ -6681,7 +6687,12 @@ function KycRequestCard({
       />
       <div className="mt-4 grid gap-2 md:grid-cols-4">
         <AdminActionButton label="Under Review" onClick={() => onReview('kyc', user._id, 'UNDER_REVIEW')} />
-        <AdminActionButton label="Approve" onClick={() => onReview('kyc', user._id, 'APPROVE')} />
+        <AdminActionButton
+          label={isApproved ? 'Approved' : 'Approve'}
+          onClick={() => onReview('kyc', user._id, 'APPROVE')}
+          disabled={isApproved}
+          success={isApproved}
+        />
         <AdminActionButton label="Correction Required" onClick={() => onReview('kyc', user._id, 'CORRECTION_REQUIRED')} />
         <AdminActionButton label="Reject" onClick={() => onReview('kyc', user._id, 'REJECT')} danger />
       </div>
@@ -6913,16 +6924,25 @@ function AdminActionButton({
   label,
   onClick,
   danger = false,
+  disabled = false,
+  success = false,
 }: {
   label: string;
   onClick: () => void;
   danger?: boolean;
+  disabled?: boolean;
+  success?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={`rounded-lg px-3 py-2 text-sm font-bold ${
-        danger
+        disabled && success
+          ? 'cursor-not-allowed border border-emerald-500 bg-emerald-700 text-white'
+          : disabled
+            ? 'cursor-not-allowed border border-slate-700 bg-slate-800 text-slate-500'
+            : danger
           ? 'border border-red-900 bg-red-950 text-red-100 hover:bg-red-900'
           : 'border border-slate-700 bg-slate-900 text-slate-100 hover:border-emerald-400'
       }`}

@@ -19,7 +19,6 @@ import {
   verifyMsg91WidgetOtp,
 } from "../utils/msg91OtpWidget";
 import { getCurrentUser, hasGrowerProfile } from "../utils/auth";
-import { requestLocationPermission } from "../utils/permissionConsent";
 
 export default function RegisterGrower() {
   const navigate = useNavigate();
@@ -86,8 +85,8 @@ export default function RegisterGrower() {
       setMessage("Location capture is not supported in this browser.");
       return;
     }
-    requestLocationPermission({
-      onSuccess: (position) => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
         const latitude = position.coords.latitude.toFixed(6);
         const longitude = position.coords.longitude.toFixed(6);
         setForm((current) => ({
@@ -98,9 +97,9 @@ export default function RegisterGrower() {
         }));
         setMessage("Google map point captured.");
       },
-      onError: () => setMessage("Could not capture map point. Please allow location permission or open map manually."),
-      options: { enableHighAccuracy: true, timeout: 12000 },
-    });
+      () => setMessage("Could not capture map point. Please allow location permission or open map manually."),
+      { enableHighAccuracy: true, timeout: 12000 }
+    );
   };
 
   const sendPhoneOtp = async () => {

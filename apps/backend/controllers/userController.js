@@ -571,8 +571,15 @@ export const updateKyc = async (req, res) => {
         resourceType: getResourceType(file),
       });
     const roleTypes = new Set(getUserProfileTypes(existingUser));
+    const explicitBodyRoleType = String(req.body.roleType || "").trim().toLowerCase();
     const inferredBodyRoleType = hasGrowerKycPayload(req.body, req.files) ? "grower" : "";
-    const requestedRoleType = String(inferredBodyRoleType || req.body.roleType || existingKyc.roleType || existingUser.role || "").trim().toLowerCase();
+    const requestedRoleType = String(
+      ["buyer", "grower", "driver"].includes(explicitBodyRoleType)
+        ? explicitBodyRoleType
+        : inferredBodyRoleType || existingKyc.roleType || existingUser.role || ""
+    )
+      .trim()
+      .toLowerCase();
     const ownsRequestedRoleType = roleTypes.size === 0 || roleTypes.has(requestedRoleType);
     const roleType = ["buyer", "grower", "driver"].includes(requestedRoleType) && ownsRequestedRoleType
       ? requestedRoleType
