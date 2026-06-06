@@ -1,4 +1,4 @@
-const CACHE_VERSION = "efruitmandi-pwa-v6";
+const CACHE_VERSION = "efruitmandi-pwa-v7";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -114,7 +114,7 @@ self.addEventListener("push", (event) => {
     payload = { body: event.data?.text() || "" };
   }
 
-  const title = payload.title || "E-Fruit Mandi";
+  const title = payload.title || "eFruitMandi";
   const options = {
     ...DEFAULT_NOTIFICATION_OPTIONS,
     ...payload,

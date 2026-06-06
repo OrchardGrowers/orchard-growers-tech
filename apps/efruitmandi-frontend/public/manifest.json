@@ -1,6 +1,6 @@
 {
-  "name": "E-Fruit Mandi",
-  "short_name": "E-Fruit",
+  "name": "eFruitMandi",
+  "short_name": "eFruitMandi",
   "description": "Automated fresh produce marketplace for growers, buyers, and logistics partners.",
   "id": "/",
   "start_url": "/?source=pwa",
@@ -42,13 +42,13 @@
       "sizes": "1280x720",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "E-Fruit Mandi desktop marketplace view"
+      "label": "eFruitMandi desktop marketplace view"
     },
     {
       "src": "/pwa-screenshot-mobile-390x844.png",
       "sizes": "390x844",
       "type": "image/png",
-      "label": "E-Fruit Mandi mobile marketplace view"
+      "label": "eFruitMandi mobile marketplace view"
     }
   ]
 }
