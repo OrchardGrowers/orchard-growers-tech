@@ -37,6 +37,9 @@ export default function RegisterBuyer() {
     designation: currentUser.designation || "",
     location: currentUser.buyerLocation || currentUser.location || "",
     pinCode: currentUser.buyerPinCode || currentUser.pinCode || "",
+    mapLatitude: currentUser.mapLatitude || "",
+    mapLongitude: currentUser.mapLongitude || "",
+    googleMapUrl: currentUser.googleMapUrl || "",
     contact: savedContact,
     gstNumber: currentUser.gstNumber || "",
     tradeLicenseNumber: currentUser.tradeLicenseNumber || "",
@@ -62,6 +65,9 @@ export default function RegisterBuyer() {
           designation: latestUser.designation || "",
           location: latestUser.buyerLocation || latestUser.location || "",
           pinCode: latestUser.buyerPinCode || latestUser.pinCode || "",
+          mapLatitude: latestUser.mapLatitude || "",
+          mapLongitude: latestUser.mapLongitude || "",
+          googleMapUrl: latestUser.googleMapUrl || "",
           contact: latestUser.contact || latestUser.phone || "",
           gstNumber: latestUser.gstNumber || "",
           tradeLicenseNumber: latestUser.tradeLicenseNumber || "",
@@ -94,6 +100,37 @@ export default function RegisterBuyer() {
 
   const contactValue = form.contact.trim();
   const phoneVerified = contactValue && verifiedPhone === contactValue;
+  const googleMapUrl =
+    form.googleMapUrl ||
+    (form.mapLatitude && form.mapLongitude
+      ? `https://www.google.com/maps?q=${encodeURIComponent(`${form.mapLatitude},${form.mapLongitude}`)}`
+      : form.location
+        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([form.location, form.pinCode].filter(Boolean).join(", "))}`
+        : "");
+
+  const captureMapPoint = () => {
+    setMessage("");
+    if (!navigator.geolocation) {
+      setMessage("Location capture is not supported in this browser.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const latitude = position.coords.latitude.toFixed(6);
+        const longitude = position.coords.longitude.toFixed(6);
+        setForm((current) => ({
+          ...current,
+          mapLatitude: latitude,
+          mapLongitude: longitude,
+          googleMapUrl: `https://www.google.com/maps?q=${latitude},${longitude}`,
+        }));
+        setMessage("Buyer premises map point captured.");
+      },
+      () => setMessage("Could not capture map point. Please allow location permission or open map manually."),
+      { enableHighAccuracy: true, timeout: 12000 }
+    );
+  };
 
   const sendPhoneOtp = async () => {
     setMessage("");
@@ -188,6 +225,9 @@ export default function RegisterBuyer() {
         designation: form.designation.trim(),
         buyerLocation: form.location.trim(),
         buyerPinCode: form.pinCode.trim(),
+        mapLatitude: form.mapLatitude,
+        mapLongitude: form.mapLongitude,
+        googleMapUrl,
         contact: form.contact.trim(),
         gstNumber: form.gstNumber.trim(),
         tradeLicenseNumber: form.tradeLicenseNumber.trim(),
@@ -259,6 +299,35 @@ export default function RegisterBuyer() {
             inputMode="numeric"
             onChange={(value) => updateForm("pinCode", value)}
           />
+          <div className="rounded-md border border-green-100 bg-green-50 p-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-gray-700">Buyer premises Google map point</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  {form.mapLatitude && form.mapLongitude
+                    ? `Lat ${form.mapLatitude}, Lng ${form.mapLongitude}`
+                    : "Capture receiving premises point for transport fare calculation."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={captureMapPoint}
+                className="rounded-md bg-green-700 px-3 py-2 text-xs font-bold text-white hover:bg-green-800"
+              >
+                Use map point
+              </button>
+            </div>
+            {googleMapUrl && (
+              <a
+                href={googleMapUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 block truncate rounded-md bg-white px-3 py-2 text-xs font-semibold text-green-700 underline"
+              >
+                Open Google Map location
+              </a>
+            )}
+          </div>
           <BuyerField
             icon={<FaPhoneAlt className="text-green-600" />}
             label="Contact No."

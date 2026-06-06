@@ -19,6 +19,7 @@ export default function QuotePrice() {
   const [activeImage, setActiveImage] = useState(null);
   const [gradePrices, setGradePrices] = useState({});
   const [distanceKm, setDistanceKm] = useState("");
+  const [autoDistanceKm, setAutoDistanceKm] = useState(null);
   const [quotation, setQuotation] = useState(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -41,6 +42,7 @@ export default function QuotePrice() {
         const lot = lotRes.data?.product || null;
         setProduct(lot);
         setActiveImage(getLotImages(lot)[0] || null);
+        setAutoDistanceKm(calculateDistanceKm(lot?.createdBy, freshUser));
         setGradePrices(
           getAvailableGradeLots(lot).reduce((prices, lotGrade) => {
             prices[lotGrade.grade] = "";
@@ -61,9 +63,10 @@ export default function QuotePrice() {
   const availableGrades = useMemo(() => getAvailableGradeLots(product), [product]);
   const quoteUnit = getQuoteUnit(product);
   const preview = useMemo(
-    () => calculateBuyerPreview(availableGrades, gradePrices, distanceKm),
-    [availableGrades, gradePrices, distanceKm]
+    () => calculateBuyerPreview(availableGrades, gradePrices, autoDistanceKm ?? distanceKm),
+    [availableGrades, gradePrices, autoDistanceKm, distanceKm]
   );
+  const effectiveDistanceKm = autoDistanceKm ?? distanceKm;
 
   const updateGradePrice = (grade, value) => {
     setQuotation(null);
@@ -86,7 +89,7 @@ export default function QuotePrice() {
           grade: gradeLot.grade,
           price: Number(gradePrices[gradeLot.grade] || 0),
         })),
-        distanceKm,
+        distanceKm: effectiveDistanceKm,
       });
       setQuotation(res.data?.quotation || null);
       setMessage("Quote submitted. The grower will see only the final receivable amount.");
@@ -215,18 +218,32 @@ export default function QuotePrice() {
               })}
             </div>
 
-            <label className="mt-3 block text-sm font-bold text-gray-700">
-              Delivery distance in km fallback
-              <input
-                value={distanceKm}
-                inputMode="numeric"
-                type="number"
-                min="0"
-                onChange={(event) => setDistanceKm(event.target.value)}
-                placeholder="Auto-calculated when profile map points exist"
-                className="mt-2 w-full rounded-md border border-gray-200 px-3 py-3 text-sm font-bold outline-none focus:border-green-600"
-              />
-            </label>
+            <div className="mt-3 rounded-md border border-green-100 bg-green-50 px-3 py-3 text-sm font-bold text-gray-700">
+              <p className="text-gray-900">Delivery distance</p>
+              {autoDistanceKm !== null ? (
+                <>
+                  <p className="mt-1 text-lg font-extrabold text-green-800">{autoDistanceKm} km</p>
+                  <p className="mt-1 text-xs font-semibold text-green-700">
+                    Auto-calculated from seller premises to buyer premises map points.
+                  </p>
+                </>
+              ) : (
+                <label className="mt-2 block">
+                  <span className="text-xs font-semibold text-gray-500">
+                    Add seller and buyer Google map points for automatic fare calculation. Use fallback only when map points are missing.
+                  </span>
+                  <input
+                    value={distanceKm}
+                    inputMode="decimal"
+                    type="number"
+                    min="0"
+                    onChange={(event) => setDistanceKm(event.target.value)}
+                    placeholder="Enter fallback distance in km"
+                    className="mt-2 w-full rounded-md border border-gray-200 bg-white px-3 py-3 text-sm font-bold outline-none focus:border-green-600"
+                  />
+                </label>
+              )}
+            </div>
 
             <div className="mt-4 rounded-md bg-green-50 p-3 text-sm font-bold text-green-900">
               <div className="flex items-center gap-2">
@@ -440,6 +457,35 @@ function resolveProfileMediaUrl(value = "") {
   const cleanPath = url.replace(/^\/+/, "");
   if (cleanPath.startsWith("uploads/")) return `${FILE_BASE_URL}/${cleanPath}`;
   return url.startsWith("/") ? url : `/${url}`;
+}
+
+function getMapPoint(entity = {}) {
+  const latitude = Number(entity?.mapLatitude);
+  const longitude = Number(entity?.mapLongitude);
+  if (![latitude, longitude].every(Number.isFinite)) return null;
+  return { latitude, longitude };
+}
+
+function toRadians(value) {
+  return (Number(value) * Math.PI) / 180;
+}
+
+function calculateDistanceKm(from = {}, to = {}) {
+  const sellerPoint = getMapPoint(from);
+  const buyerPoint = getMapPoint(to);
+  if (!sellerPoint || !buyerPoint) return null;
+
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(buyerPoint.latitude - sellerPoint.latitude);
+  const dLon = toRadians(buyerPoint.longitude - sellerPoint.longitude);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(sellerPoint.latitude)) *
+      Math.cos(toRadians(buyerPoint.latitude)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(earthRadiusKm * c * 10) / 10;
 }
 
 function getQuoteUnit(product = {}) {

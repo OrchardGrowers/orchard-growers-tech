@@ -12,7 +12,7 @@ import {
   FaUser,
   FaVideo,
 } from "react-icons/fa";
-import API, { FILE_BASE_URL } from "../services/api";
+import API, { FILE_BASE_URL, getApiErrorMessage } from "../services/api";
 import CountdownTimer from "../components/CountdownTimer";
 import { canQuote, getCurrentUser, hasBuyerProfile } from "../utils/auth";
 import { saveUserToStorage } from "../utils/userStorage";
@@ -27,27 +27,34 @@ export default function LotDetails() {
   const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
   const [imageZoom, setImageZoom] = useState(1);
   const [user, setUser] = useState(() => getCurrentUser());
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     const loadLot = async () => {
       try {
+        setErrorMessage("");
+        setLoading(true);
         const [res, profileRes] = await Promise.all([
           API.get(`/products/${lotId}?platform=efruitmandi`),
           localStorage.getItem("accessToken")
             ? API.get("/user/profile").catch(() => ({ data: getCurrentUser() }))
             : Promise.resolve({ data: getCurrentUser() }),
         ]);
-        const freshUser = profileRes.data || getCurrentUser();
+        const freshUser = profileRes.data || getCurrentUser() || {};
         setUser(freshUser);
         saveUserToStorage(freshUser);
         const lot = res.data?.product || null;
         const linkedAuction = res.data?.auction || null;
 
+        if (!lot) {
+          setErrorMessage("This fruit lot is not available.");
+        }
+
         setProduct(lot);
         setAuction(linkedAuction);
         setActiveImage(getAllImages(lot)[0] || "");
       } catch (err) {
-        console.error(err);
+        setErrorMessage(getApiErrorMessage(err, "Unable to load this fruit lot."));
         setProduct(null);
       } finally {
         setLoading(false);
@@ -60,7 +67,7 @@ export default function LotDetails() {
   const images = useMemo(() => getAllImages(product), [product]);
   const createdBy = product?.createdBy || {};
   const ownerId = createdBy._id || createdBy.id;
-  const currentUserId = user._id || user.id;
+  const currentUserId = user?._id || user?.id;
   const canSeeBasePrice = ownerId && currentUserId && ownerId === currentUserId;
   const isOrganicCertified = isOrganicCertifiedProduct(product);
   const growerName = createdBy.orchardName || createdBy.businessName || createdBy.name || "Grower's Orchard";
@@ -125,7 +132,7 @@ export default function LotDetails() {
           <FaArrowLeft />
           Back
         </button>
-        <EmptyState text="This fruit lot is not available." />
+        <EmptyState text={errorMessage || "This fruit lot is not available."} />
       </div>
     );
   }
@@ -157,6 +164,7 @@ export default function LotDetails() {
                 <img
                   src={toAssetUrl(activeImage)}
                   alt={product.title || "Fruit Lot"}
+                  onError={() => setActiveImage(images.find((image) => toAssetUrl(image) !== toAssetUrl(activeImage)) || "")}
                   className="max-h-full max-w-full object-contain object-center"
                 />
                 {activeGradeLabel && <FruitGradeBadge label={activeGradeLabel} />}
@@ -173,7 +181,7 @@ export default function LotDetails() {
           <div className="mt-2 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
             {images.map((image) => (
               <button
-                key={image}
+                key={getAssetKey(image)}
                 type="button"
                 onClick={() => setActiveImage(image)}
                 className={`h-14 w-16 shrink-0 overflow-hidden rounded border ${
@@ -183,6 +191,9 @@ export default function LotDetails() {
                 <img
                   src={toAssetUrl(image)}
                   alt=""
+                  onError={(event) => {
+                    event.currentTarget.style.display = "none";
+                  }}
                   className="h-full w-full object-contain"
                 />
               </button>
@@ -409,13 +420,16 @@ function GradeLots({ lots }) {
                 {lot.boxes || 0} boxes | {formatWeight(lot.weightKg)}
               </span>
             </div>
-            {lot.images?.length ? (
+            {getLotImages(lot).length ? (
               <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                {lot.images.map((image) => (
+                {getLotImages(lot).map((image) => (
                   <img
-                    key={image}
+                    key={getAssetKey(image)}
                     src={toAssetUrl(image)}
                     alt={`${lot.grade || "Grade"} fruit sample`}
+                    onError={(event) => {
+                      event.currentTarget.style.display = "none";
+                    }}
                     className="h-20 w-24 shrink-0 rounded bg-white object-contain"
                   />
                 ))}
@@ -470,19 +484,44 @@ function EmptyState({ text }) {
   );
 }
 
+function getAssetUrlValue(asset) {
+  if (!asset) return "";
+  if (typeof asset === "string") return asset;
+  if (typeof asset === "object") {
+    return asset.url || asset.secure_url || asset.path || asset.src || "";
+  }
+  return String(asset || "");
+}
+
+function getAssetKey(asset) {
+  return getAssetUrlValue(asset) || JSON.stringify(asset);
+}
+
+function getLotImages(lot = {}) {
+  const images = Array.isArray(lot.images) ? lot.images : [];
+  const objectImages = Array.isArray(lot.imageObjects)
+    ? lot.imageObjects.map((image) => image?.url || image?.secure_url || image?.path || "")
+    : [];
+  return Array.from(new Set([...images, ...objectImages].map(getAssetUrlValue).filter(Boolean)));
+}
+
 function getAllImages(product) {
   if (!product) return [];
 
   const topImages = Array.isArray(product.images) ? product.images : [];
+  const topImageObjects = Array.isArray(product.imageObjects)
+    ? product.imageObjects.map((image) => image?.url || image?.secure_url || image?.path || "")
+    : [];
   const gradeImages = Array.isArray(product.gradeLots)
-    ? product.gradeLots.flatMap((lot) => lot.images || [])
+    ? product.gradeLots.flatMap((lot) => getLotImages(lot))
     : [];
 
-  return Array.from(new Set([...topImages, ...gradeImages].filter(Boolean)));
+  return Array.from(new Set([...topImages, ...topImageObjects, ...gradeImages].map(getAssetUrlValue).filter(Boolean)));
 }
 
 function toAssetUrl(path) {
-  const normalizedPath = path ? path.replace(/\\/g, "/") : "";
+  const rawPath = getAssetUrlValue(path);
+  const normalizedPath = rawPath ? rawPath.replace(/\\/g, "/") : "";
   if (/^https?:\/\//i.test(normalizedPath)) return normalizedPath;
   return normalizedPath ? `${FILE_BASE_URL}/${normalizedPath}` : "";
 }
@@ -492,7 +531,7 @@ function getImageGradeLabel(product = {}, imageUrl = "") {
   const normalizedActive = toAssetUrl(imageUrl);
   const gradeLot = Array.isArray(product.gradeLots)
     ? product.gradeLots.find((lot) =>
-        (lot.images || []).some((image) => toAssetUrl(image) === normalizedActive)
+        getLotImages(lot).some((image) => toAssetUrl(image) === normalizedActive)
       )
     : null;
   const grade = gradeLot?.grade || product.grade || "";
