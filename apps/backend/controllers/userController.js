@@ -1,5 +1,6 @@
 import User from "../models/User.js";
 import Product from "../models/Product.js";
+import Order from "../models/Order.js";
 import {
   getResourceType,
   uploadBufferToCloudinary,
@@ -9,6 +10,7 @@ import {
   isOtpVerified,
   parseIdentifier,
 } from "./authController.js";
+import { getRoleKycStatus, refreshSettlementEligibility } from "../services/logisticsAssignmentService.js";
 
 const getVerifiedPhone = (contact, user = null, otpVerificationToken = "", platform = "efruitmandi") => {
   const parsed = parseIdentifier(contact);
@@ -276,6 +278,7 @@ export const setUserRole = async (req, res) => {
       googleMapUrl,
       contact,
       otpVerificationToken = "",
+      assignmentToken = "",
       platform = "efruitmandi",
       allowUpdate = false,
     } = req.body;
@@ -411,6 +414,22 @@ export const setUserRole = async (req, res) => {
     user.activeRole = role;
 
     await user.save();
+
+    if (role === "driver" && assignmentToken) {
+      const order = await Order.findOne({ "logisticsAssignment.invitationToken": String(assignmentToken).trim() });
+      if (order && ["AWAITING_LOGISTICS_REGISTRATION", "UNREGISTERED_LOGISTICS"].includes(order.logisticsAssignment?.status)) {
+        order.logisticsAssignment.status = "LOGISTICS_REGISTERED";
+        order.logisticsAssignment.assignedLogisticsAccount = user._id;
+        order.logisticsAssignment.registrationStatus = "REGISTERED";
+        order.logisticsAssignment.kycStatus = getRoleKycStatus(user, "driver") || (user.driverVerified ? "APPROVED" : "NOT_SUBMITTED");
+        order.logisticsAssignment.notifications.app = true;
+        await refreshSettlementEligibility(order, {
+          grower: await User.findById(order.grower).lean(),
+          logistics: user.toObject ? user.toObject() : user,
+        });
+        await order.save();
+      }
+    }
 
     if (verifiedPhone && otpVerificationToken) {
       consumeOtpVerification(verifiedPhone, platform, "auth", otpVerificationToken);

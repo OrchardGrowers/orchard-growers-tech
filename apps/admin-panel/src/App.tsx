@@ -249,6 +249,35 @@ type AdminOrder = {
   deliveryPartnerSelection?: string;
   courierBookingStatus?: string;
   trackingNumber?: string;
+  logisticsAssignment?: {
+    status?: string;
+    driverName?: string;
+    driverMobile?: string;
+    vehicleNumber?: string;
+    vehicleType?: string;
+    transportFirmName?: string;
+    ownerName?: string;
+    pickupDate?: string;
+    expectedDispatchDate?: string;
+    remarks?: string;
+    registrationStatus?: string;
+    invitationLink?: string;
+    acceptedAt?: string;
+    kycStatus?: string;
+    settlementEligible?: boolean;
+    assignedLogisticsAccount?: { logisticsName?: string; name?: string; driverVerified?: boolean; accountStatus?: string };
+  };
+  settlementEligibility?: {
+    buyerPaymentReceived?: boolean;
+    growerOtpVerified?: boolean;
+    consignmentDelivered?: boolean;
+    logisticsAccepted?: boolean;
+    growerKycVerified?: boolean;
+    logisticsKycVerified?: boolean;
+    platformKycVerified?: boolean;
+    settlementReleaseAllowed?: boolean;
+  };
+  beneficiaryMapping?: { beneficiaryType?: string; beneficiaryId?: string; kycStatus?: string; bankOrUpiVerified?: boolean; settlementAmount?: number }[];
   createdAt?: string;
 };
 
@@ -5576,6 +5605,39 @@ function OrdersPanel({ orders }: { orders: AdminOrder[] }) {
             <Info label="Courier" value={order.courierPartner || 'India Post'} />
             <Info label="Booking" value={order.courierBookingStatus || 'PENDING'} />
             <Info label="Tracking" value={order.trackingNumber || 'Not assigned'} />
+          </div>
+          <div className="mt-3 grid gap-2 text-sm text-slate-300 md:grid-cols-3">
+            <Info label="Logistics Assignment" value={order.logisticsAssignment?.status || 'AWAITING_GROWER_DETAILS'} />
+            <Info label="Driver" value={order.logisticsAssignment?.driverName || order.logisticsAssignment?.assignedLogisticsAccount?.logisticsName || 'Not assigned'} />
+            <Info label="Driver Mobile" value={order.logisticsAssignment?.driverMobile || 'Not provided'} />
+            <Info label="Vehicle" value={[order.logisticsAssignment?.vehicleNumber, order.logisticsAssignment?.vehicleType].filter(Boolean).join(' / ') || 'Not provided'} />
+            <Info label="Registration / KYC" value={`${order.logisticsAssignment?.registrationStatus || '-'} / ${order.logisticsAssignment?.kycStatus || '-'}`} />
+            <Info label="Escrow Hold" value={order.escrowStatus || 'PENDING_BUYER_PAYMENT'} />
+          </div>
+          <div className="mt-3 rounded-xl border border-slate-800 bg-slate-900 p-3">
+            <p className="text-sm font-bold text-white">Settlement Eligibility</p>
+            <div className="mt-2 grid gap-2 text-xs text-slate-300 md:grid-cols-4">
+              <Info label="Payment Received" value={order.settlementEligibility?.buyerPaymentReceived ? 'TRUE' : 'FALSE'} />
+              <Info label="Delivered" value={order.settlementEligibility?.consignmentDelivered ? 'TRUE' : 'FALSE'} />
+              <Info label="Logistics Accepted" value={order.settlementEligibility?.logisticsAccepted ? 'TRUE' : 'FALSE'} />
+              <Info label="Release Allowed" value={order.settlementEligibility?.settlementReleaseAllowed ? 'TRUE' : 'FALSE'} />
+              <Info label="Grower KYC" value={order.settlementEligibility?.growerKycVerified ? 'VERIFIED' : 'PENDING'} />
+              <Info label="Logistics KYC" value={order.settlementEligibility?.logisticsKycVerified ? 'VERIFIED' : 'PENDING'} />
+              <Info label="Platform KYC" value={order.settlementEligibility?.platformKycVerified ? 'VERIFIED' : 'PENDING'} />
+              <Info label="Logistics Settlement" value={order.logisticsAssignment?.settlementEligible ? 'ELIGIBLE' : 'BLOCKED'} />
+            </div>
+            {!!order.beneficiaryMapping?.length && (
+              <div className="mt-3 grid gap-2 md:grid-cols-3">
+                {order.beneficiaryMapping.map((beneficiary) => (
+                  <div key={`${order._id}-${beneficiary.beneficiaryType}`} className="rounded-lg border border-slate-800 bg-slate-950 p-2 text-xs text-slate-300">
+                    <p className="font-black text-emerald-300">{beneficiary.beneficiaryType}</p>
+                    <p>KYC: {beneficiary.kycStatus || '-'}</p>
+                    <p>Bank/UPI: {beneficiary.bankOrUpiVerified ? 'Verified' : 'Pending'}</p>
+                    <p>Amount: Rs. {beneficiary.settlementAmount || 0}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </article>
       ))}

@@ -435,6 +435,31 @@ export default function ProfileDashboard() {
     setGrowerQuotes(growerQuoteRes.data?.quotes || []);
   };
 
+  const refreshOrders = async () => {
+    const orderRes = await API.get("/orders").catch(() => ({ data: [] }));
+    setOrders(orderRes.data || []);
+  };
+
+  const submitLogisticsAssignment = async (orderId, payload) => {
+    try {
+      await API.post(`/orders/${orderId}/logistics-assignment`, payload);
+      setNotice("Logistics assignment details saved.");
+      await refreshOrders();
+    } catch (err) {
+      setNotice(err.response?.data?.msg || "Logistics assignment could not be saved.");
+    }
+  };
+
+  const respondLogisticsAssignment = async (orderId, action) => {
+    try {
+      await API.patch(`/orders/${orderId}/logistics-assignment/${action}`);
+      setNotice(action === "accept" ? "Logistics assignment accepted." : "Logistics assignment rejected.");
+      await refreshOrders();
+    } catch (err) {
+      setNotice(err.response?.data?.msg || "Logistics assignment could not be updated.");
+    }
+  };
+
   const acceptBuyerQuote = async (quote) => {
     if (!window.confirm("After accepting this quote, other quotes for this lot will be closed. Continue?")) {
       return;
@@ -1398,23 +1423,35 @@ export default function ProfileDashboard() {
       )}
 
         {profileMode === "grower" && (
-          <ProfileMarketPanel
-            loading={marketLoading}
-            products={currentListings}
-            closedAuctions={closedAuctions}
-            salesRecords={salesRecords}
-            rates={mandiRateData}
-            rateSource={mandiRateSource}
-            activeAuctions={activeAuctions}
-            quotes={growerQuotes}
-            quoteActionId={quoteActionId}
-            onSeeListings={() => navigate("/profile-dashboard?mode=grower")}
-            onSeeClosed={() => navigate("/orders")}
-            onSeeRates={() => navigate("/auctions")}
-            onUpdateLot={updateLot}
-            onDeleteLot={deleteLot}
-            onViewQuoteDetails={(quoteId) => navigate(`/quotes/${quoteId}?view=grower`)}
-            onAcceptQuote={acceptBuyerQuote}
+          <>
+            <ProfileMarketPanel
+              loading={marketLoading}
+              products={currentListings}
+              closedAuctions={closedAuctions}
+              salesRecords={salesRecords}
+              rates={mandiRateData}
+              rateSource={mandiRateSource}
+              activeAuctions={activeAuctions}
+              quotes={growerQuotes}
+              quoteActionId={quoteActionId}
+              onSeeListings={() => navigate("/profile-dashboard?mode=grower")}
+              onSeeClosed={() => navigate("/orders")}
+              onSeeRates={() => navigate("/auctions")}
+              onUpdateLot={updateLot}
+              onDeleteLot={deleteLot}
+              onViewQuoteDetails={(quoteId) => navigate(`/quotes/${quoteId}?view=grower`)}
+              onAcceptQuote={acceptBuyerQuote}
+            />
+            <GrowerLogisticsAssignments orders={orders} onSubmit={submitLogisticsAssignment} />
+          </>
+        )}
+
+        {profileMode === "driver" && (
+          <DriverAssignmentRequests
+            orders={orders}
+            onAccept={(orderId) => respondLogisticsAssignment(orderId, "accept")}
+            onReject={(orderId) => respondLogisticsAssignment(orderId, "reject")}
+            onOpenDelivery={() => navigate("/delivery")}
           />
         )}
 
@@ -2595,6 +2632,150 @@ function BuyerSubmittedQuotes({ quotes = [], orders = [], onViewLot, onViewQuote
   );
 }
 
+function GrowerLogisticsAssignments({ orders = [], onSubmit }) {
+  const eligibleOrders = orders.filter((order) =>
+    order.paymentStatus === "ESCROW" &&
+    ["PAYMENT_RECEIVED_AND_HELD", "HELD_BY_BILLDESK"].includes(order.escrowStatus || "") &&
+    ["AWAITING_GROWER_DETAILS", "UNREGISTERED_LOGISTICS", "AWAITING_LOGISTICS_REGISTRATION", "LOGISTICS_REJECTED", undefined, null].includes(order.logisticsAssignment?.status)
+  );
+
+  return (
+    <section className="mt-4 rounded-lg border border-green-100 bg-white p-4">
+      <div className="mb-3">
+        <h2 className="text-sm font-extrabold text-gray-950">Assign Logistics / Driver Details</h2>
+        <p className="text-xs font-bold text-gray-500">
+          Required after BillDesk escrow payment. Dispatch remains blocked until logistics accepts.
+        </p>
+      </div>
+      {!eligibleOrders.length ? (
+        <MarketEmptyState text="No paid consignments awaiting logistics assignment." />
+      ) : (
+        <div className="space-y-3">
+          {eligibleOrders.map((order) => (
+            <LogisticsAssignmentForm key={order._id} order={order} onSubmit={onSubmit} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function LogisticsAssignmentForm({ order, onSubmit }) {
+  const existing = order.logisticsAssignment || {};
+  const [form, setForm] = useState({
+    driverName: existing.driverName || "",
+    driverMobile: existing.driverMobile || "",
+    vehicleNumber: existing.vehicleNumber || "",
+    vehicleType: existing.vehicleType || "",
+    transportFirmName: existing.transportFirmName || "",
+    ownerName: existing.ownerName || "",
+    pickupDate: toInputDate(existing.pickupDate),
+    expectedDispatchDate: toInputDate(existing.expectedDispatchDate),
+    remarks: existing.remarks || "",
+  });
+
+  const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+
+  return (
+    <article className="rounded-md border border-green-100 bg-green-50 p-3">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-extrabold text-gray-950">{order.product?.title || order.product?.fruitName || "Fruit Consignment"}</p>
+          <p className="text-[10px] font-bold text-gray-500">Order {order._id}</p>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1 text-[10px] font-extrabold text-green-800">
+          {existing.status || "AWAITING_GROWER_DETAILS"}
+        </span>
+      </div>
+      {existing.invitationLink && (
+        <p className="mb-3 rounded bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
+          The logistics provider is not registered on eFruitMandi. Invitation sent: {existing.invitationLink}
+        </p>
+      )}
+      <div className="grid gap-2 md:grid-cols-3">
+        <SmallInput label="Driver Name" value={form.driverName} onChange={(value) => update("driverName", value)} />
+        <SmallInput label="Driver Mobile Number" value={form.driverMobile} onChange={(value) => update("driverMobile", value)} />
+        <SmallInput label="Vehicle Number" value={form.vehicleNumber} onChange={(value) => update("vehicleNumber", value)} />
+        <SmallInput label="Vehicle Type" value={form.vehicleType} onChange={(value) => update("vehicleType", value)} />
+        <SmallInput label="Transport Firm Name" value={form.transportFirmName} onChange={(value) => update("transportFirmName", value)} />
+        <SmallInput label="Owner Name" value={form.ownerName} onChange={(value) => update("ownerName", value)} />
+        <SmallInput label="Pickup Date" type="date" value={form.pickupDate} onChange={(value) => update("pickupDate", value)} />
+        <SmallInput label="Expected Dispatch Date" type="date" value={form.expectedDispatchDate} onChange={(value) => update("expectedDispatchDate", value)} />
+        <SmallInput label="Remarks" value={form.remarks} onChange={(value) => update("remarks", value)} />
+      </div>
+      <button
+        type="button"
+        onClick={() => onSubmit?.(order._id, form)}
+        className="mt-3 rounded bg-green-700 px-4 py-2 text-xs font-extrabold text-white"
+      >
+        Save Logistics Assignment
+      </button>
+    </article>
+  );
+}
+
+function DriverAssignmentRequests({ orders = [], onAccept, onReject, onOpenDelivery }) {
+  const assignments = orders.filter((order) =>
+    ["REGISTERED_LOGISTICS_FOUND", "LOGISTICS_ACCEPTED", "LOGISTICS_REJECTED"].includes(order.logisticsAssignment?.status || "")
+  );
+
+  return (
+    <section className="mt-4 rounded-lg border border-green-100 bg-white p-4">
+      <div className="mb-3">
+        <h2 className="text-sm font-extrabold text-gray-950">New Consignment Assignment Available</h2>
+        <p className="text-xs font-bold text-gray-500">Accept assignments before dispatch and delivery updates.</p>
+      </div>
+      {!assignments.length ? (
+        <MarketEmptyState text="No logistics assignments available." />
+      ) : (
+        <div className="space-y-2">
+          {assignments.map((order) => {
+            const assignment = order.logisticsAssignment || {};
+            const accepted = assignment.status === "LOGISTICS_ACCEPTED";
+            return (
+              <article key={order._id} className="rounded-md border border-green-100 bg-green-50 p-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-gray-950">{order.product?.title || order.product?.fruitName || "Fruit Consignment"}</h3>
+                    <p className="text-xs font-bold text-gray-600">{assignment.transportFirmName || "Transport firm"} | {assignment.vehicleNumber || "Vehicle pending"}</p>
+                    <p className="text-[10px] font-bold text-gray-500">Pickup: {formatDate(assignment.pickupDate)} | Dispatch: {formatDate(assignment.expectedDispatchDate)}</p>
+                    <p className="mt-1 text-[10px] font-extrabold text-green-800">KYC: {assignment.kycStatus || "PENDING"} | Status: {assignment.status}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {!accepted && (
+                      <>
+                        <button type="button" onClick={() => onAccept?.(order._id)} className="rounded-full bg-green-700 px-3 py-1 text-[10px] font-extrabold text-white">Accept Assignment</button>
+                        <button type="button" onClick={() => onReject?.(order._id)} className="rounded-full bg-white px-3 py-1 text-[10px] font-extrabold text-red-700 ring-1 ring-red-100">Reject Assignment</button>
+                      </>
+                    )}
+                    {accepted && (
+                      <button type="button" onClick={onOpenDelivery} className="rounded-full bg-green-700 px-3 py-1 text-[10px] font-extrabold text-white">Open Delivery Desk</button>
+                    )}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SmallInput({ label, value, onChange, type = "text" }) {
+  return (
+    <label className="block text-[10px] font-extrabold uppercase text-gray-500">
+      {label}
+      <input
+        type={type}
+        value={value || ""}
+        onChange={(event) => onChange?.(event.target.value)}
+        className="mt-1 w-full rounded border border-green-100 bg-white px-2 py-2 text-xs font-bold text-gray-900 outline-none focus:border-green-500"
+      />
+    </label>
+  );
+}
+
 function getEntityId(value) {
   return String(value?._id || value?.id || value || "");
 }
@@ -2615,6 +2796,13 @@ function formatPaymentCountdown(msLeft = 0) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function toInputDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
 }
 
 function QuoteStatusBadge({ status, buyerView = false }) {

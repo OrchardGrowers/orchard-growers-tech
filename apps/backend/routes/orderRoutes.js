@@ -1,7 +1,17 @@
 import express from "express";
 import Order from "../models/Order.js";
 import Product from "../models/Product.js";
+import User from "../models/User.js";
 import protect, { optionalProtect } from "../middleware/authMiddleware.js";
+import { sendMobileMessage } from "../services/mobileOtpService.js";
+import {
+  buildLogisticsInvitationLink,
+  createInvitationToken,
+  findLogisticsPartner,
+  getRoleKycStatus,
+  normalizePhone,
+  refreshSettlementEligibility,
+} from "../services/logisticsAssignmentService.js";
 
 const router = express.Router();
 
@@ -12,7 +22,10 @@ const hasProfile = (user, profileType) =>
 const getOrderVisibilityFilter = (user) => {
   const filters = [];
   if (hasProfile(user, "buyer")) filters.push({ buyer: user.id });
-  if (hasProfile(user, "driver")) filters.push({ driver: user.id });
+  if (hasProfile(user, "driver")) {
+    filters.push({ driver: user.id });
+    filters.push({ "logisticsAssignment.assignedLogisticsAccount": user.id });
+  }
   if (hasProfile(user, "grower")) filters.push({ grower: user.id });
   if (filters.length === 1) return filters[0];
   if (filters.length > 1) return { $or: filters };
@@ -25,7 +38,8 @@ const populateOrder = (query) =>
     .populate("items.product")
     .populate("buyer", "name businessName")
     .populate("grower", "name orchardName")
-    .populate("driver", "name logisticsName");
+    .populate("driver", "name logisticsName driverName driverContact vehicleNumber driverVerified kycByRole accountStatus")
+    .populate("logisticsAssignment.assignedLogisticsAccount", "name logisticsName driverName driverContact vehicleNumber driverVerified kycByRole accountStatus");
 
 const sanitizeOrderForUser = (order, user) => {
   const data = order?.toObject ? order.toObject() : { ...order };
@@ -239,6 +253,138 @@ router.get("/", protect, async (req, res) => {
   }
 });
 
+router.post("/:id/logistics-assignment", protect, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ msg: "Order not found" });
+    if (!hasProfile(req.user, "grower") || order.grower?.toString() !== req.user.id?.toString()) {
+      return res.status(403).json({ msg: "Only the grower can assign logistics for this consignment" });
+    }
+    if (order.paymentStatus !== "ESCROW" || !["PAYMENT_RECEIVED_AND_HELD", "HELD_BY_BILLDESK"].includes(order.escrowStatus)) {
+      return res.status(400).json({ msg: "Buyer payment must be received and held before assigning logistics" });
+    }
+
+    const {
+      driverName = "",
+      driverMobile = "",
+      vehicleNumber = "",
+      vehicleType = "",
+      transportFirmName = "",
+      ownerName = "",
+      pickupDate = "",
+      expectedDispatchDate = "",
+      remarks = "",
+    } = req.body || {};
+
+    if (!driverName.trim() || !normalizePhone(driverMobile) || !vehicleNumber.trim() || !vehicleType.trim() || !pickupDate || !expectedDispatchDate) {
+      return res.status(400).json({ msg: "Driver name, mobile number, vehicle number, vehicle type, pickup date, and expected dispatch date are required" });
+    }
+
+    const logisticsPartner = await findLogisticsPartner({ driverMobile, transportFirmName });
+    const token = logisticsPartner ? "" : createInvitationToken();
+    const invitationLink = logisticsPartner ? "" : buildLogisticsInvitationLink(token);
+    const status = logisticsPartner ? "REGISTERED_LOGISTICS_FOUND" : "AWAITING_LOGISTICS_REGISTRATION";
+
+    order.logisticsAssignment = {
+      ...(order.logisticsAssignment?.toObject ? order.logisticsAssignment.toObject() : order.logisticsAssignment || {}),
+      status,
+      driverName: driverName.trim(),
+      driverMobile: normalizePhone(driverMobile),
+      vehicleNumber: vehicleNumber.trim().toUpperCase(),
+      vehicleType: vehicleType.trim(),
+      transportFirmName: transportFirmName.trim(),
+      ownerName: ownerName.trim(),
+      pickupDate: new Date(pickupDate),
+      expectedDispatchDate: new Date(expectedDispatchDate),
+      remarks: String(remarks || "").trim(),
+      assignedLogisticsAccount: logisticsPartner?._id || undefined,
+      registrationStatus: logisticsPartner ? "REGISTERED" : "INVITED",
+      invitationToken: token,
+      invitationLink,
+      invitationSentAt: logisticsPartner ? undefined : new Date(),
+      submittedAt: new Date(),
+      acceptedAt: undefined,
+      rejectedAt: undefined,
+      kycStatus: logisticsPartner ? getRoleKycStatus(logisticsPartner, "driver") || (logisticsPartner.driverVerified ? "APPROVED" : "NOT_SUBMITTED") : "UNREGISTERED",
+      settlementEligible: false,
+      notifications: {
+        app: Boolean(logisticsPartner),
+        sms: false,
+        email: false,
+        whatsapp: false,
+      },
+    };
+
+    if (logisticsPartner?._id) {
+      order.driver = undefined;
+    }
+
+    await refreshSettlementEligibility(order, { grower: await User.findById(order.grower).lean(), logistics: logisticsPartner });
+    await order.save();
+
+    const message = logisticsPartner
+      ? `New eFruitMandi consignment assignment available. Please login and accept or reject. Order: ${order._id}`
+      : `You have been assigned as logistics partner for an eFruitMandi consignment. Complete registration, mobile verification, KYC, bank/UPI setup, and terms acceptance: ${invitationLink}`;
+
+    sendMobileMessage({ phone: driverMobile, message, platform: "efruitmandi" })
+      .then(() => Order.findByIdAndUpdate(order._id, { "logisticsAssignment.notifications.sms": true }).catch(() => {}))
+      .catch((err) => console.warn("Logistics assignment SMS skipped:", err.code || err.message));
+
+    res.json({
+      msg: logisticsPartner ? "Registered logistics partner found. Assignment request created." : "Logistics provider is not registered on eFruitMandi. Invitation sent.",
+      order: await populateOrder(Order.findById(order._id)),
+    });
+  } catch (err) {
+    res.status(500).json({ msg: err.message || "Could not assign logistics" });
+  }
+});
+
+router.patch("/:id/logistics-assignment/accept", protect, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ msg: "Order not found" });
+    const assignedId = order.logisticsAssignment?.assignedLogisticsAccount?.toString();
+    if (!hasProfile(req.user, "driver") || assignedId !== req.user.id?.toString()) {
+      return res.status(403).json({ msg: "Only the assigned logistics account can accept this assignment" });
+    }
+    if (!["REGISTERED_LOGISTICS_FOUND", "LOGISTICS_REGISTERED", "LOGISTICS_REJECTED"].includes(order.logisticsAssignment?.status)) {
+      return res.status(400).json({ msg: "This logistics assignment cannot be accepted now" });
+    }
+
+    const logistics = await User.findById(req.user.id).lean();
+    order.driver = req.user.id;
+    order.logisticsAssignment.status = "LOGISTICS_ACCEPTED";
+    order.logisticsAssignment.acceptedAt = new Date();
+    order.logisticsAssignment.rejectedAt = undefined;
+    order.logisticsAssignment.kycStatus = getRoleKycStatus(logistics, "driver") || (logistics?.driverVerified ? "APPROVED" : "NOT_SUBMITTED");
+    order.logisticsAssignment.registrationStatus = "REGISTERED";
+    await refreshSettlementEligibility(order, { grower: await User.findById(order.grower).lean(), logistics });
+    await order.save();
+    res.json({ msg: "Logistics assignment accepted", order: await populateOrder(Order.findById(order._id)) });
+  } catch (err) {
+    res.status(500).json({ msg: err.message || "Could not accept logistics assignment" });
+  }
+});
+
+router.patch("/:id/logistics-assignment/reject", protect, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ msg: "Order not found" });
+    const assignedId = order.logisticsAssignment?.assignedLogisticsAccount?.toString();
+    if (!hasProfile(req.user, "driver") || assignedId !== req.user.id?.toString()) {
+      return res.status(403).json({ msg: "Only the assigned logistics account can reject this assignment" });
+    }
+    order.logisticsAssignment.status = "LOGISTICS_REJECTED";
+    order.logisticsAssignment.rejectedAt = new Date();
+    order.driver = undefined;
+    await refreshSettlementEligibility(order, { grower: await User.findById(order.grower).lean(), logistics: await User.findById(req.user.id).lean() });
+    await order.save();
+    res.json({ msg: "Logistics assignment rejected", order: await populateOrder(Order.findById(order._id)) });
+  } catch (err) {
+    res.status(500).json({ msg: err.message || "Could not reject logistics assignment" });
+  }
+});
+
 router.get("/:id", protect, async (req, res) => {
   try {
     const order = await populateOrder(Order.findById(req.params.id));
@@ -251,7 +397,10 @@ router.get("/:id", protect, async (req, res) => {
     const visible =
       (hasProfile(req.user, "buyer") && order.buyer?._id?.toString() === userId) ||
       (hasProfile(req.user, "grower") && order.grower?._id?.toString() === userId) ||
-      (hasProfile(req.user, "driver") && (!order.driver || order.driver?._id?.toString() === userId)) ||
+      (hasProfile(req.user, "driver") && (
+        order.driver?._id?.toString() === userId ||
+        order.logisticsAssignment?.assignedLogisticsAccount?._id?.toString() === userId
+      )) ||
       (!hasProfile(req.user, "buyer") && !hasProfile(req.user, "grower") && !hasProfile(req.user, "driver"));
 
     if (!visible) {

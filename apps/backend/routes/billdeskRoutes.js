@@ -7,6 +7,7 @@ import {
   generateCommissionInvoiceNo,
   generateCommissionReceiptNo,
 } from "../services/invoiceNumberingService.js";
+import { refreshSettlementEligibility } from "../services/logisticsAssignmentService.js";
 
 const router = express.Router();
 
@@ -123,10 +124,15 @@ router.post("/callback", protect, authorize("buyer"), async (req, res) => {
     }
 
     order.paymentStatus = "ESCROW";
-    order.escrowStatus = "HELD_BY_BILLDESK";
+    order.escrowStatus = "PAYMENT_RECEIVED_AND_HELD";
     order.paymentGateway = "BILLDESK";
     order.paymentGatewayStatus = "ESCROW";
+    order.logisticsAssignment = {
+      ...(order.logisticsAssignment?.toObject ? order.logisticsAssignment.toObject() : order.logisticsAssignment || {}),
+      status: "AWAITING_GROWER_DETAILS",
+    };
     await ensureCommissionDocuments(order);
+    await refreshSettlementEligibility(order);
     await order.save();
 
     res.json({
@@ -157,7 +163,8 @@ router.get("/escrow/:orderId", protect, async (req, res) => {
       order: sanitizeEscrowOrder(order, req.user),
       steps: [
         { key: "DEAL_CONFIRMED", label: "Winning deal confirmed by grower", complete: Boolean(order.auction) },
-        { key: "HELD_BY_BILLDESK", label: "Buyer payment held by BillDesk escrow", complete: ["ESCROW", "RELEASED"].includes(order.paymentStatus) },
+        { key: "PAYMENT_RECEIVED_AND_HELD", label: "Buyer payment received and held by BillDesk escrow", complete: ["ESCROW", "RELEASED"].includes(order.paymentStatus) },
+        { key: "LOGISTICS_ACCEPTED", label: "Grower assigns logistics and driver accepts assignment", complete: order.logisticsAssignment?.status === "LOGISTICS_ACCEPTED" },
         { key: "CONSIGNMENT_IN_TRANSIT", label: "Grower sends consignment and logistics details are updated", complete: ["IN_TRANSIT", "DELIVERED"].includes(order.deliveryStatus) },
         { key: "BUYER_CONFIRMED", label: "Buyer confirms consignment received", complete: ["DELIVERED"].includes(order.deliveryStatus) },
         { key: "PAYOUT_RELEASED", label: "Driver payment and platform commission deducted, grower payout released", complete: order.paymentStatus === "RELEASED" },

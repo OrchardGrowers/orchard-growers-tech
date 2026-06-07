@@ -6,6 +6,7 @@ import { getCurrentUser, hasBuyerProfile, hasDriverProfile } from "../utils/auth
 
 export default function RegisterDriver() {
   const navigate = useNavigate();
+  const assignmentToken = new URLSearchParams(window.location.search).get("assignment") || "";
   const currentUser = getCurrentUser();
   const [accountUser, setAccountUser] = useState(currentUser);
   const isUpdate = hasDriverProfile(accountUser);
@@ -67,6 +68,7 @@ export default function RegisterDriver() {
         licenseNumber: form.licenseNumber.trim(),
         location: form.location.trim(),
         contact: form.contact.trim(),
+        assignmentToken,
         platform: "efruitmandi",
         allowUpdate: isUpdate,
       });

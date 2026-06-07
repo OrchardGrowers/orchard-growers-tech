@@ -2070,6 +2070,8 @@ export const listOrders = async (req, res) => {
     .populate("product", "title fruitName basePrice")
     .populate("buyer", "name businessName phone email")
     .populate("grower", "name orchardName phone email")
+    .populate("driver", "name logisticsName driverName driverContact vehicleNumber driverVerified accountStatus")
+    .populate("logisticsAssignment.assignedLogisticsAccount", "name logisticsName driverName driverContact vehicleNumber driverVerified accountStatus")
     .sort({ createdAt: -1 });
 
   res.json(orders);

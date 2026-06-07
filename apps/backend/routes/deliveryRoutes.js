@@ -1,7 +1,9 @@
 import express from "express";
 import Delivery from "../models/Delivery.js";
 import Order from "../models/Order.js";
+import User from "../models/User.js";
 import protect, { authorize } from "../middleware/authMiddleware.js";
+import { refreshSettlementEligibility } from "../services/logisticsAssignmentService.js";
 
 const router = express.Router();
 
@@ -36,6 +38,12 @@ router.post("/start", protect, authorize("driver"), async (req, res) => {
       });
     }
 
+    if (order.logisticsAssignment?.status !== "LOGISTICS_ACCEPTED" || order.driver?.toString() !== req.user.id?.toString()) {
+      return res.status(403).json({
+        msg: "Dispatch is blocked until the assigned logistics partner accepts this consignment.",
+      });
+    }
+
     const existing = await Delivery.findOne({ order: orderId });
     if (existing) {
       return res.json({
@@ -56,6 +64,10 @@ router.post("/start", protect, authorize("driver"), async (req, res) => {
     order.driver = req.user.id;
     order.deliveryStatus = "IN_TRANSIT";
     order.escrowStatus = "CONSIGNMENT_IN_TRANSIT";
+    await refreshSettlementEligibility(order, {
+      grower: await User.findById(order.grower).lean(),
+      logistics: await User.findById(req.user.id).lean(),
+    });
     await order.save();
 
     res.json({
@@ -91,6 +103,10 @@ router.post("/confirm-delivery", protect, authorize("buyer"), async (req, res) =
 
     order.deliveryStatus = "DELIVERED";
     order.escrowStatus = "BUYER_CONFIRMED";
+    await refreshSettlementEligibility(order, {
+      grower: await User.findById(order.grower).lean(),
+      logistics: order.driver ? await User.findById(order.driver).lean() : null,
+    });
     await order.save();
 
     res.json({ msg: "Delivery confirmed. Negotiation unlocked." });
@@ -173,6 +189,20 @@ router.post("/confirm-settlement", protect, authorize("grower"), async (req, res
 
     if (delivery.settlementOTP !== otp) {
       return res.status(400).json({ msg: "Invalid settlement OTP" });
+    }
+
+    order.growerApproved = true;
+    await refreshSettlementEligibility(order, {
+      grower: await User.findById(order.grower).lean(),
+      logistics: order.driver ? await User.findById(order.driver).lean() : null,
+    });
+
+    if (!order.settlementEligibility?.settlementReleaseAllowed) {
+      await order.save();
+      return res.status(400).json({
+        msg: "Settlement release blocked until buyer payment, delivery, logistics acceptance, grower KYC, logistics KYC, and beneficiary validation are complete.",
+        settlementEligibility: order.settlementEligibility,
+      });
     }
 
     delivery.status = "COMPLETED";
