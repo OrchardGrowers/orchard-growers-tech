@@ -207,10 +207,18 @@ router.get("/quotes", ...adminOnly, requireRoles(...ORDER_READ_ROLES), wrapAsync
       growerName: quote.growerName || quote.grower?.orchardName || quote.grower?.businessName || quote.grower?.name || "Grower",
       quotedPrice: quote.quotedPrice || quote.grades?.[0]?.price || 0,
       quotedTotalValue: quote.quotedTotalValue || quote.dealAmount || 0,
-      buyerPayable: quote.buyerPayable || 0,
-      sellerReceivable: quote.sellerReceivable || 0,
+      baseDealAmount: quote.baseDealAmount || quote.dealAmount || 0,
+      buyerPayable: quote.buyerPayable || quote.dealAmount || 0,
+      sellerReceivable: quote.sellerReceivable || quote.growerReceivable || 0,
+      growerReceivable: quote.growerReceivable || quote.sellerReceivable || 0,
       commissionAmount: quote.commissionAmount || 0,
       commissionPercent: quote.commissionPercent || 0,
+      labourAmount: quote.labourAmount || 0,
+      logisticsAmount: quote.logisticsAmount || quote.driverCharge || 0,
+      totalCharges: quote.totalCharges || 0,
+      totalUnits: quote.totalUnits || 0,
+      chargePerUnit: quote.chargePerUnit || 0,
+      grades: quote.grades || [],
       status: String(quote.status || "pending").toLowerCase().replace("submitted", "pending").replace("expired", "closed"),
       acceptedAt: quote.acceptedAt,
       rejectedAt: quote.rejectedAt,
@@ -239,14 +247,22 @@ router.patch("/deal-settings", ...adminOnly, requireRoles(...SETTINGS_WRITE_ROLE
   const driverChargeSlabs = Array.isArray(req.body.driverChargeSlabs)
     ? req.body.driverChargeSlabs
     : currentSettings.driverChargeSlabs || DEFAULT_DRIVER_CHARGE_SLABS;
+  const labourAmount =
+    req.body.labourAmount === undefined
+      ? currentSettings.labourAmount
+      : Number(req.body.labourAmount);
   if (!Number.isFinite(commissionPercent) || commissionPercent < 0) {
     return res.status(400).json({ msg: "Commission percent must be greater than or equal to 0" });
+  }
+  if (!Number.isFinite(labourAmount) || labourAmount < 0) {
+    return res.status(400).json({ msg: "Labour amount must be greater than or equal to 0" });
   }
 
   const settings = await DealSettings.findOneAndUpdate(
     { key: "default" },
     {
       commissionPercent,
+      labourAmount,
       driverChargeSlabs,
       updatedBy: req.user.id,
     },

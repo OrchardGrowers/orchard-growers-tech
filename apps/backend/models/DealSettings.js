@@ -23,6 +23,11 @@ const dealSettingsSchema = new mongoose.Schema(
       default: 5,
       min: 0,
     },
+    labourAmount: {
+      type: Number,
+      default: 500,
+      min: 0,
+    },
     driverChargeSlabs: [driverChargeSlabSchema],
     gradeRateRules: {
       type: mongoose.Schema.Types.Mixed,

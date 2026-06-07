@@ -115,16 +115,16 @@ export default function QuoteDetails() {
               <FaCalculator />
               Deal Summary
             </h2>
-            <SummaryRow label="Buyer quote value" value={quote.quotedTotalValue || quote.dealAmount} />
-            <SummaryRow label="Logistics / driver charge" value={quote.driverCharge} />
-            <SummaryRow label="Platform fee" value={quote.commissionAmount} />
+            <SummaryRow label="Base Deal Amount" value={quote.baseDealAmount || quote.quotedTotalValue || quote.dealAmount} />
+            <SummaryRow label="Total Charges Deducted" value={quote.totalCharges} />
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 py-1.5 text-sm font-bold text-green-950">
+              <span className="min-w-0">Charge Per Unit</span>
+              <span className="shrink-0">Rs. {quote.chargePerUnit || 0}</span>
+            </div>
             <div className="mt-3 border-t border-green-200 pt-3">
               <p className="text-[10px] font-extrabold uppercase text-green-800">Grower receives</p>
-              <p className="mt-1 text-2xl font-black text-green-950">Rs. {quote.sellerReceivable || 0}</p>
+              <p className="mt-1 text-2xl font-black text-green-950">Rs. {quote.growerReceivable || quote.sellerReceivable || 0}</p>
             </div>
-            <p className="mt-2 text-xs font-bold text-green-800">
-              Buyer final payable: Rs. {quote.buyerPayable || 0}
-            </p>
             <button
               type="button"
               disabled={!canAccept || saving}
@@ -145,9 +145,9 @@ export default function QuoteDetails() {
               {(quote.grades || []).map((grade) => (
                 <div key={grade.grade} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-md bg-green-50 px-3 py-2 text-sm font-bold text-green-950">
                   <span className="min-w-0 truncate">
-                    Grade {grade.grade}: {grade.quantity} x Rs. {grade.price || 0}
+                    Grade {grade.grade}: {grade.quantity} x Rs. {grade.quotedRatePerUnit || grade.price || 0}
                   </span>
-                  <span>Rs. {grade.amount || 0}</span>
+                  <span>Net Rs. {grade.netSettlementRate || 0}</span>
                 </div>
               ))}
             </div>

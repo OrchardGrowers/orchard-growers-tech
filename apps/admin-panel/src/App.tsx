@@ -349,10 +349,17 @@ type AdminQuote = {
   growerName?: string;
   quotedPrice?: number;
   quotedTotalValue?: number;
+  baseDealAmount?: number;
   buyerPayable?: number;
   sellerReceivable?: number;
+  growerReceivable?: number;
   commissionAmount?: number;
   commissionPercent?: number;
+  labourAmount?: number;
+  logisticsAmount?: number;
+  totalCharges?: number;
+  totalUnits?: number;
+  chargePerUnit?: number;
   status?: string;
   acceptedAt?: string;
   rejectedAt?: string;
@@ -5329,7 +5336,7 @@ function SimpleAdminPanel({ title, text }: { title: string; text: string }) {
 }
 
 function AdminQuotesPanel({ quotes }: { quotes: AdminQuote[] }) {
-  const totalValue = quotes.reduce((sum, quote) => sum + Number(quote.quotedTotalValue || 0), 0);
+  const totalValue = quotes.reduce((sum, quote) => sum + Number(quote.baseDealAmount || quote.quotedTotalValue || 0), 0);
   const accepted = quotes.filter((quote) => normalizeAdminQuoteStatus(quote.status) === 'accepted').length;
   const pending = quotes.filter((quote) => normalizeAdminQuoteStatus(quote.status) === 'pending').length;
 
@@ -5347,17 +5354,17 @@ function AdminQuotesPanel({ quotes }: { quotes: AdminQuote[] }) {
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-800">
-          <div className="hidden grid-cols-[1.2fr_1fr_1fr_0.8fr_0.8fr_0.8fr] gap-3 bg-slate-950 px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-400 lg:grid">
+          <div className="hidden grid-cols-[1.1fr_0.9fr_0.9fr_1fr_1fr_0.8fr] gap-3 bg-slate-950 px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-400 lg:grid">
             <span>Lot</span>
             <span>Buyer</span>
             <span>Grower</span>
-            <span>Quote</span>
+            <span>Settlement</span>
+            <span>Charges</span>
             <span>Status</span>
-            <span>Date</span>
           </div>
           <div className="divide-y divide-slate-800">
             {quotes.map((quote) => (
-              <article key={quote._id} className="grid gap-3 bg-slate-900 px-3 py-3 text-sm lg:grid-cols-[1.2fr_1fr_1fr_0.8fr_0.8fr_0.8fr] lg:items-center">
+              <article key={quote._id} className="grid gap-3 bg-slate-900 px-3 py-3 text-sm lg:grid-cols-[1.1fr_0.9fr_0.9fr_1fr_1fr_0.8fr] lg:items-center">
                 <div className="min-w-0">
                   <p className="truncate font-extrabold text-white">{quote.lotTitle || 'Fruit Lot'}</p>
                   <p className="text-xs font-semibold text-slate-400">{quote.lotQuantity || 0} boxes | {quote.fruitType || 'Fruit'}</p>
@@ -5368,15 +5375,15 @@ function AdminQuotesPanel({ quotes }: { quotes: AdminQuote[] }) {
                 </div>
                 <p className="min-w-0 truncate font-bold text-slate-100">{quote.growerName || 'Grower'}</p>
                 <div>
-                  <p className="font-black text-emerald-300">Rs. {Number(quote.quotedTotalValue || 0).toLocaleString('en-IN')}</p>
-                  <p className="text-xs font-semibold text-slate-500">Commission Rs. {Number(quote.commissionAmount || 0).toLocaleString('en-IN')}</p>
+                  <p className="font-black text-emerald-300">Base Rs. {Number(quote.baseDealAmount || quote.quotedTotalValue || 0).toLocaleString('en-IN')}</p>
+                  <p className="text-xs font-semibold text-slate-400">Grower Rs. {Number(quote.growerReceivable || quote.sellerReceivable || 0).toLocaleString('en-IN')}</p>
+                </div>
+                <div className="text-xs font-semibold text-slate-400">
+                  <p>Total Rs. {Number(quote.totalCharges || 0).toLocaleString('en-IN')}</p>
+                  <p>Comm Rs. {Number(quote.commissionAmount || 0).toLocaleString('en-IN')} | Labour Rs. {Number(quote.labourAmount || 0).toLocaleString('en-IN')}</p>
+                  <p>Logistics Rs. {Number(quote.logisticsAmount || 0).toLocaleString('en-IN')} | Unit Rs. {Number(quote.chargePerUnit || 0).toLocaleString('en-IN')}</p>
                 </div>
                 <AdminQuoteStatusBadge status={quote.status} />
-                <div className="text-xs font-semibold text-slate-400">
-                  <p>{formatDate(quote.createdAt)}</p>
-                  {quote.acceptedAt && <p className="text-emerald-300">Accepted: {formatDate(quote.acceptedAt)}</p>}
-                  {quote.rejectedAt && <p>Rejected: {formatDate(quote.rejectedAt)}</p>}
-                </div>
               </article>
             ))}
           </div>

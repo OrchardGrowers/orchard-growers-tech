@@ -67,6 +67,7 @@ export const calculateDealBreakdown = ({
   gradePrices = {},
   distanceKm = 0,
   commissionPercent = Number(process.env.PLATFORM_COMMISSION_PERCENT || 5),
+  labourAmount = Number(process.env.DEFAULT_LABOUR_AMOUNT || 500),
   driverChargeSlabs = DEFAULT_DRIVER_CHARGE_SLABS,
   gradeOrder = DEFAULT_GRADE_ORDER,
 } = {}) => {
@@ -88,27 +89,47 @@ export const calculateDealBreakdown = ({
       grade,
       quantity,
       price: roundMoney(gradeRate),
+      quotedRatePerUnit: roundMoney(gradeRate),
       amount: roundMoney(quantity * gradeRate),
     };
   });
 
+  const totalUnits = roundMoney(
+    gradeBreakdown.reduce((sum, item) => sum + Number(item.quantity || 0), 0)
+  );
   const dealAmount = roundMoney(
     gradeBreakdown.reduce((sum, item) => sum + Number(item.amount || 0), 0)
   );
   const driverCharge = calculateDriverCharge(distanceKm, driverChargeSlabs);
-  const commissionBase = roundMoney(dealAmount + driverCharge);
+  const logisticsAmount = driverCharge;
+  const commissionBase = dealAmount;
   const commissionAmount = roundMoney(commissionBase * (Number(commissionPercent || 0) / 100));
-  const sellerReceivable = roundMoney(Math.max(0, dealAmount - commissionAmount));
-  const buyerPayable = roundMoney(dealAmount + driverCharge + commissionAmount);
+  const labour = roundMoney(Number(labourAmount || 0));
+  const totalCharges = roundMoney(commissionAmount + labour + logisticsAmount);
+  const chargePerUnit = totalUnits > 0 ? roundMoney(totalCharges / totalUnits) : 0;
+  const settlementGrades = gradeBreakdown.map((grade) => ({
+    ...grade,
+    netSettlementRate: roundMoney(Math.max(0, Number(grade.price || 0) - chargePerUnit)),
+  }));
+  const sellerReceivable = roundMoney(Math.max(0, dealAmount - totalCharges));
+  const buyerPayable = dealAmount;
 
   return {
-    grades: gradeBreakdown,
+    grades: settlementGrades,
+    gradeBreakdown: settlementGrades,
+    totalUnits,
     dealAmount,
+    baseDealAmount: dealAmount,
     driverCharge,
+    logisticsAmount,
+    labourAmount: labour,
     commissionBase,
     commissionPercent: Number(commissionPercent || 0),
     commissionAmount,
+    totalCharges,
+    chargePerUnit,
     sellerReceivable,
+    growerReceivable: sellerReceivable,
     buyerPayable,
   };
 };
@@ -135,6 +156,7 @@ export const buildGradeQuantitiesFromProduct = (product = {}) =>
 export const mergeDealSettings = (settings = {}) => ({
   commissionPercent:
     settings.commissionPercent ?? Number(process.env.PLATFORM_COMMISSION_PERCENT || 5),
+  labourAmount: settings.labourAmount ?? Number(process.env.DEFAULT_LABOUR_AMOUNT || 500),
   driverChargeSlabs: settings.driverChargeSlabs?.length
     ? settings.driverChargeSlabs
     : DEFAULT_DRIVER_CHARGE_SLABS,

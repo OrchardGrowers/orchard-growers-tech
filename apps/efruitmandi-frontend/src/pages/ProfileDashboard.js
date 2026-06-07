@@ -2437,9 +2437,9 @@ function GrowerBuyerQuotesSection({ quotes = [], actionId = "", onViewDetails, o
                     <p className="text-[10px] font-extrabold uppercase text-gray-500">
                       Grower Receives
                     </p>
-                    <p className="text-sm font-black text-green-900">Rs. {quote.sellerReceivable || 0}</p>
+                    <p className="text-sm font-black text-green-900">Rs. {quote.growerReceivable || quote.sellerReceivable || 0}</p>
                     <p className="text-[10px] font-bold text-gray-500">
-                      Quote value: Rs. {quote.quotedTotalValue || quote.dealAmount || 0}
+                      Total charges deducted: Rs. {quote.totalCharges || 0}
                     </p>
                     <p className="text-[10px] font-bold text-gray-500">
                       {quote.createdAt ? new Date(quote.createdAt).toLocaleString("en-IN") : "Date not available"}

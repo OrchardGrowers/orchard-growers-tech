@@ -72,7 +72,7 @@ const normalizeQuoteStatus = (status = "") => {
   return normalized || "pending";
 };
 
-const formatQuote = (quotation = {}) => {
+const formatQuote = (quotation = {}, visibility = "admin") => {
   const lot = quotation.lot || {};
   const buyer = quotation.buyer || {};
   const grower = quotation.grower || {};
@@ -89,7 +89,22 @@ const formatQuote = (quotation = {}) => {
     grower.name ||
     "Grower";
 
-  return {
+  const grades = (quotation.grades || []).map((grade) => {
+    const baseGrade = {
+      grade: grade.grade,
+      quantity: grade.quantity,
+      price: grade.price,
+      quotedRatePerUnit: grade.quotedRatePerUnit || grade.price || 0,
+      amount: grade.amount,
+    };
+    if (visibility === "buyer") return baseGrade;
+    return {
+      ...baseGrade,
+      netSettlementRate: grade.netSettlementRate || 0,
+    };
+  });
+
+  const base = {
     _id: quotation._id,
     lotId: lot._id || quotation.lot,
     buyerId: buyer._id || quotation.buyer,
@@ -101,14 +116,11 @@ const formatQuote = (quotation = {}) => {
     buyerPhone: quotation.buyerPhone || buyer.phone || "",
     growerName,
     quotedPrice: quotation.quotedPrice || quotation.grades?.[0]?.price || 0,
-    quotedTotalValue: quotation.quotedTotalValue || quotation.dealAmount || 0,
+    quotedTotalValue: quotation.quotedTotalValue || quotation.baseDealAmount || quotation.dealAmount || 0,
     dealAmount: quotation.dealAmount || 0,
-    buyerPayable: quotation.buyerPayable || 0,
-    sellerReceivable: quotation.sellerReceivable || 0,
-    commissionAmount: quotation.commissionAmount || 0,
-    commissionPercent: quotation.commissionPercent || 0,
-    driverCharge: quotation.driverCharge || 0,
-    grades: quotation.grades || [],
+    baseDealAmount: quotation.baseDealAmount || quotation.dealAmount || 0,
+    buyerPayable: quotation.buyerPayable || quotation.dealAmount || 0,
+    grades,
     message: quotation.message || "",
     status: normalizeQuoteStatus(quotation.status),
     createdAt: quotation.createdAt,
@@ -116,6 +128,28 @@ const formatQuote = (quotation = {}) => {
     acceptedAt: quotation.acceptedAt,
     rejectedAt: quotation.rejectedAt,
     lotStatus: lot.status,
+  };
+
+  if (visibility === "buyer") return base;
+
+  const settlement = {
+    ...base,
+    sellerReceivable: quotation.sellerReceivable || quotation.growerReceivable || 0,
+    growerReceivable: quotation.growerReceivable || quotation.sellerReceivable || 0,
+    totalCharges: quotation.totalCharges || 0,
+    totalUnits: quotation.totalUnits || 0,
+    chargePerUnit: quotation.chargePerUnit || 0,
+  };
+
+  if (visibility === "grower") return settlement;
+
+  return {
+    ...settlement,
+    commissionAmount: quotation.commissionAmount || 0,
+    commissionPercent: quotation.commissionPercent || 0,
+    labourAmount: quotation.labourAmount || 0,
+    logisticsAmount: quotation.logisticsAmount || quotation.driverCharge || 0,
+    driverCharge: quotation.driverCharge || quotation.logisticsAmount || 0,
   };
 };
 
@@ -198,7 +232,7 @@ const createQuoteForLot = async (req, res) => {
     if (existingActiveQuote) {
       return res.status(409).json({
         msg: "You already have a pending quote for this lot. Please wait for grower action before submitting another quote.",
-        quotation: formatQuote(existingActiveQuote),
+        quotation: formatQuote(existingActiveQuote, "buyer"),
       });
     }
 
@@ -248,20 +282,27 @@ const createQuoteForLot = async (req, res) => {
       distanceKm,
       quotedPrice: Number(req.body.quotedPrice || primaryGrade.price || 0),
       quotedTotalValue: breakdown.dealAmount,
+      baseDealAmount: breakdown.baseDealAmount,
       dealAmount: breakdown.dealAmount,
       driverCharge: breakdown.driverCharge,
+      logisticsAmount: breakdown.logisticsAmount,
+      labourAmount: breakdown.labourAmount,
       commissionBase: breakdown.commissionBase,
       commissionPercent: breakdown.commissionPercent,
       commissionAmount: breakdown.commissionAmount,
+      totalCharges: breakdown.totalCharges,
+      totalUnits: breakdown.totalUnits,
+      chargePerUnit: breakdown.chargePerUnit,
       buyerPayable: breakdown.buyerPayable,
       sellerReceivable: breakdown.sellerReceivable,
+      growerReceivable: breakdown.growerReceivable,
     });
 
     const populated = await populateQuoteQuery(Quotation.findById(quotation._id)).lean();
 
     res.status(201).json({
       success: true,
-      quotation: formatQuote(populated || quotation.toObject()),
+      quotation: formatQuote(populated || quotation.toObject(), "buyer"),
       distanceSource: autoDistanceKm === null ? "manual" : "profile",
     });
   } catch (err) {
@@ -281,7 +322,7 @@ router.get("/grower", protect, authorize("grower"), async (req, res) => {
     const quotations = await populateQuoteQuery(
       Quotation.find({ grower: req.user.id }).sort({ createdAt: -1 })
     ).lean();
-    res.json({ success: true, quotes: quotations.map(formatQuote) });
+    res.json({ success: true, quotes: quotations.map((quote) => formatQuote(quote, "grower")) });
   } catch (err) {
     res.status(500).json({ msg: err.message || "Could not load grower quotes" });
   }
@@ -292,7 +333,7 @@ router.get("/buyer", protect, authorize("buyer"), async (req, res) => {
     const quotations = await populateQuoteQuery(
       Quotation.find({ buyer: req.user.id }).sort({ createdAt: -1 })
     ).lean();
-    res.json({ success: true, quotes: quotations.map(formatQuote) });
+    res.json({ success: true, quotes: quotations.map((quote) => formatQuote(quote, "buyer")) });
   } catch (err) {
     res.status(500).json({ msg: err.message || "Could not load buyer quotes" });
   }
@@ -301,7 +342,7 @@ router.get("/buyer", protect, authorize("buyer"), async (req, res) => {
 router.get("/admin", protect, authorize("SUPER_ADMIN", "ADMIN", "UNIT_MANAGER", "INVENTORY_MANAGER", "SALES_EXECUTIVE", "PURCHASE_MANAGER", "FINANCE_MANAGER", "VERIFICATION_OFFICER", "SUPPORT_EXECUTIVE", "VIEWER", "EMPLOYEE"), async (req, res) => {
   try {
     const quotations = await populateQuoteQuery(Quotation.find().sort({ createdAt: -1 }).limit(500)).lean();
-    res.json({ success: true, quotes: quotations.map(formatQuote) });
+    res.json({ success: true, quotes: quotations.map((quote) => formatQuote(quote, "admin")) });
   } catch (err) {
     res.status(500).json({ msg: err.message || "Could not load quotes" });
   }
@@ -355,18 +396,25 @@ router.patch("/:quoteId", protect, authorize("buyer"), async (req, res) => {
     quotation.distanceKm = distanceKm;
     quotation.quotedPrice = Number(req.body.quotedPrice || primaryGrade.price || 0);
     quotation.quotedTotalValue = breakdown.dealAmount;
+    quotation.baseDealAmount = breakdown.baseDealAmount;
     quotation.dealAmount = breakdown.dealAmount;
     quotation.driverCharge = breakdown.driverCharge;
+    quotation.logisticsAmount = breakdown.logisticsAmount;
+    quotation.labourAmount = breakdown.labourAmount;
     quotation.commissionBase = breakdown.commissionBase;
     quotation.commissionPercent = breakdown.commissionPercent;
     quotation.commissionAmount = breakdown.commissionAmount;
+    quotation.totalCharges = breakdown.totalCharges;
+    quotation.totalUnits = breakdown.totalUnits;
+    quotation.chargePerUnit = breakdown.chargePerUnit;
     quotation.buyerPayable = breakdown.buyerPayable;
     quotation.sellerReceivable = breakdown.sellerReceivable;
+    quotation.growerReceivable = breakdown.growerReceivable;
     quotation.message = String(req.body.message || quotation.message || "").trim();
     await quotation.save();
 
     const updated = await populateQuoteQuery(Quotation.findById(quotation._id)).lean();
-    res.json({ success: true, quotation: formatQuote(updated || quotation.toObject()) });
+    res.json({ success: true, quotation: formatQuote(updated || quotation.toObject(), "buyer") });
   } catch (err) {
     res.status(400).json({ msg: err.message || "Quote could not be updated" });
   }
@@ -400,7 +448,7 @@ router.patch("/:quoteId/accept", protect, authorize("grower"), async (req, res) 
       status: "DEAL_CONFIRMED",
       acceptedQuoteId: quotation._id,
       acceptedBuyerId: quotation.buyer,
-      finalPrice: quotation.quotedPrice || quotation.dealAmount,
+      finalPrice: quotation.dealAmount,
       finalDealValue: quotation.dealAmount,
     });
 
@@ -421,19 +469,26 @@ router.patch("/:quoteId/accept", protect, authorize("grower"), async (req, res) 
         buyer: quotation.buyer,
         grower: quotation.grower,
         auctionPrice: quotation.dealAmount,
-        finalPrice: quotation.buyerPayable || quotation.dealAmount,
+        finalPrice: quotation.dealAmount,
         dealBreakdown: {
           grades: quotation.grades,
           dealAmount: quotation.dealAmount,
-          buyerPayable: quotation.buyerPayable,
-          sellerReceivable: quotation.sellerReceivable,
+          baseDealAmount: quotation.baseDealAmount || quotation.dealAmount,
+          buyerPayable: quotation.dealAmount,
+          sellerReceivable: quotation.sellerReceivable || quotation.growerReceivable,
+          growerReceivable: quotation.growerReceivable || quotation.sellerReceivable,
           commissionAmount: quotation.commissionAmount,
           commissionPercent: quotation.commissionPercent,
+          labourAmount: quotation.labourAmount || 0,
+          logisticsAmount: quotation.logisticsAmount || quotation.driverCharge || 0,
+          totalCharges: quotation.totalCharges || 0,
+          totalUnits: quotation.totalUnits || 0,
+          chargePerUnit: quotation.chargePerUnit || 0,
           driverCharge: quotation.driverCharge,
         },
         driverPayment: quotation.driverCharge || 0,
         platformCommission: quotation.commissionAmount || 0,
-        growerPayout: quotation.sellerReceivable || 0,
+        growerPayout: quotation.sellerReceivable || quotation.growerReceivable || 0,
         paymentStatus: "PENDING",
         deliveryStatus: "PENDING",
       },
@@ -441,7 +496,7 @@ router.patch("/:quoteId/accept", protect, authorize("grower"), async (req, res) 
     );
 
     const updated = await populateQuoteQuery(Quotation.findById(quotation._id)).lean();
-    res.json({ success: true, quote: formatQuote(updated || quotation.toObject()) });
+    res.json({ success: true, quote: formatQuote(updated || quotation.toObject(), "grower") });
   } catch (err) {
     res.status(500).json({ msg: err.message || "Quote could not be accepted" });
   }
@@ -467,7 +522,7 @@ router.patch("/:quoteId/reject", protect, authorize("grower"), async (req, res) 
     await quotation.save();
 
     const updated = await populateQuoteQuery(Quotation.findById(quotation._id)).lean();
-    res.json({ success: true, quote: formatQuote(updated || quotation.toObject()) });
+    res.json({ success: true, quote: formatQuote(updated || quotation.toObject(), "grower") });
   } catch (err) {
     res.status(500).json({ msg: err.message || "Quote could not be rejected" });
   }
@@ -484,7 +539,8 @@ router.get("/:quoteId", protect, authorize("buyer", "grower"), async (req, res) 
     ) {
       return res.status(403).json({ msg: "You cannot view this quote" });
     }
-    res.json({ success: true, quote: formatQuote(quotation) });
+    const visibility = quotation.grower?._id?.toString() === requesterId ? "grower" : "buyer";
+    res.json({ success: true, quote: formatQuote(quotation, visibility) });
   } catch (err) {
     res.status(500).json({ msg: err.message || "Could not load quote" });
   }

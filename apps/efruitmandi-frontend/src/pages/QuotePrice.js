@@ -441,12 +441,9 @@ function BuyerQuoteSummary({ breakdown = {} }) {
           ))}
         </div>
       )}
-      <SummaryRow label="Total deal amount" value={breakdown.dealAmount} />
-      <SummaryRow label="Driver charge" value={breakdown.driverCharge} />
-      <SummaryRow label="Commission" value={breakdown.commissionAmount} />
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-green-200 pt-2 text-base font-extrabold">
-        <span className="min-w-0 truncate">Final payable</span>
-        <span className="shrink-0">Rs. {breakdown.buyerPayable || 0}</span>
+        <span className="min-w-0 truncate">Deal Amount</span>
+        <span className="shrink-0">Rs. {breakdown.dealAmount || 0}</span>
       </div>
     </div>
   );
@@ -466,8 +463,8 @@ function MobileQuoteSubmitBar({ saving, disabled = false, preview = {}, onSubmit
     <div className="fixed left-0 right-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-40 w-full max-w-[100vw] border-t border-green-100 bg-white/95 px-4 pb-[calc(10px+env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-8px_20px_rgba(0,0,0,0.08)] backdrop-blur md:hidden">
       <div className="flex w-full max-w-full items-center gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-extrabold uppercase text-gray-500">Final payable</p>
-          <p className="truncate text-base font-extrabold text-green-800">Rs. {preview.buyerPayable || 0}</p>
+          <p className="text-[10px] font-extrabold uppercase text-gray-500">Deal Amount</p>
+          <p className="truncate text-base font-extrabold text-green-800">Rs. {preview.dealAmount || 0}</p>
         </div>
         <button
           type="button"
@@ -652,14 +649,9 @@ function calculateBuyerPreview(availableGrades, gradePrices, distanceKm) {
     };
   });
   const dealAmount = grades.reduce((sum, grade) => sum + Number(grade.amount || 0), 0);
-  const driverCharge = calculateDriverCharge(distanceKm);
-  const commissionBase = dealAmount + driverCharge;
-  const commissionAmount = Math.round(commissionBase * 0.05);
   return {
     grades,
     dealAmount,
-    driverCharge,
-    commissionAmount,
-    buyerPayable: dealAmount + driverCharge + commissionAmount,
+    buyerPayable: dealAmount,
   };
 }
