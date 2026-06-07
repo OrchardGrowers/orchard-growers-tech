@@ -1368,7 +1368,19 @@ export default function ProfileDashboard() {
         {profileMode === "buyer" && (
           <>
             <BuyerLockedAmountCard amountLabel={lockedAmountLabel} />
-            <BuyerSubmittedQuotes quotes={buyerQuotes} onViewLot={(lotId) => navigate(`/lots/${lotId}`)} />
+            <BuyerSubmittedQuotes
+              quotes={buyerQuotes}
+              orders={orders}
+              onViewLot={(quote) => {
+                if (quote.lotId) {
+                  navigate(`/lots/${quote.lotId}`);
+                  return;
+                }
+                navigate(`/quotes/${quote._id}`);
+              }}
+              onViewQuote={(quoteId) => navigate(`/quotes/${quoteId}`)}
+              onPay={(orderId) => navigate(`/payment/${orderId}`)}
+            />
           </>
         )}
 
@@ -2475,7 +2487,7 @@ function GrowerBuyerQuotesSection({ quotes = [], actionId = "", onViewDetails, o
   );
 }
 
-function BuyerSubmittedQuotes({ quotes = [], onViewLot }) {
+function BuyerSubmittedQuotes({ quotes = [], orders = [], onViewLot, onViewQuote, onPay }) {
   return (
     <section className="mt-4 rounded-lg border border-green-100 bg-white p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -2492,40 +2504,76 @@ function BuyerSubmittedQuotes({ quotes = [], onViewLot }) {
         <MarketEmptyState text="No submitted buyer quotes yet." />
       ) : (
         <div className="space-y-2">
-          {quotes.slice(0, 10).map((quote) => (
-            <article key={quote._id} className="rounded-md border border-gray-200 bg-green-50 p-3">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <h3 className="truncate text-sm font-extrabold text-gray-950">
-                    {quote.lotTitle || "Fruit Lot"}
-                  </h3>
-                  <p className="text-xs font-bold text-gray-600">
-                    Grower: {quote.growerName || "Grower"} | Buyer Bid Rate Rs. {quote.quotedTotalValue || quote.dealAmount || 0}
-                  </p>
-                  <p className="text-[10px] font-bold text-green-800">
-                    Platform Payable: Rs. {quote.buyerPayableThroughPlatform || quote.buyerPayable || 0}
-                  </p>
+          {quotes.slice(0, 10).map((quote) => {
+            const quoteOrder = findOrderForQuote(orders, quote);
+            const paymentOrderId = quoteOrder?._id || quote.acceptedOrderId;
+            const paymentStatus = String(quoteOrder?.paymentStatus || quote.acceptedOrderPaymentStatus || "PENDING").toUpperCase();
+            const canPay = normalizeQuoteStatusLabel(quote.status) === "Accepted" && paymentOrderId && paymentStatus === "PENDING";
+
+            return (
+              <article key={quote._id} className="rounded-md border border-gray-200 bg-green-50 p-3">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3 className="truncate text-sm font-extrabold text-gray-950">
+                      {quote.lotTitle || "Fruit Lot"}
+                    </h3>
+                    <p className="text-xs font-bold text-gray-600">
+                      Grower: {quote.growerName || "Grower"} | Buyer Bid Rate Rs. {quote.quotedTotalValue || quote.dealAmount || 0}
+                    </p>
+                    <p className="text-[10px] font-bold text-green-800">
+                      Platform Payable: Rs. {quote.buyerPayableThroughPlatform || quote.buyerPayable || quoteOrder?.finalPrice || 0}
+                    </p>
+                  </div>
+                  <QuoteStatusBadge status={quote.status} />
                 </div>
-                <QuoteStatusBadge status={quote.status} />
-              </div>
-              <div className="mt-2 flex items-center justify-between gap-2">
-                <span className="text-[10px] font-bold text-gray-500">
-                  {quote.createdAt ? new Date(quote.createdAt).toLocaleString("en-IN") : "Date not available"}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onViewLot?.(quote.lotId)}
-                  className="rounded-full bg-white px-3 py-1 text-[10px] font-extrabold text-green-800 ring-1 ring-green-100"
-                >
-                  View Lot
-                </button>
-              </div>
-            </article>
-          ))}
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[10px] font-bold text-gray-500">
+                    {quote.createdAt ? new Date(quote.createdAt).toLocaleString("en-IN") : "Date not available"}
+                  </span>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onViewLot?.(quote)}
+                      className="rounded-full bg-white px-3 py-1 text-[10px] font-extrabold text-green-800 ring-1 ring-green-100"
+                    >
+                      View Lot
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onViewQuote?.(quote._id)}
+                      className="rounded-full bg-white px-3 py-1 text-[10px] font-extrabold text-green-800 ring-1 ring-green-100"
+                    >
+                      Quote Details
+                    </button>
+                    {canPay && (
+                      <button
+                        type="button"
+                        onClick={() => onPay?.(paymentOrderId)}
+                        className="rounded-full bg-green-700 px-3 py-1 text-[10px] font-extrabold text-white"
+                      >
+                        Pay to Confirm Consignment
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
     </section>
   );
+}
+
+function getEntityId(value) {
+  return String(value?._id || value?.id || value || "");
+}
+
+function findOrderForQuote(orders = [], quote = {}) {
+  const quoteId = getEntityId(quote);
+  if (!quoteId) return null;
+
+  return orders.find((order) => getEntityId(order.quote) === quoteId) || null;
 }
 
 function QuoteStatusBadge({ status }) {

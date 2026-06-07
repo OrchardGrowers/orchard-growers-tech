@@ -184,6 +184,9 @@ const formatQuote = (quotation = {}, visibility = "admin") => {
     buyerPayable: quotation.buyerPayable || quotation.dealAmount || 0,
     buyerPayableThroughPlatform: quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount || 0,
     labourChargePerUnit: quotation.labourChargePerUnit || 0,
+    acceptedOrderId: quotation.acceptedOrder?._id || quotation.acceptedOrder || undefined,
+    acceptedOrderPaymentStatus: quotation.acceptedOrder?.paymentStatus || undefined,
+    acceptedOrderFinalPrice: quotation.acceptedOrder?.finalPrice || undefined,
     grades,
     message: quotation.message || "",
     status: normalizeQuoteStatus(quotation.status),
@@ -422,7 +425,13 @@ router.get("/buyer", protect, authorize("buyer"), async (req, res) => {
     const quotations = await populateQuoteQuery(
       Quotation.find({ buyer: req.user.id }).sort({ createdAt: -1 })
     ).lean();
-    res.json({ success: true, quotes: quotations.map((quote) => formatQuote(quote, "buyer")) });
+    const quoteIds = quotations.map((quote) => quote._id).filter(Boolean);
+    const orders = await Order.find({ quote: { $in: quoteIds } }).select("_id quote paymentStatus finalPrice").lean();
+    const orderByQuoteId = new Map(orders.map((order) => [String(order.quote), order]));
+    res.json({
+      success: true,
+      quotes: quotations.map((quote) => formatQuote({ ...quote, acceptedOrder: orderByQuoteId.get(String(quote._id)) }, "buyer")),
+    });
   } catch (err) {
     res.status(500).json({ msg: err.message || "Could not load buyer quotes" });
   }
@@ -541,8 +550,8 @@ router.patch("/:quoteId/accept", protect, authorize("grower"), async (req, res) 
       status: "DEAL_CONFIRMED",
       acceptedQuoteId: quotation._id,
       acceptedBuyerId: quotation.buyer,
-      finalPrice: quotation.dealAmount,
-      finalDealValue: quotation.dealAmount,
+      finalPrice: quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount,
+      finalDealValue: quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount,
     });
 
     await Quotation.updateMany(
@@ -561,8 +570,8 @@ router.patch("/:quoteId/accept", protect, authorize("grower"), async (req, res) 
         product: quotation.lot._id,
         buyer: quotation.buyer,
         grower: quotation.grower,
-        auctionPrice: quotation.dealAmount,
-        finalPrice: quotation.dealAmount,
+        auctionPrice: quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount,
+        finalPrice: quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount,
         dealBreakdown: {
           grades: quotation.grades,
           dealAmount: quotation.dealAmount,
@@ -637,7 +646,10 @@ router.get("/:quoteId", protect, authorize("buyer", "grower"), async (req, res) 
       return res.status(403).json({ msg: "You cannot view this quote" });
     }
     const visibility = quotation.grower?._id?.toString() === requesterId ? "grower" : "buyer";
-    res.json({ success: true, quote: formatQuote(quotation, visibility) });
+    const acceptedOrder = visibility === "buyer"
+      ? await Order.findOne({ quote: quotation._id }).select("_id quote paymentStatus finalPrice").lean()
+      : null;
+    res.json({ success: true, quote: formatQuote({ ...quotation, acceptedOrder }, visibility) });
   } catch (err) {
     res.status(500).json({ msg: err.message || "Could not load quote" });
   }
