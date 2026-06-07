@@ -154,7 +154,7 @@ const formatQuote = (quotation = {}, visibility = "admin") => {
     if (visibility === "buyer") {
       return {
         ...baseGrade,
-        buyerPayableThroughPlatform: grade.buyerPayableThroughPlatform || Math.max(0, Number(grade.price || 0) - Number(grade.labourCharge || 0)),
+        buyerPayableThroughPlatform: grade.buyerPayableThroughPlatform || Number(grade.price || 0),
         labourCharge: grade.labourCharge || quotation.labourChargePerUnit || 0,
       };
     }
@@ -190,8 +190,8 @@ const formatQuote = (quotation = {}, visibility = "admin") => {
     quotedTotalValue: quotation.quotedTotalValue || quotation.baseDealAmount || quotation.dealAmount || 0,
     dealAmount: quotation.dealAmount || 0,
     baseDealAmount: quotation.baseDealAmount || quotation.dealAmount || 0,
-    buyerPayable: quotation.buyerPayable || quotation.dealAmount || 0,
-    buyerPayableThroughPlatform: quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount || 0,
+    buyerPayable: quotation.dealAmount || quotation.buyerPayable || 0,
+    buyerPayableThroughPlatform: quotation.dealAmount || quotation.buyerPayableThroughPlatform || quotation.buyerPayable || 0,
     labourChargePerUnit: quotation.labourChargePerUnit || 0,
     acceptedOrderId: quotation.acceptedOrder?._id || quotation.acceptedOrder || undefined,
     acceptedOrderPaymentStatus: quotation.acceptedOrder?.paymentStatus || undefined,
@@ -563,8 +563,8 @@ router.patch("/:quoteId/accept", protect, authorize("grower"), async (req, res) 
       status: "DEAL_CONFIRMED",
       acceptedQuoteId: quotation._id,
       acceptedBuyerId: quotation.buyer,
-      finalPrice: quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount,
-      finalDealValue: quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount,
+      finalPrice: quotation.dealAmount || quotation.buyerPayableThroughPlatform || quotation.buyerPayable,
+      finalDealValue: quotation.dealAmount || quotation.buyerPayableThroughPlatform || quotation.buyerPayable,
     });
 
     await Quotation.updateMany(
@@ -583,15 +583,15 @@ router.patch("/:quoteId/accept", protect, authorize("grower"), async (req, res) 
         product: quotation.lot._id,
         buyer: quotation.buyer,
         grower: quotation.grower,
-        totalAmount: quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount,
-        auctionPrice: quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount,
-        finalPrice: quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount,
+        totalAmount: quotation.dealAmount || quotation.buyerPayableThroughPlatform || quotation.buyerPayable,
+        auctionPrice: quotation.dealAmount || quotation.buyerPayableThroughPlatform || quotation.buyerPayable,
+        finalPrice: quotation.dealAmount || quotation.buyerPayableThroughPlatform || quotation.buyerPayable,
         dealBreakdown: {
           grades: quotation.grades,
           dealAmount: quotation.dealAmount,
           baseDealAmount: quotation.baseDealAmount || quotation.dealAmount,
-          buyerPayable: quotation.buyerPayable || quotation.buyerPayableThroughPlatform || quotation.dealAmount,
-          buyerPayableThroughPlatform: quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount,
+          buyerPayable: quotation.dealAmount || quotation.buyerPayable || quotation.buyerPayableThroughPlatform,
+          buyerPayableThroughPlatform: quotation.dealAmount || quotation.buyerPayableThroughPlatform || quotation.buyerPayable,
           sellerReceivable: quotation.sellerReceivable || quotation.growerReceivable,
           growerReceivable: quotation.growerReceivable || quotation.sellerReceivable,
           commissionAmount: quotation.commissionAmount,
@@ -619,7 +619,7 @@ router.patch("/:quoteId/accept", protect, authorize("grower"), async (req, res) 
     const buyer = await User.findById(quotation.buyer).select("phone name businessName buyerContactPerson").lean();
     if (buyer?.phone) {
       const buyerName = buyer.businessName || buyer.buyerContactPerson || buyer.name || "Buyer";
-      const amount = quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount || 0;
+      const amount = quotation.dealAmount || quotation.buyerPayableThroughPlatform || quotation.buyerPayable || 0;
       sendMobileMessage({
         phone: buyer.phone,
         platform: "efruitmandi",

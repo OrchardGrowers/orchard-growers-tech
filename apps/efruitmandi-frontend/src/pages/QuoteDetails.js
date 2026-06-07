@@ -149,7 +149,7 @@ export default function QuoteDetails() {
                   </>
                 )}
                 <p className="mt-2 rounded bg-white px-2 py-1 text-[11px] font-bold text-green-800">
-                  Rs. {quote.labourChargePerUnit || 5} Labour Charge is managed and paid separately by the Buyer.
+                  Unloading labour is not collected by eFruitMandi. Buyer pays it directly at unloading, if applicable.
                 </p>
                 {isConsignmentReport && (
                   <p className="mt-2 rounded bg-white px-2 py-2 text-[11px] font-bold leading-5 text-green-900">
@@ -180,12 +180,12 @@ export default function QuoteDetails() {
                   <span className="min-w-0 truncate">
                     {isGrowerSettlementView
                       ? `${grade.grade}: ${grade.quantity || 0} x Rs. ${grade.netRate || 0}`
-                      : `Grade ${grade.grade}: ${grade.quantity} x Rs. ${grade.quotedRatePerUnit || grade.price || 0}`}
+                      : `Grade ${grade.grade}: ${grade.quantity} x Rs. ${getBuyerGradeRate(grade)}`}
                   </span>
                   <span>
                     {isGrowerSettlementView
                       ? `Rs. ${grade.netAmount || 0}`
-                      : `Platform Payable Rs. ${grade.buyerPayableThroughPlatform || Math.max(0, Number(grade.price || 0) - Number(grade.labourCharge || 0))}`}
+                      : `Platform Payable Rs. ${grade.buyerPayableThroughPlatform || grade.amount || 0}`}
                   </span>
                 </div>
               ))}
@@ -278,4 +278,23 @@ function formatWeight(value) {
   const weight = Number(value || 0);
   if (!Number.isFinite(weight) || weight <= 0) return "Not available";
   return `${weight.toLocaleString("en-IN", { maximumFractionDigits: 2 })} kg`;
+}
+
+function getBuyerGradeRate(grade = {}) {
+  const quantity = Number(grade.quantity || 0);
+  const rate = firstPositiveNumber(
+    grade.quotedRatePerUnit,
+    grade.price,
+    grade.rate,
+    quantity > 0 ? Number(grade.amount || 0) / quantity : 0
+  );
+  return rate.toLocaleString("en-IN", { maximumFractionDigits: 2 });
+}
+
+function firstPositiveNumber(...values) {
+  for (const value of values) {
+    const number = Number(value || 0);
+    if (Number.isFinite(number) && number > 0) return number;
+  }
+  return 0;
 }

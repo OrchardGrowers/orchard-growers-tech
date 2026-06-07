@@ -129,7 +129,7 @@ export const calculateDealBreakdown = ({
       platformServiceFee,
       logisticsCharge: logisticsChargePerUnit,
       labourCharge: labourChargePerUnit,
-      buyerPayableThroughPlatform: roundMoney(Math.max(0, Number(grade.price || 0) - labourChargePerUnit)),
+      buyerPayableThroughPlatform: roundMoney(Number(grade.price || 0)),
       netSettlementRate,
       netRate: netSettlementRate,
       netAmount: roundMoney(netSettlementRate * Number(grade.quantity || 0)),
@@ -138,7 +138,7 @@ export const calculateDealBreakdown = ({
   const sellerReceivable = roundMoney(
     settlementGrades.reduce((sum, grade) => sum + Number(grade.netAmount || 0), 0)
   );
-  const buyerPayable = roundMoney(Math.max(0, dealAmount - labour));
+  const buyerPayable = dealAmount;
 
   return {
     grades: settlementGrades,

@@ -143,7 +143,7 @@ export default function Payment() {
               {formatCurrency(amount)}
             </p>
             <p className="mt-2 text-xs font-semibold text-green-900">
-              Labour, if applicable, is managed separately by the buyer outside platform settlement.
+              Unloading labour is not collected by eFruitMandi. Buyer pays it directly at unloading, if applicable.
             </p>
           </div>
 
@@ -232,6 +232,7 @@ function getGrowerName(order) {
 
 function getBuyerPayableAmount(order) {
   const value =
+    order?.dealBreakdown?.dealAmount ??
     order?.dealBreakdown?.buyerPayableThroughPlatform ??
     order?.finalPrice ??
     order?.auctionPrice ??
@@ -247,7 +248,13 @@ function getBuyerGradeRows(order) {
   return grades
     .map((grade) => {
       const quantity = Number(grade.quantity ?? grade.boxes ?? 0);
-      const rate = Number(grade.quotedRatePerUnit ?? grade.rate ?? grade.price ?? grade.buyerBidRate ?? 0);
+      const rate = firstPositiveNumber(
+        grade.quotedRatePerUnit,
+        grade.rate,
+        grade.price,
+        grade.buyerBidRate,
+        quantity > 0 ? Number(grade.amount || 0) / quantity : 0
+      );
       const amount = Number(grade.amount ?? quantity * rate);
       return {
         grade: grade.grade || grade.name || "-",
@@ -257,6 +264,14 @@ function getBuyerGradeRows(order) {
       };
     })
     .filter((grade) => grade.quantity > 0 || grade.rate > 0 || grade.amount > 0);
+}
+
+function firstPositiveNumber(...values) {
+  for (const value of values) {
+    const number = Number(value || 0);
+    if (Number.isFinite(number) && number > 0) return number;
+  }
+  return 0;
 }
 
 function getTotalBoxes(order, product, gradeRows) {

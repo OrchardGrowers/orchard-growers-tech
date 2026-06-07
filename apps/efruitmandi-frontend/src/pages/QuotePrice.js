@@ -447,7 +447,7 @@ function BuyerQuoteSummary({ breakdown = {} }) {
       </div>
       <SummaryRow label="Buyer Payable Through Platform" value={breakdown.buyerPayableThroughPlatform || breakdown.buyerPayable || 0} />
       <p className="rounded bg-white px-2 py-1 text-[11px] font-bold text-green-800">
-        Rs. {breakdown.labourChargePerUnit || 5} Labour Charge is managed and paid separately by the Buyer.
+        Unloading labour is not collected by eFruitMandi. Buyer pays it directly at unloading, if applicable.
       </p>
     </div>
   );
@@ -651,7 +651,7 @@ function calculateBuyerPreview(availableGrades, gradePrices, distanceKm) {
       quantity: gradeLot.quantity,
       price,
       labourCharge: labourChargePerUnit,
-      buyerPayableThroughPlatform: Math.max(0, price - labourChargePerUnit),
+      buyerPayableThroughPlatform: price,
       amount: Math.round(gradeLot.quantity * price),
     };
   });
@@ -663,7 +663,7 @@ function calculateBuyerPreview(availableGrades, gradePrices, distanceKm) {
     dealAmount,
     labourChargePerUnit,
     labourAmount,
-    buyerPayable: Math.max(0, dealAmount - labourAmount),
-    buyerPayableThroughPlatform: Math.max(0, dealAmount - labourAmount),
+    buyerPayable: dealAmount,
+    buyerPayableThroughPlatform: dealAmount,
   };
 }
