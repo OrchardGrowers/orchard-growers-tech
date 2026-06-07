@@ -21,7 +21,7 @@ export default function StartupSplash() {
   if (!visible) return null;
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-[#0B6B2F] px-8">
+    <div className="startup-splash-timeout fixed inset-0 z-[2000] flex items-center justify-center bg-[#0B6B2F] px-8">
       <img
         src={logoUrl}
         alt="E-Fruit Mandi"

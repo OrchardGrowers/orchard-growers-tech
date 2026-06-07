@@ -34,6 +34,11 @@ export default function LotDetails() {
       try {
         setErrorMessage("");
         setLoading(true);
+        if (!lotId || !/^[a-f0-9]{24}$/i.test(String(lotId))) {
+          setProduct(null);
+          setErrorMessage("This fruit lot link is invalid or incomplete.");
+          return;
+        }
         const [res, profileRes] = await Promise.all([
           API.get(`/products/${lotId}?platform=efruitmandi`),
           localStorage.getItem("accessToken")

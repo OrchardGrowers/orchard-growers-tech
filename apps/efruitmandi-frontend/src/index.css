@@ -222,6 +222,23 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   transform-origin: center;
 }
 
+@keyframes startup-splash-timeout {
+  0%,
+  72% {
+    opacity: 1;
+    visibility: visible;
+  }
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+.startup-splash-timeout {
+  animation: startup-splash-timeout 2.4s ease-in-out forwards;
+  pointer-events: none;
+}
+
 
 button,
 a,
