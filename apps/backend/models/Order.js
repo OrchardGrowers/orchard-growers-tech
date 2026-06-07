@@ -60,6 +60,7 @@ const orderSchema = new mongoose.Schema(
     paymentGateway: String,
     paymentGatewayStatus: String,
     paymentGatewayResponse: mongoose.Schema.Types.Mixed,
+    paymentDueAt: Date,
 
     courierPartner: {
       type: String,

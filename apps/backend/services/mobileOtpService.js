@@ -570,3 +570,54 @@ export const sendMobileOtp = async ({ phone, otp, platform = "orchardgrowers", f
 
   return { provider, flow: flow || undefined, platform: platformKey, mobile, requestId: getProviderRequestId(providerData) || "" };
 };
+
+export const sendMobileMessage = async ({ phone, message, platform = "orchardgrowers", templateId = "" }) => {
+  const mobile = normalizeMobile(phone);
+  if (!mobile) {
+    const error = new Error("Valid mobile number is required");
+    error.code = "INVALID_MOBILE";
+    throw error;
+  }
+
+  const provider = getProvider();
+  const platformKey = normalizePlatform(platform);
+  if (provider !== "MSG91") {
+    const error = new Error(`Unsupported mobile message provider: ${provider}`);
+    error.code = "MOBILE_MESSAGE_PROVIDER_UNSUPPORTED";
+    throw error;
+  }
+
+  const settings = getMsg91Settings(platformKey);
+  const messageTemplateId = firstConfigured(templateId, process.env.EFRUITMANDI_MSG91_QUOTE_WON_TEMPLATE_ID, settings.templateId);
+  if (!settings.authKey || !messageTemplateId) {
+    const error = new Error(`MSG91 mobile message is not configured for ${platformKey}`);
+    error.code = "MOBILE_MESSAGE_NOT_CONFIGURED";
+    throw error;
+  }
+
+  const url = new URL(process.env.MSG91_SMS_URL || "https://control.msg91.com/api/v5/flow");
+  const payload = {
+    template_id: messageTemplateId,
+    short_url: "0",
+    recipients: [
+      {
+        mobiles: mobile,
+        message: String(message || ""),
+      },
+    ],
+  };
+  if (settings.senderId) payload.sender = settings.senderId;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      authkey: settings.authKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await parseProviderResponse(response);
+  assertProviderResponse({ response, data, provider: "MSG91", action: `send ${platformKey} message` });
+
+  return { provider, platform: platformKey, mobile, requestId: getProviderRequestId(data) || "", body: sanitizeProviderBody(data) };
+};

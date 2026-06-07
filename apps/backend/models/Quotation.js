@@ -58,6 +58,7 @@ const quotationSchema = new mongoose.Schema(
       default: "pending",
       index: true,
     },
+    paymentDueAt: Date,
     acceptedAt: Date,
     rejectedAt: Date,
   },

@@ -69,17 +69,26 @@ export default function Navbar() {
 
     const refreshUnreadNotifications = async () => {
       try {
-        const res = await API.get("/products?platform=efruitmandi");
+        const [lotRes, quoteRes] = await Promise.all([
+          API.get("/products?platform=efruitmandi"),
+          localStorage.getItem("accessToken")
+            ? API.get("/quotes/buyer").catch(() => ({ data: { quotes: [] } }))
+            : Promise.resolve({ data: { quotes: [] } }),
+        ]);
         if (cancelled) return;
-        const latestLotIds = getEfruitMandiProducts(res.data)
+        const latestLotIds = getEfruitMandiProducts(lotRes.data)
           .slice()
           .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
           .slice(0, 24)
           .map((lot) => lot._id)
           .filter(Boolean);
+        const wonQuoteIds = (quoteRes.data?.quotes || [])
+          .filter((quote) => String(quote.status || "").toLowerCase() === "accepted")
+          .map((quote) => `quote-${quote._id}`)
+          .filter(Boolean);
         const readIds = loadReadNotificationIds();
 
-        setHasUnreadNotifications(latestLotIds.some((id) => !readIds.has(id)));
+        setHasUnreadNotifications([...wonQuoteIds, ...latestLotIds].some((id) => !readIds.has(id)));
       } catch {
         if (!cancelled) setHasUnreadNotifications(false);
       }

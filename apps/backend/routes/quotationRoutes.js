@@ -5,6 +5,7 @@ import User from "../models/User.js";
 import DealSettings from "../models/DealSettings.js";
 import Order from "../models/Order.js";
 import protect, { authorize } from "../middleware/authMiddleware.js";
+import { sendMobileMessage } from "../services/mobileOtpService.js";
 import {
   buildGradeQuantitiesFromProduct,
   calculateDealBreakdown,
@@ -12,6 +13,7 @@ import {
 } from "../services/dealCalculationService.js";
 
 const router = express.Router();
+const PAYMENT_CONFIRMATION_WINDOW_MS = 15 * 60 * 1000;
 
 const hasCompletedKyc = (user = {}, roleType = "") => {
   const role = String(roleType || "").toLowerCase();
@@ -187,6 +189,7 @@ const formatQuote = (quotation = {}, visibility = "admin") => {
     acceptedOrderId: quotation.acceptedOrder?._id || quotation.acceptedOrder || undefined,
     acceptedOrderPaymentStatus: quotation.acceptedOrder?.paymentStatus || undefined,
     acceptedOrderFinalPrice: quotation.acceptedOrder?.finalPrice || undefined,
+    paymentDueAt: quotation.paymentDueAt || quotation.acceptedOrder?.paymentDueAt || undefined,
     grades,
     message: quotation.message || "",
     status: normalizeQuoteStatus(quotation.status),
@@ -426,7 +429,7 @@ router.get("/buyer", protect, authorize("buyer"), async (req, res) => {
       Quotation.find({ buyer: req.user.id }).sort({ createdAt: -1 })
     ).lean();
     const quoteIds = quotations.map((quote) => quote._id).filter(Boolean);
-    const orders = await Order.find({ quote: { $in: quoteIds } }).select("_id quote paymentStatus finalPrice").lean();
+    const orders = await Order.find({ quote: { $in: quoteIds } }).select("_id quote paymentStatus finalPrice paymentDueAt").lean();
     const orderByQuoteId = new Map(orders.map((order) => [String(order.quote), order]));
     res.json({
       success: true,
@@ -544,6 +547,7 @@ router.patch("/:quoteId/accept", protect, authorize("grower"), async (req, res) 
 
     quotation.status = "accepted";
     quotation.acceptedAt = new Date();
+    quotation.paymentDueAt = new Date(Date.now() + PAYMENT_CONFIRMATION_WINDOW_MS);
     await quotation.save();
 
     await Product.findByIdAndUpdate(quotation.lot._id, {
@@ -596,10 +600,29 @@ router.patch("/:quoteId/accept", protect, authorize("grower"), async (req, res) 
         platformCommission: quotation.commissionAmount || 0,
         growerPayout: quotation.sellerReceivable || quotation.growerReceivable || 0,
         paymentStatus: "PENDING",
+        paymentDueAt: quotation.paymentDueAt,
         deliveryStatus: "PENDING",
       },
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
+
+    const buyer = await User.findById(quotation.buyer).select("phone name businessName buyerContactPerson").lean();
+    if (buyer?.phone) {
+      const buyerName = buyer.businessName || buyer.buyerContactPerson || buyer.name || "Buyer";
+      const amount = quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount || 0;
+      sendMobileMessage({
+        phone: buyer.phone,
+        platform: "efruitmandi",
+        message: `Hi ${buyerName}, you won the quote for ${quotation.lotTitle || "your fruit lot"}. Please pay Rs. ${amount} within 15 minutes to confirm the consignment.`,
+      }).catch((smsErr) => {
+        console.warn("Quote won SMS could not be sent", {
+          quoteId: quotation._id?.toString(),
+          buyerId: quotation.buyer?.toString(),
+          code: smsErr?.code || "",
+          message: smsErr?.message || "SMS failed",
+        });
+      });
+    }
 
     const updated = await populateQuoteQuery(Quotation.findById(quotation._id)).lean();
     res.json({ success: true, quote: formatQuote(updated || quotation.toObject(), "grower") });
@@ -647,7 +670,7 @@ router.get("/:quoteId", protect, authorize("buyer", "grower"), async (req, res) 
     }
     const visibility = quotation.grower?._id?.toString() === requesterId ? "grower" : "buyer";
     const acceptedOrder = visibility === "buyer"
-      ? await Order.findOne({ quote: quotation._id }).select("_id quote paymentStatus finalPrice").lean()
+      ? await Order.findOne({ quote: quotation._id }).select("_id quote paymentStatus finalPrice paymentDueAt").lean()
       : null;
     res.json({ success: true, quote: formatQuote({ ...quotation, acceptedOrder }, visibility) });
   } catch (err) {

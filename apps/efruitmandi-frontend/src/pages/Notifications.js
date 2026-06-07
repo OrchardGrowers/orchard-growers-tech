@@ -16,6 +16,7 @@ import { getEfruitMandiProducts } from "../utils/marketProducts";
 
 const filters = [
   { key: "all", label: "All" },
+  { key: "won", label: "Won Quotes" },
   { key: "deal", label: "Deal Open" },
   { key: "upcoming", label: "Upcoming" },
   { key: "closed", label: "Closed" },
@@ -26,23 +27,37 @@ const NOTIFICATION_STATE_EVENT = "efruitmandi-notifications-updated";
 export default function Notifications() {
   const navigate = useNavigate();
   const [lots, setLots] = useState([]);
+  const [buyerQuotes, setBuyerQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState("all");
   const [readIds, setReadIds] = useState(() => loadReadNotifications());
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const loadLots = async () => {
       try {
-        const res = await API.get("/products?platform=efruitmandi");
-        const latestLots = getEfruitMandiProducts(res.data)
+        const [lotRes, quoteRes] = await Promise.all([
+          API.get("/products?platform=efruitmandi"),
+          localStorage.getItem("accessToken")
+            ? API.get("/quotes/buyer").catch(() => ({ data: { quotes: [] } }))
+            : Promise.resolve({ data: { quotes: [] } }),
+        ]);
+        const latestLots = getEfruitMandiProducts(lotRes.data)
           .slice()
           .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
           .slice(0, 24);
 
         setLots(latestLots);
+        setBuyerQuotes(quoteRes.data?.quotes || []);
       } catch (err) {
         console.error(err);
         setLots([]);
+        setBuyerQuotes([]);
       } finally {
         setLoading(false);
       }
@@ -51,10 +66,13 @@ export default function Notifications() {
     loadLots();
   }, []);
 
-  const notifications = useMemo(
-    () => lots.map((lot) => buildLotNotification(lot, readIds.has(lot._id))),
-    [lots, readIds]
-  );
+  const notifications = useMemo(() => {
+    const quoteNotifications = buyerQuotes
+      .filter((quote) => String(quote.status || "").toLowerCase() === "accepted")
+      .map((quote) => buildQuoteWonNotification(quote, readIds.has(`quote-${quote._id}`), now));
+    const lotNotifications = lots.map((lot) => buildLotNotification(lot, readIds.has(lot._id)));
+    return [...quoteNotifications, ...lotNotifications];
+  }, [buyerQuotes, lots, now, readIds]);
 
   const visibleNotifications = notifications.filter((notification) =>
     activeFilter === "all" ? true : notification.type === activeFilter
@@ -75,9 +93,17 @@ export default function Notifications() {
     saveReadNotifications(next);
   };
 
-  const openLot = (id) => {
-    markRead(id);
-    navigate(`/lots/${id}`);
+  const openNotification = (notification) => {
+    markRead(notification.id);
+    if (notification.type === "won") {
+      if (notification.orderId && !notification.paymentExpired) {
+        navigate(`/payment/${notification.orderId}`);
+        return;
+      }
+      navigate(`/quotes/${notification.quoteId}`);
+      return;
+    }
+    navigate(`/lots/${notification.id}`);
   };
 
   return (
@@ -154,7 +180,7 @@ export default function Notifications() {
             <NotificationCard
               key={notification.id}
               notification={notification}
-              onOpen={() => openLot(notification.id)}
+              onOpen={() => openNotification(notification)}
               onMarkRead={() => markRead(notification.id)}
             />
           ))}
@@ -176,8 +202,12 @@ function Metric({ label, value }) {
 function NotificationCard({ notification, onOpen, onMarkRead }) {
   return (
     <article
-      className={`rounded-lg border bg-white p-3 shadow-sm ${
-        notification.read ? "border-gray-200" : "border-green-300 ring-1 ring-green-100"
+      className={`rounded-lg border p-3 shadow-sm ${
+        notification.type === "won"
+          ? "border-green-300 bg-green-100 ring-1 ring-green-200"
+          : notification.read
+            ? "border-gray-200 bg-white"
+            : "border-green-300 bg-white ring-1 ring-green-100"
       }`}
     >
       <div className="flex gap-3">
@@ -228,7 +258,7 @@ function NotificationCard({ notification, onOpen, onMarkRead }) {
             <span>{notification.quantity} Box Lot</span>
             <span className="inline-flex items-center gap-1">
               <FaClock className="text-green-700" />
-              {notification.time}
+              {notification.countdown || notification.time}
             </span>
           </div>
 
@@ -239,7 +269,7 @@ function NotificationCard({ notification, onOpen, onMarkRead }) {
               className="inline-flex items-center gap-1 rounded-full bg-green-700 px-3 py-1.5 text-[10px] font-extrabold text-white hover:bg-green-800"
             >
               <FaEye />
-              View Listing
+              {notification.type === "won" ? (notification.paymentExpired ? "View Quote" : "Pay to Confirm") : "View Listing"}
             </button>
             {!notification.read && (
               <button
@@ -307,6 +337,31 @@ function buildLotNotification(lot, read) {
     icon: getNotificationIcon(type),
     statusLabel: formatDealStatus(lot.status),
     statusClass: getStatusClass(type),
+  };
+}
+
+function buildQuoteWonNotification(quote, read, now) {
+  const dueAt = quote.paymentDueAt ? new Date(quote.paymentDueAt).getTime() : 0;
+  const msLeft = dueAt ? dueAt - now : 0;
+  const paymentExpired = Boolean(dueAt && msLeft <= 0);
+
+  return {
+    id: `quote-${quote._id}`,
+    quoteId: quote._id,
+    orderId: quote.acceptedOrderId,
+    read,
+    type: "won",
+    title: "You Won the Quote",
+    location: quote.lotTitle || "Fruit consignment",
+    quantity: quote.lotQuantity || 0,
+    imageUrl: "",
+    time: formatNotificationTime(quote.acceptedAt || quote.updatedAt || quote.createdAt),
+    countdown: paymentExpired ? "Payment window expired" : dueAt ? `Pay within ${formatPaymentCountdown(msLeft)}` : "Confirm payment",
+    paymentExpired,
+    kicker: "Quote result",
+    icon: <FaCheck />,
+    statusLabel: "You Won the Quote",
+    statusClass: "bg-green-700 text-white",
   };
 }
 
@@ -379,6 +434,13 @@ function formatNotificationTime(value) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatPaymentCountdown(msLeft = 0) {
+  const totalSeconds = Math.max(0, Math.floor(msLeft / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
 function formatDealStatus(status = "") {

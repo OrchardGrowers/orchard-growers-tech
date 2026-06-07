@@ -75,7 +75,7 @@ export default function QuoteDetails() {
               </p>
             )}
           </div>
-          {quote && <QuoteStatusBadge status={quote.status} />}
+          {quote && <QuoteStatusBadge status={quote.status} buyerView={!isGrowerSettlementView} />}
         </div>
       </section>
 
@@ -198,8 +198,9 @@ function SummaryRow({ label, value }) {
   );
 }
 
-function QuoteStatusBadge({ status }) {
+function QuoteStatusBadge({ status, buyerView = false }) {
   const label = normalizeQuoteStatusLabel(status);
+  const displayLabel = buyerView && label === "Accepted" ? "You Won the Quote" : label;
   const classes =
     label === "Accepted"
       ? "bg-green-700 text-white"
@@ -208,7 +209,7 @@ function QuoteStatusBadge({ status }) {
         : "bg-amber-100 text-amber-800";
   return (
     <span className={`rounded-full px-3 py-1 text-[10px] font-extrabold uppercase ${classes}`}>
-      {label}
+      {displayLabel}
     </span>
   );
 }

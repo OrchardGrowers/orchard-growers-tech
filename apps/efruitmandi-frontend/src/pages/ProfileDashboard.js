@@ -2488,6 +2488,13 @@ function GrowerBuyerQuotesSection({ quotes = [], actionId = "", onViewDetails, o
 }
 
 function BuyerSubmittedQuotes({ quotes = [], orders = [], onViewLot, onViewQuote, onPay }) {
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   return (
     <section className="mt-4 rounded-lg border border-green-100 bg-white p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -2508,12 +2515,21 @@ function BuyerSubmittedQuotes({ quotes = [], orders = [], onViewLot, onViewQuote
             const quoteOrder = findOrderForQuote(orders, quote);
             const paymentOrderId = quoteOrder?._id || quote.acceptedOrderId;
             const paymentStatus = String(quoteOrder?.paymentStatus || quote.acceptedOrderPaymentStatus || "PENDING").toUpperCase();
-            const canPay = normalizeQuoteStatusLabel(quote.status) === "Accepted" && paymentOrderId && paymentStatus === "PENDING";
+            const wonQuote = normalizeQuoteStatusLabel(quote.status) === "Accepted";
+            const paymentDueAt = getQuotePaymentDueAt(quote, quoteOrder);
+            const paymentMsLeft = paymentDueAt ? new Date(paymentDueAt).getTime() - now : 0;
+            const paymentExpired = Boolean(paymentDueAt && paymentMsLeft <= 0);
+            const canPay = wonQuote && paymentOrderId && paymentStatus === "PENDING" && !paymentExpired;
 
             return (
-              <article key={quote._id} className="rounded-md border border-gray-200 bg-green-50 p-3">
+              <article key={quote._id} className={`rounded-md border p-3 ${wonQuote ? "border-green-300 bg-green-100 ring-1 ring-green-200" : "border-gray-200 bg-green-50"}`}>
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
+                    {wonQuote && (
+                      <p className="mb-1 inline-flex rounded-full bg-green-700 px-2 py-1 text-[10px] font-extrabold uppercase text-white">
+                        You Won the Quote
+                      </p>
+                    )}
                     <h3 className="truncate text-sm font-extrabold text-gray-950">
                       {quote.lotTitle || "Fruit Lot"}
                     </h3>
@@ -2523,8 +2539,13 @@ function BuyerSubmittedQuotes({ quotes = [], orders = [], onViewLot, onViewQuote
                     <p className="text-[10px] font-bold text-green-800">
                       Platform Payable: Rs. {quote.buyerPayableThroughPlatform || quote.buyerPayable || quoteOrder?.finalPrice || 0}
                     </p>
+                    {wonQuote && paymentStatus === "PENDING" && (
+                      <p className={`mt-1 text-[10px] font-extrabold ${paymentExpired ? "text-red-700" : "text-green-900"}`}>
+                        {paymentExpired ? "Payment confirmation window expired" : `Pay within ${formatPaymentCountdown(paymentMsLeft)} to confirm consignment`}
+                      </p>
+                    )}
                   </div>
-                  <QuoteStatusBadge status={quote.status} />
+                  <QuoteStatusBadge status={quote.status} buyerView />
                 </div>
                 <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                   <span className="text-[10px] font-bold text-gray-500">
@@ -2554,6 +2575,11 @@ function BuyerSubmittedQuotes({ quotes = [], orders = [], onViewLot, onViewQuote
                         Pay to Confirm Consignment
                       </button>
                     )}
+                    {wonQuote && paymentExpired && paymentStatus === "PENDING" && (
+                      <span className="rounded-full bg-red-50 px-3 py-1 text-[10px] font-extrabold text-red-700 ring-1 ring-red-100">
+                        Payment Window Expired
+                      </span>
+                    )}
                   </div>
                 </div>
               </article>
@@ -2576,8 +2602,20 @@ function findOrderForQuote(orders = [], quote = {}) {
   return orders.find((order) => getEntityId(order.quote) === quoteId) || null;
 }
 
-function QuoteStatusBadge({ status }) {
+function getQuotePaymentDueAt(quote = {}, order = {}) {
+  return quote.paymentDueAt || order?.paymentDueAt || "";
+}
+
+function formatPaymentCountdown(msLeft = 0) {
+  const totalSeconds = Math.max(0, Math.floor(msLeft / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function QuoteStatusBadge({ status, buyerView = false }) {
   const label = normalizeQuoteStatusLabel(status);
+  const displayLabel = buyerView && label === "Accepted" ? "You Won the Quote" : label;
   const classes =
     label === "Accepted"
       ? "bg-green-700 text-white"
@@ -2586,7 +2624,7 @@ function QuoteStatusBadge({ status }) {
         : "bg-amber-100 text-amber-800";
   return (
     <span className={`rounded-full px-2 py-1 text-[9px] font-extrabold uppercase ${classes}`}>
-      {label}
+      {displayLabel}
     </span>
   );
 }
