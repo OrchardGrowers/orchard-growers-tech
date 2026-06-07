@@ -47,6 +47,14 @@ const orderSchema = new mongoose.Schema(
     totalAmount: { type: Number, default: 0 },
     invoiceNumber: String,
     invoiceDate: Date,
+    commissionInvoiceNumber: { type: String, unique: true, sparse: true },
+    commissionInvoiceDate: Date,
+    commissionReceiptNumber: { type: String, unique: true, sparse: true },
+    commissionReceiptDate: Date,
+    commissionTaxableAmount: { type: Number, default: 0 },
+    commissionGstPercent: { type: Number, default: 0 },
+    commissionGstAmount: { type: Number, default: 0 },
+    commissionTotalAmount: { type: Number, default: 0 },
 
     paymentMethod: {
       type: String,

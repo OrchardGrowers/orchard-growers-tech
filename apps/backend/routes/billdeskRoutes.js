@@ -1,6 +1,12 @@
 import express from "express";
 import Order from "../models/Order.js";
 import protect, { authorize } from "../middleware/authMiddleware.js";
+import {
+  generateBillDeskPaymentRef,
+  generateBuyerInvoiceNo,
+  generateCommissionInvoiceNo,
+  generateCommissionReceiptNo,
+} from "../services/invoiceNumberingService.js";
 
 const router = express.Router();
 
@@ -28,9 +34,46 @@ const sanitizeEscrowOrder = (order, user) => {
     delete data.taxAmount;
     delete data.finalPrice;
     delete data.totalAmount;
+    delete data.commissionInvoiceNumber;
+    delete data.commissionInvoiceDate;
+    delete data.commissionReceiptNumber;
+    delete data.commissionReceiptDate;
+    delete data.commissionTaxableAmount;
+    delete data.commissionGstPercent;
+    delete data.commissionGstAmount;
+    delete data.commissionTotalAmount;
   }
 
   return data;
+};
+
+const roundMoney = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+
+const ensureCommissionDocuments = async (order) => {
+  const now = new Date();
+  if (!order.invoiceNumber) {
+    order.invoiceNumber = await generateBuyerInvoiceNo(now);
+    order.invoiceDate = now;
+  }
+  if (!order.commissionInvoiceNumber) {
+    order.commissionInvoiceNumber = await generateCommissionInvoiceNo(now);
+    order.commissionInvoiceDate = now;
+  }
+  if (!order.commissionReceiptNumber) {
+    order.commissionReceiptNumber = await generateCommissionReceiptNo(now);
+    order.commissionReceiptDate = now;
+  }
+  if (!order.paymentReference) {
+    order.paymentReference = await generateBillDeskPaymentRef(now);
+  }
+
+  const taxableAmount = roundMoney(order.platformCommission || order.dealBreakdown?.platformServiceFee || order.dealBreakdown?.commissionAmount || 0);
+  const gstPercent = Number(process.env.EFRUITMANDI_COMMISSION_GST_PERCENT || 0);
+  const gstAmount = roundMoney(taxableAmount * (gstPercent / 100));
+  order.commissionTaxableAmount = taxableAmount;
+  order.commissionGstPercent = gstPercent;
+  order.commissionGstAmount = gstAmount;
+  order.commissionTotalAmount = roundMoney(taxableAmount + gstAmount);
 };
 
 router.post("/pay", protect, authorize("buyer"), async (req, res) => {
@@ -81,6 +124,9 @@ router.post("/callback", protect, authorize("buyer"), async (req, res) => {
 
     order.paymentStatus = "ESCROW";
     order.escrowStatus = "HELD_BY_BILLDESK";
+    order.paymentGateway = "BILLDESK";
+    order.paymentGatewayStatus = "ESCROW";
+    await ensureCommissionDocuments(order);
     await order.save();
 
     res.json({

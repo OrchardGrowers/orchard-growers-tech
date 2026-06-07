@@ -574,6 +574,7 @@ router.patch("/:quoteId/accept", protect, authorize("grower"), async (req, res) 
         product: quotation.lot._id,
         buyer: quotation.buyer,
         grower: quotation.grower,
+        totalAmount: quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount,
         auctionPrice: quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount,
         finalPrice: quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount,
         dealBreakdown: {

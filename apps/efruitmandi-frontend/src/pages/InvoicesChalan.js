@@ -29,6 +29,9 @@ const getOrderAmount = (order = {}, growerView = false) =>
     ? order.sellerReceivable || order.growerPayout || order.auctionPrice || 0
     : order.finalPrice || order.totalAmount || order.auctionPrice || 0;
 
+const getCommissionAmount = (order = {}) =>
+  order.commissionTotalAmount || order.commissionTaxableAmount || order.platformCommission || order.dealBreakdown?.platformServiceFee || 0;
+
 const buildDocumentHtml = (order = {}, growerView = false) => {
   const documentType = getDocumentType(order);
   const rows = order.items?.length
@@ -79,6 +82,60 @@ const buildDocumentHtml = (order = {}, growerView = false) => {
 </html>`;
 };
 
+const buildCommissionDocumentHtml = (order = {}, type = "invoice") => {
+  const isReceipt = type === "receipt";
+  const documentNo = isReceipt ? order.commissionReceiptNumber : order.commissionInvoiceNumber;
+  const documentDate = isReceipt ? order.commissionReceiptDate : order.commissionInvoiceDate;
+  const title = isReceipt ? "Commission Payment Receipt" : "Commission Invoice";
+  const taxableAmount = order.commissionTaxableAmount || order.platformCommission || 0;
+  const gstAmount = order.commissionGstAmount || 0;
+  const totalAmount = getCommissionAmount(order);
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${title} ${documentNo || order._id}</title>
+  <style>
+    body { font-family: Arial, sans-serif; color: #111827; padding: 28px; }
+    .top { display: flex; justify-content: space-between; gap: 20px; border-bottom: 2px solid #15803d; padding-bottom: 14px; }
+    h1 { margin: 0; color: #166534; }
+    table { width: 100%; border-collapse: collapse; margin-top: 22px; }
+    th, td { border: 1px solid #d1d5db; padding: 10px; text-align: left; }
+    th { background: #ecfdf5; }
+    .total { margin-top: 18px; font-size: 20px; font-weight: 800; text-align: right; }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div>
+      <h1>eFruitMandi ${title}</h1>
+      <p><strong>Document No:</strong> ${documentNo || "-"}</p>
+      <p><strong>Date:</strong> ${formatDate(documentDate || order.createdAt)}</p>
+      <p><strong>Fruit Lot Invoice:</strong> ${order.invoiceNumber || order._id || "-"}</p>
+    </div>
+    <div>
+      <p><strong>Buyer:</strong> ${order.customer?.name || order.buyer?.businessName || order.buyer?.name || "-"}</p>
+      <p><strong>BillDesk Ref:</strong> ${order.paymentReference || "-"}</p>
+      <p><strong>Status:</strong> ${order.paymentStatus || "-"}</p>
+    </div>
+  </div>
+  <table>
+    <thead><tr><th>Description</th><th>Taxable</th><th>GST</th><th>Total</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>eFruitMandi platform service fee / commission</td>
+        <td>${formatCurrency(taxableAmount)}</td>
+        <td>${formatCurrency(gstAmount)}</td>
+        <td>${formatCurrency(totalAmount)}</td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="total">${isReceipt ? "Amount Received" : "Commission Payable"}: ${formatCurrency(totalAmount)}</p>
+</body>
+</html>`;
+};
+
 const downloadDocument = (order, growerView) => {
   const type = getDocumentType(order).toLowerCase();
   const html = buildDocumentHtml(order, growerView);
@@ -91,10 +148,31 @@ const downloadDocument = (order, growerView) => {
   URL.revokeObjectURL(url);
 };
 
+const downloadCommissionDocument = (order, type) => {
+  const html = buildCommissionDocumentHtml(order, type);
+  const blob = new Blob([html], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const documentNo = type === "receipt" ? order.commissionReceiptNumber : order.commissionInvoiceNumber;
+  link.href = url;
+  link.download = `${type}-${documentNo || order._id || Date.now()}.html`.replace(/[^\w.-]+/g, "-");
+  link.click();
+  URL.revokeObjectURL(url);
+};
+
 const printDocument = (order, growerView) => {
   const printWindow = window.open("", "_blank", "noopener,noreferrer");
   if (!printWindow) return;
   printWindow.document.write(buildDocumentHtml(order, growerView));
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+};
+
+const printCommissionDocument = (order, type) => {
+  const printWindow = window.open("", "_blank", "noopener,noreferrer");
+  if (!printWindow) return;
+  printWindow.document.write(buildCommissionDocumentHtml(order, type));
   printWindow.document.close();
   printWindow.focus();
   printWindow.print();
@@ -155,6 +233,12 @@ export default function InvoicesChalan() {
                 <p className="mt-1 text-xs font-bold text-gray-500">
                   {formatDate(order.invoiceDate || order.createdAt)} - {order.paymentStatus || "PENDING"} / {order.deliveryStatus || "PENDING"}
                 </p>
+                {!growerView && order.commissionInvoiceNumber && (
+                  <div className="mt-2 space-y-1 text-xs font-bold text-gray-600">
+                    <p>Commission Invoice: {order.commissionInvoiceNumber}</p>
+                    <p>Commission Receipt: {order.commissionReceiptNumber || "Pending"}</p>
+                  </div>
+                )}
               </div>
               <p className="text-lg font-black text-green-800">
                 {formatCurrency(getOrderAmount(order, growerView))}
@@ -177,6 +261,34 @@ export default function InvoicesChalan() {
                 <FaPrint />
                 Print
               </button>
+              {!growerView && order.commissionInvoiceNumber && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => downloadCommissionDocument(order, "invoice")}
+                    className="inline-flex items-center gap-2 rounded-md bg-green-50 px-3 py-2 text-xs font-extrabold text-green-800 ring-1 ring-green-100"
+                  >
+                    <FaDownload />
+                    Commission Invoice
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => downloadCommissionDocument(order, "receipt")}
+                    className="inline-flex items-center gap-2 rounded-md bg-green-50 px-3 py-2 text-xs font-extrabold text-green-800 ring-1 ring-green-100"
+                  >
+                    <FaDownload />
+                    Commission Receipt
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => printCommissionDocument(order, "receipt")}
+                    className="inline-flex items-center gap-2 rounded-md bg-gray-100 px-3 py-2 text-xs font-extrabold text-gray-800 hover:bg-gray-200"
+                  >
+                    <FaPrint />
+                    Print Receipt
+                  </button>
+                </>
+              )}
             </div>
           </article>
         ))}

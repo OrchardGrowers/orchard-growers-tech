@@ -44,6 +44,18 @@ const sanitizeOrderForUser = (order, user) => {
     delete data.taxAmount;
     delete data.finalPrice;
     delete data.totalAmount;
+    delete data.commissionInvoiceNumber;
+    delete data.commissionInvoiceDate;
+    delete data.commissionReceiptNumber;
+    delete data.commissionReceiptDate;
+    delete data.commissionTaxableAmount;
+    delete data.commissionGstPercent;
+    delete data.commissionGstAmount;
+    delete data.commissionTotalAmount;
+    delete data.paymentReference;
+    delete data.paymentGatewayOrderId;
+    delete data.paymentGatewaySessionId;
+    delete data.paymentGatewayResponse;
   }
 
   return data;

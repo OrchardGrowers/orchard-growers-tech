@@ -221,7 +221,19 @@ type AdminOrder = {
   _id: string;
   invoiceNumber?: string;
   invoiceDate?: string;
+  commissionInvoiceNumber?: string;
+  commissionInvoiceDate?: string;
+  commissionReceiptNumber?: string;
+  commissionReceiptDate?: string;
+  commissionTaxableAmount?: number;
+  commissionGstPercent?: number;
+  commissionGstAmount?: number;
+  commissionTotalAmount?: number;
   paymentMethod?: string;
+  paymentReference?: string;
+  paymentGateway?: string;
+  paymentGatewayStatus?: string;
+  escrowStatus?: string;
   customer?: { name?: string; phone?: string; email?: string };
   shippingAddress?: { city?: string; state?: string; pinCode?: string };
   items?: { title?: string; quantity?: number; unitPrice?: number; lineTotal?: number }[];
@@ -231,6 +243,7 @@ type AdminOrder = {
   sellerReceivable?: number;
   growerPayout?: number;
   paymentStatus?: string;
+  settlementStatus?: string;
   deliveryStatus?: string;
   courierPartner?: string;
   deliveryPartnerSelection?: string;
@@ -5526,6 +5539,7 @@ function OrdersPanel({ orders }: { orders: AdminOrder[] }) {
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <h3 className="text-base font-bold text-white">{order.invoiceNumber || order._id}</h3>
+              <p className="mt-1 text-xs font-semibold text-emerald-300">Buyer Invoice No: {order.invoiceNumber || '-'}</p>
               <p className="mt-1 text-sm font-semibold text-slate-400">
                 {order.customer?.name || 'Customer'} - {order.customer?.phone || 'No phone'}
               </p>
@@ -5536,7 +5550,16 @@ function OrdersPanel({ orders }: { orders: AdminOrder[] }) {
             <div className="text-left lg:text-right">
               <p className="text-lg font-black text-emerald-300">Rs. {order.totalAmount || 0}</p>
               <p className="text-xs font-bold text-slate-400">{order.paymentStatus} / {order.deliveryStatus}</p>
+              <p className="text-xs font-bold text-slate-500">Settlement: {order.settlementStatus || order.escrowStatus || '-'}</p>
             </div>
+          </div>
+          <div className="mt-4 grid gap-2 text-sm text-slate-300 md:grid-cols-3">
+            <Info label="Commission Invoice" value={order.commissionInvoiceNumber || 'Pending'} />
+            <Info label="Commission Receipt" value={order.commissionReceiptNumber || 'Pending'} />
+            <Info label="BillDesk Ref" value={order.paymentReference || order.paymentGatewayStatus || 'Pending'} />
+            <Info label="GST / Tax" value={`${order.commissionGstPercent || 0}% | Rs. ${order.commissionGstAmount || 0}`} />
+            <Info label="Commission Total" value={`Rs. ${order.commissionTotalAmount || order.commissionTaxableAmount || 0}`} />
+            <Info label="Payment Gateway" value={order.paymentGateway || 'BillDesk'} />
           </div>
           <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900 p-3">
             <p className="text-sm font-bold text-white">Items</p>
