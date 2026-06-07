@@ -1376,9 +1376,9 @@ export default function ProfileDashboard() {
                   navigate(`/lots/${quote.lotId}`);
                   return;
                 }
-                navigate(`/quotes/${quote._id}`);
+                navigate(`/quotes/${quote._id}?view=buyer`);
               }}
-              onViewQuote={(quoteId) => navigate(`/quotes/${quoteId}`)}
+              onViewQuote={(quoteId) => navigate(`/quotes/${quoteId}?view=buyer`)}
               onPay={(orderId) => navigate(`/payment/${orderId}`)}
             />
           </>
@@ -1409,7 +1409,7 @@ export default function ProfileDashboard() {
             onSeeRates={() => navigate("/auctions")}
             onUpdateLot={updateLot}
             onDeleteLot={deleteLot}
-            onViewQuoteDetails={(quoteId) => navigate(`/quotes/${quoteId}`)}
+            onViewQuoteDetails={(quoteId) => navigate(`/quotes/${quoteId}?view=grower`)}
             onAcceptQuote={acceptBuyerQuote}
           />
         )}

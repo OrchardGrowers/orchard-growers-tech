@@ -662,13 +662,20 @@ router.get("/:quoteId", protect, authorize("buyer", "grower"), async (req, res) 
     const quotation = await populateQuoteQuery(Quotation.findById(req.params.quoteId)).lean();
     if (!quotation) return res.status(404).json({ msg: "Quote not found" });
     const requesterId = req.user.id?.toString();
-    if (
-      quotation.buyer?._id?.toString() !== requesterId &&
-      quotation.grower?._id?.toString() !== requesterId
-    ) {
+    const isBuyerRequester = quotation.buyer?._id?.toString() === requesterId;
+    const isGrowerRequester = quotation.grower?._id?.toString() === requesterId;
+    if (!isBuyerRequester && !isGrowerRequester) {
       return res.status(403).json({ msg: "You cannot view this quote" });
     }
-    const visibility = quotation.grower?._id?.toString() === requesterId ? "grower" : "buyer";
+    const requestedView = String(req.query.view || "").trim().toLowerCase();
+    const visibility =
+      requestedView === "grower" && isGrowerRequester
+        ? "grower"
+        : requestedView === "buyer" && isBuyerRequester
+          ? "buyer"
+          : isBuyerRequester
+            ? "buyer"
+            : "grower";
     const acceptedOrder = visibility === "buyer"
       ? await Order.findOne({ quote: quotation._id }).select("_id quote paymentStatus finalPrice paymentDueAt").lean()
       : null;

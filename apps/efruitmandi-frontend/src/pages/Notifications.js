@@ -100,7 +100,7 @@ export default function Notifications() {
         navigate(`/payment/${notification.orderId}`);
         return;
       }
-      navigate(`/quotes/${notification.quoteId}`);
+      navigate(`/quotes/${notification.quoteId}?view=buyer`);
       return;
     }
     navigate(`/lots/${notification.id}`);

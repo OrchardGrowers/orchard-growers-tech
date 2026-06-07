@@ -65,6 +65,7 @@ export default function LotDetails() {
   }, [lotId]);
 
   const images = useMemo(() => getAllImages(product), [product]);
+  const hasActiveImage = Boolean(activeImage);
   const createdBy = product?.createdBy || {};
   const ownerId = createdBy._id || createdBy.id;
   const currentUserId = user?._id || user?.id;
@@ -149,7 +150,11 @@ export default function LotDetails() {
       </button>
 
       <section className="gallery-section section w-full max-w-full rounded-md border border-gray-200 bg-white p-2">
-        <div className="relative flex h-[58vh] max-h-[680px] min-h-[240px] w-full max-w-full items-center justify-center overflow-hidden rounded-md bg-white md:h-[70vh] md:min-h-[320px]">
+        <div className={`relative flex w-full max-w-full items-center justify-center overflow-hidden rounded-md bg-white ${
+          hasActiveImage
+            ? "h-[58vh] max-h-[680px] min-h-[240px] md:h-[70vh] md:min-h-[320px]"
+            : "min-h-[150px] py-6"
+        }`}>
           {activeImage ? (
             <button
               type="button"
@@ -171,8 +176,9 @@ export default function LotDetails() {
               </span>
             </button>
           ) : (
-            <div className="flex h-full items-center justify-center text-4xl text-green-700">
-              <FaSeedling />
+            <div className="flex flex-col items-center justify-center gap-2 text-green-700">
+              <FaSeedling className="text-3xl" />
+              <p className="text-xs font-extrabold text-green-900">Lot media not available</p>
             </div>
           )}
         </div>

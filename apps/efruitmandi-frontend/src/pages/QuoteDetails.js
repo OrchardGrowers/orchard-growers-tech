@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { FaArrowLeft, FaCalculator, FaHandshake, FaSeedling, FaUser } from "react-icons/fa";
 import API from "../services/api";
 
 export default function QuoteDetails() {
   const { quoteId } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const [quote, setQuote] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -16,7 +17,7 @@ export default function QuoteDetails() {
       try {
         setLoading(true);
         setMessage("");
-        const res = await API.get(`/quotes/${quoteId}`);
+        const res = await API.get(`/quotes/${quoteId}${location.search || ""}`);
         setQuote(res.data?.quote || null);
       } catch (err) {
         setMessage(err.response?.data?.msg || err.response?.data?.message || "Quote details could not be loaded.");
@@ -26,7 +27,7 @@ export default function QuoteDetails() {
     };
 
     loadQuote();
-  }, [quoteId]);
+  }, [quoteId, location.search]);
 
   const acceptDeal = async () => {
     if (!quote?._id) return;
@@ -48,8 +49,9 @@ export default function QuoteDetails() {
   };
 
   const status = normalizeQuoteStatusLabel(quote?.status);
-  const canAccept = status === "Pending";
   const isGrowerSettlementView = quote && quote.quotedTotalValue === undefined && quote.dealAmount === undefined;
+  const canAccept = isGrowerSettlementView && status === "Pending";
+  const buyerPlatformPayable = quote?.buyerPayableThroughPlatform || quote?.buyerPayable || 0;
 
   return (
     <div className="mx-auto w-full max-w-4xl overflow-x-hidden pb-[calc(160px+env(safe-area-inset-bottom))]">
@@ -129,7 +131,7 @@ export default function QuoteDetails() {
             ) : (
               <>
                 <SummaryRow label="Buyer Bid Rate" value={quote.baseDealAmount || quote.quotedTotalValue || quote.dealAmount} />
-                <SummaryRow label="Buyer Payable Through Platform" value={quote.buyerPayableThroughPlatform || quote.buyerPayable} />
+                <SummaryRow label="Buyer Payable Through Platform" value={buyerPlatformPayable} />
                 <p className="mt-2 rounded bg-white px-2 py-1 text-[11px] font-bold text-green-800">
                   Rs. {quote.labourChargePerUnit || 5} Labour Charge is managed and paid separately by the Buyer.
                 </p>
@@ -139,7 +141,7 @@ export default function QuoteDetails() {
               type="button"
               disabled={!canAccept || saving}
               onClick={acceptDeal}
-              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-green-700 px-4 py-3 text-sm font-extrabold text-white disabled:bg-gray-200 disabled:text-gray-500"
+              className={`mt-4 w-full items-center justify-center gap-2 rounded-md bg-green-700 px-4 py-3 text-sm font-extrabold text-white disabled:bg-gray-200 disabled:text-gray-500 ${isGrowerSettlementView ? "inline-flex" : "hidden"}`}
             >
               <FaHandshake />
               {saving ? "Accepting..." : canAccept ? "Accept Deal" : `Deal ${status}`}
@@ -162,11 +164,17 @@ export default function QuoteDetails() {
                   <span>
                     {isGrowerSettlementView
                       ? `Rs. ${grade.netAmount || 0}`
-                      : `Platform Rs. ${grade.buyerPayableThroughPlatform || Math.max(0, Number(grade.price || 0) - Number(grade.labourCharge || 0))}`}
+                      : `Platform Payable Rs. ${grade.buyerPayableThroughPlatform || Math.max(0, Number(grade.price || 0) - Number(grade.labourCharge || 0))}`}
                   </span>
                 </div>
               ))}
             </div>
+            {!isGrowerSettlementView && (
+              <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2 border-t border-green-100 pt-3 text-sm font-black text-green-950">
+                <span>Total Payable Through Platform</span>
+                <span>Rs. {buyerPlatformPayable}</span>
+              </div>
+            )}
             {isGrowerSettlementView && (
               <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2 border-t border-green-100 pt-3 text-sm font-black text-green-950">
                 <span>Total Net Receivable</span>
