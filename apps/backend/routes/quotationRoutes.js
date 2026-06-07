@@ -176,6 +176,13 @@ const formatQuote = (quotation = {}, visibility = "admin") => {
     lotTitle: quotation.lotTitle || lot.title || lot.fruitName || "Fruit Lot",
     fruitType: quotation.fruitType || lot.fruitName || lot.title || "",
     lotQuantity: quotation.lotQuantity || lot.quantity || 0,
+    lotNo: lot.lotNo || "",
+    lotVariety: lot.variety || "",
+    lotQuality: lot.quality || "",
+    lotUnit: lot.unit || "boxes",
+    packingType: lot.packingType || "",
+    totalWeightKg: lot.totalWeightKg || 0,
+    lotLocation: lot.location || "",
     buyerName,
     buyerPhone: quotation.buyerPhone || buyer.phone || "",
     growerName,
@@ -189,6 +196,8 @@ const formatQuote = (quotation = {}, visibility = "admin") => {
     acceptedOrderId: quotation.acceptedOrder?._id || quotation.acceptedOrder || undefined,
     acceptedOrderPaymentStatus: quotation.acceptedOrder?.paymentStatus || undefined,
     acceptedOrderFinalPrice: quotation.acceptedOrder?.finalPrice || undefined,
+    acceptedOrderDeliveryStatus: quotation.acceptedOrder?.deliveryStatus || undefined,
+    acceptedOrderInvoiceNumber: quotation.acceptedOrder?.invoiceNumber || undefined,
     paymentDueAt: quotation.paymentDueAt || quotation.acceptedOrder?.paymentDueAt || undefined,
     grades,
     message: quotation.message || "",
@@ -246,7 +255,7 @@ const formatQuote = (quotation = {}, visibility = "admin") => {
 
 const populateQuoteQuery = (query) =>
   query
-    .populate("lot", "title fruitName quantity status acceptedQuoteId acceptedBuyerId finalPrice finalDealValue createdBy")
+    .populate("lot", "title fruitName variety quality quantity unit lotNo packingType totalWeightKg location status acceptedQuoteId acceptedBuyerId finalPrice finalDealValue createdBy")
     .populate("buyer", "name businessName buyerContactPerson phone")
     .populate("grower", "name orchardName businessName phone");
 
@@ -678,7 +687,7 @@ router.get("/:quoteId", protect, authorize("buyer", "grower"), async (req, res) 
             ? "buyer"
             : "grower";
     const acceptedOrder = visibility === "buyer"
-      ? await Order.findOne({ quote: quotation._id }).select("_id quote paymentStatus finalPrice paymentDueAt").lean()
+      ? await Order.findOne({ quote: quotation._id }).select("_id quote paymentStatus deliveryStatus finalPrice paymentDueAt invoiceNumber").lean()
       : null;
     res.json({ success: true, quote: formatQuote({ ...quotation, acceptedOrder }, visibility) });
   } catch (err) {

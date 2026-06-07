@@ -1372,6 +1372,10 @@ export default function ProfileDashboard() {
               quotes={buyerQuotes}
               orders={orders}
               onViewLot={(quote) => {
+                if (normalizeQuoteStatusLabel(quote.status) === "Accepted") {
+                  navigate(`/quotes/${quote._id}?view=buyer&report=consignment`);
+                  return;
+                }
                 if (quote.lotId) {
                   navigate(`/lots/${quote.lotId}`);
                   return;
@@ -2557,7 +2561,7 @@ function BuyerSubmittedQuotes({ quotes = [], orders = [], onViewLot, onViewQuote
                       onClick={() => onViewLot?.(quote)}
                       className="rounded-full bg-white px-3 py-1 text-[10px] font-extrabold text-green-800 ring-1 ring-green-100"
                     >
-                      View Lot
+                      {wonQuote ? "View Consignment Report" : "View Lot"}
                     </button>
                     <button
                       type="button"

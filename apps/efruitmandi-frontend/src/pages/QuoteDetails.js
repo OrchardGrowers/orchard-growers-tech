@@ -52,6 +52,7 @@ export default function QuoteDetails() {
   const isGrowerSettlementView = quote && quote.quotedTotalValue === undefined && quote.dealAmount === undefined;
   const canAccept = isGrowerSettlementView && status === "Pending";
   const buyerPlatformPayable = quote?.buyerPayableThroughPlatform || quote?.buyerPayable || 0;
+  const isConsignmentReport = !isGrowerSettlementView && new URLSearchParams(location.search).get("report") === "consignment";
 
   return (
     <div className="mx-auto w-full max-w-4xl overflow-x-hidden pb-[calc(160px+env(safe-area-inset-bottom))]">
@@ -65,7 +66,9 @@ export default function QuoteDetails() {
       </button>
 
       <section className="rounded-md border border-green-100 bg-white p-4">
-        <p className="text-xs font-extrabold uppercase tracking-wide text-green-700">Buyer Quote Details</p>
+        <p className="text-xs font-extrabold uppercase tracking-wide text-green-700">
+          {isConsignmentReport ? "Bought Consignment Report" : "Buyer Quote Details"}
+        </p>
         <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-xl font-black leading-tight text-gray-950">
@@ -101,7 +104,13 @@ export default function QuoteDetails() {
             <div className="grid gap-2 sm:grid-cols-2">
               {!isGrowerSettlementView && <InfoTile label="Buyer" value={quote.buyerName || "Buyer"} />}
               {!isGrowerSettlementView && <InfoTile label="Buyer Phone" value={maskPhone(quote.buyerPhone)} />}
+              {!isGrowerSettlementView && <InfoTile label="Lot No." value={quote.lotNo || quote.lotId} />}
               <InfoTile label="Grower" value={quote.growerName || "Grower"} />
+              {!isGrowerSettlementView && <InfoTile label="Variety" value={quote.lotVariety || quote.fruitType} />}
+              {!isGrowerSettlementView && <InfoTile label="Quality" value={quote.lotQuality} />}
+              {!isGrowerSettlementView && <InfoTile label="Packing" value={quote.packingType || quote.lotUnit} />}
+              {!isGrowerSettlementView && <InfoTile label="Total Weight" value={formatWeight(quote.totalWeightKg)} />}
+              {!isGrowerSettlementView && <InfoTile label="Location" value={quote.lotLocation} />}
               <InfoTile label="Quote Date" value={formatDate(quote.createdAt)} />
             </div>
 
@@ -132,9 +141,21 @@ export default function QuoteDetails() {
               <>
                 <SummaryRow label="Buyer Bid Rate" value={quote.baseDealAmount || quote.quotedTotalValue || quote.dealAmount} />
                 <SummaryRow label="Buyer Payable Through Platform" value={buyerPlatformPayable} />
+                {isConsignmentReport && (
+                  <>
+                    <SummaryTextRow label="Payment Status" value={quote.acceptedOrderPaymentStatus || "PENDING"} />
+                    <SummaryTextRow label="Delivery Status" value={quote.acceptedOrderDeliveryStatus || "PENDING"} />
+                    <SummaryTextRow label="Buyer Invoice No." value={quote.acceptedOrderInvoiceNumber || "Not generated"} />
+                  </>
+                )}
                 <p className="mt-2 rounded bg-white px-2 py-1 text-[11px] font-bold text-green-800">
                   Rs. {quote.labourChargePerUnit || 5} Labour Charge is managed and paid separately by the Buyer.
                 </p>
+                {isConsignmentReport && (
+                  <p className="mt-2 rounded bg-white px-2 py-2 text-[11px] font-bold leading-5 text-green-900">
+                    Final settlement is completed after the consignment is received at buyer premises, checked, and any recorded negotiation is completed.
+                  </p>
+                )}
               </>
             )}
             <button
@@ -206,6 +227,15 @@ function SummaryRow({ label, value }) {
   );
 }
 
+function SummaryTextRow({ label, value }) {
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 py-1.5 text-sm font-bold text-green-950">
+      <span className="min-w-0">{label}</span>
+      <span className="shrink-0">{value || "-"}</span>
+    </div>
+  );
+}
+
 function QuoteStatusBadge({ status, buyerView = false }) {
   const label = normalizeQuoteStatusLabel(status);
   const displayLabel = buyerView && label === "Accepted" ? "You Won the Quote" : label;
@@ -242,4 +272,10 @@ function formatDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString("en-IN");
+}
+
+function formatWeight(value) {
+  const weight = Number(value || 0);
+  if (!Number.isFinite(weight) || weight <= 0) return "Not available";
+  return `${weight.toLocaleString("en-IN", { maximumFractionDigits: 2 })} kg`;
 }
