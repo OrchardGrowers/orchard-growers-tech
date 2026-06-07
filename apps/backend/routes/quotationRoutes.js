@@ -72,6 +72,54 @@ const normalizeQuoteStatus = (status = "") => {
   return normalized || "pending";
 };
 
+const roundMoney = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+const firstPositiveNumber = (...values) => {
+  for (const value of values) {
+    const number = Number(value);
+    if (Number.isFinite(number) && number > 0) return number;
+  }
+  return 0;
+};
+
+const calculateStoredGrowerNetRate = (grade = {}, quotation = {}) => {
+  const directRate = firstPositiveNumber(grade.netRate, grade.netSettlementRate);
+  if (directRate > 0) return directRate;
+
+  const buyerBidRate = Number(grade.price || grade.quotedRatePerUnit || 0);
+  if (!Number.isFinite(buyerBidRate) || buyerBidRate <= 0) return 0;
+
+  const platformServiceFee = firstPositiveNumber(
+    grade.platformServiceFee,
+    buyerBidRate * (Number(quotation.commissionPercent || 0) / 100)
+  );
+  const labourCharge = firstPositiveNumber(grade.labourCharge, quotation.labourChargePerUnit);
+  const logisticsCharge = firstPositiveNumber(
+    grade.logisticsCharge,
+    quotation.logisticsChargePerUnit,
+    Number(quotation.totalUnits || 0) > 0 ? Number(quotation.logisticsAmount || quotation.driverCharge || 0) / Number(quotation.totalUnits || 0) : 0
+  );
+
+  return Math.round(Math.max(0, buyerBidRate - platformServiceFee - labourCharge - logisticsCharge));
+};
+
+const formatGrowerGrade = (grade = {}, quotation = {}) => {
+  const quantity = Number(grade.quantity || 0);
+  const netRate = calculateStoredGrowerNetRate(grade, quotation);
+  const netAmount = roundMoney(firstPositiveNumber(grade.netAmount, netRate * quantity));
+
+  return {
+    grade: grade.grade,
+    quantity,
+    netRate,
+    netAmount,
+  };
+};
+
+const getGrowerTotalNetReceivable = (grades = [], quotation = {}) => {
+  const visibleTotal = roundMoney(grades.reduce((sum, grade) => sum + Number(grade.netAmount || 0), 0));
+  return visibleTotal || Number(quotation.growerReceivable || quotation.sellerReceivable || 0);
+};
+
 const formatQuote = (quotation = {}, visibility = "admin") => {
   const lot = quotation.lot || {};
   const buyer = quotation.buyer || {};
@@ -91,14 +139,7 @@ const formatQuote = (quotation = {}, visibility = "admin") => {
 
   const grades = (quotation.grades || []).map((grade) => {
     if (visibility === "grower") {
-      const netRate = Number(grade.netRate ?? grade.netSettlementRate ?? 0);
-      const quantity = Number(grade.quantity || 0);
-      return {
-        grade: grade.grade,
-        quantity,
-        netRate,
-        netAmount: Number(grade.netAmount ?? netRate * quantity),
-      };
+      return formatGrowerGrade(grade, quotation);
     }
 
     const baseGrade = {
@@ -170,7 +211,7 @@ const formatQuote = (quotation = {}, visibility = "admin") => {
     acceptedAt: base.acceptedAt,
     rejectedAt: base.rejectedAt,
     lotStatus: base.lotStatus,
-    totalNetReceivable: quotation.growerReceivable || quotation.sellerReceivable || 0,
+    totalNetReceivable: getGrowerTotalNetReceivable(grades, quotation),
   } : {
     ...base,
     sellerReceivable: quotation.sellerReceivable || quotation.growerReceivable || 0,
@@ -628,17 +669,11 @@ router.get("/lots/:lotId", protect, authorize("buyer", "grower"), async (req, re
         quotations: quotations.map((quotation) => ({
           _id: quotation._id,
           status: quotation.status,
-          grades: (quotation.grades || []).map((grade) => {
-            const netRate = Number(grade.netRate ?? grade.netSettlementRate ?? 0);
-            const quantity = Number(grade.quantity || 0);
-            return {
-              grade: grade.grade,
-              quantity,
-              netRate,
-              netAmount: Number(grade.netAmount ?? netRate * quantity),
-            };
-          }),
-          totalNetReceivable: quotation.growerReceivable || quotation.sellerReceivable || 0,
+          grades: (quotation.grades || []).map((grade) => formatGrowerGrade(grade, quotation)),
+          totalNetReceivable: getGrowerTotalNetReceivable(
+            (quotation.grades || []).map((grade) => formatGrowerGrade(grade, quotation)),
+            quotation
+          ),
           createdAt: quotation.createdAt,
         })),
       });
