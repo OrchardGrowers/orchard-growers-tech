@@ -2,38 +2,49 @@ import { useEffect, useState } from "react";
 import API from "../services/api";
 import { useParams, useNavigate } from "react-router-dom";
 import BackHomeButton from "../components/BackHomeButton";
-import { isGrowerAccount } from "../utils/auth";
+import { getCurrentUser, hasBuyerProfile } from "../utils/auth";
 
 export default function Payment() {
   const { orderId } = useParams();
   const navigate = useNavigate();
-  const isGrower = isGrowerAccount();
+  const user = getCurrentUser();
+  const canUseBuyerPayment = hasBuyerProfile(user);
 
   const [loading, setLoading] = useState(false);
   const [amount, setAmount] = useState(null);
   const [message, setMessage] = useState("");
+  const [orderReady, setOrderReady] = useState(false);
 
   useEffect(() => {
-    if (isGrower) return;
-
     const fetchOrder = async () => {
+      if (!canUseBuyerPayment) return;
+
       try {
         const res = await API.get(`/orders/${orderId}`);
+        const orderBuyerId = getEntityId(res.data?.buyer);
+        const currentUserId = getEntityId(user);
+        if (orderBuyerId && currentUserId && orderBuyerId !== currentUserId) {
+          setMessage("You can pay only for your own consignment.");
+          setOrderReady(false);
+          return;
+        }
         setAmount(res.data.finalPrice || res.data.auctionPrice);
+        setOrderReady(true);
       } catch (err) {
         setMessage(err.response?.data?.msg || "Could not load this order.");
+        setOrderReady(false);
       }
     };
 
     fetchOrder();
-  }, [isGrower, orderId]);
+  }, [canUseBuyerPayment, orderId, user]);
 
-  if (isGrower) {
+  if (!canUseBuyerPayment) {
     return (
       <div className="mx-auto max-w-md rounded bg-white p-6 shadow">
         <h2 className="mb-3 text-xl font-bold">Payment unavailable</h2>
         <p className="text-sm font-semibold text-gray-600">
-          Grower accounts cannot buy fruit lots or pay for consignments.
+          Register or switch to your buyer profile to pay for consignments.
         </p>
         <button
           type="button"
@@ -86,7 +97,7 @@ export default function Payment() {
 
       <button
         onClick={handlePayment}
-        disabled={loading}
+        disabled={loading || !orderReady}
         className="w-full bg-blue-600 text-white py-2 rounded disabled:bg-gray-300"
       >
         {loading ? "Processing..." : "Pay Now"}
@@ -100,4 +111,8 @@ export default function Payment() {
       </div>
     </div>
   );
+}
+
+function getEntityId(value) {
+  return String(value?._id || value?.id || value || "");
 }
