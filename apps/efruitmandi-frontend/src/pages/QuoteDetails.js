@@ -49,6 +49,7 @@ export default function QuoteDetails() {
 
   const status = normalizeQuoteStatusLabel(quote?.status);
   const canAccept = status === "Pending";
+  const isGrowerSettlementView = quote && quote.quotedTotalValue === undefined && quote.dealAmount === undefined;
 
   return (
     <div className="mx-auto w-full max-w-4xl overflow-x-hidden pb-[calc(160px+env(safe-area-inset-bottom))]">
@@ -93,16 +94,16 @@ export default function QuoteDetails() {
           <section className="rounded-md border border-gray-200 bg-white p-4">
             <h2 className="mb-3 flex items-center gap-2 text-sm font-extrabold text-gray-950">
               <FaUser className="text-green-700" />
-              Buyer and Lot
+              {isGrowerSettlementView ? "Lot Quote" : "Buyer and Lot"}
             </h2>
             <div className="grid gap-2 sm:grid-cols-2">
-              <InfoTile label="Buyer" value={quote.buyerName || "Buyer"} />
-              <InfoTile label="Buyer Phone" value={maskPhone(quote.buyerPhone)} />
+              {!isGrowerSettlementView && <InfoTile label="Buyer" value={quote.buyerName || "Buyer"} />}
+              {!isGrowerSettlementView && <InfoTile label="Buyer Phone" value={maskPhone(quote.buyerPhone)} />}
               <InfoTile label="Grower" value={quote.growerName || "Grower"} />
               <InfoTile label="Quote Date" value={formatDate(quote.createdAt)} />
             </div>
 
-            {quote.message && (
+            {!isGrowerSettlementView && quote.message && (
               <div className="mt-3 rounded-md bg-green-50 p-3">
                 <p className="text-[10px] font-extrabold uppercase text-gray-500">Buyer Message</p>
                 <p className="mt-1 text-sm font-bold text-gray-800">{quote.message}</p>
@@ -115,16 +116,25 @@ export default function QuoteDetails() {
               <FaCalculator />
               Deal Summary
             </h2>
-            <SummaryRow label="Base Deal Amount" value={quote.baseDealAmount || quote.quotedTotalValue || quote.dealAmount} />
-            <SummaryRow label="Total Charges Deducted" value={quote.totalCharges} />
-            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 py-1.5 text-sm font-bold text-green-950">
-              <span className="min-w-0">Charge Per Unit</span>
-              <span className="shrink-0">Rs. {quote.chargePerUnit || 0}</span>
-            </div>
-            <div className="mt-3 border-t border-green-200 pt-3">
-              <p className="text-[10px] font-extrabold uppercase text-green-800">Grower receives</p>
-              <p className="mt-1 text-2xl font-black text-green-950">Rs. {quote.growerReceivable || quote.sellerReceivable || 0}</p>
-            </div>
+            {isGrowerSettlementView ? (
+              <>
+                <div className="mt-3 border-t border-green-200 pt-3">
+                  <p className="text-[10px] font-extrabold uppercase text-green-800">Net Rate</p>
+                  <p className="mt-1 text-2xl font-black text-green-950">Rs. {quote.totalNetReceivable || 0}</p>
+                  <p className="mt-2 text-xs font-bold leading-5 text-green-800">
+                    Net receivable amount payable to the grower after applicable deductions and settlement adjustments.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <SummaryRow label="Buyer Bid Rate" value={quote.baseDealAmount || quote.quotedTotalValue || quote.dealAmount} />
+                <SummaryRow label="Buyer Payable Through Platform" value={quote.buyerPayableThroughPlatform || quote.buyerPayable} />
+                <p className="mt-2 rounded bg-white px-2 py-1 text-[11px] font-bold text-green-800">
+                  Rs. {quote.labourChargePerUnit || 5} Labour Charge is managed and paid separately by the Buyer.
+                </p>
+              </>
+            )}
             <button
               type="button"
               disabled={!canAccept || saving}
@@ -139,18 +149,30 @@ export default function QuoteDetails() {
           <section className="rounded-md border border-gray-200 bg-white p-4">
             <h2 className="mb-3 flex items-center gap-2 text-sm font-extrabold text-gray-950">
               <FaSeedling className="text-green-700" />
-              Grade-wise Quote
+              {isGrowerSettlementView ? "Grade-wise Net Quote" : "Grade-wise Quote"}
             </h2>
             <div className="space-y-2">
               {(quote.grades || []).map((grade) => (
                 <div key={grade.grade} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-md bg-green-50 px-3 py-2 text-sm font-bold text-green-950">
                   <span className="min-w-0 truncate">
-                    Grade {grade.grade}: {grade.quantity} x Rs. {grade.quotedRatePerUnit || grade.price || 0}
+                    {isGrowerSettlementView
+                      ? `${grade.grade}: ${grade.quantity || 0} x Rs. ${grade.netRate || 0}`
+                      : `Grade ${grade.grade}: ${grade.quantity} x Rs. ${grade.quotedRatePerUnit || grade.price || 0}`}
                   </span>
-                  <span>Net Rs. {grade.netSettlementRate || 0}</span>
+                  <span>
+                    {isGrowerSettlementView
+                      ? `Rs. ${grade.netAmount || 0}`
+                      : `Platform Rs. ${grade.buyerPayableThroughPlatform || Math.max(0, Number(grade.price || 0) - Number(grade.labourCharge || 0))}`}
+                  </span>
                 </div>
               ))}
             </div>
+            {isGrowerSettlementView && (
+              <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2 border-t border-green-100 pt-3 text-sm font-black text-green-950">
+                <span>Total Net Receivable</span>
+                <span>Rs. {quote.totalNetReceivable || 0}</span>
+              </div>
+            )}
           </section>
         </div>
       ) : null}

@@ -2362,7 +2362,7 @@ function MarketLotCard({ item, onUpdateLot, onDeleteLot }) {
       <p className="text-[10px] font-bold text-green-800">Rs. {amount}</p>
       {sellerQuote && (
         <p className="mt-1 rounded bg-green-50 px-2 py-1 text-[10px] font-extrabold text-green-900">
-          You Will Receive: Rs. {sellerQuote.sellerReceivable || 0}
+          Total Net Receivable: Rs. {sellerQuote.totalNetReceivable || 0}
         </p>
       )}
       {(onUpdateLot || onDeleteLot) && product._id && (
@@ -2398,8 +2398,8 @@ function GrowerBuyerQuotesSection({ quotes = [], actionId = "", onViewDetails, o
     <section>
       <div className="mb-2 flex items-center justify-between">
         <div>
-          <h2 className="text-[12px] font-extrabold text-black">Buyer Quotes Received</h2>
-          <p className="text-[10px] font-bold text-gray-500">Quotes on your own fruit lots only</p>
+          <h2 className="text-[12px] font-extrabold text-black">Grade-wise Net Quote</h2>
+          <p className="text-[10px] font-bold text-gray-500">Net receivable quotes on your own fruit lots only</p>
         </div>
         <span className="rounded-full bg-green-50 px-3 py-1 text-[9px] font-extrabold text-green-800">
           {quotes.length} quotes
@@ -2425,21 +2425,24 @@ function GrowerBuyerQuotesSection({ quotes = [], actionId = "", onViewDetails, o
                       <QuoteStatusBadge status={quote.status} />
                     </div>
                     <p className="mt-1 text-xs font-bold text-gray-600">
-                      {quote.lotQuantity || 0} boxes | {quote.buyerName || "Buyer"} | {maskPhone(quote.buyerPhone)}
+                      {quote.lotQuantity || 0} boxes
                     </p>
-                    {quote.message && (
-                      <p className="mt-1 rounded bg-white px-2 py-1 text-xs font-semibold text-gray-700">
-                        {quote.message}
-                      </p>
-                    )}
+                    <div className="mt-2 space-y-1">
+                      {(quote.grades || []).map((grade) => (
+                        <div key={grade.grade} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 rounded bg-white px-2 py-1 text-[11px] font-bold text-green-950">
+                          <span className="min-w-0 truncate">{grade.grade}: {grade.quantity || 0} x Rs. {grade.netRate || 0}</span>
+                          <span>Rs. {grade.netAmount || 0}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                   <div className="text-left md:text-right">
                     <p className="text-[10px] font-extrabold uppercase text-gray-500">
-                      Grower Receives
+                      Total Net Receivable
                     </p>
-                    <p className="text-sm font-black text-green-900">Rs. {quote.growerReceivable || quote.sellerReceivable || 0}</p>
+                    <p className="text-sm font-black text-green-900">Rs. {quote.totalNetReceivable || 0}</p>
                     <p className="text-[10px] font-bold text-gray-500">
-                      Total charges deducted: Rs. {quote.totalCharges || 0}
+                      Net receivable amount payable to the grower after applicable deductions and settlement adjustments.
                     </p>
                     <p className="text-[10px] font-bold text-gray-500">
                       {quote.createdAt ? new Date(quote.createdAt).toLocaleString("en-IN") : "Date not available"}
@@ -2497,7 +2500,10 @@ function BuyerSubmittedQuotes({ quotes = [], onViewLot }) {
                     {quote.lotTitle || "Fruit Lot"}
                   </h3>
                   <p className="text-xs font-bold text-gray-600">
-                    Grower: {quote.growerName || "Grower"} | Rs. {quote.quotedTotalValue || quote.dealAmount || 0}
+                    Grower: {quote.growerName || "Grower"} | Buyer Bid Rate Rs. {quote.quotedTotalValue || quote.dealAmount || 0}
+                  </p>
+                  <p className="text-[10px] font-bold text-green-800">
+                    Platform Payable: Rs. {quote.buyerPayableThroughPlatform || quote.buyerPayable || 0}
                   </p>
                 </div>
                 <QuoteStatusBadge status={quote.status} />

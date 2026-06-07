@@ -90,6 +90,17 @@ const formatQuote = (quotation = {}, visibility = "admin") => {
     "Grower";
 
   const grades = (quotation.grades || []).map((grade) => {
+    if (visibility === "grower") {
+      const netRate = Number(grade.netRate ?? grade.netSettlementRate ?? 0);
+      const quantity = Number(grade.quantity || 0);
+      return {
+        grade: grade.grade,
+        quantity,
+        netRate,
+        netAmount: Number(grade.netAmount ?? netRate * quantity),
+      };
+    }
+
     const baseGrade = {
       grade: grade.grade,
       quantity: grade.quantity,
@@ -97,10 +108,20 @@ const formatQuote = (quotation = {}, visibility = "admin") => {
       quotedRatePerUnit: grade.quotedRatePerUnit || grade.price || 0,
       amount: grade.amount,
     };
-    if (visibility === "buyer") return baseGrade;
+    if (visibility === "buyer") {
+      return {
+        ...baseGrade,
+        buyerPayableThroughPlatform: grade.buyerPayableThroughPlatform || Math.max(0, Number(grade.price || 0) - Number(grade.labourCharge || 0)),
+        labourCharge: grade.labourCharge || quotation.labourChargePerUnit || 0,
+      };
+    }
     return {
       ...baseGrade,
       netSettlementRate: grade.netSettlementRate || 0,
+      platformServiceFee: grade.platformServiceFee || 0,
+      logisticsCharge: grade.logisticsCharge || 0,
+      labourCharge: grade.labourCharge || quotation.labourChargePerUnit || 0,
+      buyerPayableThroughPlatform: grade.buyerPayableThroughPlatform || 0,
     };
   });
 
@@ -120,6 +141,8 @@ const formatQuote = (quotation = {}, visibility = "admin") => {
     dealAmount: quotation.dealAmount || 0,
     baseDealAmount: quotation.baseDealAmount || quotation.dealAmount || 0,
     buyerPayable: quotation.buyerPayable || quotation.dealAmount || 0,
+    buyerPayableThroughPlatform: quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount || 0,
+    labourChargePerUnit: quotation.labourChargePerUnit || 0,
     grades,
     message: quotation.message || "",
     status: normalizeQuoteStatus(quotation.status),
@@ -132,13 +155,30 @@ const formatQuote = (quotation = {}, visibility = "admin") => {
 
   if (visibility === "buyer") return base;
 
-  const settlement = {
+  const settlement = visibility === "grower" ? {
+    _id: base._id,
+    lotId: base.lotId,
+    growerId: base.growerId,
+    lotTitle: base.lotTitle,
+    fruitType: base.fruitType,
+    lotQuantity: base.lotQuantity,
+    growerName: base.growerName,
+    grades,
+    status: base.status,
+    createdAt: base.createdAt,
+    updatedAt: base.updatedAt,
+    acceptedAt: base.acceptedAt,
+    rejectedAt: base.rejectedAt,
+    lotStatus: base.lotStatus,
+    totalNetReceivable: quotation.growerReceivable || quotation.sellerReceivable || 0,
+  } : {
     ...base,
     sellerReceivable: quotation.sellerReceivable || quotation.growerReceivable || 0,
     growerReceivable: quotation.growerReceivable || quotation.sellerReceivable || 0,
     totalCharges: quotation.totalCharges || 0,
     totalUnits: quotation.totalUnits || 0,
     chargePerUnit: quotation.chargePerUnit || 0,
+    logisticsChargePerUnit: quotation.logisticsChargePerUnit || 0,
   };
 
   if (visibility === "grower") return settlement;
@@ -146,10 +186,14 @@ const formatQuote = (quotation = {}, visibility = "admin") => {
   return {
     ...settlement,
     commissionAmount: quotation.commissionAmount || 0,
+    platformServiceFee: quotation.platformServiceFee || quotation.commissionAmount || 0,
+    platformRevenue: quotation.platformServiceFee || quotation.commissionAmount || 0,
     commissionPercent: quotation.commissionPercent || 0,
     labourAmount: quotation.labourAmount || 0,
+    labourChargePerUnit: quotation.labourChargePerUnit || 0,
     logisticsAmount: quotation.logisticsAmount || quotation.driverCharge || 0,
     driverCharge: quotation.driverCharge || quotation.logisticsAmount || 0,
+    settlementStatus: settlement.status,
   };
 };
 
@@ -287,13 +331,17 @@ const createQuoteForLot = async (req, res) => {
       driverCharge: breakdown.driverCharge,
       logisticsAmount: breakdown.logisticsAmount,
       labourAmount: breakdown.labourAmount,
+      labourChargePerUnit: breakdown.labourChargePerUnit,
       commissionBase: breakdown.commissionBase,
       commissionPercent: breakdown.commissionPercent,
       commissionAmount: breakdown.commissionAmount,
+      platformServiceFee: breakdown.platformServiceFee,
       totalCharges: breakdown.totalCharges,
       totalUnits: breakdown.totalUnits,
       chargePerUnit: breakdown.chargePerUnit,
+      logisticsChargePerUnit: breakdown.logisticsChargePerUnit,
       buyerPayable: breakdown.buyerPayable,
+      buyerPayableThroughPlatform: breakdown.buyerPayableThroughPlatform,
       sellerReceivable: breakdown.sellerReceivable,
       growerReceivable: breakdown.growerReceivable,
     });
@@ -401,13 +449,17 @@ router.patch("/:quoteId", protect, authorize("buyer"), async (req, res) => {
     quotation.driverCharge = breakdown.driverCharge;
     quotation.logisticsAmount = breakdown.logisticsAmount;
     quotation.labourAmount = breakdown.labourAmount;
+    quotation.labourChargePerUnit = breakdown.labourChargePerUnit;
     quotation.commissionBase = breakdown.commissionBase;
     quotation.commissionPercent = breakdown.commissionPercent;
     quotation.commissionAmount = breakdown.commissionAmount;
+    quotation.platformServiceFee = breakdown.platformServiceFee;
     quotation.totalCharges = breakdown.totalCharges;
     quotation.totalUnits = breakdown.totalUnits;
     quotation.chargePerUnit = breakdown.chargePerUnit;
+    quotation.logisticsChargePerUnit = breakdown.logisticsChargePerUnit;
     quotation.buyerPayable = breakdown.buyerPayable;
+    quotation.buyerPayableThroughPlatform = breakdown.buyerPayableThroughPlatform;
     quotation.sellerReceivable = breakdown.sellerReceivable;
     quotation.growerReceivable = breakdown.growerReceivable;
     quotation.message = String(req.body.message || quotation.message || "").trim();
@@ -474,16 +526,20 @@ router.patch("/:quoteId/accept", protect, authorize("grower"), async (req, res) 
           grades: quotation.grades,
           dealAmount: quotation.dealAmount,
           baseDealAmount: quotation.baseDealAmount || quotation.dealAmount,
-          buyerPayable: quotation.dealAmount,
+          buyerPayable: quotation.buyerPayable || quotation.buyerPayableThroughPlatform || quotation.dealAmount,
+          buyerPayableThroughPlatform: quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount,
           sellerReceivable: quotation.sellerReceivable || quotation.growerReceivable,
           growerReceivable: quotation.growerReceivable || quotation.sellerReceivable,
           commissionAmount: quotation.commissionAmount,
+          platformServiceFee: quotation.platformServiceFee || quotation.commissionAmount,
           commissionPercent: quotation.commissionPercent,
           labourAmount: quotation.labourAmount || 0,
+          labourChargePerUnit: quotation.labourChargePerUnit || 0,
           logisticsAmount: quotation.logisticsAmount || quotation.driverCharge || 0,
           totalCharges: quotation.totalCharges || 0,
           totalUnits: quotation.totalUnits || 0,
           chargePerUnit: quotation.chargePerUnit || 0,
+          logisticsChargePerUnit: quotation.logisticsChargePerUnit || 0,
           driverCharge: quotation.driverCharge,
         },
         driverPayment: quotation.driverCharge || 0,
@@ -572,16 +628,18 @@ router.get("/lots/:lotId", protect, authorize("buyer", "grower"), async (req, re
         quotations: quotations.map((quotation) => ({
           _id: quotation._id,
           status: quotation.status,
-          sellerReceivable: quotation.sellerReceivable,
+          grades: (quotation.grades || []).map((grade) => {
+            const netRate = Number(grade.netRate ?? grade.netSettlementRate ?? 0);
+            const quantity = Number(grade.quantity || 0);
+            return {
+              grade: grade.grade,
+              quantity,
+              netRate,
+              netAmount: Number(grade.netAmount ?? netRate * quantity),
+            };
+          }),
+          totalNetReceivable: quotation.growerReceivable || quotation.sellerReceivable || 0,
           createdAt: quotation.createdAt,
-          buyer: {
-            _id: quotation.buyer?._id,
-            name:
-              quotation.buyer?.businessName ||
-              quotation.buyer?.buyerContactPerson ||
-              quotation.buyer?.name ||
-              "Buyer",
-          },
         })),
       });
     }

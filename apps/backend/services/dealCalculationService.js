@@ -18,6 +18,9 @@ export const DEFAULT_DRIVER_CHARGE_SLABS = [
 ];
 
 const roundMoney = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+const roundRate = (value) => Math.round(Number(value) || 0);
+const DEFAULT_PLATFORM_SERVICE_FEE_PERCENT = 5;
+const DEFAULT_LABOUR_CHARGE_PER_UNIT = 5;
 
 export const normalizeGradeQuantities = (gradeQuantities = {}) => {
   if (Array.isArray(gradeQuantities)) {
@@ -66,8 +69,8 @@ export const calculateDealBreakdown = ({
   gradeQuantities = {},
   gradePrices = {},
   distanceKm = 0,
-  commissionPercent = Number(process.env.PLATFORM_COMMISSION_PERCENT || 5),
-  labourAmount = Number(process.env.DEFAULT_LABOUR_AMOUNT || 500),
+  commissionPercent = Number(process.env.PLATFORM_COMMISSION_PERCENT || DEFAULT_PLATFORM_SERVICE_FEE_PERCENT),
+  labourAmount = Number(process.env.DEFAULT_LABOUR_AMOUNT || DEFAULT_LABOUR_CHARGE_PER_UNIT),
   driverChargeSlabs = DEFAULT_DRIVER_CHARGE_SLABS,
   gradeOrder = DEFAULT_GRADE_ORDER,
 } = {}) => {
@@ -100,19 +103,42 @@ export const calculateDealBreakdown = ({
   const dealAmount = roundMoney(
     gradeBreakdown.reduce((sum, item) => sum + Number(item.amount || 0), 0)
   );
-  const driverCharge = calculateDriverCharge(distanceKm, driverChargeSlabs);
-  const logisticsAmount = driverCharge;
+  const logisticsChargePerUnit = calculateDriverCharge(distanceKm, driverChargeSlabs);
+  const logisticsAmount = roundMoney(totalUnits * logisticsChargePerUnit);
+  const driverCharge = logisticsAmount;
   const commissionBase = dealAmount;
   const commissionAmount = roundMoney(commissionBase * (Number(commissionPercent || 0) / 100));
-  const labour = roundMoney(Number(labourAmount || 0));
+  const labourChargePerUnit = roundMoney(Number(labourAmount || 0));
+  const labour = roundMoney(totalUnits * labourChargePerUnit);
   const totalCharges = roundMoney(commissionAmount + labour + logisticsAmount);
   const chargePerUnit = totalUnits > 0 ? roundMoney(totalCharges / totalUnits) : 0;
-  const settlementGrades = gradeBreakdown.map((grade) => ({
-    ...grade,
-    netSettlementRate: roundMoney(Math.max(0, Number(grade.price || 0) - chargePerUnit)),
-  }));
-  const sellerReceivable = roundMoney(Math.max(0, dealAmount - totalCharges));
-  const buyerPayable = dealAmount;
+  const settlementGrades = gradeBreakdown.map((grade) => {
+    const platformServiceFee = roundMoney(Number(grade.price || 0) * (Number(commissionPercent || 0) / 100));
+    const netSettlementRate = roundRate(
+      Math.max(
+        0,
+        Number(grade.price || 0) -
+          platformServiceFee -
+          labourChargePerUnit -
+          logisticsChargePerUnit
+      )
+    );
+
+    return {
+      ...grade,
+      platformServiceFee,
+      logisticsCharge: logisticsChargePerUnit,
+      labourCharge: labourChargePerUnit,
+      buyerPayableThroughPlatform: roundMoney(Math.max(0, Number(grade.price || 0) - labourChargePerUnit)),
+      netSettlementRate,
+      netRate: netSettlementRate,
+      netAmount: roundMoney(netSettlementRate * Number(grade.quantity || 0)),
+    };
+  });
+  const sellerReceivable = roundMoney(
+    settlementGrades.reduce((sum, grade) => sum + Number(grade.netAmount || 0), 0)
+  );
+  const buyerPayable = roundMoney(Math.max(0, dealAmount - labour));
 
   return {
     grades: settlementGrades,
@@ -123,14 +149,18 @@ export const calculateDealBreakdown = ({
     driverCharge,
     logisticsAmount,
     labourAmount: labour,
+    labourChargePerUnit,
     commissionBase,
     commissionPercent: Number(commissionPercent || 0),
     commissionAmount,
+    platformServiceFee: commissionAmount,
     totalCharges,
     chargePerUnit,
+    logisticsChargePerUnit,
     sellerReceivable,
     growerReceivable: sellerReceivable,
     buyerPayable,
+    buyerPayableThroughPlatform: buyerPayable,
   };
 };
 
@@ -155,8 +185,8 @@ export const buildGradeQuantitiesFromProduct = (product = {}) =>
 
 export const mergeDealSettings = (settings = {}) => ({
   commissionPercent:
-    settings.commissionPercent ?? Number(process.env.PLATFORM_COMMISSION_PERCENT || 5),
-  labourAmount: settings.labourAmount ?? Number(process.env.DEFAULT_LABOUR_AMOUNT || 500),
+    settings.commissionPercent ?? Number(process.env.PLATFORM_COMMISSION_PERCENT || DEFAULT_PLATFORM_SERVICE_FEE_PERCENT),
+  labourAmount: Number(process.env.DEFAULT_LABOUR_AMOUNT || DEFAULT_LABOUR_CHARGE_PER_UNIT),
   driverChargeSlabs: settings.driverChargeSlabs?.length
     ? settings.driverChargeSlabs
     : DEFAULT_DRIVER_CHARGE_SLABS,

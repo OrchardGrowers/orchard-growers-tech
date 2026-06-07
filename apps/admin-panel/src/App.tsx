@@ -351,21 +351,27 @@ type AdminQuote = {
   quotedTotalValue?: number;
   baseDealAmount?: number;
   buyerPayable?: number;
+  buyerPayableThroughPlatform?: number;
   sellerReceivable?: number;
   growerReceivable?: number;
   commissionAmount?: number;
+  platformServiceFee?: number;
+  platformRevenue?: number;
   commissionPercent?: number;
   labourAmount?: number;
+  labourChargePerUnit?: number;
   logisticsAmount?: number;
   totalCharges?: number;
   totalUnits?: number;
   chargePerUnit?: number;
+  logisticsChargePerUnit?: number;
   status?: string;
   acceptedAt?: string;
   rejectedAt?: string;
   createdAt?: string;
   updatedAt?: string;
   lotStatus?: string;
+  settlementStatus?: string;
 };
 type AdminUser = {
   _id: string;
@@ -5375,13 +5381,17 @@ function AdminQuotesPanel({ quotes }: { quotes: AdminQuote[] }) {
                 </div>
                 <p className="min-w-0 truncate font-bold text-slate-100">{quote.growerName || 'Grower'}</p>
                 <div>
-                  <p className="font-black text-emerald-300">Base Rs. {Number(quote.baseDealAmount || quote.quotedTotalValue || 0).toLocaleString('en-IN')}</p>
-                  <p className="text-xs font-semibold text-slate-400">Grower Rs. {Number(quote.growerReceivable || quote.sellerReceivable || 0).toLocaleString('en-IN')}</p>
+                  <p className="font-black text-emerald-300">Buyer Bid Rate Rs. {Number(quote.quotedPrice || 0).toLocaleString('en-IN')}</p>
+                  <p className="text-xs font-semibold text-slate-400">Buyer Bid Total Rs. {Number(quote.baseDealAmount || quote.quotedTotalValue || 0).toLocaleString('en-IN')}</p>
+                  <p className="text-xs font-semibold text-slate-400">Platform Payable Rs. {Number(quote.buyerPayableThroughPlatform || quote.buyerPayable || 0).toLocaleString('en-IN')}</p>
+                  <p className="text-xs font-semibold text-slate-400">Grower Net Rs. {Number(quote.growerReceivable || quote.sellerReceivable || 0).toLocaleString('en-IN')}</p>
                 </div>
                 <div className="text-xs font-semibold text-slate-400">
-                  <p>Total Rs. {Number(quote.totalCharges || 0).toLocaleString('en-IN')}</p>
-                  <p>Comm Rs. {Number(quote.commissionAmount || 0).toLocaleString('en-IN')} | Labour Rs. {Number(quote.labourAmount || 0).toLocaleString('en-IN')}</p>
-                  <p>Logistics Rs. {Number(quote.logisticsAmount || 0).toLocaleString('en-IN')} | Unit Rs. {Number(quote.chargePerUnit || 0).toLocaleString('en-IN')}</p>
+                  <p>Platform Service Fee Rs. {Number(quote.platformServiceFee || quote.commissionAmount || 0).toLocaleString('en-IN')}</p>
+                  <p>Platform Revenue Rs. {Number(quote.platformServiceFee || quote.commissionAmount || 0).toLocaleString('en-IN')}</p>
+                  <p>Logistics Charge Rs. {Number(quote.logisticsChargePerUnit || 0).toLocaleString('en-IN')} / unit</p>
+                  <p>Logistics Total Rs. {Number(quote.logisticsAmount || 0).toLocaleString('en-IN')}</p>
+                  <p>Labour Rs. {Number(quote.labourChargePerUnit || 0).toLocaleString('en-IN')} (Buyer Managed)</p>
                 </div>
                 <AdminQuoteStatusBadge status={quote.status} />
               </article>

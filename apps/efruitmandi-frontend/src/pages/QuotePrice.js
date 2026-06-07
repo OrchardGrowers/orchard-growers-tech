@@ -442,9 +442,13 @@ function BuyerQuoteSummary({ breakdown = {} }) {
         </div>
       )}
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-green-200 pt-2 text-base font-extrabold">
-        <span className="min-w-0 truncate">Deal Amount</span>
+        <span className="min-w-0 truncate">Buyer Bid Rate</span>
         <span className="shrink-0">Rs. {breakdown.dealAmount || 0}</span>
       </div>
+      <SummaryRow label="Buyer Payable Through Platform" value={breakdown.buyerPayableThroughPlatform || breakdown.buyerPayable || 0} />
+      <p className="rounded bg-white px-2 py-1 text-[11px] font-bold text-green-800">
+        Rs. {breakdown.labourChargePerUnit || 5} Labour Charge is managed and paid separately by the Buyer.
+      </p>
     </div>
   );
 }
@@ -463,8 +467,8 @@ function MobileQuoteSubmitBar({ saving, disabled = false, preview = {}, onSubmit
     <div className="fixed left-0 right-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-40 w-full max-w-[100vw] border-t border-green-100 bg-white/95 px-4 pb-[calc(10px+env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-8px_20px_rgba(0,0,0,0.08)] backdrop-blur md:hidden">
       <div className="flex w-full max-w-full items-center gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-extrabold uppercase text-gray-500">Deal Amount</p>
-          <p className="truncate text-base font-extrabold text-green-800">Rs. {preview.dealAmount || 0}</p>
+          <p className="text-[10px] font-extrabold uppercase text-gray-500">Platform Payable</p>
+          <p className="truncate text-base font-extrabold text-green-800">Rs. {preview.buyerPayableThroughPlatform || preview.buyerPayable || 0}</p>
         </div>
         <button
           type="button"
@@ -639,19 +643,27 @@ function calculateDriverCharge(distanceKm = 0) {
 }
 
 function calculateBuyerPreview(availableGrades, gradePrices, distanceKm) {
+  const labourChargePerUnit = 5;
   const grades = availableGrades.map((gradeLot) => {
     const price = Number(gradePrices[gradeLot.grade] || 0);
     return {
       grade: gradeLot.grade,
       quantity: gradeLot.quantity,
       price,
+      labourCharge: labourChargePerUnit,
+      buyerPayableThroughPlatform: Math.max(0, price - labourChargePerUnit),
       amount: Math.round(gradeLot.quantity * price),
     };
   });
   const dealAmount = grades.reduce((sum, grade) => sum + Number(grade.amount || 0), 0);
+  const totalUnits = grades.reduce((sum, grade) => sum + Number(grade.quantity || 0), 0);
+  const labourAmount = totalUnits * labourChargePerUnit;
   return {
     grades,
     dealAmount,
-    buyerPayable: dealAmount,
+    labourChargePerUnit,
+    labourAmount,
+    buyerPayable: Math.max(0, dealAmount - labourAmount),
+    buyerPayableThroughPlatform: Math.max(0, dealAmount - labourAmount),
   };
 }

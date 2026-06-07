@@ -25,7 +25,7 @@ const dealSettingsSchema = new mongoose.Schema(
     },
     labourAmount: {
       type: Number,
-      default: 500,
+      default: 5,
       min: 0,
     },
     driverChargeSlabs: [driverChargeSlabSchema],
