@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import StartupSplash from "./components/StartupSplash";
 import AppFeedback from "./components/AppFeedback";
 import InstallAppPrompt from "./components/InstallAppPrompt";
+import TestingModeGate from "./components/TestingModeGate";
 
 // 🔹 Layout
 import MainLayout from "./layouts/MainLayout";
@@ -34,16 +35,18 @@ import RateGrower from "./pages/RateGrower";
 
 function App() {
   return (
-    <BrowserRouter
-      future={{
-        v7_startTransition: true,
-        v7_relativeSplatPath: true,
-      }}
-    >
+    <>
       <AppFeedback />
-      <StartupSplash />
-      <InstallAppPrompt />
-      <Routes>
+      <TestingModeGate>
+        <BrowserRouter
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          }}
+        >
+          <StartupSplash />
+          <InstallAppPrompt />
+          <Routes>
 
         {/* 🔹 Main Layout Wrapper */}
         <Route path="/" element={<MainLayout />}>
@@ -98,8 +101,10 @@ function App() {
 
         </Route>
 
-      </Routes>
-    </BrowserRouter>
+          </Routes>
+        </BrowserRouter>
+      </TestingModeGate>
+    </>
   );
 }
 
