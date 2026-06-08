@@ -77,7 +77,7 @@ export default function Payment() {
       setAmount(res.data.amount);
 
       await API.post("/billdesk/callback", { orderId });
-      navigate(`/escrow/${orderId}`);
+      navigate(`/escrow/${orderId}?payment=success&section=logistics`);
     } catch (err) {
       setMessage(err.response?.data?.msg || "Payment failed");
     } finally {
