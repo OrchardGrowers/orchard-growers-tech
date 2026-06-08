@@ -242,6 +242,16 @@ const io = new Server(server, {
     credentials: true,
   },
 });
+app.set("io", io);
+
+const emitEfruitMandiMarketUpdate = (action, payload = {}) => {
+  io.emit("efruitmandiMarketUpdated", {
+    platform: "efruitmandi",
+    action,
+    updatedAt: new Date().toISOString(),
+    ...payload,
+  });
+};
 
 const userHasProfile = (user, profileType) =>
   user?.role === profileType ||
@@ -484,6 +494,9 @@ setInterval(async () => {
           auctionId: auction._id,
           startTime: auction.startTime,
         });
+        emitEfruitMandiMarketUpdate("deal-started", {
+          auctionId: auction._id,
+        });
 
         console.log("Deal started:", auction._id);
       }
@@ -502,6 +515,10 @@ setInterval(async () => {
           io.to(auction._id.toString()).emit("dealEnded", {
             winner: null,
             finalPrice: auction.currentBid,
+            orderId: null,
+          });
+          emitEfruitMandiMarketUpdate("deal-ended", {
+            auctionId: auction._id,
             orderId: null,
           });
           continue;
@@ -523,6 +540,10 @@ setInterval(async () => {
           io.to(auction._id.toString()).emit("dealEnded", {
             winner: auction.highestBidder,
             finalPrice: auction.currentBid,
+            orderId: order._id,
+          });
+          emitEfruitMandiMarketUpdate("deal-ended", {
+            auctionId: auction._id,
             orderId: order._id,
           });
 

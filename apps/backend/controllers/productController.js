@@ -11,6 +11,18 @@ import {
 const AUCTION_DELAY_MS = 5 * 60 * 1000;
 const AUCTION_DURATION_MS = 24 * 60 * 60 * 1000;
 
+const emitEfruitMandiMarketUpdate = (req, action, payload = {}) => {
+  const io = req.app?.get("io");
+  if (!io) return;
+
+  io.emit("efruitmandiMarketUpdated", {
+    platform: "efruitmandi",
+    action,
+    updatedAt: new Date().toISOString(),
+    ...payload,
+  });
+};
+
 const canSeeBasePrice = (product, user) =>
   (user?.role === "grower" ||
     (Array.isArray(user?.profileTypes) && user.profileTypes.includes("grower"))) &&
@@ -373,6 +385,11 @@ export const createProduct = async (req, res) => {
       endTime: auctionEndAt,
     });
 
+    emitEfruitMandiMarketUpdate(req, "lot-created", {
+      productId: product._id,
+      auctionId: auction._id,
+    });
+
     res.json({
       message: "Product created",
       product,
@@ -562,6 +579,11 @@ export const updateProduct = async (req, res) => {
       await linkedAuction.save();
     }
 
+    emitEfruitMandiMarketUpdate(req, "lot-updated", {
+      productId: product._id,
+      auctionId: linkedAuction?._id,
+    });
+
     res.json({ message: "Product updated", product });
   } catch (err) {
     res.status(500).json({ msg: err.message });
@@ -590,6 +612,10 @@ export const deleteProduct = async (req, res) => {
     await Auction.deleteMany({ product: product._id });
     await Quotation.deleteMany({ lot: product._id });
     await product.deleteOne();
+
+    emitEfruitMandiMarketUpdate(req, "lot-deleted", {
+      productId: product._id,
+    });
 
     res.json({ msg: "Listing deleted successfully" });
   } catch (err) {

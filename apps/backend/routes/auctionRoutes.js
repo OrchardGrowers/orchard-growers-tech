@@ -97,6 +97,18 @@ const serializeAuction = (auction, user) => {
   return data;
 };
 
+const emitEfruitMandiMarketUpdate = (req, action, payload = {}) => {
+  const io = req.app?.get("io");
+  if (!io) return;
+
+  io.emit("efruitmandiMarketUpdated", {
+    platform: "efruitmandi",
+    action,
+    updatedAt: new Date().toISOString(),
+    ...payload,
+  });
+};
+
 // ================= CREATE DEAL =================
 router.post("/", protect, authorize("grower"), async (req, res) => {
   try {
@@ -139,6 +151,11 @@ router.post("/", protect, authorize("grower"), async (req, res) => {
       status,
       startTime: auctionStartTime,
       endTime: auctionEndTime,
+    });
+
+    emitEfruitMandiMarketUpdate(req, "deal-created", {
+      auctionId: auction._id,
+      productId: product,
     });
 
     res.json(auction);
@@ -252,6 +269,12 @@ router.post("/end/:id", protect, authorize("grower"), async (req, res) => {
     await auction.save();
 
     if (!auction.highestBidder) {
+      emitEfruitMandiMarketUpdate(req, "deal-ended", {
+        auctionId: auction._id,
+        productId: product._id,
+        orderId: null,
+      });
+
       return res.json({
         msg: "Deal ended without deal prices",
       });
@@ -265,6 +288,12 @@ router.post("/end/:id", protect, authorize("grower"), async (req, res) => {
 
     res.json({
       msg: "Deal ended successfully",
+      orderId: order._id,
+    });
+
+    emitEfruitMandiMarketUpdate(req, "deal-ended", {
+      auctionId: auction._id,
+      productId: product._id,
       orderId: order._id,
     });
 

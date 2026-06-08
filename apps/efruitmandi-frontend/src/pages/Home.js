@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   FaChevronLeft,
@@ -19,6 +19,7 @@ import {
 import BannerSlider from "../components/BannerSlider";
 import TopFilters from "../components/TopFilters";
 import API, { FILE_BASE_URL } from "../services/api";
+import socket from "../services/socket";
 import {
   getCurrentUser,
   canQuote,
@@ -166,6 +167,22 @@ export default function Home() {
   const [desktopSection, setDesktopSection] = useState("liveLots");
   const [marketClock, setMarketClock] = useState(() => Date.now());
   const isGrower = isGrowerAccount(user);
+  const loadHome = useCallback(async ({ showLoading = false } = {}) => {
+    if (showLoading) setLoading(true);
+
+    try {
+      const [productRes, auctionRes] = await Promise.all([
+        API.get("/products?platform=efruitmandi").catch(() => ({ data: [] })),
+        API.get("/auctions").catch(() => ({ data: [] })),
+      ]);
+
+      setProducts(getEfruitMandiProducts(productRes.data));
+      setAuctions(auctionRes.data || []);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const openProfileEntry = () => {
     if (localStorage.getItem("accessToken")) {
       navigate("/profile-dashboard");
@@ -176,22 +193,44 @@ export default function Home() {
   };
 
   useEffect(() => {
-    const loadHome = async () => {
-      try {
-        const [productRes, auctionRes] = await Promise.all([
-          API.get("/products?platform=efruitmandi").catch(() => ({ data: [] })),
-          API.get("/auctions").catch(() => ({ data: [] })),
-        ]);
+    loadHome({ showLoading: true });
+  }, [loadHome]);
 
-        setProducts(getEfruitMandiProducts(productRes.data));
-        setAuctions(auctionRes.data || []);
-      } finally {
-        setLoading(false);
-      }
+  useEffect(() => {
+    const refreshMarket = () => {
+      loadHome();
+    };
+    const handleDealUpdate = ({ dealAmount, auctionId, highestGradeRate, dealBreakdown }) => {
+      setAuctions((current) =>
+        current.map((auction) =>
+          auction._id === auctionId
+            ? {
+                ...auction,
+                currentBid: dealAmount,
+                highestGradeRate: highestGradeRate ?? auction.highestGradeRate,
+                dealBreakdown: dealBreakdown ?? auction.dealBreakdown,
+              }
+            : auction
+        )
+      );
     };
 
-    loadHome();
-  }, []);
+    socket.on("efruitmandiMarketUpdated", refreshMarket);
+    socket.on("auctionStarted", refreshMarket);
+    socket.on("dealStarted", refreshMarket);
+    socket.on("auctionEnded", refreshMarket);
+    socket.on("dealEnded", refreshMarket);
+    socket.on("dealUpdate", handleDealUpdate);
+
+    return () => {
+      socket.off("efruitmandiMarketUpdated", refreshMarket);
+      socket.off("auctionStarted", refreshMarket);
+      socket.off("dealStarted", refreshMarket);
+      socket.off("auctionEnded", refreshMarket);
+      socket.off("dealEnded", refreshMarket);
+      socket.off("dealUpdate", handleDealUpdate);
+    };
+  }, [loadHome]);
 
   useEffect(() => {
     const syncLocalUser = () => {
@@ -241,6 +280,12 @@ export default function Home() {
     const timer = window.setInterval(() => setMarketClock(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    auctions.forEach((auction) => {
+      if (auction?._id) socket.emit("joinAuction", auction._id);
+    });
+  }, [auctions]);
 
   const feedItems = useMemo(
     () => buildFeed(products, auctions),
