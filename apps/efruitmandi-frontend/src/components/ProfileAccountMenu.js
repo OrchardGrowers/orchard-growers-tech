@@ -53,10 +53,15 @@ const resolveProfileMode = (user = {}, requestedMode = "") => {
   if (mode === "buyer" && hasBuyerProfile(user)) return "buyer";
   if (mode === "grower" && hasGrowerProfile(user)) return "grower";
   if (mode === "driver" && hasDriverProfile(user)) return "driver";
-  const role = String(user.activeRole || user.selectedRole || user.role || "").toLowerCase();
+  const role = String(user.activeRole || user.selectedRole || "").toLowerCase();
   if (role === "grower" && hasGrowerProfile(user)) return "grower";
   if (role === "buyer" && hasBuyerProfile(user)) return "buyer";
   if (role === "driver" && hasDriverProfile(user)) return "driver";
+  const availableProfiles = [hasGrowerProfile(user), hasBuyerProfile(user), hasDriverProfile(user)].filter(Boolean).length;
+  const primaryRole = String(user.role || "").toLowerCase();
+  if (availableProfiles <= 1 && primaryRole === "grower" && hasGrowerProfile(user)) return "grower";
+  if (availableProfiles <= 1 && primaryRole === "buyer" && hasBuyerProfile(user)) return "buyer";
+  if (availableProfiles <= 1 && primaryRole === "driver" && hasDriverProfile(user)) return "driver";
   if (hasGrowerProfile(user)) return "grower";
   if (hasBuyerProfile(user)) return "buyer";
   if (hasDriverProfile(user)) return "driver";
@@ -65,7 +70,7 @@ const resolveProfileMode = (user = {}, requestedMode = "") => {
 
 const getRequestedProfileMode = () => {
   const queryMode = new URLSearchParams(window.location.search).get("mode");
-  return queryMode || localStorage.getItem("efruitmandiProfileMode") || "";
+  return queryMode || "";
 };
 
 export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobile = false }) {
