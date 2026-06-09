@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import SEO from "../components/SEO";
 import {
   FaChevronLeft,
   FaChevronRight,
@@ -363,8 +364,14 @@ export default function Home() {
   };
 
   return (
-    <>
-      <FloatingLotActions
+  <>
+    <SEO
+      title="eFruitMandi - India's Fresh Fruit Marketplace for Growers, Buyers and Logistics"
+      description="India's fresh fruit marketplace connecting apple growers, fruit buyers, commission agents, wholesalers, exporters and logistics partners. Buy and sell fruit lots directly."
+      canonical="/"
+    />
+
+    <FloatingLotActions
         onList={() => navigate(isGrower ? "/list-new-lot" : "/profile")}
         onBuy={() => navigate("/auctions")}
       />

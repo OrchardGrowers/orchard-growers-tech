@@ -14,6 +14,7 @@ import {
 } from "react-icons/fa";
 import API, { FILE_BASE_URL, getApiErrorMessage } from "../services/api";
 import CountdownTimer from "../components/CountdownTimer";
+import SEO from "../components/SEO";
 import { canQuote, getCurrentUser, hasBuyerProfile } from "../utils/auth";
 import { saveUserToStorage } from "../utils/userStorage";
 
@@ -143,7 +144,69 @@ export default function LotDetails() {
     );
   }
 
+    const fruitName =
+    product?.fruitName ||
+    product?.name ||
+    product?.title ||
+    product?.category ||
+    "Fresh Fruit";
+
+  const variety =
+    product?.variety ||
+    product?.fruitVariety ||
+    product?.grade ||
+    "";
+
+  const district =
+    product?.district ||
+    product?.location?.district ||
+    createdBy?.district ||
+    "";
+
+  const state =
+    product?.state ||
+    product?.location?.state ||
+    createdBy?.state ||
+    "India";
+
+  const lotTitleParts = [variety, fruitName].filter(Boolean).join(" ");
+  const seoLocation = [district, state].filter(Boolean).join(", ");
+
+  const seoTitle = `${lotTitleParts} Lot in ${seoLocation} | eFruitMandi`;
+
+  const seoDescription = `Buy fresh ${lotTitleParts} directly from verified growers in ${seoLocation}. View quantity, grade, packing, harvest date and logistics details on eFruitMandi.`;
+
+  const seoImage = activeImage || images?.[0] || "/og-efruitmandi.jpg";
+
+  const productSchema = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: lotTitleParts,
+    description: seoDescription,
+    image: seoImage,
+    brand: {
+      "@type": "Brand",
+      name: "eFruitMandi",
+    },
+    category: fruitName,
+    areaServed: seoLocation,
+    seller: {
+      "@type": "Organization",
+      name: growerName,
+    },
+  };
+
   return (
+  <>
+    <SEO
+      title={seoTitle}
+      description={seoDescription}
+      canonical={`/lots/${lotId}`}
+      image={seoImage}
+      type="product"
+      schema={productSchema}
+    />
+
     <div className="w-full max-w-full overflow-x-hidden pb-[calc(160px+env(safe-area-inset-bottom))]">
       <button
         type="button"
@@ -328,9 +391,10 @@ export default function LotDetails() {
           onReset={() => setImageZoom(1)}
           onClose={() => setImagePreviewOpen(false)}
         />
-      )}
+            )}
     </div>
-  );
+  </>
+);
 }
 
 function ImageZoomModal({ imageUrl, title, zoom, onZoomIn, onZoomOut, onReset, onClose }) {

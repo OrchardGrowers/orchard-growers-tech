@@ -1,3 +1,13 @@
-# https://www.robotstxt.org/robotstxt.html
 User-agent: *
-Disallow:
+Allow: /
+
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /profile
+Disallow: /kyc
+Disallow: /payment
+Disallow: /checkout
+Disallow: /notifications
+Disallow: /api
+
+Sitemap: https://www.efruitmandi.live/sitemap.xml
