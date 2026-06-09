@@ -1,14 +1,15 @@
-const CACHE_VERSION = "efruitmandi-pwa-v9";
+const CACHE_VERSION = "efruitmandi-v20260609";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
+const CACHE_PREFIXES = ["efruitmandi-v", "efruitmandi-pwa-"];
 
 const APP_SHELL = [
-  "/",
-  "/?source=pwa",
-  "/index.html",
   "/offline.html",
-  "/manifest.json",
   "/favicon.ico",
+  "/favicon-16x16.png",
+  "/favicon-24x24.png",
+  "/favicon-32x32.png",
+  "/favicon-64x64.png",
   "/icon-192.png",
   "/icon-512.png",
   "/maskable-icon-192.png",
@@ -46,7 +47,7 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(STATIC_CACHE)
-      .then((cache) => cache.addAll(APP_SHELL))
+      .then((cache) => cache.addAll(APP_SHELL.map((url) => new Request(url, { cache: "reload" }))))
       .then(() => self.skipWaiting())
   );
 });
@@ -58,7 +59,8 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key.startsWith("efruitmandi-pwa-") && ![STATIC_CACHE, RUNTIME_CACHE].includes(key))
+            .filter((key) => CACHE_PREFIXES.some((prefix) => key.startsWith(prefix)))
+            .filter((key) => ![STATIC_CACHE, RUNTIME_CACHE].includes(key))
             .map((key) => caches.delete(key))
         )
       )
@@ -75,13 +77,8 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, copy));
-          return response;
-        })
-        .catch(() => caches.match(request).then((cached) => cached || caches.match("/offline.html")))
+      fetch(request, { cache: "no-store" })
+        .catch(() => caches.match("/offline.html"))
     );
     return;
   }
