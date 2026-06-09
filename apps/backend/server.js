@@ -5,6 +5,7 @@ import cors from "cors";
 import jwt from "jsonwebtoken";
 import multer from "multer";
 import connectDB from "./config/db.js";
+import sitemapRoutes from "./routes/sitemapRoutes.js";
 
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
@@ -158,6 +159,7 @@ app.use(express.urlencoded({ limit: "200mb", extended: true }));
 app.use("/uploads", express.static("uploads"));
 
 // ================= ROUTES =================
+app.use("/", sitemapRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/me", userRoutes);
