@@ -10,6 +10,7 @@ import {
 } from "react-icons/fa";
 import API from "../services/api";
 import AuthBrandShell from "../components/AuthBrandShell";
+import { trackGrowerRegistration } from "../services/analytics";
 import {
   getEfruitMandiWidgetId,
   getEfruitMandiTokenAuth,
@@ -197,6 +198,7 @@ export default function RegisterGrower() {
       });
 
       localStorage.setItem("user", JSON.stringify(res.data.user));
+      trackGrowerRegistration();
       navigate("/profile-dashboard");
     } catch (err) {
       setMessage(err.response?.data?.msg || "Grower registration failed.");

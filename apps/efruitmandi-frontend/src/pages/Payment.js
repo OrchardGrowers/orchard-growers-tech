@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import API from "../services/api";
+import { trackPaymentFailed, trackPaymentInitiated, trackPaymentSuccess } from "../services/analytics";
 import { useParams, useNavigate } from "react-router-dom";
 import BackHomeButton from "../components/BackHomeButton";
 import { getCurrentUser, hasBuyerProfile } from "../utils/auth";
@@ -73,12 +74,22 @@ export default function Payment() {
     setMessage("");
 
     try {
+      trackPaymentInitiated({
+        value: amount || getBuyerPayableAmount(order),
+      });
+
       const res = await API.post("/billdesk/pay", { orderId });
       setAmount(res.data.amount);
 
       await API.post("/billdesk/callback", { orderId });
+      trackPaymentSuccess({
+        value: res.data.amount || amount || getBuyerPayableAmount(order),
+      });
       navigate(`/escrow/${orderId}?payment=success&section=logistics`);
     } catch (err) {
+      trackPaymentFailed({
+        value: amount || getBuyerPayableAmount(order),
+      });
       setMessage(err.response?.data?.msg || "Payment failed");
     } finally {
       setLoading(false);

@@ -12,6 +12,7 @@ import {
 } from "react-icons/fa";
 import API from "../services/api";
 import AuthBrandShell from "../components/AuthBrandShell";
+import { trackBuyerRegistration } from "../services/analytics";
 import {
   getEfruitMandiWidgetId,
   getEfruitMandiTokenAuth,
@@ -237,6 +238,7 @@ export default function RegisterBuyer() {
       });
 
       localStorage.setItem("user", JSON.stringify(res.data.user));
+      trackBuyerRegistration();
       navigate(returnTo);
     } catch (err) {
       setMessage(err.response?.data?.msg || "Buyer registration failed.");

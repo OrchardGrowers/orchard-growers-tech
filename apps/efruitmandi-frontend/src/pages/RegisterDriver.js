@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaIdCard, FaMapMarkerAlt, FaPhoneAlt, FaTruck } from "react-icons/fa";
 import API from "../services/api";
+import { trackLogisticsRegistration } from "../services/analytics";
 import { getCurrentUser, hasBuyerProfile, hasDriverProfile } from "../utils/auth";
 
 export default function RegisterDriver() {
@@ -74,6 +75,7 @@ export default function RegisterDriver() {
       });
 
       localStorage.setItem("user", JSON.stringify(res.data.user));
+      trackLogisticsRegistration();
       navigate("/delivery");
     } catch (err) {
       setMessage(err.response?.data?.msg || "Driver registration failed.");

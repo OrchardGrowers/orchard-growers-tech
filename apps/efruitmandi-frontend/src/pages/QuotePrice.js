@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { FaCalculator, FaMapMarkerAlt, FaSeedling, FaVideo } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
+import { trackDealCreated } from "../services/analytics";
 import BackHomeButton from "../components/BackHomeButton";
 import { canQuote, getCurrentUser, getKycStatusLabel, hasBuyerProfile } from "../utils/auth";
 import { saveUserToStorage } from "../utils/userStorage";
@@ -100,6 +101,13 @@ export default function QuotePrice() {
         distanceKm: effectiveDistanceKm,
       });
       setQuotation(res.data?.quotation || null);
+      trackDealCreated({
+        _id: res.data?.quotation?._id || res.data?.quotation?.id || "",
+        lotId,
+        fruitName: product?.fruitName || product?.title || "",
+        category: product?.category || product?.fruitName || "",
+        value: Number(res.data?.quotation?.quotedPrice || 0),
+      });
       setMessage("Quote submitted successfully.");
     } catch (err) {
       setMessage(err.response?.data?.message || err.response?.data?.msg || "Quote could not be submitted.");

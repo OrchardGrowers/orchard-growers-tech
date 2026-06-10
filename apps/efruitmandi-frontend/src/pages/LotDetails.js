@@ -16,6 +16,7 @@ import API, { FILE_BASE_URL, getApiErrorMessage } from "../services/api";
 import CountdownTimer from "../components/CountdownTimer";
 import SEO from "../components/SEO";
 import { canQuote, getCurrentUser, hasBuyerProfile } from "../utils/auth";
+import { trackLotContact, trackLotView } from "../services/analytics";
 import { saveUserToStorage } from "../utils/userStorage";
 
 export default function LotDetails() {
@@ -82,6 +83,7 @@ export default function LotDetails() {
   const growerRatingCount = Number(createdBy.growerRatingCount || 0);
   const activeGradeLabel = getImageGradeLabel(product, activeImage);
   const openQuoteFlow = () => {
+    trackLotContact(product || {});
     const quotePath = `/lots/${product._id}/quote`;
     if (!localStorage.getItem("accessToken")) {
       navigate("/profile", { state: { mode: "login", from: quotePath } });

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { FaCheckCircle, FaFileUpload, FaIdCard, FaRedo, FaUniversity } from "react-icons/fa";
 import API, { getApiErrorMessage, getApiFieldErrors } from "../services/api";
+import { trackKycSubmitted } from "../services/analytics";
 import BackHomeButton from "../components/BackHomeButton";
 import { getKycStatusLabel, getProfileTypes } from "../utils/auth";
 import { saveUserToStorage } from "../utils/userStorage";
@@ -572,6 +573,7 @@ export default function Kyc() {
         : await API.put(endpoint, data);
       saveUserToStorage(res.data);
       setKycStatus(res.data?.kyc?.status || "PENDING");
+      trackKycSubmitted(form.roleType || "buyer");
       setMessage("KYC submitted successfully. Submitted / Pending Review.");
       localStorage.removeItem(`efruitmandiKycDraft:${currentUserId || getCurrentStoredUserId() || "guest"}:${form.roleType}`);
       if (returnTo) window.setTimeout(() => navigate(returnTo), 900);
