@@ -10,23 +10,28 @@ export default function StartupSplash() {
   useEffect(() => {
     if (!visible) return undefined;
 
-    const timer = setTimeout(() => {
+    const timer = window.setTimeout(() => {
       sessionStorage.setItem("startupSplashSeen", "true");
       setVisible(false);
     }, 1600);
 
-    return () => clearTimeout(timer);
+    return () => window.clearTimeout(timer);
   }, [visible]);
 
   if (!visible) return null;
 
   return (
     <div className="startup-splash-timeout fixed inset-0 z-[2000] flex items-center justify-center bg-[#0B6B2F] px-8">
-      <img
-        src={logoUrl}
-        alt="E-Fruit Mandi"
-        className="startup-logo-zoom w-[280px] max-w-[76vw] md:w-[360px]"
-      />
+      <div className="flex flex-col items-center justify-center gap-3 text-center text-white">
+        <img
+          src={logoUrl}
+          alt="E-Fruit Mandi"
+          className="startup-logo-zoom w-[240px] max-w-[72vw] md:w-[320px]"
+        />
+        <span className="text-sm font-semibold tracking-[0.24em] text-white/90 sm:text-base">
+          E-FRUIT MANDI
+        </span>
+      </div>
     </div>
   );
 }

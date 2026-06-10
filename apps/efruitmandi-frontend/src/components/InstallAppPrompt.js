@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { FaBell, FaMapMarkerAlt, FaMicrophone, FaMobileAlt, FaVideo } from "react-icons/fa";
 import { trackInstallEvent } from "../utils/installAnalytics";
+import { isStandalonePwa } from "../utils/mobilePermissions";
 
 const INSTALL_PROMPT_EVENT = "efruitmandi-install-app";
 const INSTALL_DISMISSED_KEY = "efruitmandiInstallPromptDismissed";
@@ -11,13 +12,11 @@ const installChannels = {
   playStore: { enabled: false, label: "Open on Play Store" },
 };
 
-const isStandaloneApp = () =>
-  window.matchMedia?.("(display-mode: standalone)").matches ||
-  window.navigator.standalone === true ||
-  document.referrer.startsWith("android-app://");
+const isStandaloneApp = () => isStandalonePwa();
 
 const isIosDevice = () => /iphone|ipad|ipod/i.test(window.navigator.userAgent);
 const isAndroidDevice = () => /android/i.test(window.navigator.userAgent);
+const isMobileDevice = () => /android|iphone|ipad|ipod|mobile/i.test(window.navigator.userAgent);
 
 const wasDismissed = () => {
   try {
@@ -78,7 +77,7 @@ export default function InstallAppPrompt() {
 
       if (isStandaloneApp() || installed) {
         setInstalled(true);
-        window.alert("E-Fruit Mandi is already installed on this device.");
+        setShowPrompt(false);
         return;
       }
 
@@ -105,11 +104,20 @@ export default function InstallAppPrompt() {
       setShowPrompt(false);
     };
 
+    const shouldAutoShowPrompt = !installed && !wasDismissed() && isMobileDevice() && !isStandaloneApp();
+    const autoTimer = shouldAutoShowPrompt
+      ? window.setTimeout(() => {
+          setManualOpen(true);
+          setShowPrompt(true);
+        }, 1800)
+      : null;
+
     window.addEventListener(INSTALL_PROMPT_EVENT, openPrompt);
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
     window.addEventListener("appinstalled", handleInstalled);
 
     return () => {
+      if (autoTimer) window.clearTimeout(autoTimer);
       window.removeEventListener(INSTALL_PROMPT_EVENT, openPrompt);
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
       window.removeEventListener("appinstalled", handleInstalled);

@@ -1,4 +1,4 @@
-const CACHE_VERSION = "efruitmandi-v20260609";
+const CACHE_VERSION = "efruitmandi-v20260610";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const CACHE_PREFIXES = ["efruitmandi-v", "efruitmandi-pwa-"];
@@ -20,7 +20,8 @@ const APP_SHELL = [
   "/notification-icon-512.png",
   "/notification-badge-96.png",
   "/pwa-screenshot-wide-1280x720.png",
-  "/pwa-screenshot-mobile-390x844.png"
+  "/pwa-screenshot-mobile-390x844.png",
+  "/manifest.json"
 ];
 
 const DEFAULT_NOTIFICATION_OPTIONS = {
@@ -78,6 +79,11 @@ self.addEventListener("fetch", (event) => {
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request, { cache: "no-store" })
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(STATIC_CACHE).then((cache) => cache.put(request, copy));
+          return response;
+        })
         .catch(() => caches.match("/offline.html"))
     );
     return;

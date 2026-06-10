@@ -5,6 +5,7 @@ import API, { getApiErrorMessage, getApiFieldErrors } from "../services/api";
 import { trackKycSubmitted } from "../services/analytics";
 import BackHomeButton from "../components/BackHomeButton";
 import { getKycStatusLabel, getProfileTypes } from "../utils/auth";
+import { prepareUploadFile, getMobileUploadErrorMessage } from "../utils/mobileMedia";
 import { saveUserToStorage } from "../utils/userStorage";
 
 const initialForm = {
@@ -208,40 +209,10 @@ const buildKycValidation = (form, acceptedTerms, canSubmitWithUploads, uploadSta
 const getFirstErrorMessage = (errors = {}) => Object.values(errors).find(Boolean) || "";
 
 const compressImageFile = (file) =>
-  new Promise((resolve) => {
-    if (!file?.type?.startsWith("image/") || file.size <= 2 * 1024 * 1024) {
-      resolve(file);
-      return;
-    }
-
-    const image = new Image();
-    const objectUrl = URL.createObjectURL(file);
-    image.onload = () => {
-      const maxDimension = 1600;
-      const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(image.width * scale));
-      canvas.height = Math.max(1, Math.round(image.height * scale));
-      const context = canvas.getContext("2d");
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob(
-        (blob) => {
-          URL.revokeObjectURL(objectUrl);
-          if (!blob) {
-            resolve(file);
-            return;
-          }
-          resolve(new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" }));
-        },
-        "image/jpeg",
-        0.78
-      );
-    };
-    image.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      resolve(file);
-    };
-    image.src = objectUrl;
+  prepareUploadFile(file, {
+    forceResize: true,
+    maxDimension: 1600,
+    quality: 0.78,
   });
 
 const uploadToCloudinary = ({ file, signature, onProgress }) =>
@@ -509,7 +480,7 @@ export default function Kyc() {
       setExistingDocuments((current) => ({ ...current, [label]: uploaded.secure_url }));
       setMessage("");
     } catch (err) {
-      const errorMessage = getApiErrorMessage(err, "Upload failed. Try again.");
+      const errorMessage = getMobileUploadErrorMessage(getApiErrorMessage(err, "Upload failed. Try again."));
       setUploads((current) => ({
         ...current,
         [label]: {
