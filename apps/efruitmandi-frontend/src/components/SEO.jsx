@@ -26,6 +26,7 @@ export default function SEO({
 }) {
   const fullCanonical = normalizeUrl(canonical);
   const fullImage = normalizeUrl(image);
+  const schemaList = Array.isArray(schema) ? schema : schema ? [schema] : [];
 
   return (
     <Helmet>
@@ -51,11 +52,16 @@ export default function SEO({
       <meta name="twitter:description" content={description} />
       <meta name="twitter:image" content={fullImage} />
 
-      {schema ? (
-        <script type="application/ld+json">
-          {JSON.stringify(schema)}
-        </script>
-      ) : null}
+      {schemaList.length > 0
+        ? schemaList.map((item, index) => (
+            <script
+              key={`${item?.["@type"] || "schema"}-${index}`}
+              type="application/ld+json"
+            >
+              {JSON.stringify(item)}
+            </script>
+          ))
+        : null}
     </Helmet>
   );
 }

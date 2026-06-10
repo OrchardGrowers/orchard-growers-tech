@@ -129,6 +129,41 @@ const orchardCover = `${process.env.PUBLIC_URL || ""}/profile-banners/efruitmand
 const fallbackLotImage =
   "https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?auto=format&fit=crop&w=1200&q=80";
 const logoUrl = `${process.env.PUBLIC_URL || ""}/logo.png`;
+const homePageSchemas = [
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "eFruitMandi",
+    url: "https://www.efruitmandi.live",
+    description:
+      "India's fresh fruit marketplace connecting growers, buyers and logistics partners.",
+    email: "support@efruitmandi.live",
+    telephone: "+91-7018108900",
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "eFruitMandi",
+    url: "https://www.efruitmandi.live",
+    potentialAction: {
+      "@type": "SearchAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: "https://www.efruitmandi.live/search?q={search_term_string}",
+      },
+      "query-input": "required name=search_term_string",
+    },
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    name: "eFruitMandi",
+    url: "https://www.efruitmandi.live",
+    email: "support@efruitmandi.live",
+    telephone: "+91-7018108900",
+    areaServed: "India",
+  },
+];
 
 const resolveProfileMediaUrl = (value = "") => {
   const url = String(value || "").trim();
@@ -369,6 +404,7 @@ export default function Home() {
       title="eFruitMandi - India's Fresh Fruit Marketplace for Growers, Buyers and Logistics"
       description="India's fresh fruit marketplace connecting apple growers, fruit buyers, commission agents, wholesalers, exporters and logistics partners. Buy and sell fruit lots directly."
       canonical="/"
+      schema={homePageSchemas}
     />
 
     <FloatingLotActions
