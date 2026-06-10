@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv, transformWithEsbuild } from "vite";
 import react from "@vitejs/plugin-react";
+import { visualizer } from "rollup-plugin-visualizer";
 
 const PUBLIC_COMPAT_ENV = new Set([
   "REACT_APP_MSG91_EFRUITMANDI_WIDGET_ID",
@@ -52,6 +53,12 @@ export default defineConfig(({ mode }) => ({
       },
     },
     react(),
+    visualizer({
+      filename: "build/stats.html",
+      gzipSize: true,
+      brotliSize: true,
+      open: false,
+    }),
   ],
   publicDir: "public",
   build: {

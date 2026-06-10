@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 
 import StartupSplash from "./components/StartupSplash";
 import AppFeedback from "./components/AppFeedback";
@@ -13,29 +13,30 @@ import MainLayout from "./layouts/MainLayout";
 
 // 🔹 Pages
 import Home from "./pages/Home";
-import Auctions from "./pages/Auctions";
-import Orders from "./pages/Orders";
-import InvoicesChalan from "./pages/InvoicesChalan";
-import Delivery from "./pages/Delivery";
-import Payment from "./pages/Payment";
-import Profile from "./pages/Profile";
-import ProfileDashboard from "./pages/ProfileDashboard";
-import Notifications from "./pages/Notifications";
-import RegisterGrower from "./pages/RegisterGrower";
-import RegisterBuyer from "./pages/RegisterBuyer";
-import RegisterDriver from "./pages/RegisterDriver";
-import ListNewLot from "./pages/ListNewLot";
-import LotDetails from "./pages/LotDetails";
-import SearchResults from "./pages/SearchResults";
-import GetVerified from "./pages/GetVerified";
-import Kyc from "./pages/Kyc";
-import TermsAndConditions from "./pages/TermsAndConditions";
-import PolicyPage from "./pages/PolicyPage";
-import GpsTracking from "./pages/GpsTracking";
-import EscrowWorkflow from "./pages/EscrowWorkflow";
-import QuotePrice from "./pages/QuotePrice";
-import QuoteDetails from "./pages/QuoteDetails";
-import RateGrower from "./pages/RateGrower";
+
+const Orders = lazy(() => import("./pages/Orders"));
+const InvoicesChalan = lazy(() => import("./pages/InvoicesChalan"));
+const Delivery = lazy(() => import("./pages/Delivery"));
+const Notifications = lazy(() => import("./pages/Notifications"));
+const RegisterGrower = lazy(() => import("./pages/RegisterGrower"));
+const RegisterBuyer = lazy(() => import("./pages/RegisterBuyer"));
+const RegisterDriver = lazy(() => import("./pages/RegisterDriver"));
+const ListNewLot = lazy(() => import("./pages/ListNewLot"));
+const GetVerified = lazy(() => import("./pages/GetVerified"));
+const Kyc = lazy(() => import("./pages/Kyc"));
+const TermsAndConditions = lazy(() => import("./pages/TermsAndConditions"));
+const PolicyPage = lazy(() => import("./pages/PolicyPage"));
+const GpsTracking = lazy(() => import("./pages/GpsTracking"));
+const EscrowWorkflow = lazy(() => import("./pages/EscrowWorkflow"));
+const QuotePrice = lazy(() => import("./pages/QuotePrice"));
+const QuoteDetails = lazy(() => import("./pages/QuoteDetails"));
+const RateGrower = lazy(() => import("./pages/RateGrower"));
+const Auctions = lazy(() => import("./pages/Auctions"));
+const Payment = lazy(() => import("./pages/Payment"));
+const Profile = lazy(() => import("./pages/Profile"));
+const ProfileDashboard = lazy(() => import("./pages/ProfileDashboard"));
+const LotDetails = lazy(() => import("./pages/LotDetails"));
+const SearchResults = lazy(() => import("./pages/SearchResults"));
 
 function AnalyticsTracker() {
   const location = useLocation();
@@ -49,6 +50,17 @@ function AnalyticsTracker() {
   }, [location]);
 
   return null;
+}
+
+function RouteFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-white px-4">
+      <div className="flex flex-col items-center gap-2 text-sm font-semibold text-gray-700">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
+        <span>Loading…</span>
+      </div>
+    </div>
+  );
 }
 
 function App() {
@@ -65,7 +77,8 @@ function App() {
           <AnalyticsTracker />
           <StartupSplash />
           <InstallAppPrompt />
-          <Routes>
+          <Suspense fallback={<RouteFallback />}>
+            <Routes>
 
         {/* 🔹 Main Layout Wrapper */}
         <Route path="/" element={<MainLayout />}>
@@ -120,7 +133,8 @@ function App() {
 
         </Route>
 
-          </Routes>
+            </Routes>
+          </Suspense>
         </BrowserRouter>
       </TestingModeGate>
     </>
