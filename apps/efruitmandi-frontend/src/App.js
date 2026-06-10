@@ -1,8 +1,12 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { useEffect } from "react";
+
 import StartupSplash from "./components/StartupSplash";
 import AppFeedback from "./components/AppFeedback";
 import InstallAppPrompt from "./components/InstallAppPrompt";
 import TestingModeGate from "./components/TestingModeGate";
+
+import { initAnalytics, trackPageView } from "./services/analytics";
 
 // 🔹 Layout
 import MainLayout from "./layouts/MainLayout";
@@ -33,17 +37,32 @@ import QuotePrice from "./pages/QuotePrice";
 import QuoteDetails from "./pages/QuoteDetails";
 import RateGrower from "./pages/RateGrower";
 
+function AnalyticsTracker() {
+  const location = useLocation();
+
+  useEffect(() => {
+    initAnalytics();
+  }, []);
+
+  useEffect(() => {
+    trackPageView(location.pathname + location.search);
+  }, [location]);
+
+  return null;
+}
+
 function App() {
   return (
     <>
       <AppFeedback />
       <TestingModeGate>
-        <BrowserRouter
+       <BrowserRouter
           future={{
             v7_startTransition: true,
             v7_relativeSplatPath: true,
           }}
         >
+          <AnalyticsTracker />
           <StartupSplash />
           <InstallAppPrompt />
           <Routes>
