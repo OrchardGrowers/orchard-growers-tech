@@ -113,8 +113,26 @@ function App() {
             <Route path="/kyc/status" element={<Kyc />} />
             <Route path="/profile/kyc" element={<Kyc />} />
             <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
+            <Route path="/about" element={<PolicyPage type="about" />} />
+            <Route path="/our-story" element={<PolicyPage type="story" />} />
+            <Route path="/vision-mission" element={<PolicyPage type="visionMission" />} />
+            <Route path="/why-efruitmandi" element={<PolicyPage type="why" />} />
+            <Route path="/contact" element={<PolicyPage type="contact" />} />
+            <Route path="/faqs" element={<PolicyPage type="faqs" />} />
             <Route path="/privacy-policy" element={<PolicyPage type="privacy" />} />
             <Route path="/terms-of-service" element={<PolicyPage type="terms" />} />
+            <Route path="/refund-cancellation-policy" element={<PolicyPage type="refund" />} />
+            <Route path="/payment-escrow-policy" element={<PolicyPage type="payment" />} />
+            <Route path="/kyc-verification-policy" element={<PolicyPage type="kyc" />} />
+            <Route path="/og-verified-policy" element={<PolicyPage type="ogVerified" />} />
+            <Route path="/commission-fee-policy" element={<PolicyPage type="commission" />} />
+            <Route path="/shipping-logistics-policy" element={<PolicyPage type="logistics" />} />
+            <Route path="/community-guidelines" element={<PolicyPage type="community" />} />
+            <Route path="/buyer-guide" element={<PolicyPage type="buyerGuide" />} />
+            <Route path="/grower-guide" element={<PolicyPage type="growerGuide" />} />
+            <Route path="/logistics-partner-guide" element={<PolicyPage type="logisticsGuide" />} />
+            <Route path="/fruit-grading-packing-guidelines" element={<PolicyPage type="grading" />} />
+            <Route path="/report-problem" element={<PolicyPage type="report" />} />
             <Route path="/user-data-deletion" element={<PolicyPage type="deletion" />} />
             <Route path="/lots/:lotId" element={<LotDetails />} />
             <Route path="/lots/:lotId/quote" element={<QuotePrice />} />

@@ -1,115 +1,159 @@
 import { Link } from "react-router-dom";
+import SEO from "../components/SEO";
+import { business, staticPages } from "../data/staticPages";
 
-const policyContent = {
-  privacy: {
-    eyebrow: "Privacy Policy",
-    title: "Privacy Policy",
-    intro:
-      "E-Fruit Mandi collects only the information needed to operate fruit trading, account access, verification, orders, delivery, payments, support, and marketplace safety.",
-    sections: [
-      {
-        title: "Information we collect",
-        body:
-          "We may collect your name, phone number, email address, account role, business or orchard details, KYC information, product and lot details, order records, payment status, delivery information, support messages, device details, and basic usage activity.",
-      },
-      {
-        title: "How we use information",
-        body:
-          "Your information is used to create and secure accounts, verify users, publish fruit lots, connect growers and buyers, process orders, coordinate logistics, prevent misuse, improve platform reliability, and provide customer support.",
-      },
-      {
-        title: "Sharing and protection",
-        body:
-          "We share information only when needed for marketplace operations, legal compliance, payment, logistics, verification, or support. We use reasonable safeguards and limit access to sensitive information.",
-      },
-      {
-        title: "Contact",
-        body:
-          "For privacy questions, corrections, or deletion requests, contact Orchard Growers Private Limited through the support channels available on the platform.",
-      },
-    ],
-  },
-  terms: {
-    eyebrow: "Terms of Service",
-    title: "Terms of Service",
-    intro:
-      "By using E-Fruit Mandi, you agree to use the platform responsibly for legitimate horticulture marketplace activity and to provide accurate account and trading information.",
-    sections: [
-      {
-        title: "Account responsibility",
-        body:
-          "Users are responsible for their login details, OTP access, submitted profile information, listed lots, quotes, orders, payment actions, and communication made from their account.",
-      },
-      {
-        title: "Marketplace conduct",
-        body:
-          "Growers, buyers, drivers, and service users must provide truthful information, avoid fraud or misleading listings, respect agreed transactions, and follow applicable laws and platform verification requirements.",
-      },
-      {
-        title: "Orders, payments, and delivery",
-        body:
-          "Prices, availability, payment status, delivery timelines, and order completion depend on verified platform records, partner services, and operational confirmation. Failed or suspicious activity may be reviewed or restricted.",
-      },
-      {
-        title: "Changes and availability",
-        body:
-          "Features, fees, verification rules, and terms may change as the service evolves. Continued use of the platform means you accept the latest posted terms.",
-      },
-    ],
-  },
-  deletion: {
-    eyebrow: "User Data Deletion",
-    title: "User Data Deletion",
-    intro:
-      "Users can request deletion of account information that is no longer required for legal, payment, verification, dispute, security, or marketplace record purposes.",
-    sections: [
-      {
-        title: "How to request deletion",
-        body:
-          "Send a deletion request from your registered email or phone number through platform support. Include your name, registered contact, account role, and a clear request to delete your E-Fruit Mandi data.",
-      },
-      {
-        title: "Verification before deletion",
-        body:
-          "We may verify your identity with OTP, account details, or support follow-up before processing deletion so that another person cannot remove your account without permission.",
-      },
-      {
-        title: "What may be retained",
-        body:
-          "Some records may be retained where required for completed orders, payments, invoices, dispute handling, fraud prevention, security logs, tax, regulatory, or legal compliance.",
-      },
-      {
-        title: "Processing timeline",
-        body:
-          "After verification, eligible deletion requests are reviewed and processed within a reasonable operational timeline. We will confirm the request status through registered contact details.",
-      },
-    ],
-  },
-};
+const homeLabel = "Back to eFruitMandi";
 
 export default function PolicyPage({ type }) {
-  const content = policyContent[type] || policyContent.privacy;
+  const content = staticPages[type] || staticPages.privacy;
+  const faqSchema =
+    content.faqs?.length
+      ? {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: content.faqs.flatMap((group) =>
+            group.items.map((item) => ({
+              "@type": "Question",
+              name: item.q,
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: item.a,
+              },
+            }))
+          ),
+        }
+      : undefined;
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6 lg:py-8">
-      <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm sm:p-7">
-        <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-green-700">{content.eyebrow}</p>
-        <h1 className="mt-3 text-2xl font-black text-gray-950 sm:text-3xl">{content.title}</h1>
-        <p className="mt-3 text-sm leading-6 text-gray-600">{content.intro}</p>
+    <>
+      <SEO
+        title={`${content.title} | eFruitMandi`}
+        description={content.description}
+        canonical={content.route}
+        schema={faqSchema}
+      />
 
-        <div className="mt-6 space-y-4">
-          {content.sections.map((section) => (
-            <section key={section.title} className="rounded-md border border-green-100 bg-green-50/40 p-4">
-              <h2 className="text-sm font-extrabold text-gray-950">{section.title}</h2>
-              <p className="mt-2 text-sm leading-6 text-gray-700">{section.body}</p>
+      <main className="mx-auto w-full max-w-5xl px-1 pb-24 pt-3 sm:px-3 md:pt-5">
+        <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6 lg:p-7">
+          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-green-700">
+            {content.eyebrow}
+          </p>
+          <h1 className="mt-3 text-2xl font-black leading-tight text-gray-950 sm:text-3xl">
+            {content.title}
+          </h1>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-600">
+            {content.intro}
+          </p>
+
+          {content.sections?.length ? (
+            <div className="mt-6 grid gap-3 md:grid-cols-2">
+              {content.sections.map((section) => (
+                <InfoSection key={section.title} section={section} />
+              ))}
+            </div>
+          ) : null}
+
+          {content.faqs?.length ? <FaqGroups groups={content.faqs} /> : null}
+
+          {!content.noContact && (
+            <section className="mt-6 rounded-md border border-green-100 bg-green-50 p-4">
+              <h2 className="text-sm font-extrabold text-gray-950">
+                Need help?
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-gray-700">
+                Contact {business.platform} support for account, KYC, listing,
+                quotation, payment, delivery, or dispute questions.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <a
+                  href={`mailto:${business.email}`}
+                  className="rounded-full bg-green-700 px-4 py-2 text-xs font-extrabold text-white hover:bg-green-800"
+                >
+                  Email support
+                </a>
+                <a
+                  href={`tel:${business.phone.replace(/\s+/g, "")}`}
+                  className="rounded-full bg-white px-4 py-2 text-xs font-extrabold text-green-800 ring-1 ring-green-200 hover:bg-green-100"
+                >
+                  Call support
+                </a>
+              </div>
             </section>
-          ))}
-        </div>
+          )}
 
-        <Link to="/" className="mt-6 inline-flex text-sm font-bold text-green-700 underline">
-          Back to E-Fruit Mandi
-        </Link>
-      </section>
-    </main>
+          <Link
+            to="/"
+            className="mt-6 inline-flex rounded-full bg-gray-100 px-4 py-2 text-xs font-extrabold text-gray-700 hover:bg-gray-200"
+          >
+            {homeLabel}
+          </Link>
+        </section>
+      </main>
+    </>
+  );
+}
+
+function InfoSection({ section }) {
+  return (
+    <article className="rounded-md border border-gray-200 bg-gray-50 p-4">
+      <h2 className="text-sm font-extrabold text-gray-950">{section.title}</h2>
+
+      {section.body?.map((paragraph) => (
+        <p key={paragraph} className="mt-2 text-sm leading-6 text-gray-700">
+          {paragraph}
+        </p>
+      ))}
+
+      {section.bullets?.length ? (
+        <ul className="mt-3 space-y-2 text-sm leading-6 text-gray-700">
+          {section.bullets.map((item) => (
+            <li key={item} className="flex gap-2">
+              <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-green-700" />
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {section.steps?.length ? (
+        <ol className="mt-3 space-y-2 text-sm leading-6 text-gray-700">
+          {section.steps.map((item, index) => (
+            <li key={item} className="grid grid-cols-[24px_minmax(0,1fr)] gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-green-700 text-xs font-black text-white">
+                {index + 1}
+              </span>
+              <span>{item}</span>
+            </li>
+          ))}
+        </ol>
+      ) : null}
+    </article>
+  );
+}
+
+function FaqGroups({ groups }) {
+  return (
+    <div className="mt-6 space-y-4">
+      {groups.map((group) => (
+        <section key={group.category} className="rounded-md border border-gray-200 bg-gray-50 p-3 sm:p-4">
+          <h2 className="text-base font-black text-gray-950">{group.category}</h2>
+          <div className="mt-3 divide-y divide-gray-200 rounded-md border border-gray-200 bg-white">
+            {group.items.map((item) => (
+              <details key={item.q} className="group">
+                <summary className="cursor-pointer list-none px-3 py-3 text-sm font-extrabold text-gray-900">
+                  <span className="flex items-center justify-between gap-3">
+                    <span>{item.q}</span>
+                    <span className="shrink-0 text-green-700 group-open:rotate-45">+</span>
+                  </span>
+                </summary>
+                <p className="px-3 pb-3 text-sm leading-6 text-gray-700">
+                  {item.a}
+                </p>
+              </details>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
   );
 }

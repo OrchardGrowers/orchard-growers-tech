@@ -192,6 +192,49 @@ const newsItems = [
   "Delivery partners available for orchard dispatch",
 ];
 
+const policyLinkGroups = [
+  {
+    title: "Company",
+    links: [
+      { label: "About Us", path: "/about" },
+      { label: "Our Story", path: "/our-story" },
+      { label: "Vision & Mission", path: "/vision-mission" },
+      { label: "Why eFruitMandi", path: "/why-efruitmandi" },
+      { label: "Contact Us", path: "/contact" },
+    ],
+  },
+  {
+    title: "Help Center",
+    links: [
+      { label: "FAQs", path: "/faqs" },
+      { label: "Buyer Guide", path: "/buyer-guide" },
+      { label: "Grower Guide", path: "/grower-guide" },
+      { label: "Logistics Guide", path: "/logistics-partner-guide" },
+      { label: "Report a Problem", path: "/report-problem" },
+    ],
+  },
+  {
+    title: "Trust & Safety",
+    links: [
+      { label: "KYC Policy", path: "/kyc-verification-policy" },
+      { label: "OG Verified / Trusted Badge", path: "/og-verified-policy" },
+      { label: "Community Guidelines", path: "/community-guidelines" },
+      { label: "Fruit Grading & Packing Guidelines", path: "/fruit-grading-packing-guidelines" },
+    ],
+  },
+  {
+    title: "Legal",
+    links: [
+      { label: "Terms of Service", path: "/terms-of-service" },
+      { label: "Privacy Policy", path: "/privacy-policy" },
+      { label: "Refund Policy", path: "/refund-cancellation-policy" },
+      { label: "Payment / Escrow Policy", path: "/payment-escrow-policy" },
+      { label: "Commission & Fee Policy", path: "/commission-fee-policy" },
+      { label: "Shipping & Logistics Policy", path: "/shipping-logistics-policy" },
+    ],
+  },
+];
+
 const LOT_OPEN_HOUR = 12;
 const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
 
@@ -1408,13 +1451,25 @@ function FruitGradeBadge({ label }) {
 
 function PolicyMiniLinks() {
   return (
-    <nav className="px-1 text-xs font-semibold leading-5 text-gray-500" aria-label="E-Fruit Mandi policy links">
-      <Link to="/privacy-policy" className="hover:text-green-700 hover:underline">Privacy policy</Link>
-      <span> · </span>
-      <Link to="/terms-of-service" className="hover:text-green-700 hover:underline">Terms of Service</Link>
-      <span> · </span>
-      <Link to="/user-data-deletion" className="hover:text-green-700 hover:underline">User data deletion</Link>
-      <p className="mt-2">(c) All rights reserved by Orchard Growers Pvt. Ltd.</p>
+    <nav className="space-y-3 px-1 text-xs font-semibold leading-5 text-gray-500" aria-label="eFruitMandi policy links">
+      {policyLinkGroups.map((group) => (
+        <section key={group.title}>
+          <h2 className="mb-1 text-[10px] font-extrabold uppercase tracking-wide text-gray-700">
+            {group.title}
+          </h2>
+          <div className="flex flex-wrap gap-x-2 gap-y-1">
+            {group.links.map((link) => (
+              <Link key={link.path} to={link.path} className="hover:text-green-700 hover:underline">
+                {link.label}
+              </Link>
+            ))}
+          </div>
+        </section>
+      ))}
+      <Link to="/user-data-deletion" className="inline-flex hover:text-green-700 hover:underline">
+        User data deletion
+      </Link>
+      <p>(c) All rights reserved by Orchard Growers Pvt. Ltd.</p>
     </nav>
   );
 }
