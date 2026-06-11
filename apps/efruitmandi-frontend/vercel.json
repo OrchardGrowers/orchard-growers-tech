@@ -68,7 +68,7 @@
       ]
     },
     {
-      "source": "/splash-logo.png",
+      "source": "/logo.png",
       "headers": [
         {
           "key": "Cache-Control",

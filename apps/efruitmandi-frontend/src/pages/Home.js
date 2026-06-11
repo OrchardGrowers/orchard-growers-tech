@@ -193,6 +193,7 @@ const newsItems = [
 ];
 
 const LOT_OPEN_HOUR = 12;
+const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -226,6 +227,26 @@ export default function Home() {
     }
 
     navigate("/profile", { state: { mode: "signup" } });
+  };
+  const buildLoginState = (from, requiredProfile) => ({
+    mode: "login",
+    from,
+    requiredProfile,
+    message: LOGIN_REQUIRED_MESSAGE,
+  });
+  const openListLotFlow = () => {
+    const listPath = "/list-new-lot";
+    if (!localStorage.getItem("accessToken")) {
+      navigate("/profile", { state: buildLoginState(listPath, "grower") });
+      return;
+    }
+
+    if (!isGrower) {
+      navigate("/register-grower", { state: { from: listPath } });
+      return;
+    }
+
+    navigate(listPath);
   };
 
   useEffect(() => {
@@ -364,7 +385,7 @@ export default function Home() {
   const openQuoteFlow = (productId) => {
     const quotePath = `/lots/${productId}/quote`;
     if (!localStorage.getItem("accessToken")) {
-      navigate("/profile", { state: { mode: "login", from: quotePath } });
+      navigate("/profile", { state: buildLoginState(quotePath, "buyer") });
       return;
     }
 
@@ -390,6 +411,11 @@ export default function Home() {
   };
   const openRateGrowerFlow = (productId) => {
     const ratingPath = `/lots/${productId}/rating`;
+    if (!localStorage.getItem("accessToken")) {
+      navigate("/profile", { state: buildLoginState(ratingPath, "buyer") });
+      return;
+    }
+
     if (!hasBuyerProfile(user)) {
       navigate("/register-buyer", { state: { from: ratingPath } });
       return;
@@ -408,7 +434,7 @@ export default function Home() {
     />
 
     <FloatingLotActions
-        onList={() => navigate(isGrower ? "/list-new-lot" : "/profile")}
+        onList={openListLotFlow}
         onBuy={() => navigate("/auctions")}
       />
 
@@ -497,7 +523,7 @@ export default function Home() {
             upcomingLots={upcomingLots}
             highestDeals={highestDeals}
             selectedInfoSection={selectedInfoSection}
-            onAdd={() => navigate(isGrower ? "/list-new-lot" : "/profile")}
+            onAdd={openListLotFlow}
             onOpenLot={(productId) => navigate(`/lots/${productId}`)}
             onQuoteLot={openQuoteFlow}
             onRateLot={openRateGrowerFlow}
@@ -507,7 +533,7 @@ export default function Home() {
 
       <aside className="auto-hide-column-scroll sticky top-16 hidden max-h-[calc(100vh-5rem)] self-start space-y-2.5 overflow-y-auto pr-1 lg:block">
         <NewsCard />
-            <AdCard user={user} onListLot={() => navigate("/register-grower")} />
+            <AdCard user={user} onListLot={openListLotFlow} />
       </aside>
     </div>
     </>

@@ -5,9 +5,13 @@ import API from "../services/api";
 import BackHomeButton from "../components/BackHomeButton";
 import { getCurrentUser, hasBuyerProfile } from "../utils/auth";
 
+const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
+
 export default function RateGrower() {
   const { lotId } = useParams();
   const navigate = useNavigate();
+  const hasAccessToken = Boolean(localStorage.getItem("accessToken"));
+  const ratingPath = `/lots/${lotId}/rating`;
   const user = getCurrentUser();
   const isBuyer = hasBuyerProfile(user);
   const [product, setProduct] = useState(null);
@@ -18,6 +22,19 @@ export default function RateGrower() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (!hasAccessToken) {
+      navigate("/profile", {
+        replace: true,
+        state: {
+          mode: "login",
+          from: ratingPath,
+          requiredProfile: "buyer",
+          message: LOGIN_REQUIRED_MESSAGE,
+        },
+      });
+      return undefined;
+    }
+
     const loadLot = async () => {
       try {
         const res = await API.get(`/products/${lotId}?platform=efruitmandi`);
@@ -30,7 +47,7 @@ export default function RateGrower() {
     };
 
     loadLot();
-  }, [lotId]);
+  }, [hasAccessToken, lotId, navigate, ratingPath]);
 
   const growerName =
     product?.createdBy?.orchardName ||
@@ -39,6 +56,10 @@ export default function RateGrower() {
     "Grower's Orchard";
   const currentRating = Number(product?.createdBy?.growerRatingAverage || 0);
   const currentRatingCount = Number(product?.createdBy?.growerRatingCount || 0);
+
+  if (!hasAccessToken) {
+    return null;
+  }
 
   const submitRating = async (event) => {
     event.preventDefault();

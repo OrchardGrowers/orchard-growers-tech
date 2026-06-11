@@ -13,6 +13,7 @@ import {
   FaUser,
 } from "react-icons/fa";
 import API from "../services/api";
+import { hasBuyerProfile, hasGrowerProfile } from "../utils/auth";
 import {
   getEfruitMandiWidgetId,
   getEfruitMandiTokenAuth,
@@ -152,6 +153,8 @@ export default function Profile() {
   const location = useLocation();
   const initialMode = location.state?.mode === "signup" ? "signup" : "login";
   const returnTo = location.state?.from || "/profile-dashboard";
+  const requiredProfile = location.state?.requiredProfile || "";
+  const routeMessage = location.state?.message || "";
   const [mode, setMode] = useState(initialMode);
   const [loginForm, setLoginForm] = useState(initialLogin);
   const [signupForm, setSignupForm] = useState(initialSignup);
@@ -193,7 +196,10 @@ export default function Profile() {
   });
   const [resetMode, setResetMode] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState({ type: "", text: "" });
+  const [message, setMessage] = useState({
+    type: routeMessage ? "error" : "",
+    text: routeMessage,
+  });
 
   useEffect(() => {
     if (!otpCooldown.login && !otpCooldown.signup) return undefined;
@@ -286,10 +292,55 @@ export default function Profile() {
     localStorage.setItem("refreshToken", data.refreshToken);
     localStorage.setItem("user", JSON.stringify(data.user));
   };
+  const loadAuthenticatedUser = async (fallbackUser = {}) => {
+    try {
+      const res = await API.get("/user/profile");
+      const freshUser = res.data || fallbackUser;
+      localStorage.setItem("user", JSON.stringify(freshUser));
+      return freshUser;
+    } catch {
+      return fallbackUser;
+    }
+  };
 
   const showError = (text) => setMessage({ type: "error", text });
   const showSuccess = (text) => setMessage({ type: "success", text });
   const getAuthIdentifier = (value) => normalizeIndianMobile(value) || normalizeContact(value);
+  const getPendingAuthRedirect = () => {
+    try {
+      return JSON.parse(sessionStorage.getItem("efruitmandiPendingAuthRedirect") || "{}");
+    } catch {
+      return {};
+    }
+  };
+  const clearPendingAuthRedirect = () => {
+    sessionStorage.removeItem("efruitmandiPendingAuthRedirect");
+  };
+  const navigateAfterAuth = (authUser, override = {}) => {
+    const targetPath = override.from || returnTo;
+    const targetProfile = override.requiredProfile || requiredProfile;
+
+    if (targetProfile === "buyer" && !hasBuyerProfile(authUser)) {
+      navigate("/register-buyer", { replace: true, state: { from: targetPath } });
+      return;
+    }
+
+    if (targetProfile === "grower" && !hasGrowerProfile(authUser)) {
+      navigate("/register-grower", { replace: true, state: { from: targetPath } });
+      return;
+    }
+
+    navigate(targetPath, { replace: true });
+  };
+
+  useEffect(() => {
+    if (location.state?.mode === "signup" || location.state?.mode === "login") {
+      setMode(location.state.mode);
+    }
+    if (routeMessage) {
+      setMessage({ type: "error", text: routeMessage });
+    }
+  }, [location.state?.mode, routeMessage]);
 
   useEffect(() => {
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
@@ -319,9 +370,16 @@ export default function Profile() {
       return;
     }
 
-    saveSession({ accessToken, refreshToken, user });
-    window.history.replaceState({}, document.title, location.pathname);
-    navigate("/profile-dashboard", { replace: true });
+    const finishOAuthLogin = async () => {
+      saveSession({ accessToken, refreshToken, user });
+      const freshUser = await loadAuthenticatedUser(user);
+      const pendingRedirect = getPendingAuthRedirect();
+      clearPendingAuthRedirect();
+      window.history.replaceState({}, document.title, location.pathname);
+      navigateAfterAuth(freshUser, pendingRedirect);
+    };
+
+    finishOAuthLogin();
   }, [location.pathname, location.search, navigate]);
 
   const changeMode = (nextMode) => {
@@ -571,13 +629,8 @@ export default function Profile() {
       });
 
       saveSession(res.data);
-
-      if (!res.data.user?.role) {
-        navigate(returnTo);
-        return;
-      }
-
-      navigate(returnTo);
+      const freshUser = await loadAuthenticatedUser(res.data.user || {});
+      navigateAfterAuth(freshUser);
     } catch (err) {
       showError(err.response?.data?.msg || "Login failed. Please try again.");
     } finally {
@@ -623,7 +676,8 @@ export default function Profile() {
       });
 
       saveSession(registerRes.data);
-      navigate(returnTo);
+      const freshUser = await loadAuthenticatedUser(registerRes.data.user || {});
+      navigateAfterAuth(freshUser);
     } catch (err) {
       showError(err.response?.data?.msg || "Signup failed. Please try again.");
     } finally {
@@ -632,6 +686,11 @@ export default function Profile() {
   };
 
   const startOAuth = (provider) => {
+    sessionStorage.setItem(
+      "efruitmandiPendingAuthRedirect",
+      JSON.stringify({ from: returnTo, requiredProfile })
+    );
+
     if (mode === "signup") {
       setPendingSocialProvider(provider);
       return;

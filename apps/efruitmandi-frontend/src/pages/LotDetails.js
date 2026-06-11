@@ -19,6 +19,8 @@ import { canQuote, getCurrentUser, hasBuyerProfile } from "../utils/auth";
 import { trackLotContact, trackLotView } from "../services/analytics";
 import { saveUserToStorage } from "../utils/userStorage";
 
+const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
+
 export default function LotDetails() {
   const { lotId } = useParams();
   const navigate = useNavigate();
@@ -82,11 +84,17 @@ export default function LotDetails() {
   const growerRating = Number(createdBy.growerRatingAverage || createdBy.rating || product.growerRating || 0);
   const growerRatingCount = Number(createdBy.growerRatingCount || 0);
   const activeGradeLabel = getImageGradeLabel(product, activeImage);
+  const buildLoginState = (from, requiredProfile) => ({
+    mode: "login",
+    from,
+    requiredProfile,
+    message: LOGIN_REQUIRED_MESSAGE,
+  });
   const openQuoteFlow = () => {
     trackLotContact(product || {});
     const quotePath = `/lots/${product._id}/quote`;
     if (!localStorage.getItem("accessToken")) {
-      navigate("/profile", { state: { mode: "login", from: quotePath } });
+      navigate("/profile", { state: buildLoginState(quotePath, "buyer") });
       return;
     }
 
@@ -112,6 +120,11 @@ export default function LotDetails() {
   };
   const openRateGrowerFlow = () => {
     const ratingPath = `/lots/${product._id}/rating`;
+    if (!localStorage.getItem("accessToken")) {
+      navigate("/profile", { state: buildLoginState(ratingPath, "buyer") });
+      return;
+    }
+
     if (!hasBuyerProfile(user)) {
       navigate("/register-buyer", { state: { from: ratingPath } });
       return;

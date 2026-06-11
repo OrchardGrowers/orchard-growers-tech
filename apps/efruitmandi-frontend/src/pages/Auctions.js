@@ -31,6 +31,7 @@ const sortOptions = [
 ];
 
 const LOT_OPEN_HOUR = 12;
+const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
 
 export default function Auctions() {
   const navigate = useNavigate();
@@ -183,7 +184,14 @@ export default function Auctions() {
 
     if (!canDeal) {
       if (!localStorage.getItem("accessToken")) {
-        navigate("/profile", { state: { mode: "login", from: "/auctions" } });
+        navigate("/profile", {
+          state: {
+            mode: "login",
+            from: "/auctions",
+            requiredProfile: "buyer",
+            message: LOGIN_REQUIRED_MESSAGE,
+          },
+        });
         return;
       }
       if (isBuyer) {
@@ -198,7 +206,7 @@ export default function Auctions() {
         });
         return;
       }
-      alert("Buyer account required to participate.");
+      navigate("/register-buyer", { state: { from: "/auctions" } });
       return;
     }
 

@@ -7,6 +7,8 @@ import BackHomeButton from "../components/BackHomeButton";
 import { canQuote, getCurrentUser, getKycStatusLabel, hasBuyerProfile } from "../utils/auth";
 import { saveUserToStorage } from "../utils/userStorage";
 
+const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
+
 export default function QuotePrice() {
   const { lotId } = useParams();
   const navigate = useNavigate();
@@ -29,7 +31,14 @@ export default function QuotePrice() {
     const loadLot = async () => {
       try {
         if (!localStorage.getItem("accessToken")) {
-          navigate("/profile", { state: { mode: "login", from: `/lots/${lotId}/quote` } });
+          navigate("/profile", {
+            state: {
+              mode: "login",
+              from: `/lots/${lotId}/quote`,
+              requiredProfile: "buyer",
+              message: LOGIN_REQUIRED_MESSAGE,
+            },
+          });
           return;
         }
 

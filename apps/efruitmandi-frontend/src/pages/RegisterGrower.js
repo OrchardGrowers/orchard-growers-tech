@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   FaCheck,
   FaBriefcase,
@@ -21,8 +21,13 @@ import {
 } from "../utils/msg91OtpWidget";
 import { getCurrentUser, hasGrowerProfile } from "../utils/auth";
 
+const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
+
 export default function RegisterGrower() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = location.state?.from || "/profile-dashboard";
+  const isAuthenticated = Boolean(localStorage.getItem("accessToken"));
   const currentUser = getCurrentUser();
   const isUpdate = hasGrowerProfile(currentUser);
   const savedContact = currentUser.contact || currentUser.phone || "";
@@ -47,6 +52,20 @@ export default function RegisterGrower() {
   const [verifiedPhone, setVerifiedPhone] = useState(isUpdate ? savedContact : "");
   const [otpVerificationToken, setOtpVerificationToken] = useState("");
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (isAuthenticated) return undefined;
+    navigate("/profile", {
+      replace: true,
+      state: {
+        mode: "login",
+        from: returnTo,
+        requiredProfile: "grower",
+        message: LOGIN_REQUIRED_MESSAGE,
+      },
+    });
+    return undefined;
+  }, [isAuthenticated, navigate, returnTo]);
 
   useEffect(() => {
     if (otpCooldown <= 0) return undefined;
@@ -199,13 +218,17 @@ export default function RegisterGrower() {
 
       localStorage.setItem("user", JSON.stringify(res.data.user));
       trackGrowerRegistration();
-      navigate("/profile-dashboard");
+      navigate(returnTo);
     } catch (err) {
       setMessage(err.response?.data?.msg || "Grower registration failed.");
     } finally {
       setLoading(false);
     }
   };
+
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <AuthBrandShell compact>

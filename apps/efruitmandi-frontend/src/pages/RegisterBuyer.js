@@ -23,10 +23,13 @@ import {
 } from "../utils/msg91OtpWidget";
 import { getCurrentUser, hasBuyerProfile, hasDriverProfile } from "../utils/auth";
 
+const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
+
 export default function RegisterBuyer() {
   const navigate = useNavigate();
   const location = useLocation();
   const returnTo = location.state?.from || "/profile-dashboard";
+  const isAuthenticated = Boolean(localStorage.getItem("accessToken"));
   const currentUser = getCurrentUser();
   const [accountUser, setAccountUser] = useState(currentUser);
   const isUpdate = hasBuyerProfile(accountUser);
@@ -55,6 +58,19 @@ export default function RegisterBuyer() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      navigate("/profile", {
+        replace: true,
+        state: {
+          mode: "login",
+          from: returnTo,
+          requiredProfile: "buyer",
+          message: LOGIN_REQUIRED_MESSAGE,
+        },
+      });
+      return undefined;
+    }
+
     API.get("/user/profile")
       .then((res) => {
         const latestUser = res.data || currentUser;
@@ -79,7 +95,7 @@ export default function RegisterBuyer() {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [isAuthenticated, navigate, returnTo]);
 
   useEffect(() => {
     if (otpCooldown <= 0) return undefined;
@@ -246,6 +262,10 @@ export default function RegisterBuyer() {
       setLoading(false);
     }
   };
+
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <AuthBrandShell compact>

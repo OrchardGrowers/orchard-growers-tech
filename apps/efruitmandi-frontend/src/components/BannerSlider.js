@@ -1,14 +1,32 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
 const BANNER_COUNT = 6;
-const assetUrl = (path) => `${process.env.PUBLIC_URL || ""}${path}`;
+const SLIDE_INTERVAL_MS = 3500;
+
+const CLOUDINARY_BANNERS = [
+  "https://res.cloudinary.com/doprdp6bi/image/upload/v1781208076/efruitmandi/banners/home-carousel/banner-1.png",
+  "https://res.cloudinary.com/doprdp6bi/image/upload/v1781208078/efruitmandi/banners/home-carousel/banner-2.png",
+  "https://res.cloudinary.com/doprdp6bi/image/upload/v1781208079/efruitmandi/banners/home-carousel/banner-3.png",
+  "https://res.cloudinary.com/doprdp6bi/image/upload/v1781208081/efruitmandi/banners/home-carousel/banner-4.png",
+  "https://res.cloudinary.com/doprdp6bi/image/upload/v1781208084/efruitmandi/banners/home-carousel/banner-5.png",
+  "https://res.cloudinary.com/doprdp6bi/image/upload/v1781208086/efruitmandi/banners/home-carousel/banner-6.png",
+];
+
+const addCloudinaryTransform = (url, transform) =>
+  url.replace("/image/upload/", `/image/upload/${transform}/`);
+
+const buildSrcSet = (url) =>
+  [480, 768, 1024, 1230]
+    .map((width) => `${addCloudinaryTransform(url, `f_auto,q_auto,c_fit,w_${width}`)} ${width}w`)
+    .join(", ");
 
 export default function BannerSlider() {
   const banners = useMemo(
     () =>
       Array.from({ length: BANNER_COUNT }, (_, index) => ({
-        src: assetUrl(`/ad-banners/banner-${index + 1}.png`),
-        alt: `Orchard Growers ad banner ${index + 1}`,
+        src: CLOUDINARY_BANNERS[index],
+        alt: `eFruitMandi ad banner ${index + 1}`,
       })),
     []
   );
@@ -24,7 +42,7 @@ export default function BannerSlider() {
 
     const interval = setInterval(() => {
       setIndex((prev) => (prev + 1) % visibleBanners.length);
-    }, 5000);
+    }, SLIDE_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [visibleBanners.length]);
 
@@ -53,7 +71,9 @@ export default function BannerSlider() {
         {visibleBanners.map((banner, i) => (
           <img
             key={banner.src}
-            src={banner.src}
+            src={addCloudinaryTransform(banner.src, "f_auto,q_auto,c_fit,w_1230")}
+            srcSet={buildSrcSet(banner.src)}
+            sizes="(max-width: 767px) calc(100vw - 24px), (max-width: 1199px) 60vw, 790px"
             alt={banner.alt}
             loading={i === 0 ? "eager" : "lazy"}
             decoding="async"
@@ -61,6 +81,21 @@ export default function BannerSlider() {
             className="h-full w-full flex-shrink-0 object-fill"
           />
         ))}
+      </div>
+
+      <div className="absolute right-2 top-2 flex max-w-[calc(100%-1rem)] flex-wrap justify-end gap-1.5 sm:right-3 sm:top-3 sm:gap-2">
+        <Link
+          to="/list-new-lot"
+          className="rounded-full bg-orange-500/95 px-2 py-1 text-[9px] font-extrabold text-white shadow-sm hover:bg-orange-600 sm:px-3 sm:text-xs"
+        >
+          List Lot
+        </Link>
+        <Link
+          to="/search"
+          className="rounded-full bg-white/95 px-2 py-1 text-[9px] font-extrabold text-green-800 shadow-sm hover:bg-green-50 sm:px-3 sm:text-xs"
+        >
+          Explore
+        </Link>
       </div>
 
       <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-2">

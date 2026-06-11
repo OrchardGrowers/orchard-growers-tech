@@ -326,6 +326,7 @@ const initialGradeLots = GRADES.reduce((lots, grade) => {
 }, {});
 
 const SAMPLE_IMAGE_SLOTS = [0, 1, 2, 3, 4];
+const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
 
 const makeFirmPrefix = (user) => {
   const source =
@@ -427,6 +428,20 @@ export default function ListNewLot() {
   }, []);
 
   useEffect(() => {
+    if (!localStorage.getItem("accessToken")) {
+      setProfileChecked(true);
+      navigate("/profile", {
+        replace: true,
+        state: {
+          mode: "login",
+          from: "/list-new-lot",
+          requiredProfile: "grower",
+          message: LOGIN_REQUIRED_MESSAGE,
+        },
+      });
+      return undefined;
+    }
+
     let active = true;
 
     API.get("/user/profile")
@@ -454,7 +469,7 @@ export default function ListNewLot() {
     return () => {
       active = false;
     };
-  }, [localLotNoPreview]);
+  }, [localLotNoPreview, navigate]);
 
   useEffect(() => {
     if (!profileChecked || hasGrowerAccess) return;

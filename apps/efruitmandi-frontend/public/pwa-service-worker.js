@@ -1,4 +1,4 @@
-const CACHE_VERSION = "efruitmandi-v20260611-splash";
+const CACHE_VERSION = "efruitmandi-v20260612-carousel-auth";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const CACHE_PREFIXES = ["efruitmandi-v", "efruitmandi-pwa-"];
@@ -14,7 +14,6 @@ const APP_SHELL = [
   "/icon-512.png",
   "/maskable-icon-192.png",
   "/maskable-icon-512.png",
-  "/splash-logo.png",
   "/logo.png",
   "/apple-touch-icon.png",
   "/notification-icon-192.png",
@@ -26,10 +25,7 @@ const APP_SHELL = [
 ];
 
 const FRESH_STARTUP_ASSETS = new Set([
-  "/splash-logo.png",
   "/logo.png",
-  "/logo192.png",
-  "/logo512.png",
   "/icon-192.png",
   "/icon-512.png",
   "/maskable-icon-192.png",
@@ -54,7 +50,6 @@ const isApiRequest = (url) =>
 const isStaticAsset = (url) =>
   /\.(?:js|css|png|jpg|jpeg|gif|webp|svg|ico|woff2?|ttf)$/i.test(url.pathname) ||
   url.pathname.startsWith("/assets/") ||
-  url.pathname.startsWith("/ad-banners/") ||
   url.pathname.startsWith("/profile-banners/") ||
   url.pathname.startsWith("/profile-images/");
 
