@@ -53,20 +53,14 @@ function AnalyticsTracker() {
 }
 
 function RouteFallback() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-white px-4">
-      <div className="flex flex-col items-center gap-2 text-sm font-semibold text-gray-700">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
-        <span>Loading…</span>
-      </div>
-    </div>
-  );
+  return <StartupSplash autoHide={false} />;
 }
 
 function App() {
   return (
     <>
       <AppFeedback />
+      <StartupSplash />
       <TestingModeGate>
        <BrowserRouter
           future={{
@@ -75,7 +69,6 @@ function App() {
           }}
         >
           <AnalyticsTracker />
-          <StartupSplash />
           <InstallAppPrompt />
           <Suspense fallback={<RouteFallback />}>
             <Routes>

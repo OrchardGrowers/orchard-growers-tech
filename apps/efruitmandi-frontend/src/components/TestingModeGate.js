@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { FiLock, FiUnlock } from "react-icons/fi";
 
-const logoUrl = `${process.env.PUBLIC_URL || ""}/logo.png`;
 const STORAGE_KEY = "efruitmandiTestingModeUnlocked";
 const DEVELOPER_CODE_HASH =
   "b3850cdd016df86974359de831a5821772a7c879009d9d32b6e2ba301ccf319d";
@@ -76,10 +75,6 @@ export default function TestingModeGate({ children }) {
   return (
     <main className="min-h-screen w-full bg-[#f2f7f0] px-5 py-8 text-gray-950">
       <section className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-[520px] flex-col items-center justify-center">
-        <div className="mb-8 flex h-24 w-24 items-center justify-center rounded-full border border-emerald-200 bg-white shadow-sm">
-          <img src={logoUrl} alt="E-Fruit Mandi" className="h-16 w-16 object-contain" />
-        </div>
-
         <div className="w-full rounded-lg border border-emerald-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="mb-6 flex items-start gap-3">
             <span className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">

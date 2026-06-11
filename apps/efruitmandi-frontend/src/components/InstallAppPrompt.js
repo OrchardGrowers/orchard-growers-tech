@@ -16,15 +16,6 @@ const isStandaloneApp = () => isStandalonePwa();
 
 const isIosDevice = () => /iphone|ipad|ipod/i.test(window.navigator.userAgent);
 const isAndroidDevice = () => /android/i.test(window.navigator.userAgent);
-const isMobileDevice = () => /android|iphone|ipad|ipod|mobile/i.test(window.navigator.userAgent);
-
-const wasDismissed = () => {
-  try {
-    return window.localStorage.getItem(INSTALL_DISMISSED_KEY) === "true";
-  } catch {
-    return false;
-  }
-};
 
 const rememberDismissal = () => {
   try {
@@ -95,7 +86,6 @@ export default function InstallAppPrompt() {
       deferredPromptRef.current = event;
       setCanInstall(true);
       trackInstallEvent("install_prompt_available", { channel: "pwa" });
-      if (!wasDismissed()) setShowPrompt(true);
     };
 
     const handleInstalled = () => {
@@ -104,20 +94,11 @@ export default function InstallAppPrompt() {
       setShowPrompt(false);
     };
 
-    const shouldAutoShowPrompt = !installed && !wasDismissed() && isMobileDevice() && !isStandaloneApp();
-    const autoTimer = shouldAutoShowPrompt
-      ? window.setTimeout(() => {
-          setManualOpen(true);
-          setShowPrompt(true);
-        }, 1800)
-      : null;
-
     window.addEventListener(INSTALL_PROMPT_EVENT, openPrompt);
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
     window.addEventListener("appinstalled", handleInstalled);
 
     return () => {
-      if (autoTimer) window.clearTimeout(autoTimer);
       window.removeEventListener(INSTALL_PROMPT_EVENT, openPrompt);
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
       window.removeEventListener("appinstalled", handleInstalled);

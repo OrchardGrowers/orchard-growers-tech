@@ -1,4 +1,4 @@
-const CACHE_VERSION = "efruitmandi-v20260610";
+const CACHE_VERSION = "efruitmandi-v20260611-splash";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const CACHE_PREFIXES = ["efruitmandi-v", "efruitmandi-pwa-"];
@@ -14,6 +14,7 @@ const APP_SHELL = [
   "/icon-512.png",
   "/maskable-icon-192.png",
   "/maskable-icon-512.png",
+  "/splash-logo.png",
   "/logo.png",
   "/apple-touch-icon.png",
   "/notification-icon-192.png",
@@ -23,6 +24,19 @@ const APP_SHELL = [
   "/pwa-screenshot-mobile-390x844.png",
   "/manifest.json"
 ];
+
+const FRESH_STARTUP_ASSETS = new Set([
+  "/splash-logo.png",
+  "/logo.png",
+  "/logo192.png",
+  "/logo512.png",
+  "/icon-192.png",
+  "/icon-512.png",
+  "/maskable-icon-192.png",
+  "/maskable-icon-512.png",
+  "/apple-touch-icon.png",
+  "/manifest.json",
+]);
 
 const DEFAULT_NOTIFICATION_OPTIONS = {
   icon: "/notification-icon-192.png",
@@ -43,6 +57,8 @@ const isStaticAsset = (url) =>
   url.pathname.startsWith("/ad-banners/") ||
   url.pathname.startsWith("/profile-banners/") ||
   url.pathname.startsWith("/profile-images/");
+
+const isFreshStartupAsset = (url) => FRESH_STARTUP_ASSETS.has(url.pathname);
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -85,6 +101,21 @@ self.addEventListener("fetch", (event) => {
           return response;
         })
         .catch(() => caches.match("/offline.html"))
+    );
+    return;
+  }
+
+  if (isFreshStartupAsset(url)) {
+    event.respondWith(
+      fetch(request, { cache: "no-store" })
+        .then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(STATIC_CACHE).then((cache) => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request))
     );
     return;
   }
