@@ -20,6 +20,10 @@ import {
   hasDriverProfile,
   hasGrowerProfile,
 } from "../utils/auth";
+import {
+  PAYMENT_PARTNER_ENABLED,
+  PAYMENT_UNAVAILABLE_MESSAGE,
+} from "../config/payment";
 
 const statusSteps = [
   { key: "PLACED", label: "Order placed" },
@@ -131,17 +135,29 @@ export default function Delivery() {
       (res) => `Negotiation updated. Final amount: Rs. ${res.data.finalAmount || negotiationAmount || 0}`
     );
 
-  const generateSettlementOtp = () =>
+  const generateSettlementOtp = () => {
+    if (!PAYMENT_PARTNER_ENABLED) {
+      setMessage(PAYMENT_UNAVAILABLE_MESSAGE);
+      return;
+    }
+
     runAction(
       () => API.post("/delivery/generate-settlement-otp", { orderId: selectedOrderId }),
       (res) => `Settlement OTP generated: ${res.data.settlementOTP}`
     );
+  };
 
-  const confirmSettlement = () =>
+  const confirmSettlement = () => {
+    if (!PAYMENT_PARTNER_ENABLED) {
+      setMessage(PAYMENT_UNAVAILABLE_MESSAGE);
+      return;
+    }
+
     runAction(
       () => API.post("/delivery/confirm-settlement", { orderId: selectedOrderId, otp: settlementOtp }),
       (res) => `Payment released. Receivable: Rs. ${res.data.finalReceivableAmount || 0}`
     );
+  };
 
   const updateLocation = async (payload) => {
     await runAction(
@@ -255,7 +271,14 @@ export default function Delivery() {
             tracking={tracking}
             deliveryTracking={deliveryTracking}
             loading={trackingLoading}
-            onOpenEscrow={() => selectedOrderId && navigate(`/escrow/${selectedOrderId}`)}
+            onOpenEscrow={() => {
+              if (!selectedOrderId) return;
+              if (!PAYMENT_PARTNER_ENABLED) {
+                setMessage(PAYMENT_UNAVAILABLE_MESSAGE);
+                return;
+              }
+              navigate(`/escrow/${selectedOrderId}`);
+            }}
           />
 
           <RoleActionPanel

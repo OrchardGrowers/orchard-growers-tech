@@ -5,6 +5,7 @@ import User from "../models/User.js";
 import DealSettings from "../models/DealSettings.js";
 import Order from "../models/Order.js";
 import protect, { authorize } from "../middleware/authMiddleware.js";
+import { requirePaymentPartnerEnabled } from "../utils/paymentFeatureFlag.js";
 import { sendMobileMessage } from "../services/mobileOtpService.js";
 import {
   buildGradeQuantitiesFromProduct,
@@ -534,7 +535,7 @@ router.patch("/:quoteId", protect, authorize("buyer"), async (req, res) => {
   }
 });
 
-router.patch("/:quoteId/accept", protect, authorize("grower"), async (req, res) => {
+router.patch("/:quoteId/accept", protect, authorize("grower"), requirePaymentPartnerEnabled, async (req, res) => {
   try {
     const quotation = await Quotation.findById(req.params.quoteId).populate("lot");
     if (!quotation || !quotation.lot) {

@@ -12,6 +12,10 @@ import {
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import API, { FILE_BASE_URL } from "../services/api";
+import {
+  PAYMENT_PARTNER_ENABLED,
+  PAYMENT_UNAVAILABLE_MESSAGE,
+} from "../config/payment";
 import { getEfruitMandiProducts } from "../utils/marketProducts";
 
 const filters = [
@@ -32,6 +36,7 @@ export default function Notifications() {
   const [activeFilter, setActiveFilter] = useState("all");
   const [readIds, setReadIds] = useState(() => loadReadNotifications());
   const [now, setNow] = useState(Date.now());
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -97,6 +102,10 @@ export default function Notifications() {
     markRead(notification.id);
     if (notification.type === "won") {
       if (notification.orderId && !notification.paymentExpired) {
+        if (!PAYMENT_PARTNER_ENABLED) {
+          setMessage(PAYMENT_UNAVAILABLE_MESSAGE);
+          return;
+        }
         navigate(`/payment/${notification.orderId}`);
         return;
       }
@@ -169,6 +178,12 @@ export default function Notifications() {
           ))}
         </div>
       </section>
+
+      {message && (
+        <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm font-bold text-red-700">
+          {message}
+        </p>
+      )}
 
       {loading && <NotificationSkeleton />}
 

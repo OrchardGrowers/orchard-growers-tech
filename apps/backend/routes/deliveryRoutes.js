@@ -4,6 +4,7 @@ import Order from "../models/Order.js";
 import User from "../models/User.js";
 import protect, { authorize } from "../middleware/authMiddleware.js";
 import { refreshSettlementEligibility } from "../services/logisticsAssignmentService.js";
+import { requirePaymentPartnerEnabled } from "../utils/paymentFeatureFlag.js";
 
 const router = express.Router();
 
@@ -146,7 +147,7 @@ router.post("/negotiate", protect, authorize("buyer"), async (req, res) => {
   }
 });
 
-router.post("/generate-settlement-otp", protect, authorize("buyer"), async (req, res) => {
+router.post("/generate-settlement-otp", protect, authorize("buyer"), requirePaymentPartnerEnabled, async (req, res) => {
   try {
     const { orderId } = req.body;
     const delivery = await Delivery.findOne({ order: orderId });
@@ -173,7 +174,7 @@ router.post("/generate-settlement-otp", protect, authorize("buyer"), async (req,
   }
 });
 
-router.post("/confirm-settlement", protect, authorize("grower"), async (req, res) => {
+router.post("/confirm-settlement", protect, authorize("grower"), requirePaymentPartnerEnabled, async (req, res) => {
   try {
     const { orderId, otp } = req.body;
     const delivery = await Delivery.findOne({ order: orderId });

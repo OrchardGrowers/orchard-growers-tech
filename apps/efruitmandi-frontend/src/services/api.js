@@ -1,5 +1,9 @@
 import axios from "axios";
 import { logoutUser } from "../utils/auth";
+import {
+  createPaymentUnavailableError,
+  isPaymentPartnerDisabledPath,
+} from "../config/payment";
 
 const normalizeBaseUrl = (value = "") => value.trim().replace(/\/+$/, "");
 const stripApiSuffix = (value = "") => normalizeBaseUrl(value).replace(/\/api$/i, "");
@@ -91,6 +95,10 @@ const API = axios.create({
 
 // ================= REQUEST INTERCEPTOR =================
 API.interceptors.request.use((config) => {
+  if (isPaymentPartnerDisabledPath(config.url)) {
+    throw createPaymentUnavailableError();
+  }
+
   const token = localStorage.getItem("accessToken");
 
   if (token) {

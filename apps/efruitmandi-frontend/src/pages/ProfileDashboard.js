@@ -24,6 +24,10 @@ import {
   hasDriverProfile,
   hasGrowerProfile,
 } from "../utils/auth";
+import {
+  PAYMENT_PARTNER_ENABLED,
+  PAYMENT_UNAVAILABLE_MESSAGE,
+} from "../config/payment";
 import { getEfruitMandiProducts } from "../utils/marketProducts";
 import { saveUserToStorage, sanitizeUserForStorage } from "../utils/userStorage";
 import {
@@ -461,6 +465,11 @@ export default function ProfileDashboard() {
   };
 
   const acceptBuyerQuote = async (quote) => {
+    if (!PAYMENT_PARTNER_ENABLED) {
+      setNotice(PAYMENT_UNAVAILABLE_MESSAGE);
+      return;
+    }
+
     if (!window.confirm("After accepting this quote, other quotes for this lot will be closed. Continue?")) {
       return;
     }
@@ -1408,7 +1417,13 @@ export default function ProfileDashboard() {
                 navigate(`/quotes/${quote._id}?view=buyer`);
               }}
               onViewQuote={(quoteId) => navigate(`/quotes/${quoteId}?view=buyer`)}
-              onPay={(orderId) => navigate(`/payment/${orderId}`)}
+              onPay={(orderId) => {
+                if (!PAYMENT_PARTNER_ENABLED) {
+                  setNotice(PAYMENT_UNAVAILABLE_MESSAGE);
+                  return;
+                }
+                navigate(`/payment/${orderId}`);
+              }}
             />
           </>
         )}

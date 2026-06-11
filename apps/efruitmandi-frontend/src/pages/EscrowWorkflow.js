@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
+import { Helmet } from "react-helmet-async";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import API from "../services/api";
 import BackHomeButton from "../components/BackHomeButton";
 import { isGrowerAccount } from "../utils/auth";
+import {
+  PAYMENT_PARTNER_ENABLED,
+  PAYMENT_UNAVAILABLE_MESSAGE,
+} from "../config/payment";
 
 export default function EscrowWorkflow() {
   const { orderId } = useParams();
@@ -14,7 +19,7 @@ export default function EscrowWorkflow() {
   const paymentSuccess = query.get("payment") === "success";
 
   useEffect(() => {
-    if (!orderId) return;
+    if (!PAYMENT_PARTNER_ENABLED || !orderId) return;
     API.get(`/billdesk/escrow/${orderId}`)
       .then((res) => {
         setWorkflow(res.data);
@@ -26,8 +31,28 @@ export default function EscrowWorkflow() {
   const order = workflow?.order;
   const isGrower = isGrowerAccount();
 
+  if (!PAYMENT_PARTNER_ENABLED) {
+    return (
+      <div className="mx-auto max-w-md rounded bg-white p-6 shadow">
+        <Helmet>
+          <meta name="robots" content="noindex,nofollow" />
+        </Helmet>
+        <h2 className="mb-3 text-xl font-bold">Escrow unavailable</h2>
+        <p className="text-sm font-semibold text-gray-700">
+          {PAYMENT_UNAVAILABLE_MESSAGE}
+        </p>
+        <div className="mt-4 flex justify-center">
+          <BackHomeButton />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-2xl space-y-4 rounded bg-white p-4 shadow">
+      <Helmet>
+        <meta name="robots" content="noindex,nofollow" />
+      </Helmet>
       <h2 className="text-xl font-bold">Escrow Deal Workflow</h2>
       {paymentSuccess && (
         <p className="rounded border border-green-200 bg-green-50 px-3 py-2 text-sm font-bold text-green-800">

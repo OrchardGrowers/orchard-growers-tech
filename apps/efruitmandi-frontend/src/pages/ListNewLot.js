@@ -19,7 +19,11 @@ import {
   recognizeFruitVideo,
   warmUpFruitRecognition,
 } from "../utils/fruitRecognition";
-import { getCurrentUser, hasCompletedKyc } from "../utils/auth";
+import {
+  getCurrentUser,
+  hasCompletedKycForRole,
+  hasGrowerProfile,
+} from "../utils/auth";
 import { saveUserToStorage } from "../utils/userStorage";
 
 const DEFAULT_FRUITS = [
@@ -361,7 +365,10 @@ export default function ListNewLot() {
   const isEditMode = Boolean(editProductId);
   const [profileUser, setProfileUser] = useState(getCurrentUser());
   const [profileChecked, setProfileChecked] = useState(false);
-  const isKycCompleted = hasCompletedKyc(profileUser);
+  const hasGrowerAccess = hasGrowerProfile(profileUser);
+  const isGrowerKycCompleted =
+    Boolean(profileUser?.growerVerified) ||
+    hasCompletedKycForRole(profileUser, "grower");
   const [fruits, setFruits] = useState(DEFAULT_FRUITS);
   const [varieties, setVarieties] = useState(DEFAULT_VARIETIES);
   const [customPanel, setCustomPanel] = useState(null);
@@ -450,7 +457,18 @@ export default function ListNewLot() {
   }, [localLotNoPreview]);
 
   useEffect(() => {
-    if (!profileChecked || isKycCompleted) return;
+    if (!profileChecked || hasGrowerAccess) return;
+    navigate("/register-grower", {
+      replace: true,
+      state: {
+        from: "/list-new-lot",
+        message: "Create your grower profile before listing fruit lots.",
+      },
+    });
+  }, [hasGrowerAccess, navigate, profileChecked]);
+
+  useEffect(() => {
+    if (!profileChecked || !hasGrowerAccess || isGrowerKycCompleted) return;
     navigate("/kyc", {
       replace: true,
       state: {
@@ -459,7 +477,7 @@ export default function ListNewLot() {
         message: "Complete Grower KYC before listing fruit lots.",
       },
     });
-  }, [isKycCompleted, navigate, profileChecked]);
+  }, [hasGrowerAccess, isGrowerKycCompleted, navigate, profileChecked]);
 
   useEffect(() => {
     if (!editProductId) return undefined;
@@ -732,7 +750,7 @@ export default function ListNewLot() {
 
   return (
     <div className="mx-auto max-w-md border-t-4 border-green-600 bg-white pb-20">
-      {profileChecked && isKycCompleted ? (
+      {profileChecked && hasGrowerAccess && isGrowerKycCompleted ? (
       <form onSubmit={handleSubmit} className="px-4 py-5">
         <div className="mb-5 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border-2 border-black text-2xl font-bold">
@@ -1047,7 +1065,7 @@ export default function ListNewLot() {
       </form>
       ) : (
         <div className="px-4 py-8 text-center text-sm font-extrabold text-green-800">
-          Opening Grower KYC...
+          Checking grower onboarding...
         </div>
       )}
     </div>

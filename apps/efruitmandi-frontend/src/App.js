@@ -4,7 +4,6 @@ import { lazy, Suspense, useEffect } from "react";
 import StartupSplash from "./components/StartupSplash";
 import AppFeedback from "./components/AppFeedback";
 import InstallAppPrompt from "./components/InstallAppPrompt";
-import TestingModeGate from "./components/TestingModeGate";
 
 import { initAnalytics, trackPageView } from "./services/analytics";
 
@@ -61,8 +60,7 @@ function App() {
     <>
       <AppFeedback />
       <StartupSplash />
-      <TestingModeGate>
-       <BrowserRouter
+      <BrowserRouter
           future={{
             v7_startTransition: true,
             v7_relativeSplatPath: true,
@@ -129,7 +127,6 @@ function App() {
             </Routes>
           </Suspense>
         </BrowserRouter>
-      </TestingModeGate>
     </>
   );
 }

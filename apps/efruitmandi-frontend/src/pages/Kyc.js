@@ -545,9 +545,9 @@ export default function Kyc() {
       saveUserToStorage(res.data);
       setKycStatus(res.data?.kyc?.status || "PENDING");
       trackKycSubmitted(form.roleType || "buyer");
-      setMessage("KYC submitted successfully. Submitted / Pending Review.");
+      setMessage("Your onboarding request has been submitted successfully. Verification and onboarding may take 24 to 48 hours.");
       localStorage.removeItem(`efruitmandiKycDraft:${currentUserId || getCurrentStoredUserId() || "guest"}:${form.roleType}`);
-      if (returnTo) window.setTimeout(() => navigate(returnTo), 900);
+      if (returnTo) window.setTimeout(() => navigate(returnTo), 2500);
     } catch (err) {
       const apiFieldErrors = getApiFieldErrors(err);
       setFieldErrors(apiFieldErrors);

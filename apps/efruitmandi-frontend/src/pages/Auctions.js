@@ -19,6 +19,10 @@ import socket from "../services/socket";
 import { canQuote, getCurrentUser, isBuyerAccount } from "../utils/auth";
 import { getEfruitMandiProducts } from "../utils/marketProducts";
 import CountdownTimer from "../components/CountdownTimer";
+import {
+  PAYMENT_PARTNER_ENABLED,
+  PAYMENT_UNAVAILABLE_MESSAGE,
+} from "../config/payment";
 
 const sortOptions = [
   { key: "latest", label: "Latest" },
@@ -40,6 +44,7 @@ export default function Auctions() {
   const [sortMode, setSortMode] = useState("latest");
   const initialUser = useMemo(() => getCurrentUser(), []);
   const [profile, setProfile] = useState(initialUser);
+  const [message, setMessage] = useState("");
   const isBuyer = isBuyerAccount(profile);
   const canDeal = isBuyer && canQuote(profile);
 
@@ -171,6 +176,11 @@ export default function Auctions() {
   }, [liveAuctions]);
 
   const placeDeal = (auctionId) => {
+    if (!PAYMENT_PARTNER_ENABLED) {
+      setMessage(PAYMENT_UNAVAILABLE_MESSAGE);
+      return;
+    }
+
     if (!canDeal) {
       if (!localStorage.getItem("accessToken")) {
         navigate("/profile", { state: { mode: "login", from: "/auctions" } });
@@ -248,6 +258,12 @@ export default function Auctions() {
           </div>
         </div>
       </header>
+
+      {message && (
+        <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm font-bold text-red-700">
+          {message}
+        </p>
+      )}
 
       <section className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
         <label className="flex items-center gap-2 rounded-lg border border-green-100 bg-white px-3 py-2">

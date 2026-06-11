@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { FaArrowLeft, FaCalculator, FaHandshake, FaSeedling, FaUser } from "react-icons/fa";
 import API from "../services/api";
+import {
+  PAYMENT_PARTNER_ENABLED,
+  PAYMENT_UNAVAILABLE_MESSAGE,
+} from "../config/payment";
 
 export default function QuoteDetails() {
   const { quoteId } = useParams();
@@ -31,6 +35,11 @@ export default function QuoteDetails() {
 
   const acceptDeal = async () => {
     if (!quote?._id) return;
+    if (!PAYMENT_PARTNER_ENABLED) {
+      setMessage(PAYMENT_UNAVAILABLE_MESSAGE);
+      return;
+    }
+
     if (!window.confirm("After accepting this deal, other quotes for this lot will be closed. Continue?")) {
       return;
     }

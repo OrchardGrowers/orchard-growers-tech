@@ -1,6 +1,7 @@
 import express from "express";
 import Order from "../models/Order.js";
 import protect, { authorize } from "../middleware/authMiddleware.js";
+import { requirePaymentPartnerEnabled } from "../utils/paymentFeatureFlag.js";
 import {
   generateBillDeskPaymentRef,
   generateBuyerInvoiceNo,
@@ -10,6 +11,8 @@ import {
 import { refreshSettlementEligibility } from "../services/logisticsAssignmentService.js";
 
 const router = express.Router();
+
+router.use(requirePaymentPartnerEnabled);
 
 const ensureOwnBuyerOrder = (order, userId) =>
   order.buyer?.toString() === userId?.toString();

@@ -1,9 +1,14 @@
 import { useEffect, useState } from "react";
+import { Helmet } from "react-helmet-async";
 import API from "../services/api";
 import { trackPaymentFailed, trackPaymentInitiated, trackPaymentSuccess } from "../services/analytics";
 import { useParams, useNavigate } from "react-router-dom";
 import BackHomeButton from "../components/BackHomeButton";
 import { getCurrentUser, hasBuyerProfile } from "../utils/auth";
+import {
+  PAYMENT_PARTNER_ENABLED,
+  PAYMENT_UNAVAILABLE_MESSAGE,
+} from "../config/payment";
 
 export default function Payment() {
   const { orderId } = useParams();
@@ -26,7 +31,7 @@ export default function Payment() {
 
   useEffect(() => {
     const fetchOrder = async () => {
-      if (!canUseBuyerPayment) return;
+      if (!PAYMENT_PARTNER_ENABLED || !canUseBuyerPayment) return;
 
       try {
         const res = await API.get(`/orders/${orderId}`);
@@ -47,6 +52,10 @@ export default function Payment() {
 
     fetchOrder();
   }, [canUseBuyerPayment, currentUserId, orderId]);
+
+  if (!PAYMENT_PARTNER_ENABLED) {
+    return <PaymentUnavailablePanel navigate={navigate} />;
+  }
 
   if (!canUseBuyerPayment) {
     return (
@@ -70,6 +79,11 @@ export default function Payment() {
   }
 
   const handlePayment = async () => {
+    if (!PAYMENT_PARTNER_ENABLED) {
+      setMessage(PAYMENT_UNAVAILABLE_MESSAGE);
+      return;
+    }
+
     setLoading(true);
     setMessage("");
 
@@ -103,6 +117,9 @@ export default function Payment() {
 
   return (
     <div className="mx-auto w-full max-w-4xl pb-10">
+      <Helmet>
+        <meta name="robots" content="noindex,nofollow" />
+      </Helmet>
       <div className="mb-4 rounded bg-white p-5 shadow">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -212,6 +229,30 @@ export default function Payment() {
       </div>
 
       <div className="mt-4 flex justify-center">
+        <BackHomeButton />
+      </div>
+    </div>
+  );
+}
+
+function PaymentUnavailablePanel({ navigate }) {
+  return (
+    <div className="mx-auto max-w-md rounded bg-white p-6 shadow">
+      <Helmet>
+        <meta name="robots" content="noindex,nofollow" />
+      </Helmet>
+      <h2 className="mb-3 text-xl font-bold">Payment unavailable</h2>
+      <p className="text-sm font-semibold text-gray-700">
+        {PAYMENT_UNAVAILABLE_MESSAGE}
+      </p>
+      <button
+        type="button"
+        onClick={() => navigate("/profile-dashboard")}
+        className="mt-4 w-full rounded bg-green-700 py-2 text-white"
+      >
+        Go to Profile Dashboard
+      </button>
+      <div className="mt-3 flex justify-center">
         <BackHomeButton />
       </div>
     </div>

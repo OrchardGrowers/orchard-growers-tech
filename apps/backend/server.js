@@ -39,6 +39,10 @@ import {
   getHighestAvailableGrade,
   mergeDealSettings,
 } from "./services/dealCalculationService.js";
+import {
+  isPaymentPartnerEnabled,
+  PAYMENT_UNAVAILABLE_MESSAGE,
+} from "./utils/paymentFeatureFlag.js";
 
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -259,6 +263,21 @@ const userHasProfile = (user, profileType) =>
   user?.role === profileType ||
   (Array.isArray(user?.profileTypes) && user.profileTypes.includes(profileType));
 
+const hasApprovedRoleKyc = (user = {}, roleType = "") => {
+  const role = String(roleType || "").toLowerCase();
+  const verifiedFlag =
+    role === "buyer"
+      ? user.buyerVerified
+      : role === "grower"
+        ? user.growerVerified
+        : role === "driver"
+          ? user.driverVerified
+          : false;
+  const roleKyc = user.kycByRole?.[role] || {};
+  const legacyKyc = String(user.kyc?.roleType || "").toLowerCase() === role ? user.kyc : {};
+  return Boolean(verifiedFlag) || String(roleKyc.status || legacyKyc.status || "").toUpperCase() === "APPROVED";
+};
+
 const loadDealSettings = async () =>
   mergeDealSettings((await DealSettings.findOne({ key: "default" }).lean()) || {});
 
@@ -315,13 +334,18 @@ io.on("connection", (socket) => {
 
   socket.on("placeDeal", async ({ auctionId, dealAmount, userId, token, distanceKm = 0 }) => {
     try {
+      if (!isPaymentPartnerEnabled()) {
+        socket.emit("dealRejected", { msg: PAYMENT_UNAVAILABLE_MESSAGE });
+        return;
+      }
+
       if (!token) {
         socket.emit("dealRejected", { msg: "Login as a buyer to make a deal." });
         return;
       }
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const dealBuyer = await User.findById(decoded.id).select("_id role profileTypes kyc");
+      const dealBuyer = await User.findById(decoded.id).select("_id role profileTypes kyc kycByRole buyerVerified");
 
       if (!dealBuyer || !userHasProfile(dealBuyer, "buyer")) {
         socket.emit("dealRejected", {
@@ -330,7 +354,7 @@ io.on("connection", (socket) => {
         return;
       }
 
-      if (dealBuyer.kyc?.status !== "APPROVED") {
+      if (!hasApprovedRoleKyc(dealBuyer, "buyer")) {
         socket.emit("dealRejected", {
           success: false,
           code: "KYC_REQUIRED",
@@ -391,6 +415,10 @@ io.on("connection", (socket) => {
   socket.on("submitQuote", async ({ auctionId, quotedPrice, buyerId, token, distanceKm = 0 }) => {
     try {
       // reuse same validation and update logic as placeDeal
+      if (!isPaymentPartnerEnabled()) {
+        socket.emit("dealRejected", { msg: PAYMENT_UNAVAILABLE_MESSAGE });
+        return;
+      }
 
       if (!token) {
         socket.emit("dealRejected", { msg: "Login as a buyer to make a deal." });
@@ -398,7 +426,7 @@ io.on("connection", (socket) => {
       }
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const dealBuyer = await User.findById(decoded.id).select("_id role profileTypes kyc");
+      const dealBuyer = await User.findById(decoded.id).select("_id role profileTypes kyc kycByRole buyerVerified");
 
       if (!dealBuyer || !userHasProfile(dealBuyer, "buyer")) {
         socket.emit("dealRejected", {
@@ -407,7 +435,7 @@ io.on("connection", (socket) => {
         return;
       }
 
-      if (dealBuyer.kyc?.status !== "APPROVED") {
+      if (!hasApprovedRoleKyc(dealBuyer, "buyer")) {
         socket.emit("dealRejected", {
           success: false,
           code: "KYC_REQUIRED",
@@ -522,6 +550,18 @@ setInterval(async () => {
           emitEfruitMandiMarketUpdate("deal-ended", {
             auctionId: auction._id,
             orderId: null,
+          });
+          continue;
+        }
+
+        if (!isPaymentPartnerEnabled()) {
+          io.to(auction._id.toString()).emit("dealRejected", {
+            msg: PAYMENT_UNAVAILABLE_MESSAGE,
+          });
+          emitEfruitMandiMarketUpdate("deal-ended", {
+            auctionId: auction._id,
+            orderId: null,
+            paymentDisabled: true,
           });
           continue;
         }

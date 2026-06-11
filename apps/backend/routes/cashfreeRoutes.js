@@ -1,8 +1,11 @@
 import express from "express";
 import axios from "axios";
 import Order from "../models/Order.js";
+import { requirePaymentPartnerEnabled } from "../utils/paymentFeatureFlag.js";
 
 const router = express.Router();
+
+router.use(requirePaymentPartnerEnabled);
 
 const getCashfreeBaseUrl = () =>
   String(process.env.CASHFREE_ENV || "").toLowerCase() === "production"

@@ -2,12 +2,25 @@ import { useEffect, useState } from "react";
 import API from "../services/api";
 import { useNavigate } from "react-router-dom";
 import { isGrowerAccount } from "../utils/auth";
+import {
+  PAYMENT_PARTNER_ENABLED,
+  PAYMENT_UNAVAILABLE_MESSAGE,
+} from "../config/payment";
 
 export default function Orders() {
   const [orders, setOrders] = useState([]);
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
   const isGrower = isGrowerAccount();
+
+  const openPaymentRoute = (path) => {
+    if (!PAYMENT_PARTNER_ENABLED) {
+      setMessage(PAYMENT_UNAVAILABLE_MESSAGE);
+      return;
+    }
+
+    navigate(path);
+  };
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -49,7 +62,7 @@ export default function Orders() {
 
           {order.paymentStatus === "PENDING" && !isGrower && (
             <button
-              onClick={() => navigate(`/payment/${order._id}`)}
+              onClick={() => openPaymentRoute(`/payment/${order._id}`)}
               className="mt-2 bg-green-600 text-white px-3 py-1 rounded"
             >
               Pay Now
@@ -64,7 +77,7 @@ export default function Orders() {
 
           <div className="mt-2 flex flex-wrap gap-2">
             <button
-              onClick={() => navigate(`/escrow/${order._id}`)}
+              onClick={() => openPaymentRoute(`/escrow/${order._id}`)}
               className="rounded bg-blue-600 px-3 py-1 text-sm text-white"
             >
               Escrow Flow

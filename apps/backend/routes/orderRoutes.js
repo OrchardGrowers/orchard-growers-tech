@@ -4,6 +4,7 @@ import Product from "../models/Product.js";
 import User from "../models/User.js";
 import protect, { optionalProtect } from "../middleware/authMiddleware.js";
 import { sendMobileMessage } from "../services/mobileOtpService.js";
+import { requirePaymentPartnerEnabled } from "../utils/paymentFeatureFlag.js";
 import {
   buildLogisticsInvitationLink,
   createInvitationToken,
@@ -93,7 +94,7 @@ const createInvoiceNumber = async () => {
 
 const createIndiaPostTracking = () => `IPTEST${Date.now().toString().slice(-10)}`;
 
-router.post("/checkout", optionalProtect, async (req, res) => {
+router.post("/checkout", requirePaymentPartnerEnabled, optionalProtect, async (req, res) => {
   try {
     const {
       items = [],

@@ -6,6 +6,10 @@ import DealSettings from "../models/DealSettings.js";
 import User from "../models/User.js";
 import protect, { authorize, optionalProtect } from "../middleware/authMiddleware.js";
 import {
+  isPaymentPartnerEnabled,
+  PAYMENT_UNAVAILABLE_MESSAGE,
+} from "../utils/paymentFeatureFlag.js";
+import {
   buildGradeQuantitiesFromProduct,
   calculateDealBreakdown,
   getHighestAvailableGrade,
@@ -263,6 +267,13 @@ router.post("/end/:id", protect, authorize("grower"), async (req, res) => {
 
     if (auction.status === "ENDED") {
       return res.json({ msg: "Deal already ended" });
+    }
+
+    if (auction.highestBidder && !isPaymentPartnerEnabled()) {
+      return res.status(503).json({
+        msg: PAYMENT_UNAVAILABLE_MESSAGE,
+        code: "PAYMENT_PARTNER_DISABLED",
+      });
     }
 
     auction.status = "ENDED";

@@ -14,6 +14,10 @@ import API from "../services/api";
 import BackHomeButton from "../components/BackHomeButton";
 import { getCurrentUser, hasBuyerProfile } from "../utils/auth";
 import {
+  PAYMENT_PARTNER_ENABLED,
+  PAYMENT_UNAVAILABLE_MESSAGE,
+} from "../config/payment";
+import {
   getEfruitMandiWidgetId,
   getEfruitMandiTokenAuth,
   normalizeIndianMobile,
@@ -172,6 +176,10 @@ export default function GetVerified() {
 
   const markFeePaid = async () => {
     if (!orchardDetailComplete || !phoneVerified || submittingPayment || feePaid) return;
+    if (!PAYMENT_PARTNER_ENABLED) {
+      setSubmitError(PAYMENT_UNAVAILABLE_MESSAGE);
+      return;
+    }
 
     setSubmittingPayment(true);
     setSubmitError("");
