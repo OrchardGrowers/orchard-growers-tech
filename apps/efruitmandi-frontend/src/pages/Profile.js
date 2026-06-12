@@ -55,7 +55,9 @@ const addOAuthParams = (url, mode, termsAccepted) => {
 const getEfruitOAuthUrl = (provider, mode, termsAccepted) => {
   const apiOrigin = stripApiSuffix(
     process.env.VITE_API_BASE_URL ||
+      process.env.REACT_APP_API_BASE_URL ||
       process.env.VITE_API_URL ||
+      process.env.REACT_APP_API_URL ||
       "https://api.efruitmandi.live"
   );
   if (apiOrigin) {

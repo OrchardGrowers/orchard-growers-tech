@@ -33,7 +33,11 @@ const normalizeApiUrl = (value = "") => {
   if (!normalized) return "";
   return /\/api$/i.test(normalized) ? normalized : `${normalized}/api`;
 };
-const API_BASE_URL = normalizeApiUrl(getEnvValue("VITE_API_BASE_URL") || "https://api.efruitmandi.live");
+const API_BASE_URL = normalizeApiUrl(
+  getEnvValue("VITE_API_BASE_URL", "REACT_APP_API_BASE_URL") ||
+    getEnvValue("VITE_API_URL", "REACT_APP_API_URL") ||
+    "https://api.efruitmandi.live"
+);
 const efruitOtpPhonesByReqId = new Map();
 const efruitOtpModesByReqId = new Map();
 const efruitOtpFlowsByReqId = new Map();

@@ -19,6 +19,7 @@ import socket from "../services/socket";
 import { canQuote, getCurrentUser, isBuyerAccount } from "../utils/auth";
 import { getEfruitMandiProducts } from "../utils/marketProducts";
 import CountdownTimer from "../components/CountdownTimer";
+import SEO from "../components/SEO";
 import {
   PAYMENT_PARTNER_ENABLED,
   PAYMENT_UNAVAILABLE_MESSAGE,
@@ -241,7 +242,13 @@ export default function Auctions() {
     }));
 
   return (
-    <div className="mx-auto max-w-6xl pb-20">
+    <>
+      <SEO
+        title="Live Fruit Lots for Bulk Buyers | eFruitMandi"
+        description="Browse live fresh fruit lots, orchard consignments, grades, quantities and buyer quote opportunities on eFruitMandi."
+        canonical="/auctions"
+      />
+      <div className="mx-auto max-w-6xl pb-20">
       <header className="-mx-3 bg-green-800 px-4 pb-5 pt-4 text-white md:-mx-4 md:px-6">
         <div className="mx-auto max-w-6xl">
           <p className="flex items-center gap-2 text-xs font-extrabold uppercase text-green-100">
@@ -356,7 +363,8 @@ export default function Auctions() {
           ))}
         </section>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -404,7 +412,15 @@ function FeaturedLot({ auction, canDeal, onView, onQuote }) {
 
         <div className="relative min-h-[220px] bg-green-50">
           {imageUrl ? (
-            <img src={imageUrl} alt={product.title || "Fruit Lot"} className="h-full max-h-[320px] w-full object-contain" loading="lazy" />
+            <img
+              src={optimizeImageUrl(imageUrl, 680)}
+              alt={product.title || "Fruit Lot"}
+              width="680"
+              height="320"
+              className="h-full max-h-[320px] w-full object-contain"
+              loading="lazy"
+              decoding="async"
+            />
           ) : (
             <div className="flex h-full min-h-[220px] items-center justify-center text-5xl text-green-700">
               <FaSeedling />
@@ -449,7 +465,15 @@ function LiveLotCard({
         aria-label={`Open ${product.title || "Fruit Lot"}`}
       >
         {imageUrl ? (
-          <img src={imageUrl} alt={product.title || "Fruit Lot"} className="h-full w-full object-contain" loading="lazy" />
+          <img
+            src={optimizeImageUrl(imageUrl, 420)}
+            alt={product.title || "Fruit Lot"}
+            width="420"
+            height="315"
+            className="h-full w-full object-contain"
+            loading="lazy"
+            decoding="async"
+          />
         ) : (
           <span className="flex h-full items-center justify-center text-3xl text-green-700">
             <FaSeedling />
@@ -693,6 +717,16 @@ function toAssetUrl(path) {
   const normalizedPath = path ? path.replace(/\\/g, "/") : "";
   if (/^https?:\/\//i.test(normalizedPath)) return normalizedPath;
   return normalizedPath ? `${FILE_BASE_URL}/${normalizedPath}` : "";
+}
+
+function optimizeImageUrl(url = "", width = 640) {
+  if (!url || !url.includes("res.cloudinary.com") || !url.includes("/image/upload/")) {
+    return url;
+  }
+  if (/\/image\/upload\/[^/]*(?:f_auto|q_auto|w_)/.test(url)) {
+    return url;
+  }
+  return url.replace("/image/upload/", `/image/upload/f_auto,q_auto,dpr_auto,c_limit,w_${width}/`);
 }
 
 function isOrganicCertifiedProduct(product = {}) {

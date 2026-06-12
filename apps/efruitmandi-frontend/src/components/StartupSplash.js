@@ -56,8 +56,8 @@ export default function StartupSplash({ autoHide = true }) {
         <img
           src={logoUrl}
           alt="eFruitMandi logo"
-          width="330"
-          height="132"
+          width="768"
+          height="512"
           className="startup-logo w-[250px] max-w-[72vw] object-contain md:w-[330px]"
         />
       </span>

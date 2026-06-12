@@ -105,6 +105,7 @@ function App() {
 
           {/* 🔥 Deals */}
           <Route path="auctions" element={<Auctions />} />
+          <Route path="auctions/:lotId" element={<LotDetails />} />
 
           {/* 📦 Orders */}
           <Route path="orders" element={<Orders />} />

@@ -12,7 +12,7 @@ import {
   FaUser,
   FaVideo,
 } from "react-icons/fa";
-import API, { FILE_BASE_URL, getApiErrorMessage } from "../services/api";
+import API, { FILE_BASE_URL } from "../services/api";
 import CountdownTimer from "../components/CountdownTimer";
 import SEO from "../components/SEO";
 import { canQuote, getCurrentUser, hasBuyerProfile } from "../utils/auth";
@@ -20,6 +20,7 @@ import { trackLotContact, trackLotView } from "../services/analytics";
 import { saveUserToStorage } from "../utils/userStorage";
 
 const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
+const isDevelopment = process.env.NODE_ENV !== "production";
 
 export default function LotDetails() {
   const { lotId } = useParams();
@@ -40,7 +41,7 @@ export default function LotDetails() {
         setLoading(true);
         if (!lotId || !/^[a-f0-9]{24}$/i.test(String(lotId))) {
           setProduct(null);
-          setErrorMessage("This fruit lot link is invalid or incomplete.");
+          setErrorMessage("Lot not found");
           return;
         }
         const [res, profileRes] = await Promise.all([
@@ -56,14 +57,17 @@ export default function LotDetails() {
         const linkedAuction = res.data?.auction || null;
 
         if (!lot) {
-          setErrorMessage("This fruit lot is not available.");
+          setErrorMessage("Lot not found");
         }
 
         setProduct(lot);
         setAuction(linkedAuction);
         setActiveImage(getAllImages(lot)[0] || "");
       } catch (err) {
-        setErrorMessage(getApiErrorMessage(err, "Unable to load this fruit lot."));
+        if (isDevelopment) {
+          console.error("Failed to load lot", err);
+        }
+        setErrorMessage("Failed to load lot");
         setProduct(null);
       } finally {
         setLoading(false);
@@ -135,27 +139,43 @@ export default function LotDetails() {
 
   if (loading) {
     return (
-      <div className="w-full max-w-full overflow-x-hidden pb-[calc(160px+env(safe-area-inset-bottom))]">
-        <p className="py-3 text-sm font-semibold text-green-700">
-          Loading lot details...
-        </p>
-      </div>
+      <>
+        <SEO
+          title="Fresh Fruit Lot Details | eFruitMandi"
+          description="View fresh fruit lot details, grade, packing, quantity and grower information on eFruitMandi."
+          canonical={`/auctions/${lotId || ""}`}
+          noIndex
+        />
+        <div className="w-full max-w-full overflow-x-hidden pb-[calc(160px+env(safe-area-inset-bottom))]">
+          <p className="py-3 text-sm font-semibold text-green-700">
+            Loading lot...
+          </p>
+        </div>
+      </>
     );
   }
 
   if (!product) {
     return (
-      <div className="w-full max-w-full overflow-x-hidden pb-[calc(160px+env(safe-area-inset-bottom))]">
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          className="mb-3 inline-flex items-center gap-2 rounded-full bg-gray-200 px-3 py-1 text-xs font-bold text-gray-700"
-        >
-          <FaArrowLeft />
-          Back
-        </button>
-        <EmptyState text={errorMessage || "This fruit lot is not available."} />
-      </div>
+      <>
+        <SEO
+          title="Lot Not Found | eFruitMandi"
+          description="The requested eFruitMandi fruit lot could not be found or is no longer available."
+          canonical={`/auctions/${lotId || ""}`}
+          noIndex
+        />
+        <div className="w-full max-w-full overflow-x-hidden pb-[calc(160px+env(safe-area-inset-bottom))]">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="mb-3 inline-flex items-center gap-2 rounded-full bg-gray-200 px-3 py-1 text-xs font-bold text-gray-700"
+          >
+            <FaArrowLeft />
+            Back
+          </button>
+          <EmptyState text={errorMessage || "Lot not found"} />
+        </div>
+      </>
     );
   }
 
@@ -250,10 +270,13 @@ export default function LotDetails() {
             >
               <span className="relative inline-flex max-h-full max-w-full min-w-0">
                 <img
-                  src={toAssetUrl(activeImage)}
+                  src={getOptimizedAssetUrl(activeImage, 900)}
                   alt={product.title || "Fruit Lot"}
+                  width="900"
+                  height="675"
                   onError={() => setActiveImage(images.find((image) => toAssetUrl(image) !== toAssetUrl(activeImage)) || "")}
                   className="h-auto max-h-full w-full max-w-full object-contain object-center"
+                  decoding="async"
                 />
                 {activeGradeLabel && <FruitGradeBadge label={activeGradeLabel} />}
               </span>
@@ -278,12 +301,16 @@ export default function LotDetails() {
                 }`}
               >
                 <img
-                  src={toAssetUrl(image)}
+                  src={getOptimizedAssetUrl(image, 160)}
                   alt=""
+                  width="96"
+                  height="80"
                   onError={(event) => {
                     event.currentTarget.style.display = "none";
                   }}
                   className="h-full w-full max-w-full object-contain"
+                  loading="lazy"
+                  decoding="async"
                 />
               </button>
             ))}
@@ -434,10 +461,13 @@ function ImageZoomModal({ imageUrl, title, zoom, onZoomIn, onZoomOut, onReset, o
       </div>
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-md bg-black">
         <img
-          src={imageUrl}
+          src={optimizeImageUrl(imageUrl, 1200)}
           alt={title}
+          width="1200"
+          height="900"
           className="max-h-full max-w-full object-contain transition-transform"
           style={{ transform: `scale(${zoom})` }}
+          decoding="async"
         />
       </div>
     </div>
@@ -515,12 +545,16 @@ function GradeLots({ lots }) {
                 {getLotImages(lot).map((image) => (
                   <img
                     key={getAssetKey(image)}
-                    src={toAssetUrl(image)}
+                    src={getOptimizedAssetUrl(image, 180)}
                     alt={`${lot.grade || "Grade"} fruit sample`}
+                    width="96"
+                    height="80"
                     onError={(event) => {
                       event.currentTarget.style.display = "none";
                     }}
                     className="h-20 w-24 max-w-[6rem] shrink-0 rounded bg-white object-cover"
+                    loading="lazy"
+                    decoding="async"
                   />
                 ))}
               </div>
@@ -616,6 +650,20 @@ function toAssetUrl(path) {
   const normalizedPath = rawPath ? rawPath.replace(/\\/g, "/") : "";
   if (/^https?:\/\//i.test(normalizedPath)) return normalizedPath;
   return normalizedPath ? `${FILE_BASE_URL}/${normalizedPath}` : "";
+}
+
+function optimizeImageUrl(url = "", width = 720) {
+  if (!url || !url.includes("res.cloudinary.com") || !url.includes("/image/upload/")) {
+    return url;
+  }
+  if (/\/image\/upload\/[^/]*(?:f_auto|q_auto|w_)/.test(url)) {
+    return url;
+  }
+  return url.replace("/image/upload/", `/image/upload/f_auto,q_auto,dpr_auto,c_limit,w_${width}/`);
+}
+
+function getOptimizedAssetUrl(path, width) {
+  return optimizeImageUrl(toAssetUrl(path), width);
 }
 
 function getImageGradeLabel(product = {}, imageUrl = "") {
