@@ -1107,3 +1107,26 @@ function Field({
     </label>
   );
 }
+function ReadOnlyInfo({ icon, label, value, note }) {
+  return (
+    <div>
+      <span className="mb-1.5 block text-sm font-bold text-gray-700">
+        {label}
+      </span>
+
+      <div className="flex items-center gap-3 rounded-md border border-gray-200 bg-gray-100 px-3 py-3">
+        <span className="text-gray-400">{icon}</span>
+
+        <span className="text-sm font-semibold text-gray-700">
+          {value}
+        </span>
+      </div>
+
+      {note ? (
+        <p className="mt-1 text-[10px] font-semibold text-gray-500">
+          {note}
+        </p>
+      ) : null}
+    </div>
+  );
+}
