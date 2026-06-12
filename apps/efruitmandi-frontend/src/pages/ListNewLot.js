@@ -1113,20 +1113,30 @@ function ReadOnlyInfo({ icon, label, value, note }) {
       <span className="mb-1.5 block text-sm font-bold text-gray-700">
         {label}
       </span>
-
-      <div className="flex items-center gap-3 rounded-md border border-gray-200 bg-gray-100 px-3 py-3">
-        <span className="text-gray-400">{icon}</span>
-
-        <span className="text-sm font-semibold text-gray-700">
+      <div className="flex items-center gap-3 rounded-md border border-gray-200 bg-gray-100 px-3 py-3 text-gray-400">
+        {icon}
+        <span className="w-full text-sm font-semibold text-gray-600">
           {value}
         </span>
       </div>
-
-      {note ? (
+      {note && (
         <p className="mt-1 text-[10px] font-semibold text-gray-500">
           {note}
         </p>
-      ) : null}
+      )}
     </div>
   );
+}
+
+function formatWeight(value) {
+  const number = Number(value || 0);
+  if (!number) return "0 KG";
+  if (number < 1) return `${number.toFixed(1)} KG`;
+  return `${Math.round(number * 10) / 10} KG`;
+}
+
+function singularizeUnit(unit = "units") {
+  if (unit === "cartons") return "Carton";
+  if (unit === "crates") return "Crate";
+  return "Unit";
 }
