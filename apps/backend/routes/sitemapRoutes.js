@@ -45,6 +45,13 @@ router.get("/sitemap.xml", async (req, res) => {
       { loc: "/fruit-grading-packing-guidelines", changefreq: "monthly", priority: "0.6" },
       { loc: "/report-problem", changefreq: "monthly", priority: "0.5" },
       { loc: "/user-data-deletion", changefreq: "monthly", priority: "0.4" },
+
+      // Fruit lot SEO pages
+      { loc: "/fruit-lots/apple", changefreq: "weekly", priority: "0.8" },
+      { loc: "/fruit-lots/pear", changefreq: "weekly", priority: "0.8" },
+      { loc: "/fruit-lots/persimmon", changefreq: "weekly", priority: "0.8" },
+      { loc: "/fruit-lots/plum", changefreq: "weekly", priority: "0.8" },
+      { loc: "/fruit-lots/mango", changefreq: "weekly", priority: "0.8" },
     ];
 
     const products = await Product.find({

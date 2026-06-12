@@ -10,7 +10,7 @@ import MainLayout from "./layouts/MainLayout";
 
 // 🔹 Pages
 import Home from "./pages/Home";
-
+const FruitLotsPage = lazy(() => import("./pages/FruitLotsPage"));
 const Orders = lazy(() => import("./pages/Orders"));
 const InvoicesChalan = lazy(() => import("./pages/InvoicesChalan"));
 const Delivery = lazy(() => import("./pages/Delivery"));
@@ -163,6 +163,7 @@ function App() {
             <Route path="/quotes/:quoteId" element={<QuoteDetails />} />
             <Route path="/lots/:lotId/rating" element={<RateGrower />} />
             <Route path="/search" element={<SearchResults />} />
+            <Route path="/fruit-lots/:fruitSlug" element={<FruitLotsPage />} />
 
         </Route>
 
