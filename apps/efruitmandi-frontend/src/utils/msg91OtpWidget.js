@@ -183,7 +183,9 @@ const waitForMsg91Methods = () =>
       }
 
       if (Date.now() - startedAt >= READY_TIMEOUT_MS) {
-        console.warn("MSG91 widget script load timeout.");
+        if (isDevelopment()) {
+          console.warn("MSG91 widget script load timeout.");
+        }
         reject(new Error(LOAD_TIMEOUT_ERROR));
         return;
       }
@@ -208,11 +210,15 @@ export const initMsg91Widget = async ({ widgetId, tokenAuth }) => {
   });
 
   if (!widgetId) {
-    console.warn("Missing MSG91 eFruitMandi widget ID/tokenAuth is not configured.");
+    if (isDevelopment()) {
+      console.warn("Missing MSG91 eFruitMandi widget ID/tokenAuth is not configured.");
+    }
     throw new Error("Mobile OTP is not configured.");
   }
   if (!tokenAuth) {
-    console.warn("Missing MSG91 eFruitMandi tokenAuth.");
+    if (isDevelopment()) {
+      console.warn("Missing MSG91 eFruitMandi tokenAuth.");
+    }
     throw new Error("Mobile OTP is not configured.");
   }
 

@@ -20,10 +20,6 @@ export const API_ORIGIN = normalizeBaseUrl(
     stripApiSuffix(process.env.REACT_APP_API_URL || "") ||
     "https://api.efruitmandi.live"
 );
-if (!API_ORIGIN) {
-  console.warn("Missing VITE_API_BASE_URL for eFruitMandi frontend.");
-}
-
 export const API_BASE_URL = normalizeApiUrl(
   process.env.VITE_API_BASE_URL ||
     process.env.REACT_APP_API_BASE_URL ||
@@ -36,6 +32,9 @@ export const SOCKET_URL = normalizeBaseUrl(process.env.VITE_SOCKET_URL || proces
 const EFRUITMANDI_PLATFORM = "efruitmandi";
 const PLATFORM_TAGGED_AUTH_PATHS = /^\/?auth\/(send-otp|resend-otp|verify-otp|forgot-password|reset-password|login|register)$/i;
 const isDevelopment = process.env.NODE_ENV !== "production";
+if (isDevelopment && !API_ORIGIN) {
+  console.warn("Missing VITE_API_BASE_URL for eFruitMandi frontend.");
+}
 
 const shouldTagAuthPlatform = (url = "") => {
   const path = String(url).replace(/^https?:\/\/[^/]+\/api\/?/i, "").replace(/^\/api\/?/i, "");

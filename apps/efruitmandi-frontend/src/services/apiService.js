@@ -1,4 +1,5 @@
 const API_TIMEOUT = 8000;
+const isDevelopment = process.env.NODE_ENV !== "production";
 
 // 🔐 Generic fetch with timeout + safety
 export const safeFetch = async (url) => {
@@ -16,7 +17,9 @@ export const safeFetch = async (url) => {
 
     return data;
   } catch (err) {
-    console.error("API Error:", err.message);
+    if (isDevelopment) {
+      console.error("API Error:", err.message);
+    }
     return null;
   } finally {
     clearTimeout(timeout);

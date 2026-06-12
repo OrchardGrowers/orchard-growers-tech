@@ -66,14 +66,19 @@ export default function Navbar() {
 
   useEffect(() => {
     let cancelled = false;
+    let idleId;
+    let timerId;
 
     const refreshUnreadNotifications = async () => {
+      if (!localStorage.getItem("accessToken")) {
+        if (!cancelled) setHasUnreadNotifications(false);
+        return;
+      }
+
       try {
         const [lotRes, quoteRes] = await Promise.all([
           API.get("/products?platform=efruitmandi"),
-          localStorage.getItem("accessToken")
-            ? API.get("/quotes/buyer").catch(() => ({ data: { quotes: [] } }))
-            : Promise.resolve({ data: { quotes: [] } }),
+          API.get("/quotes/buyer").catch(() => ({ data: { quotes: [] } })),
         ]);
         if (cancelled) return;
         const latestLotIds = getEfruitMandiProducts(lotRes.data)
@@ -94,7 +99,15 @@ export default function Navbar() {
       }
     };
 
-    refreshUnreadNotifications();
+    const scheduleInitialRefresh = () => {
+      if ("requestIdleCallback" in window) {
+        idleId = window.requestIdleCallback(refreshUnreadNotifications, { timeout: 2500 });
+        return;
+      }
+      timerId = window.setTimeout(refreshUnreadNotifications, 1400);
+    };
+
+    scheduleInitialRefresh();
 
     const handleNotificationUpdate = () => refreshUnreadNotifications();
     const handleStorage = (event) => {
@@ -107,6 +120,8 @@ export default function Navbar() {
 
     return () => {
       cancelled = true;
+      if (idleId) window.cancelIdleCallback(idleId);
+      if (timerId) window.clearTimeout(timerId);
       window.removeEventListener(NOTIFICATION_STATE_EVENT, handleNotificationUpdate);
       window.removeEventListener("storage", handleStorage);
       window.removeEventListener("focus", handleNotificationUpdate);
@@ -192,7 +207,7 @@ export default function Navbar() {
             aria-label="Go to home"
             className="flex h-8 min-w-0 items-center justify-start overflow-hidden"
           >
-            <img src={logoUrl} className="max-h-7 max-w-[36px] object-contain" alt="Orchard Growers" />
+            <img src={logoUrl} width="36" height="28" className="max-h-7 max-w-[36px] object-contain" alt="Orchard Growers" />
           </Link>
 
           <SearchForm
@@ -206,8 +221,9 @@ export default function Navbar() {
 
           <div className="flex min-w-0 items-center justify-end gap-1">
             <div className="flex h-8 w-[44px] shrink-0 items-center gap-0.5 rounded-full bg-white px-1">
-              <img src={selected.flag} className="h-3 w-4 rounded-[2px]" alt="" />
+              <img src={selected.flag} width="16" height="12" className="h-3 w-4 rounded-[2px]" alt="" />
               <select
+                aria-label="Select country"
                 value={selected.code}
                 onChange={(event) => handleChange(event.target.value)}
                 className="min-w-0 flex-1 bg-white text-[10px] font-semibold outline-none"
@@ -249,7 +265,7 @@ export default function Navbar() {
       <header className="fixed left-0 right-0 top-0 z-50 hidden bg-green-700 shadow-sm md:block">
         <div className="flex h-14 w-full items-center gap-3 px-4">
           <Link to="/" aria-label="Go to home" className="shrink-0">
-            <img src={logoUrl} className="h-11 w-auto object-contain" alt="Orchard Growers" />
+            <img src={logoUrl} width="120" height="44" className="h-11 w-auto object-contain" alt="Orchard Growers" />
           </Link>
 
           <SearchForm
@@ -262,8 +278,9 @@ export default function Navbar() {
 
           <div className="ml-auto flex h-full items-center gap-3">
             <div className="flex items-center gap-1 rounded bg-white px-2 py-1">
-              <img src={selected.flag} className="h-3 w-4" alt="" />
+              <img src={selected.flag} width="16" height="12" className="h-3 w-4" alt="" />
               <select
+                aria-label="Select country"
                 value={selected.code}
                 onChange={(event) => handleChange(event.target.value)}
                 className="bg-white text-xs outline-none"

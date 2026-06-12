@@ -3,6 +3,9 @@ import { Link } from "react-router-dom";
 
 const BANNER_COUNT = 6;
 const SLIDE_INTERVAL_MS = 3500;
+const BANNER_ASPECT_WIDTH = 690;
+const BANNER_ASPECT_HEIGHT = 200;
+const RESPONSIVE_BANNER_WIDTHS = [360, 480, 690, 1035, 1230];
 
 const CLOUDINARY_BANNERS = [
   "https://res.cloudinary.com/doprdp6bi/image/upload/v1781208076/efruitmandi/banners/home-carousel/banner-1.png",
@@ -16,9 +19,15 @@ const CLOUDINARY_BANNERS = [
 const addCloudinaryTransform = (url, transform) =>
   url.replace("/image/upload/", `/image/upload/${transform}/`);
 
+const getBannerHeight = (width) =>
+  Math.max(1, Math.round((width * BANNER_ASPECT_HEIGHT) / BANNER_ASPECT_WIDTH));
+
+const buildBannerTransform = (width) =>
+  `f_auto,q_auto,c_scale,w_${width},h_${getBannerHeight(width)}`;
+
 const buildSrcSet = (url) =>
-  [480, 768, 1024, 1230]
-    .map((width) => `${addCloudinaryTransform(url, `f_auto,q_auto,c_fit,w_${width}`)} ${width}w`)
+  RESPONSIVE_BANNER_WIDTHS
+    .map((width) => `${addCloudinaryTransform(url, buildBannerTransform(width))} ${width}w`)
     .join(", ");
 
 export default function BannerSlider() {
@@ -33,18 +42,31 @@ export default function BannerSlider() {
 
   const [index, setIndex] = useState(0);
   const [failedBanners, setFailedBanners] = useState([]);
+  const [renderAllSlides, setRenderAllSlides] = useState(false);
   const visibleBanners = banners.filter(
     (banner) => !failedBanners.includes(banner.src)
   );
+  const renderedBanners = renderAllSlides ? visibleBanners : visibleBanners.slice(0, 1);
 
   useEffect(() => {
-    if (visibleBanners.length <= 1) return undefined;
+    const showRest = () => setRenderAllSlides(true);
+    if ("requestIdleCallback" in window) {
+      const idleId = window.requestIdleCallback(showRest, { timeout: 1200 });
+      return () => window.cancelIdleCallback(idleId);
+    }
+
+    const timer = window.setTimeout(showRest, 700);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!renderAllSlides || visibleBanners.length <= 1) return undefined;
 
     const interval = setInterval(() => {
       setIndex((prev) => (prev + 1) % visibleBanners.length);
     }, SLIDE_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [visibleBanners.length]);
+  }, [renderAllSlides, visibleBanners.length]);
 
   useEffect(() => {
     if (index >= visibleBanners.length) {
@@ -68,15 +90,18 @@ export default function BannerSlider() {
         className="flex aspect-[3.45/1] transition-transform duration-700"
         style={{ transform: `translateX(-${index * 100}%)` }}
       >
-        {visibleBanners.map((banner, i) => (
+        {renderedBanners.map((banner, i) => (
           <img
             key={banner.src}
-            src={addCloudinaryTransform(banner.src, "f_auto,q_auto,c_fit,w_1230")}
+            src={addCloudinaryTransform(banner.src, buildBannerTransform(480))}
             srcSet={buildSrcSet(banner.src)}
             sizes="(max-width: 767px) calc(100vw - 24px), (max-width: 1199px) 60vw, 790px"
+            width={BANNER_ASPECT_WIDTH}
+            height={BANNER_ASPECT_HEIGHT}
             alt={banner.alt}
             loading={i === 0 ? "eager" : "lazy"}
-            decoding="async"
+            fetchPriority={i === 0 ? "high" : "low"}
+            decoding={i === 0 ? "sync" : "async"}
             onError={() => hideMissingBanner(banner.src)}
             className="h-full w-full flex-shrink-0 object-fill"
           />

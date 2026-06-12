@@ -1,11 +1,9 @@
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useRef } from "react";
 
 import StartupSplash from "./components/StartupSplash";
 import AppFeedback from "./components/AppFeedback";
 import InstallAppPrompt from "./components/InstallAppPrompt";
-
-import { initAnalytics, trackPageView } from "./services/analytics";
 
 // 🔹 Layout
 import MainLayout from "./layouts/MainLayout";
@@ -37,15 +35,40 @@ const ProfileDashboard = lazy(() => import("./pages/ProfileDashboard"));
 const LotDetails = lazy(() => import("./pages/LotDetails"));
 const SearchResults = lazy(() => import("./pages/SearchResults"));
 
+const scheduleDeferred = (callback, timeout = 1600) => {
+  if (typeof window === "undefined") return () => {};
+  if ("requestIdleCallback" in window) {
+    const idleId = window.requestIdleCallback(callback, { timeout });
+    return () => window.cancelIdleCallback(idleId);
+  }
+
+  const timerId = window.setTimeout(callback, timeout);
+  return () => window.clearTimeout(timerId);
+};
+
 function AnalyticsTracker() {
   const location = useLocation();
+  const initializedRef = useRef(false);
 
   useEffect(() => {
-    initAnalytics();
-  }, []);
+    let active = true;
+    const cancel = scheduleDeferred(() => {
+      import("./services/analytics")
+        .then(({ initAnalytics, trackPageView }) => {
+          if (!active) return;
+          if (!initializedRef.current) {
+            initAnalytics();
+            initializedRef.current = true;
+          }
+          trackPageView(location.pathname + location.search);
+        })
+        .catch(() => undefined);
+    });
 
-  useEffect(() => {
-    trackPageView(location.pathname + location.search);
+    return () => {
+      active = false;
+      cancel();
+    };
   }, [location]);
 
   return null;

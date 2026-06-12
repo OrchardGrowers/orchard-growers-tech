@@ -24,6 +24,8 @@ import {
   PAYMENT_UNAVAILABLE_MESSAGE,
 } from "../config/payment";
 
+const isDevelopment = process.env.NODE_ENV !== "production";
+
 const sortOptions = [
   { key: "latest", label: "Latest" },
   { key: "priceHigh", label: "Price high" },
@@ -59,7 +61,9 @@ export default function Auctions() {
       setAuctions(auctionRes.data || []);
       setProducts(getEfruitMandiProducts(productRes.data));
     } catch (err) {
-      console.error(err);
+      if (isDevelopment) {
+        console.error(err);
+      }
       setAuctions([]);
       setProducts([]);
     } finally {
@@ -77,6 +81,8 @@ export default function Auctions() {
   }, [initialUser]);
 
   useEffect(() => {
+    if (!socket.connected) socket.connect();
+
     socket.on("dealUpdate", ({ dealAmount, auctionId }) => {
       setAuctions((prev) =>
         prev.map((auction) =>
@@ -286,6 +292,7 @@ export default function Auctions() {
         <label className="flex items-center gap-2 rounded-lg border border-green-100 bg-white px-3 py-2">
           <FaSortAmountDown className="text-green-700" />
           <select
+            aria-label="Sort live fruit lots"
             value={sortMode}
             onChange={(event) => setSortMode(event.target.value)}
             className="min-h-9 flex-1 bg-transparent text-sm font-bold outline-none"

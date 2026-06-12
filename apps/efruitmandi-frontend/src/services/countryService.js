@@ -1,5 +1,7 @@
 import { safeFetch } from "./apiService";
 
+const isDevelopment = process.env.NODE_ENV !== "production";
+
 // 🔥 fallback if API fails
 const fallbackCountries = [
   {
@@ -46,7 +48,9 @@ export const getCountries = async () => {
 
     return list;
   } catch (err) {
-    console.error("Country API failed, using fallback");
+    if (isDevelopment) {
+      console.error("Country API failed, using fallback", err);
+    }
     return fallbackCountries;
   }
 };

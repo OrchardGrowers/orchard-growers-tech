@@ -20,7 +20,6 @@ import {
 import BannerSlider from "../components/BannerSlider";
 import TopFilters from "../components/TopFilters";
 import API, { FILE_BASE_URL } from "../services/api";
-import socket from "../services/socket";
 import {
   getCurrentUser,
   canQuote,
@@ -127,7 +126,7 @@ const mobileTabs = [
 
 const orchardCover = `${process.env.PUBLIC_URL || ""}/profile-banners/efruitmandi-profile-cover.png`;
 const fallbackLotImage =
-  "https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?auto=format&fit=crop&w=1200&q=80";
+  "https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?auto=format&fit=crop&w=640&q=70";
 const logoUrl = `${process.env.PUBLIC_URL || ""}/logo.png`;
 const homePageSchemas = [
   {
@@ -184,6 +183,16 @@ const resolveProfileMediaUrl = (value = "") => {
   return url.startsWith("/") ? url : `/${url}`;
 };
 
+const optimizeImageUrl = (url = "", width = 640) => {
+  if (!url || !url.includes("res.cloudinary.com") || !url.includes("/image/upload/")) {
+    return url;
+  }
+  if (/\/image\/upload\/[^/]*(?:f_auto|q_auto|w_)/.test(url)) {
+    return url;
+  }
+  return url.replace("/image/upload/", `/image/upload/f_auto,q_auto,c_limit,w_${width}/`);
+};
+
 const newsItems = [
   "Fresh apple lots opening in Himachal mandis",
   "Verified growers can list new lots in minutes",
@@ -237,6 +246,17 @@ const policyLinkGroups = [
 
 const LOT_OPEN_HOUR = 12;
 const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
+const scheduleAfterPaint = (callback, delay = 0) => {
+  let timeoutId;
+  const frameId = window.requestAnimationFrame(() => {
+    timeoutId = window.setTimeout(callback, delay);
+  });
+
+  return () => {
+    window.cancelAnimationFrame(frameId);
+    if (timeoutId) window.clearTimeout(timeoutId);
+  };
+};
 
 export default function Home() {
   const navigate = useNavigate();
@@ -246,6 +266,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [desktopSection, setDesktopSection] = useState("liveLots");
   const [marketClock, setMarketClock] = useState(() => Date.now());
+  const [marketSocket, setMarketSocket] = useState(null);
   const isGrower = isGrowerAccount(user);
   const loadHome = useCallback(async ({ showLoading = false } = {}) => {
     if (showLoading) setLoading(true);
@@ -293,10 +314,28 @@ export default function Home() {
   };
 
   useEffect(() => {
-    loadHome({ showLoading: true });
+    return scheduleAfterPaint(() => loadHome({ showLoading: true }));
   }, [loadHome]);
 
   useEffect(() => {
+    let active = true;
+
+    const cancel = scheduleAfterPaint(() => {
+      import("../services/socket").then(({ default: socket }) => {
+        if (!active) return;
+        if (!socket.connected) socket.connect();
+        setMarketSocket(socket);
+      });
+    }, 1200);
+
+    return () => {
+      active = false;
+      cancel();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!marketSocket) return undefined;
     const refreshMarket = () => {
       loadHome();
     };
@@ -315,22 +354,22 @@ export default function Home() {
       );
     };
 
-    socket.on("efruitmandiMarketUpdated", refreshMarket);
-    socket.on("auctionStarted", refreshMarket);
-    socket.on("dealStarted", refreshMarket);
-    socket.on("auctionEnded", refreshMarket);
-    socket.on("dealEnded", refreshMarket);
-    socket.on("dealUpdate", handleDealUpdate);
+    marketSocket.on("efruitmandiMarketUpdated", refreshMarket);
+    marketSocket.on("auctionStarted", refreshMarket);
+    marketSocket.on("dealStarted", refreshMarket);
+    marketSocket.on("auctionEnded", refreshMarket);
+    marketSocket.on("dealEnded", refreshMarket);
+    marketSocket.on("dealUpdate", handleDealUpdate);
 
     return () => {
-      socket.off("efruitmandiMarketUpdated", refreshMarket);
-      socket.off("auctionStarted", refreshMarket);
-      socket.off("dealStarted", refreshMarket);
-      socket.off("auctionEnded", refreshMarket);
-      socket.off("dealEnded", refreshMarket);
-      socket.off("dealUpdate", handleDealUpdate);
+      marketSocket.off("efruitmandiMarketUpdated", refreshMarket);
+      marketSocket.off("auctionStarted", refreshMarket);
+      marketSocket.off("dealStarted", refreshMarket);
+      marketSocket.off("auctionEnded", refreshMarket);
+      marketSocket.off("dealEnded", refreshMarket);
+      marketSocket.off("dealUpdate", handleDealUpdate);
     };
-  }, [loadHome]);
+  }, [loadHome, marketSocket]);
 
   useEffect(() => {
     const syncLocalUser = () => {
@@ -382,10 +421,11 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (!marketSocket) return;
     auctions.forEach((auction) => {
-      if (auction?._id) socket.emit("joinAuction", auction._id);
+      if (auction?._id) marketSocket.emit("joinAuction", auction._id);
     });
-  }, [auctions]);
+  }, [auctions, marketSocket]);
 
   const feedItems = useMemo(
     () => buildFeed(products, auctions),
@@ -541,6 +581,7 @@ export default function Home() {
           <label className="inline-flex items-center gap-1 text-xs text-gray-600">
             Sort by:
             <select
+              aria-label="Sort home feed"
               value={desktopSection}
               onChange={(event) => setDesktopSection(event.target.value)}
               className="bg-transparent text-xs font-semibold text-gray-800 outline-none"
@@ -590,6 +631,10 @@ function HeroCard({ onList }) {
         <img
           src={orchardCover}
           alt="Fresh orchard fruits"
+          width="1200"
+          height="528"
+          loading="lazy"
+          decoding="async"
           className="h-44 w-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-gray-950/75 via-transparent to-transparent" />
@@ -835,10 +880,13 @@ function MarketCard({ item, amount, badge, buttonLabel, icon, onView, showPrice 
       <div className="mb-2 aspect-[4/3] w-full overflow-hidden rounded-md bg-green-100">
         {imageUrl ? (
           <img
-            src={imageUrl}
+            src={optimizeImageUrl(imageUrl, 360)}
             alt={item.title}
+            width="165"
+            height="124"
             className="h-full w-full object-contain"
             loading="lazy"
+            decoding="async"
           />
         ) : (
           <div className="flex h-full items-center justify-center text-2xl text-green-700">
@@ -1212,10 +1260,13 @@ function DesktopLotImageCarousel({ images, product, title, onOpen }) {
       >
         <span className="relative inline-flex max-h-full max-w-full">
           <img
-            src={images[activeImage]}
+            src={optimizeImageUrl(images[activeImage], 900)}
             alt={`${title} ${activeImage + 1}`}
+            width="900"
+            height="675"
             className="h-full w-full object-cover md:max-h-full md:max-w-full md:object-contain"
             loading="lazy"
+            decoding="async"
           />
           {gradeLabel && <FruitGradeBadge label={gradeLabel} />}
         </span>
@@ -1277,8 +1328,10 @@ function ImageZoomModal({ imageUrl, title, zoom, onZoomIn, onZoomOut, onReset, o
       </div>
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-md bg-black">
         <img
-          src={imageUrl}
+          src={optimizeImageUrl(imageUrl, 1200)}
           alt={title}
+          width="1200"
+          height="900"
           className="max-h-full max-w-full object-contain transition-transform"
           style={{ transform: `scale(${zoom})` }}
         />
@@ -1434,7 +1487,7 @@ function CompanyCard({ onOpen }) {
       onClick={onOpen}
       className="block w-full rounded-lg border border-gray-200 bg-white p-4 text-left transition hover:border-green-300 hover:shadow-sm"
     >
-      <img src={logoUrl} alt="" className="mb-8 h-8 w-20 object-contain" />
+      <img src={logoUrl} alt="" width="80" height="32" className="mb-8 h-8 w-20 object-contain" />
       <h2 className="text-base font-semibold text-gray-900">Orchard Growers</h2>
       <p className="mt-2 text-xs text-gray-600">Agriculture marketplace updates and fruit lots.</p>
     </button>
@@ -1506,7 +1559,15 @@ function FeedPost({ item, onOpen }) {
       </div>
 
       <button type="button" onClick={onOpen} className="mt-3 block w-full bg-gray-100 text-left">
-        <img src={item.imageUrl} alt={item.title} className="h-auto max-h-[420px] w-full object-contain" />
+        <img
+          src={optimizeImageUrl(item.imageUrl, 720)}
+          alt={item.title}
+          width="720"
+          height="420"
+          loading="lazy"
+          decoding="async"
+          className="h-auto max-h-[420px] w-full object-contain"
+        />
       </button>
     </article>
   );
@@ -1546,7 +1607,7 @@ function AdCard({ user, onListLot }) {
       <div className="mt-4 flex items-center justify-center gap-4">
         <Avatar name={user.name || "P"} className="h-14 w-14 text-base" />
         <div className="flex h-14 w-14 items-center justify-center rounded-md border border-green-100 bg-green-50 p-2">
-          <img src={logoUrl} alt="" className="h-full w-full object-contain" />
+          <img src={logoUrl} alt="" width="56" height="56" className="h-full w-full object-contain" />
         </div>
       </div>
       <button
@@ -1583,8 +1644,12 @@ function Avatar({ name, imageUrl, className = "" }) {
   if (imageUrl) {
     return (
       <img
-        src={imageUrl}
+        src={optimizeImageUrl(imageUrl, 160)}
         alt={name}
+        width="80"
+        height="80"
+        loading="lazy"
+        decoding="async"
         className={`shrink-0 rounded-full bg-gray-900 object-cover ${className}`}
       />
     );
@@ -1666,7 +1731,7 @@ function getProductImages(product) {
 function normalizeProductImageUrl(image = "") {
   const normalized = image ? image.replace(/\\/g, "/") : "";
 
-  if (/^https?:\/\//i.test(normalized)) return normalized;
+  if (/^https?:\/\//i.test(normalized)) return optimizeImageUrl(normalized, 720);
   return normalized
     ? `${FILE_BASE_URL}/${normalized}`
     : "";
