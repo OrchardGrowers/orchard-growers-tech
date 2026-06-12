@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   FaTimes,
   FaCertificate,
@@ -13,18 +13,20 @@ import {
   FaWeightHanging,
 } from "react-icons/fa";
 import API from "../services/api";
-import BackHomeButton from "../components/BackHomeButton";
-import {
-  recognizeFruitImage,
-  recognizeFruitVideo,
-  warmUpFruitRecognition,
-} from "../utils/fruitRecognition";
-import {
-  getCurrentUser,
-  hasCompletedKycForRole,
-  hasGrowerProfile,
-} from "../utils/auth";
-import { saveUserToStorage } from "../utils/userStorage";
+import { trackLotCreated } from "../services/analytics";
+import { getCurrentUser } from "../utils/auth";
+import { prepareUploadFile } from "../utils/mobileMedia";
+import { requestMediaPermission } from "../utils/mobilePermissions";
+
+let fruitRecognitionModulePromise;
+
+const loadFruitRecognition = () => {
+  if (!fruitRecognitionModulePromise) {
+    fruitRecognitionModulePromise = import("../utils/fruitRecognition");
+  }
+
+  return fruitRecognitionModulePromise;
+};
 
 const DEFAULT_FRUITS = [
   "Almond",
@@ -326,7 +328,9 @@ const initialGradeLots = GRADES.reduce((lots, grade) => {
 }, {});
 
 const SAMPLE_IMAGE_SLOTS = [0, 1, 2, 3, 4];
-const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
+const SAMPLE_IMAGE_WIDTH = 720;
+const SAMPLE_IMAGE_HEIGHT = 540;
+const SAMPLE_IMAGE_QUALITY = 0.65;
 
 const makeFirmPrefix = (user) => {
   const source =
@@ -358,18 +362,23 @@ const getVarietiesForFruit = (fruitName) => {
   return Array.from(new Set([...mappedOptions, ...fallbackOptions]));
 };
 
+const cropImageToPlatformFrame = async (file) => {
+  if (!file || !file.type?.startsWith("image/")) {
+    return file;
+  }
+
+  const preparedFile = await prepareUploadFile(file, {
+    forceResize: true,
+    maxDimension: SAMPLE_IMAGE_WIDTH,
+    quality: SAMPLE_IMAGE_QUALITY,
+    maxBytes: 650_000,
+  });
+
+  return preparedFile;
+};
+
 export default function ListNewLot() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const queryParams = new URLSearchParams(location.search);
-  const editProductId = location.state?.productId || queryParams.get("edit") || "";
-  const isEditMode = Boolean(editProductId);
-  const [profileUser, setProfileUser] = useState(getCurrentUser());
-  const [profileChecked, setProfileChecked] = useState(false);
-  const hasGrowerAccess = hasGrowerProfile(profileUser);
-  const isGrowerKycCompleted =
-    Boolean(profileUser?.growerVerified) ||
-    hasCompletedKycForRole(profileUser, "grower");
   const [fruits, setFruits] = useState(DEFAULT_FRUITS);
   const [varieties, setVarieties] = useState(DEFAULT_VARIETIES);
   const [customPanel, setCustomPanel] = useState(null);
@@ -387,7 +396,6 @@ export default function ListNewLot() {
   const [gradeLots, setGradeLots] = useState(initialGradeLots);
   const [sampleVideo, setSampleVideo] = useState(null);
   const [organicCertificate, setOrganicCertificate] = useState(null);
-  const [existingOrganicCertificateUrl, setExistingOrganicCertificateUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [recognizing, setRecognizing] = useState(false);
@@ -424,37 +432,7 @@ export default function ListNewLot() {
   const needsOrganicCertificate = ORGANIC_CERTIFIED_QUALITIES.has(form.quality);
 
   useEffect(() => {
-    warmUpFruitRecognition();
-  }, []);
-
-  useEffect(() => {
-    if (!localStorage.getItem("accessToken")) {
-      setProfileChecked(true);
-      navigate("/profile", {
-        replace: true,
-        state: {
-          mode: "login",
-          from: "/list-new-lot",
-          requiredProfile: "grower",
-          message: LOGIN_REQUIRED_MESSAGE,
-        },
-      });
-      return undefined;
-    }
-
     let active = true;
-
-    API.get("/user/profile")
-      .then((res) => {
-        if (!active) return;
-        const freshUser = res.data || {};
-        setProfileUser(freshUser);
-        saveUserToStorage(freshUser);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (active) setProfileChecked(true);
-      });
 
     API.get("/products/next-lot-no")
       .then((res) => {
@@ -469,76 +447,7 @@ export default function ListNewLot() {
     return () => {
       active = false;
     };
-  }, [localLotNoPreview, navigate]);
-
-  useEffect(() => {
-    if (!profileChecked || hasGrowerAccess) return;
-    navigate("/register-grower", {
-      replace: true,
-      state: {
-        from: "/list-new-lot",
-        message: "Create your grower profile before listing fruit lots.",
-      },
-    });
-  }, [hasGrowerAccess, navigate, profileChecked]);
-
-  useEffect(() => {
-    if (!profileChecked || !hasGrowerAccess || isGrowerKycCompleted) return;
-    navigate("/kyc", {
-      replace: true,
-      state: {
-        from: "/list-new-lot",
-        roleType: "grower",
-        message: "Complete Grower KYC before listing fruit lots.",
-      },
-    });
-  }, [hasGrowerAccess, isGrowerKycCompleted, navigate, profileChecked]);
-
-  useEffect(() => {
-    if (!editProductId) return undefined;
-
-    let active = true;
-    API.get(`/products/${editProductId}?platform=efruitmandi`)
-      .then((res) => {
-        if (!active) return;
-        const product = res.data?.product;
-        if (!product) return;
-        const packingIndex = Math.max(
-          0,
-          PACKING_TYPES.findIndex((packing) => packing.label === product.packingType)
-        );
-        const nextGradeLots = GRADES.reduce((lots, grade) => {
-          const savedLot = (product.gradeLots || []).find((lot) => lot.grade === grade.label) || {};
-          lots[grade.key] = {
-            boxes: savedLot.boxes ? String(savedLot.boxes) : "",
-            images: normalizeExistingImages(savedLot.images),
-          };
-          return lots;
-        }, {});
-
-        setForm({
-          fruitName: product.fruitName || "",
-          variety: product.variety || "",
-          quality: product.quality || "",
-          organicCertificationNo: product.organicCertificationNo || "",
-          description: product.description || "",
-          basePrice: product.basePrice ? String(product.basePrice) : "",
-          location: product.location || "",
-          packingIndex: String(packingIndex),
-        });
-        setVarieties(getVarietiesForFruit(product.fruitName || ""));
-        setGradeLots(nextGradeLots);
-        setExistingOrganicCertificateUrl(product.organicCertificateUrl || "");
-        setLotNoPreview(product.lotNo || localLotNoPreview);
-      })
-      .catch((err) => {
-        setMessage(err.response?.data?.msg || "Could not load this lot for update.");
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [editProductId, localLotNoPreview]);
+  }, [localLotNoPreview]);
 
   const updateForm = (field, value) => {
     setForm((current) => {
@@ -576,6 +485,13 @@ export default function ListNewLot() {
     setRecognizing(true);
 
     try {
+      const permissionResult = await requestMediaPermission({ kind: "camera" });
+      if (!permissionResult.granted && permissionResult.reason === "denied") {
+        setMessage(permissionResult.message);
+        return;
+      }
+
+      const { recognizeFruitImage } = await loadFruitRecognition();
       const recognition = await recognizeFruitImage(file).catch(() => ({
         accepted: false,
         label: "unrecognized image",
@@ -588,9 +504,10 @@ export default function ListNewLot() {
         return;
       }
 
+      const platformFile = await cropImageToPlatformFrame(file);
       const images = [...(gradeLots[gradeKey].images || Array(5).fill(null))];
       while (images.length < 5) images.push(null);
-      images[index] = file;
+      images[index] = platformFile || null;
 
       setGradeLots({
         ...gradeLots,
@@ -613,6 +530,14 @@ export default function ListNewLot() {
 
     setMessage("");
     setRecognizing(true);
+    const permissionResult = await requestMediaPermission({ kind: "video", audio: true });
+    if (!permissionResult.granted && permissionResult.reason === "denied") {
+      setRecognizing(false);
+      setMessage(permissionResult.message);
+      return;
+    }
+
+    const { recognizeFruitVideo } = await loadFruitRecognition();
     const recognition = await recognizeFruitVideo(file).catch(() => ({
       accepted: false,
       label: "unrecognized video",
@@ -684,7 +609,7 @@ export default function ListNewLot() {
       return;
     }
 
-    if (needsOrganicCertificate && !organicCertificate && !existingOrganicCertificateUrl) {
+    if (needsOrganicCertificate && !organicCertificate) {
       setMessage("Upload organic certificate for this certified organic lot.");
       return;
     }
@@ -694,28 +619,6 @@ export default function ListNewLot() {
       setUploadProgress(0);
 
       const title = `${form.fruitName} ${form.variety}`.trim();
-
-      if (isEditMode) {
-        await API.patch(`/products/${editProductId}`, {
-          title,
-          fruitName: form.fruitName,
-          variety: form.variety,
-          quality: form.quality,
-          organicCertificationNo: form.organicCertificationNo,
-          description: form.description,
-          basePrice: form.basePrice,
-          location: form.location,
-          packingType: selectedPacking.label,
-          packingWeightKg: selectedPacking.kg,
-          totalWeightKg: calculations.totalWeightKg,
-          quantity: calculations.totalBoxes,
-          gradeLots: preparedGradeLots,
-        });
-
-        navigate("/profile-dashboard", { state: { notice: "Lot updated." } });
-        return;
-      }
-
       const data = new FormData();
       data.append("title", title);
       data.append("fruitName", form.fruitName);
@@ -740,7 +643,7 @@ export default function ListNewLot() {
       if (sampleVideo) data.append("sampleVideo", sampleVideo);
       if (organicCertificate) data.append("organicCertificate", organicCertificate);
 
-      await API.post("/products", data, {
+      const res = await API.post("/products", data, {
         headers: { "Content-Type": "multipart/form-data" },
         onUploadProgress: (event) => {
           if (!event.total) return;
@@ -748,6 +651,11 @@ export default function ListNewLot() {
         },
       });
 
+      trackLotCreated(res?.data?.product || {
+        _id: res?.data?._id || res?.data?.id || "",
+        fruitName: form.fruitName,
+        category: form.fruitName,
+      });
       setUploadProgress(100);
       navigate("/profile-dashboard");
     } catch (err) {
@@ -765,14 +673,13 @@ export default function ListNewLot() {
 
   return (
     <div className="mx-auto max-w-md border-t-4 border-green-600 bg-white pb-20">
-      {profileChecked && hasGrowerAccess && isGrowerKycCompleted ? (
       <form onSubmit={handleSubmit} className="px-4 py-5">
         <div className="mb-5 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border-2 border-black text-2xl font-bold">
             <FaPlus />
           </div>
           <h1 className="mt-2 text-lg font-extrabold text-black">
-            {isEditMode ? "Update Fruit Lot" : "List Your Product"}
+            List Your Product
           </h1>
           <p className="mt-1 text-xs font-semibold text-gray-500">
             Select fruit, packing, grade quantity, and calculate lot weight.
@@ -953,7 +860,7 @@ export default function ListNewLot() {
 
           <Field
             icon={<FaMoneyBillWave />}
-            label={`Base price per ${singularizeUnit(packingUnit).toLowerCase()}`}
+            label="Base price per box"
             value={form.basePrice}
             placeholder="1200"
             inputMode="numeric"
@@ -1072,17 +979,9 @@ export default function ListNewLot() {
           disabled={loading || recognizing}
           className="mt-6 w-full rounded-md bg-green-700 py-3 text-sm font-bold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-300"
         >
-          {loading ? (isEditMode ? "Updating..." : "Listing...") : recognizing ? "Checking media..." : isEditMode ? "Update Lot" : "List Lot"}
+          {loading ? "Listing..." : recognizing ? "Checking media..." : "List Lot"}
         </button>
-        <div className="mt-4 flex justify-center">
-          <BackHomeButton />
-        </div>
       </form>
-      ) : (
-        <div className="px-4 py-8 text-center text-sm font-extrabold text-green-800">
-          Checking grower onboarding...
-        </div>
-      )}
     </div>
   );
 }
@@ -1201,50 +1100,10 @@ function Field({
           placeholder={placeholder}
           inputMode={inputMode}
           readOnly={readOnly}
-          onChange={(e) => onChange?.(e.target.value)}
-          className="w-full bg-transparent text-sm text-gray-950 outline-none placeholder:text-gray-400 read-only:text-gray-500"
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full border-none bg-transparent text-sm font-semibold text-gray-950 outline-none"
         />
       </span>
     </label>
   );
-}
-
-function ReadOnlyInfo({ icon, label, value, note }) {
-  return (
-    <div>
-      <span className="mb-1.5 block text-sm font-bold text-gray-700">
-        {label}
-      </span>
-      <div className="flex items-center gap-3 rounded-md border border-gray-200 bg-gray-100 px-3 py-3 text-gray-400">
-        {icon}
-        <span className="w-full text-sm font-semibold text-gray-600">
-          {value}
-        </span>
-      </div>
-      {note && (
-        <p className="mt-1 text-[10px] font-semibold text-gray-500">
-          {note}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function formatWeight(value) {
-  const number = Number(value || 0);
-  if (!number) return "0 KG";
-  if (number < 1) return `${number.toFixed(1)} KG`;
-  return `${Math.round(number * 10) / 10} KG`;
-}
-
-function singularizeUnit(unit = "units") {
-  if (unit === "cartons") return "Carton";
-  if (unit === "crates") return "Crate";
-  return "Unit";
-}
-
-function normalizeExistingImages(images = []) {
-  const normalized = Array.isArray(images) ? images.filter(Boolean).slice(0, 5) : [];
-  while (normalized.length < 5) normalized.push(null);
-  return normalized;
 }

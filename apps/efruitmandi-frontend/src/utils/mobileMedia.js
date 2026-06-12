@@ -1,7 +1,7 @@
-const DEFAULT_MAX_DIMENSION = 1600;
-const DEFAULT_QUALITY = 0.82;
-const MOBILE_MAX_BYTES = 1_400_000;
-const DESKTOP_MAX_BYTES = 2_400_000;
+const DEFAULT_MAX_DIMENSION = 1200;
+const DEFAULT_QUALITY = 0.7;
+const MOBILE_MAX_BYTES = 700_000;
+const DESKTOP_MAX_BYTES = 1_200_000;
 
 export const isMobileDevice = () => /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent || "");
 export const isAndroidDevice = () => /android/i.test(navigator.userAgent || "");
@@ -21,7 +21,7 @@ export const prepareUploadFile = (file, options = {}) =>
     }
 
     const maxBytes = options.maxBytes ?? (isLikelyLowMemoryDevice() ? MOBILE_MAX_BYTES : DESKTOP_MAX_BYTES);
-    const maxDimension = options.maxDimension ?? (isLikelyLowMemoryDevice() ? 1280 : DEFAULT_MAX_DIMENSION);
+    const maxDimension = options.maxDimension ?? (isMobileDevice() ? 960 : DEFAULT_MAX_DIMENSION);
     const quality = options.quality ?? DEFAULT_QUALITY;
     const forceResize = Boolean(options.forceResize);
 
