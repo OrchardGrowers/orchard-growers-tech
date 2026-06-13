@@ -645,9 +645,9 @@ function HeroCard({ onList }) {
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-green-200">
             Market updates from the mandi
           </p>
-          <h1 className="mt-2 text-xl font-black leading-tight">
-            Search lots, fruit, mandi...
-          </h1>
+          <h2 className="mt-2 text-xl font-black leading-tight">
+  Search lots, fruit, mandi...
+</h2>
           <p className="mt-2 max-w-xl text-sm text-green-100">
             Discover live fruit lots, upcoming deals and trusted growers across the market.
           </p>
