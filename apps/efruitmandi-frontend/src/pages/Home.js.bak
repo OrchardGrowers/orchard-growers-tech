@@ -510,13 +510,13 @@ export default function Home() {
   return (
   <>
     <SEO
-  title="eFruitMandi - Fruit Buyers & Growers Marketplace in India"
-  description="Connect directly with verified fruit growers, buyers, commission agents, wholesalers, exporters and logistics partners across India."
-  canonical="/"
-  schema={homePageSchemas}
-/>
+      title="eFruitMandi - India's Fresh Fruit Marketplace for Growers, Buyers and Logistics"
+      description="India's fresh fruit marketplace connecting apple growers, fruit buyers, commission agents, wholesalers, exporters and logistics partners. Buy and sell fruit lots directly."
+      canonical="/"
+      schema={homePageSchemas}
+    />
     <h1 className="sr-only">
-  eFruitMandi - Fruit Buyers & Growers Marketplace in India
+  eFruitMandi - India's Fresh Fruit Marketplace for Growers, Buyers and Logistics Partners
 </h1>
 
     <FloatingLotActions
@@ -1918,4 +1918,3 @@ function getLotDetails(product = {}) {
     { label: "Description", value: product.description },
   ].filter((detail) => detail.value !== undefined && detail.value !== null && String(detail.value).trim());
 }
-
