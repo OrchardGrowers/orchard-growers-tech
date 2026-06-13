@@ -1432,10 +1432,10 @@ function ProfileCard({ user, onOpen }) {
             />
           </div>
         )}
-        <h1 className="mt-3 flex items-center gap-1 text-xl font-semibold leading-tight text-gray-900">
+        <h2 className="mt-3 flex items-center gap-1 text-xl font-semibold leading-tight text-gray-900">
           {displayName}
           {isTrustedAccount && <FaShieldAlt className="text-sm text-green-700" />}
-        </h1>
+        </h2>
         <p className="mt-1 text-[10px] font-extrabold uppercase tracking-wide text-green-700">
           {accountLabel}
         </p>
