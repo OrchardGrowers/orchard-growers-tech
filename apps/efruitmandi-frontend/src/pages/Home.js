@@ -515,6 +515,9 @@ export default function Home() {
       canonical="/"
       schema={homePageSchemas}
     />
+    <h1 className="sr-only">
+  eFruitMandi - India's Fresh Fruit Marketplace for Growers, Buyers and Logistics Partners
+</h1>
 
     <FloatingLotActions
         onList={openListLotFlow}
