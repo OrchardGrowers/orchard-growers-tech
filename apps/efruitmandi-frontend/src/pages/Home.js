@@ -1490,7 +1490,7 @@ function CompanyCard({ onOpen }) {
       onClick={onOpen}
       className="block w-full rounded-lg border border-gray-200 bg-white p-4 text-left transition hover:border-green-300 hover:shadow-sm"
     >
-      <img src={logoUrl} alt="" width="80" height="32" className="mb-8 h-8 w-20 object-contain" />
+      <img src={logoUrl} alt="Orchard Growers logo" width="80" height="32" className="mb-8 h-8 w-20 object-contain" />
       <h2 className="text-base font-semibold text-gray-900">Orchard Growers</h2>
       <p className="mt-2 text-xs text-gray-600">Agriculture marketplace updates and fruit lots.</p>
     </button>
@@ -1610,7 +1610,7 @@ function AdCard({ user, onListLot }) {
       <div className="mt-4 flex items-center justify-center gap-4">
         <Avatar name={user.name || "P"} className="h-14 w-14 text-base" />
         <div className="flex h-14 w-14 items-center justify-center rounded-md border border-green-100 bg-green-50 p-2">
-          <img src={logoUrl} alt="" width="56" height="56" className="h-full w-full object-contain" />
+          <img src={logoUrl} alt="Orchard Growers logo" width="56" height="56" className="h-full w-full object-contain" />
         </div>
       </div>
       <button

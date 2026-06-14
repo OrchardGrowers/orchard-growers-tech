@@ -1281,14 +1281,14 @@ export default function ProfileDashboard() {
                 <div className="flex items-center gap-2 text-gray-900">
                   {companyLogoUrl ? (
                     <img
-                      src={companyLogoUrl}
-                      alt=""
-                      className="h-7 w-7 rounded-sm bg-gray-50 object-contain"
-                      onError={(event) => {
-                        event.currentTarget.style.display = "none";
-                        event.currentTarget.nextElementSibling?.classList.remove("hidden");
-                      }}
-                    />
+  src={companyLogoUrl}
+  alt="Company logo"
+  className="h-7 w-7 rounded-sm bg-gray-50 object-contain"
+  onError={(event) => {
+    event.currentTarget.style.display = "none";
+    event.currentTarget.nextElementSibling?.classList.remove("hidden");
+  }}
+/>
                   ) : null}
                   <span className={`flex h-7 w-7 items-center justify-center rounded-sm bg-gray-100 text-xs text-gray-500 ${companyLogoUrl ? "hidden" : ""}`}>
                     OG
@@ -1623,10 +1623,10 @@ export default function ProfileDashboard() {
                 <div className="mt-3 flex items-center gap-3">
                   <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 p-2">
                     <img
-                      src={mediaDraft.companyLogoUrlPreview || companyLogoUrl}
-                      alt=""
-                      className="max-h-full max-w-full object-contain"
-                    />
+  src={mediaDraft.companyLogoUrlPreview || companyLogoUrl}
+  alt="Company logo"
+  className="max-h-full max-w-full object-contain"
+/>
                   </div>
                   <label className="inline-flex cursor-pointer items-center justify-center rounded-md bg-green-700 px-4 py-2 text-xs font-extrabold text-white hover:bg-green-800">
                     Upload logo

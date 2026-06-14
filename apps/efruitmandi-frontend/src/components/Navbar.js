@@ -221,7 +221,13 @@ export default function Navbar() {
 
           <div className="flex min-w-0 items-center justify-end gap-1">
             <div className="flex h-8 w-[44px] shrink-0 items-center gap-0.5 rounded-full bg-white px-1">
-              <img src={selected.flag} width="16" height="12" className="h-3 w-4 rounded-[2px]" alt="" />
+              <img
+  src={selected.flag}
+  width="16"
+  height="12"
+  className="h-3 w-4 rounded-[2px]"
+  alt={`${selected.code || "Country"} flag`}
+/>
               <select
                 aria-label="Select country"
                 value={selected.code}
@@ -278,7 +284,13 @@ export default function Navbar() {
 
           <div className="ml-auto flex h-full items-center gap-3">
             <div className="flex items-center gap-1 rounded bg-white px-2 py-1">
-              <img src={selected.flag} width="16" height="12" className="h-3 w-4" alt="" />
+              <img
+  src={selected.flag}
+  width="16"
+  height="12"
+  className="h-3 w-4"
+  alt={`${selected.code || "Country"} flag`}
+/>
               <select
                 aria-label="Select country"
                 value={selected.code}

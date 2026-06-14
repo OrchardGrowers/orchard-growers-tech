@@ -374,7 +374,7 @@ function LotMediaPanel({ product, images, activeImage, onSelectImage }) {
                 activeImage?.url === image.url ? "border-green-700" : "border-gray-200"
               }`}
             >
-              <img src={image.url} alt="" className="h-full w-full max-w-full object-cover" />
+              <img src={image.url} alt={`${image.gradeLabel || "Fruit lot"} image`} className="h-full w-full max-w-full object-cover" />
               {image.gradeLabel && (
                 <span className="absolute left-1 top-1 rounded bg-green-800 px-1.5 py-0.5 text-[8px] font-extrabold uppercase text-white shadow">
                   {image.gradeLabel}
@@ -410,7 +410,7 @@ function GrowerIdentity({ product }) {
   return (
     <div className="flex w-full min-w-0 items-center gap-2 rounded-md bg-green-50 px-3 py-2 sm:w-auto sm:max-w-[240px] sm:shrink-0">
       {logo ? (
-        <img src={logo} alt="" className="h-10 w-10 rounded bg-white object-contain ring-1 ring-green-100" />
+        <img src={logo} alt={`${name} logo`} className="h-10 w-10 rounded bg-white object-contain ring-1 ring-green-100" />
       ) : (
         <span className="flex h-10 w-10 items-center justify-center rounded bg-green-800 text-xs font-extrabold text-white">
           {name.slice(0, 1).toUpperCase()}

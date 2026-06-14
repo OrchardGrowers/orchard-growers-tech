@@ -301,17 +301,17 @@ export default function LotDetails() {
                 }`}
               >
                 <img
-                  src={getOptimizedAssetUrl(image, 160)}
-                  alt=""
-                  width="96"
-                  height="80"
-                  onError={(event) => {
-                    event.currentTarget.style.display = "none";
-                  }}
-                  className="h-full w-full max-w-full object-contain"
-                  loading="lazy"
-                  decoding="async"
-                />
+  src={getOptimizedAssetUrl(image, 160)}
+  alt="Fruit lot image"
+  width="96"
+  height="80"
+  onError={(event) => {
+    event.currentTarget.style.display = "none";
+  }}
+  className="h-full w-full max-w-full object-contain"
+  loading="lazy"
+  decoding="async"
+/>
               </button>
             ))}
           </div>

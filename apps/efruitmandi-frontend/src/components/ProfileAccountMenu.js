@@ -316,10 +316,10 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
       <div className="flex shrink-0 gap-3 bg-green-800 px-4 py-4">
         {avatarUrl ? (
           <img
-            src={avatarUrl}
-            alt=""
-            className="h-11 w-11 rounded-full border-2 border-white bg-gray-900 object-cover"
-          />
+  src={avatarUrl}
+  alt={`${displayName} profile photo`}
+  className="h-11 w-11 rounded-full border-2 border-white bg-gray-900 object-cover"
+/>
         ) : (
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-white bg-gray-900 text-lg font-semibold text-white">
             {displayName.slice(0, 1).toUpperCase()}

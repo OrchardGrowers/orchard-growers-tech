@@ -119,7 +119,7 @@ export default function InstallAppPrompt() {
       <section className="w-full max-w-sm rounded-2xl border border-green-200 bg-white p-5 text-gray-950 shadow-2xl">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
-            <img src="/icon-192.png" alt="" width="48" height="48" className="h-12 w-12 rounded-xl" />
+            <img src="/icon-192.png" alt="eFruitMandi app icon" width="48" height="48" className="h-12 w-12 rounded-xl" />
             <div>
               <p className="text-base font-extrabold text-green-900">Install E-Fruit Mandi</p>
               <p className="mt-1 text-sm font-semibold text-gray-600">
