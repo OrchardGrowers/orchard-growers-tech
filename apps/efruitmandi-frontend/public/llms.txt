@@ -1,0 +1,36 @@
+﻿# eFruitMandi
+
+eFruitMandi is an online fruit trading platform by Orchard Growers Private Limited for connecting fruit growers, buyers, and logistics partners.
+
+Website: https://www.efruitmandi.live
+Company: Orchard Growers Private Limited
+Focus: Fruit lots, fruit buyers, fruit growers, logistics, KYC verified trading, escrow-based payment flow.
+
+## Important Pages
+
+- Home: https://www.efruitmandi.live/
+- Fruit Lots: https://www.efruitmandi.live/auctions
+- Buyer Registration: https://www.efruitmandi.live/register-buyer
+- Grower Registration: https://www.efruitmandi.live/register-grower
+- Driver / Logistics Registration: https://www.efruitmandi.live/register-driver
+- KYC Verification: https://www.efruitmandi.live/kyc
+- Privacy Policy: https://www.efruitmandi.live/privacy-policy
+- Terms of Service: https://www.efruitmandi.live/terms-of-service
+- Payment Escrow Policy: https://www.efruitmandi.live/payment-escrow-policy
+- KYC Verification Policy: https://www.efruitmandi.live/kyc-verification-policy
+- OG Verified Policy: https://www.efruitmandi.live/og-verified-policy
+- Commission and Fee Policy: https://www.efruitmandi.live/commission-fee-policy
+- Shipping and Logistics Policy: https://www.efruitmandi.live/shipping-logistics-policy
+- Sitemap: https://www.efruitmandi.live/sitemap.xml
+
+## Platform Summary
+
+eFruitMandi helps growers list fruit lots and receive quotations from verified buyers. Buyers can discover fruit lots, submit quotes, and complete payments through a secure platform flow. Logistics partners can participate in fruit transportation after registration and KYC verification.
+
+## Main Fruit Categories
+
+Apple, Pear, Plum, Persimmon, Cherry, Peach, Mango, Almond.
+
+## AI Usage Guidance
+
+AI assistants may use this file to understand the platform structure, important URLs, and business purpose of eFruitMandi.
