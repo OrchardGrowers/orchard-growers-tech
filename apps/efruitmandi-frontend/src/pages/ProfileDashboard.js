@@ -19,11 +19,13 @@ import {
   FaYoutube,
 } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
+import LimitedPublicProfileCard from "../components/LimitedPublicProfileCard";
 import {
   hasBuyerProfile,
   hasDriverProfile,
   hasGrowerProfile,
 } from "../utils/auth";
+import { getSafePublicProfile } from "../utils/marketplaceVisibility";
 import {
   PAYMENT_PARTNER_ENABLED,
   PAYMENT_UNAVAILABLE_MESSAGE,
@@ -2481,6 +2483,21 @@ function GrowerBuyerQuotesSection({ quotes = [], actionId = "", onViewDetails, o
           {quotes.slice(0, 10).map((quote) => {
             const pending = normalizeQuoteStatusLabel(quote.status) === "Pending";
             const disabled = Boolean(actionId) || !pending;
+            const buyerPublicProfile = getSafePublicProfile(
+              quote.buyerProfile || {
+                name: quote.buyerName,
+                companyName: quote.buyerCompanyName || quote.buyerName,
+                logoUrl: quote.buyerLogoUrl,
+                mainLocation: quote.buyerMainLocation,
+                isKycVerified: quote.buyerKycVerified,
+                isOgVerified: quote.buyerOgVerified,
+                isTrusted: quote.buyerTrusted,
+                memberSince: quote.buyerMemberSince,
+                totalDeals: quote.buyerTotalDeals,
+                businessType: "buyer",
+              },
+              { businessType: "buyer" }
+            );
 
             return (
               <article key={quote._id} className="rounded-md border border-green-100 bg-green-50 p-3">
@@ -2495,6 +2512,15 @@ function GrowerBuyerQuotesSection({ quotes = [], actionId = "", onViewDetails, o
                     <p className="mt-1 text-xs font-bold text-gray-600">
                       {quote.lotQuantity || 0} boxes
                     </p>
+                    <div className="mt-2">
+                      <LimitedPublicProfileCard
+                        title="Buyer Profile"
+                        profile={buyerPublicProfile}
+                        emptyName="Buyer"
+                        trustedLabel="Trusted Buyer"
+                        resolveImageUrl={resolveProfileMediaUrl}
+                      />
+                    </div>
                     <div className="mt-2 space-y-1">
                       {(quote.grades || []).map((grade) => (
                         <div key={grade.grade} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 rounded bg-white px-2 py-1 text-[11px] font-bold text-green-950">

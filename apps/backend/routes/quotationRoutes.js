@@ -123,6 +123,92 @@ const getGrowerTotalNetReceivable = (grades = [], quotation = {}) => {
   return visibleTotal || Number(quotation.growerReceivable || quotation.sellerReceivable || 0);
 };
 
+const pickText = (...values) => {
+  for (const value of values) {
+    const text = String(value || "").trim();
+    if (text) return text;
+  }
+  return "";
+};
+
+const isApprovedStatus = (status = "") => String(status || "").trim().toUpperCase() === "APPROVED";
+
+const getRoleRecord = (records = {}, role = "") => {
+  const normalizedRole = String(role || "").trim().toLowerCase();
+  return normalizedRole ? records?.[normalizedRole] || {} : {};
+};
+
+const hasApprovedOgRequest = (record = {}) =>
+  Boolean(record?.requestId && isApprovedStatus(record?.status));
+
+const getSafeLocationFromText = (value = "") => {
+  const text = String(value || "")
+    .replace(/\b\d{6}\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) return "";
+
+  const sensitivePattern =
+    /\b(address|house|street|road|near|plot|flat|building|village|ward|pin|pincode|post office|orchard location|exact)\b/i;
+  const parts = text
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter((part) => !/\d/.test(part))
+    .filter((part) => !sensitivePattern.test(part));
+
+  if (parts.length) return parts.slice(-3).join(", ");
+  if (!/\d/.test(text) && !sensitivePattern.test(text) && text.length <= 42) return text;
+  return "";
+};
+
+const getSafeMainLocation = (user = {}, role = "") => {
+  const roleKyc = getRoleRecord(user.kycByRole, role);
+  const legacyKyc = user.kyc || {};
+  const explicitLocation = [user.city, user.district || roleKyc.district || legacyKyc.district, user.state || roleKyc.state || legacyKyc.state]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .filter((part) => !/\b\d{6}\b/.test(part))
+    .slice(0, 3)
+    .join(", ");
+
+  if (explicitLocation) return explicitLocation;
+  return getSafeLocationFromText(role === "buyer" ? user.buyerLocation || user.location : user.location);
+};
+
+const formatPublicProfile = (user = {}, role = "", fallback = {}) => {
+  const roleKyc = getRoleRecord(user.kycByRole, role);
+  const legacyKyc = user.kyc || {};
+  const roleOg = getRoleRecord(user.ogVerificationByRole, role);
+  const isBuyer = role === "buyer";
+  const isGrower = role === "grower";
+  const isKycVerified = Boolean(
+    (isBuyer && user.buyerVerified) ||
+      (isGrower && user.growerVerified) ||
+      isApprovedStatus(roleKyc.status) ||
+      isApprovedStatus(legacyKyc.status)
+  );
+  const isOgVerified = Boolean(
+    (isBuyer && user.buyerOgVerified) ||
+      (isGrower && user.growerOgVerified) ||
+      hasApprovedOgRequest(roleOg)
+  );
+
+  return {
+    name: pickText(user.name, user.buyerContactPerson, fallback.name),
+    companyName: pickText(user.orchardName, user.businessName, fallback.companyName),
+    logoUrl: isBuyer
+      ? pickText(user.buyerCompanyLogoUrl, user.buyerAvatarUrl, user.companyLogoUrl, user.avatarUrl)
+      : pickText(user.companyLogoUrl, user.avatarUrl),
+    mainLocation: getSafeMainLocation(user, role),
+    isKycVerified,
+    isOgVerified,
+    isTrusted: isOgVerified,
+    memberSince: user.createdAt,
+    businessType: role,
+  };
+};
+
 const formatQuote = (quotation = {}, visibility = "admin") => {
   const lot = quotation.lot || {};
   const buyer = quotation.buyer || {};
@@ -186,7 +272,15 @@ const formatQuote = (quotation = {}, visibility = "admin") => {
     lotLocation: lot.location || "",
     buyerName,
     buyerPhone: quotation.buyerPhone || buyer.phone || "",
+    buyerProfile: formatPublicProfile(buyer, "buyer", {
+      name: buyerName,
+      companyName: buyerName,
+    }),
     growerName,
+    growerProfile: formatPublicProfile(grower, "grower", {
+      name: growerName,
+      companyName: growerName,
+    }),
     quotedPrice: quotation.quotedPrice || quotation.grades?.[0]?.price || 0,
     quotedTotalValue: quotation.quotedTotalValue || quotation.baseDealAmount || quotation.dealAmount || 0,
     dealAmount: quotation.dealAmount || 0,
@@ -219,7 +313,10 @@ const formatQuote = (quotation = {}, visibility = "admin") => {
     lotTitle: base.lotTitle,
     fruitType: base.fruitType,
     lotQuantity: base.lotQuantity,
+    buyerName: base.buyerProfile.companyName || base.buyerProfile.name || "Buyer",
+    buyerProfile: base.buyerProfile,
     growerName: base.growerName,
+    growerProfile: base.growerProfile,
     grades,
     status: base.status,
     createdAt: base.createdAt,
@@ -257,8 +354,8 @@ const formatQuote = (quotation = {}, visibility = "admin") => {
 const populateQuoteQuery = (query) =>
   query
     .populate("lot", "title fruitName variety quality quantity unit lotNo packingType totalWeightKg location status acceptedQuoteId acceptedBuyerId finalPrice finalDealValue createdBy")
-    .populate("buyer", "name businessName buyerContactPerson phone")
-    .populate("grower", "name orchardName businessName phone");
+    .populate("buyer", "name businessName buyerContactPerson buyerLocation location buyerAvatarUrl buyerCompanyLogoUrl companyLogoUrl avatarUrl role profileTypes createdAt buyerVerified buyerOgVerified kycByRole ogVerificationByRole")
+    .populate("grower", "name orchardName businessName location companyLogoUrl avatarUrl role profileTypes createdAt growerVerified growerOgVerified kycByRole ogVerificationByRole");
 
 const normalizeId = (value) => {
   if (!value) return "";

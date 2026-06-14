@@ -30,6 +30,13 @@ import {
 } from "../utils/auth";
 import { getEfruitMandiProducts } from "../utils/marketProducts";
 import { saveUserToStorage } from "../utils/userStorage";
+import {
+  getDealDisplayGroup,
+  isClosedDeal,
+  isLiveDeal,
+  isUpcomingDeal,
+  normalizeDealStatus,
+} from "../utils/marketplaceVisibility";
 
 const categories = [
   { name: "Apple", icon: "🍎" },
@@ -105,8 +112,8 @@ const previousSections = [
 const categoryKeywords = categories.map((category) => category.name);
 
 const desktopSections = [
-  { key: "liveLots", label: "Live Fruit Lots" },
-  { key: "upcomingLots", label: "Upcoming Fruit Lots" },
+  { key: "liveLots", label: "Live Fruit Deals" },
+  { key: "upcomingLots", label: "Upcoming Fruit Deals" },
   { key: "highestDeals", label: "Highest Deals of The Day" },
   ...previousSections.map((section) => ({
     key: section.title,
@@ -115,8 +122,8 @@ const desktopSections = [
 ];
 
 const mobileTabs = [
-  { key: "liveLots", label: "Live Fruit Lots" },
-  { key: "upcomingLots", label: "Upcoming Fruit Lots" },
+  { key: "liveLots", label: "Live Fruit Deals" },
+  { key: "upcomingLots", label: "Upcoming Fruit Deals" },
   { key: "highestDeals", label: "Highest Deals of The Day" },
   ...previousSections.map((section) => ({
     key: section.title,
@@ -437,30 +444,24 @@ export default function Home() {
     () => products.map((product) => attachLotTiming(product, lotTiming)),
     [products, lotTiming]
   );
-  const visibleListings = timedProducts
-    .filter((product) => product.dealTiming?.state === "live")
-    .slice(0, 6);
-  const mobileLiveLots = mergeUniqueLots([
-    ...auctions
-      .filter((auction) => auction.status === "ACTIVE" && auction.product)
-      .map((auction) => normalizeAuctionLot(auction, lotTiming)),
-    ...visibleListings,
-  ]).slice(0, 12);
-  const upcomingLots = [
-    ...timedProducts.filter((product) => product.dealTiming?.state === "upcoming"),
-    ...auctions
-      .filter((auction) => auction.status === "SCHEDULED" && auction.product)
-      .map((auction) =>
-        attachLotTiming(
-          {
-            ...(auction.product || {}),
-            auctionStartTime: auction.startTime || auction.product?.auctionStartTime,
-            status: "UPCOMING",
-          },
-          lotTiming
-        )
-      ),
-  ].slice(0, 6);
+  const auctionDealLots = useMemo(
+    () =>
+      auctions
+        .filter((auction) => auction.product)
+        .map((auction) => normalizeAuctionLot(auction, lotTiming)),
+    [auctions, lotTiming]
+  );
+  const allDealListings = useMemo(
+    () => mergeUniqueLots([...auctionDealLots, ...timedProducts]),
+    [auctionDealLots, timedProducts]
+  );
+  const dealDisplayGroup = useMemo(
+    () => getDealDisplayGroup(allDealListings),
+    [allDealListings]
+  );
+  const visibleListings = dealDisplayGroup.deals.slice(0, 6);
+  const mobileLiveLots = dealDisplayGroup.deals.slice(0, 12);
+  const upcomingLots = allDealListings.filter((deal) => isUpcomingDeal(deal)).slice(0, 6);
   const highestDeals = getHighestDealsByCategory(auctions);
   const selectedInfoSection = previousSections.find(
     (section) => section.title === desktopSection
@@ -551,6 +552,7 @@ export default function Home() {
           visibleListings={mobileLiveLots}
           upcomingLots={upcomingLots}
           highestDeals={highestDeals}
+          dealDisplayGroup={dealDisplayGroup}
           selectedInfoSection={previousSections.find((section) => section.title === activeMobileTab)}
           onOpenLotById={(productId) => navigate(`/lots/${productId}`)}
           onQuoteLot={openQuoteFlow}
@@ -609,6 +611,7 @@ export default function Home() {
             visibleListings={visibleListings}
             upcomingLots={upcomingLots}
             highestDeals={highestDeals}
+            dealDisplayGroup={dealDisplayGroup}
             selectedInfoSection={selectedInfoSection}
             onAdd={openListLotFlow}
             onOpenLot={(productId) => navigate(`/lots/${productId}`)}
@@ -755,6 +758,7 @@ function MobileSectionContent({
   visibleListings,
   upcomingLots,
   highestDeals,
+  dealDisplayGroup,
   selectedInfoSection,
   onOpenLotById,
   onQuoteLot,
@@ -786,9 +790,18 @@ function MobileSectionContent({
 
   return (
     <section className="-mx-3 mt-1">
+      {activeTab === "liveLots" && (
+        <h2 className="px-3 pb-2 text-sm font-extrabold text-black">
+          {dealDisplayGroup?.title || "Live Fruit Deals"}
+        </h2>
+      )}
       <DesktopLotPost
         items={filteredListings}
-        emptyText={emptyTextByTab[activeTab] || emptyTextByTab.liveLots}
+        emptyText={
+          activeTab === "liveLots"
+            ? dealDisplayGroup?.emptyText || emptyTextByTab.liveLots
+            : emptyTextByTab[activeTab] || emptyTextByTab.liveLots
+        }
         onOpenLot={onOpenLotById}
         onQuoteLot={onQuoteLot}
         onRateLot={onRateLot}
@@ -902,7 +915,7 @@ function MarketCard({ item, amount, badge, buttonLabel, icon, onView, showPrice 
         <h3 className="line-clamp-1 text-xs font-extrabold text-black">
           {item.title || "Fruit Lot"}
         </h3>
-        <span className="rounded bg-green-100 px-2 py-0.5 text-[8px] font-extrabold text-green-800">
+        <span className={`rounded px-2 py-0.5 text-[8px] font-extrabold ${getLotStatusBadgeClass(item)}`}>
           {formatLotStatus(item.status, item.dealTiming)}
         </span>
       </div>
@@ -998,6 +1011,7 @@ function DesktopSection({
   visibleListings,
   upcomingLots,
   highestDeals,
+  dealDisplayGroup,
   selectedInfoSection,
   onAdd,
   onOpenLot,
@@ -1005,14 +1019,21 @@ function DesktopSection({
   onRateLot,
 }) {
   if (section === "liveLots") {
+    const sectionTextByGroup = {
+      live: "Fresh orchard deals available for mandi buyers.",
+      upcoming: "Scheduled deals will open for price quoting automatically at their live time.",
+      closed: "Recently closed fruit deals remain available to review.",
+      empty: "Fresh orchard deals available for mandi buyers.",
+    };
+
     return (
       <WebSectionPost
-        title="Live Fruit Lots"
-        text="Fresh orchard listings available for mandi buyers."
+        title={dealDisplayGroup?.title || "Live Fruit Deals"}
+        text={sectionTextByGroup[dealDisplayGroup?.key] || sectionTextByGroup.empty}
       >
         <DesktopLotPost
           items={visibleListings}
-          emptyText="No live fruit lot yet. New mandi lots will appear here."
+          emptyText={dealDisplayGroup?.emptyText || "No fruit deal yet. New mandi deals will appear here."}
           onOpenLot={onOpenLot}
           onQuoteLot={onQuoteLot}
           onRateLot={onRateLot}
@@ -1024,7 +1045,7 @@ function DesktopSection({
   if (section === "upcomingLots") {
     return (
       <WebSectionPost
-        title="Upcoming Fruit Lots"
+        title="Upcoming Fruit Deals"
         text="Scheduled lots will open for price quoting automatically at their live time."
       >
         <DesktopLotPost
@@ -1132,6 +1153,8 @@ function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) 
   const rating = Number(product.createdBy?.rating || product.growerRating || 0);
   const growerRating = Number(product.createdBy?.growerRatingAverage || rating || 0);
   const growerRatingCount = Number(product.createdBy?.growerRatingCount || 0);
+  const closedDeal = isClosedDeal(product);
+  const liveDeal = isLiveDeal(product);
 
   return (
     <article className="overflow-hidden border border-gray-200 bg-white md:rounded-md">
@@ -1153,7 +1176,7 @@ function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) 
             </p>
           </button>
           <div className="flex shrink-0 flex-col items-end gap-2">
-            <span className="rounded bg-green-100 px-2 py-1 text-[10px] font-extrabold text-green-800">
+            <span className={`rounded px-2 py-1 text-[10px] font-extrabold ${getLotStatusBadgeClass(product)}`}>
               {formatLotStatus(product.status, product.dealTiming)}
             </span>
             <LotCountdownText timing={product.dealTiming} />
@@ -1207,13 +1230,23 @@ function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) 
             >
               Rate Grower
             </button>
-            <button
-              type="button"
-              onClick={() => onQuoteLot(product._id)}
-              className="min-w-0 rounded-full bg-green-700 px-2 py-2 text-[10px] font-extrabold leading-tight text-white hover:bg-green-800 sm:px-3 sm:text-[11px]"
-            >
-              Quote Your Price
-            </button>
+            {liveDeal ? (
+              <button
+                type="button"
+                onClick={() => onQuoteLot(product._id)}
+                className="min-w-0 rounded-full bg-green-700 px-2 py-2 text-[10px] font-extrabold leading-tight text-white hover:bg-green-800 sm:px-3 sm:text-[11px]"
+              >
+                Quote Your Price
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onOpenLot(product._id)}
+                className="min-w-0 rounded-full bg-white px-2 py-2 text-[10px] font-extrabold leading-tight text-green-800 ring-1 ring-green-200 hover:bg-green-100 sm:px-3 sm:text-[11px]"
+              >
+                {closedDeal ? "View Closed Deal" : "View Details"}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -1783,7 +1816,7 @@ function getDailyLotTiming(now = new Date()) {
 
 function attachLotTiming(product = {}, timing) {
   const normalizedStatus = String(product.status || "").trim().toUpperCase();
-  if (["SOLD", "ENDED", "CLOSED"].includes(normalizedStatus)) {
+  if (["SOLD", "ENDED", "CLOSED", "COMPLETED", "QUOTE_ACCEPTED", "DEAL_CONFIRMED"].includes(normalizedStatus)) {
     return {
       ...product,
       dealTiming: {
@@ -1791,6 +1824,32 @@ function attachLotTiming(product = {}, timing) {
         label: "Deal Closed",
         targetAt: "",
         countdownPrefix: "",
+      },
+    };
+  }
+
+  if (["SCHEDULED", "UPCOMING", "PENDING"].includes(normalizedStatus)) {
+    return {
+      ...product,
+      status: "UPCOMING",
+      dealTiming: {
+        state: "upcoming",
+        label: "Upcoming Deal",
+        targetAt: product.auctionStartTime || timing.targetAt,
+        countdownPrefix: "Starts in",
+      },
+    };
+  }
+
+  if (["LIVE", "ACTIVE", "OPEN", "IN_AUCTION"].includes(normalizedStatus)) {
+    return {
+      ...product,
+      status: "ACTIVE",
+      dealTiming: {
+        state: "live",
+        label: "Deal Open",
+        targetAt: product.auctionEndTime || product.endTime || timing.targetAt,
+        countdownPrefix: "Closes in",
       },
     };
   }
@@ -1804,20 +1863,44 @@ function attachLotTiming(product = {}, timing) {
 
 function normalizeAuctionLot(auction = {}, timing) {
   const product = auction.product || {};
+  const dealStatus = normalizeDealStatus({
+    status: auction.status,
+    product,
+  });
   const auctionTiming =
-    auction.endTime || auction.closeTime
+    dealStatus === "closed"
       ? {
-          state: "live",
-          label: "Deal Open",
-          targetAt: auction.endTime || auction.closeTime,
-          countdownPrefix: "Closes in",
+          state: "closed",
+          label: "Deal Closed",
+          targetAt: "",
+          countdownPrefix: "",
         }
-      : timing;
+      : dealStatus === "upcoming"
+        ? {
+            state: "upcoming",
+            label: "Upcoming Deal",
+            targetAt: auction.startTime || product.auctionStartTime || timing.targetAt,
+            countdownPrefix: "Starts in",
+          }
+        : auction.endTime || auction.closeTime
+          ? {
+              state: "live",
+              label: "Deal Open",
+              targetAt: auction.endTime || auction.closeTime,
+              countdownPrefix: "Closes in",
+            }
+          : timing;
 
   return {
     ...product,
     _id: product._id,
-    status: "ACTIVE",
+    status:
+      dealStatus === "closed"
+        ? "CLOSED"
+        : dealStatus === "upcoming"
+          ? "UPCOMING"
+          : "ACTIVE",
+    auctionStatus: auction.status,
     currentBid: auction.currentBid || auction.startingPrice || product.currentBid,
     dealTiming: auctionTiming,
   };
@@ -1871,14 +1954,27 @@ function formatLotStatus(status = "", timing = null) {
   const normalized = String(status || "AVAILABLE").trim().toUpperCase();
   const labels = {
     IN_AUCTION: "Deal Open",
+    LIVE: "Deal Open",
+    OPEN: "Deal Open",
     ACTIVE: "Deal Open",
     AVAILABLE: "Available",
     SCHEDULED: "Upcoming Deal",
     UPCOMING: "Upcoming Deal",
+    PENDING: "Upcoming Deal",
     SOLD: "Deal Closed",
     ENDED: "Deal Closed",
+    CLOSED: "Deal Closed",
+    COMPLETED: "Deal Closed",
+    QUOTE_ACCEPTED: "Deal Closed",
+    DEAL_CONFIRMED: "Deal Closed",
   };
   return labels[normalized] || normalized.replace(/_/g, " ");
+}
+
+function getLotStatusBadgeClass(deal = {}) {
+  if (isClosedDeal(deal)) return "bg-gray-200 text-gray-700";
+  if (isUpcomingDeal(deal)) return "bg-amber-100 text-amber-800";
+  return "bg-green-100 text-green-800";
 }
 
 function getLotDetails(product = {}) {
@@ -1918,4 +2014,3 @@ function getLotDetails(product = {}) {
     { label: "Description", value: product.description },
   ].filter((detail) => detail.value !== undefined && detail.value !== null && String(detail.value).trim());
 }
-

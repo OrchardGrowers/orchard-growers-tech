@@ -9,15 +9,16 @@ import {
   FaSeedling,
   FaStar,
   FaTimes,
-  FaUser,
   FaVideo,
 } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
 import CountdownTimer from "../components/CountdownTimer";
 import SEO from "../components/SEO";
+import LimitedPublicProfileCard from "../components/LimitedPublicProfileCard";
 import { canQuote, getCurrentUser, hasBuyerProfile } from "../utils/auth";
 import { trackLotContact, trackLotView } from "../services/analytics";
 import { saveUserToStorage } from "../utils/userStorage";
+import { getSafePublicProfile } from "../utils/marketplaceVisibility";
 
 const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
 const isDevelopment = process.env.NODE_ENV !== "production";
@@ -88,6 +89,14 @@ export default function LotDetails() {
   const growerRating = Number(createdBy.growerRatingAverage || createdBy.rating || product.growerRating || 0);
   const growerRatingCount = Number(createdBy.growerRatingCount || 0);
   const activeGradeLabel = getImageGradeLabel(product, activeImage);
+  const growerPublicProfile = useMemo(
+    () =>
+      getSafePublicProfile(createdBy, {
+        companyName: growerName,
+        businessType: "grower",
+      }),
+    [createdBy, growerName]
+  );
   const buildLoginState = (from, requiredProfile) => ({
     mode: "login",
     from,
@@ -414,15 +423,15 @@ export default function LotDetails() {
       <GradeLots lots={product.gradeLots || []} />
       <SampleVideo video={product.sampleVideo} />
 
-      <section className="section mt-3 w-full max-w-full rounded-md border border-gray-200 bg-white p-3">
-        <h2 className="mb-2 text-xs font-extrabold text-black">Grower Information</h2>
-        <div className="flex items-center gap-2 text-xs font-bold text-gray-700">
-          <FaUser className="text-green-700" />
-          <span>
-            {createdBy.orchardName || createdBy.name || "Grower"}
-          </span>
-        </div>
-      </section>
+      <div className="mt-3">
+        <LimitedPublicProfileCard
+          title="Grower / Seller Profile"
+          profile={growerPublicProfile}
+          emptyName="Grower"
+          trustedLabel="OG Verified"
+          resolveImageUrl={(url) => getOptimizedAssetUrl(url, 160)}
+        />
+      </div>
       {imagePreviewOpen && (
         <ImageZoomModal
           imageUrl={toAssetUrl(activeImage)}

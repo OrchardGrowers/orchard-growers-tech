@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { FaArrowLeft, FaCalculator, FaHandshake, FaSeedling, FaUser } from "react-icons/fa";
-import API from "../services/api";
+import LimitedPublicProfileCard from "../components/LimitedPublicProfileCard";
+import API, { FILE_BASE_URL } from "../services/api";
 import {
   PAYMENT_PARTNER_ENABLED,
   PAYMENT_UNAVAILABLE_MESSAGE,
 } from "../config/payment";
+import { getSafePublicProfile } from "../utils/marketplaceVisibility";
 
 export default function QuoteDetails() {
   const { quoteId } = useParams();
@@ -62,6 +64,40 @@ export default function QuoteDetails() {
   const canAccept = isGrowerSettlementView && status === "Pending";
   const buyerPlatformPayable = quote?.buyerPayableThroughPlatform || quote?.buyerPayable || 0;
   const isConsignmentReport = !isGrowerSettlementView && new URLSearchParams(location.search).get("report") === "consignment";
+  const buyerPublicProfile = quote
+    ? getSafePublicProfile(
+        quote.buyerProfile || {
+          name: quote.buyerName,
+          companyName: quote.buyerCompanyName || quote.buyerName,
+          logoUrl: quote.buyerLogoUrl,
+          mainLocation: quote.buyerMainLocation,
+          isKycVerified: quote.buyerKycVerified,
+          isOgVerified: quote.buyerOgVerified,
+          isTrusted: quote.buyerTrusted,
+          memberSince: quote.buyerMemberSince,
+          totalDeals: quote.buyerTotalDeals,
+          businessType: "buyer",
+        },
+        { businessType: "buyer" }
+      )
+    : null;
+  const growerPublicProfile = quote
+    ? getSafePublicProfile(
+        quote.growerProfile || {
+          name: quote.growerName,
+          companyName: quote.growerCompanyName || quote.growerName,
+          logoUrl: quote.growerLogoUrl,
+          mainLocation: quote.growerMainLocation,
+          isKycVerified: quote.growerKycVerified,
+          isOgVerified: quote.growerOgVerified,
+          isTrusted: quote.growerTrusted,
+          memberSince: quote.growerMemberSince,
+          totalLots: quote.growerTotalLots,
+          businessType: "grower",
+        },
+        { businessType: "grower" }
+      )
+    : null;
 
   return (
     <div className="mx-auto w-full max-w-4xl overflow-x-hidden pb-[calc(160px+env(safe-area-inset-bottom))]">
@@ -112,7 +148,6 @@ export default function QuoteDetails() {
             </h2>
             <div className="grid gap-2 sm:grid-cols-2">
               {!isGrowerSettlementView && <InfoTile label="Buyer" value={quote.buyerName || "Buyer"} />}
-              {!isGrowerSettlementView && <InfoTile label="Buyer Phone" value={maskPhone(quote.buyerPhone)} />}
               {!isGrowerSettlementView && <InfoTile label="Lot No." value={quote.lotNo || quote.lotId} />}
               <InfoTile label="Grower" value={quote.growerName || "Grower"} />
               {!isGrowerSettlementView && <InfoTile label="Variety" value={quote.lotVariety || quote.fruitType} />}
@@ -121,6 +156,27 @@ export default function QuoteDetails() {
               {!isGrowerSettlementView && <InfoTile label="Total Weight" value={formatWeight(quote.totalWeightKg)} />}
               {!isGrowerSettlementView && <InfoTile label="Location" value={quote.lotLocation} />}
               <InfoTile label="Quote Date" value={formatDate(quote.createdAt)} />
+            </div>
+
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {buyerPublicProfile && (
+                <LimitedPublicProfileCard
+                  title="Buyer Profile"
+                  profile={buyerPublicProfile}
+                  emptyName="Buyer"
+                  trustedLabel="Trusted Buyer"
+                  resolveImageUrl={resolveQuoteProfileMediaUrl}
+                />
+              )}
+              {growerPublicProfile && (
+                <LimitedPublicProfileCard
+                  title="Grower / Seller Profile"
+                  profile={growerPublicProfile}
+                  emptyName="Grower"
+                  trustedLabel="OG Verified"
+                  resolveImageUrl={resolveQuoteProfileMediaUrl}
+                />
+              )}
             </div>
 
             {!isGrowerSettlementView && quote.message && (
@@ -270,12 +326,6 @@ function normalizeQuoteStatusLabel(status = "") {
   return "Pending";
 }
 
-function maskPhone(phone = "") {
-  const digits = String(phone || "").replace(/\D/g, "");
-  if (digits.length < 4) return "Phone hidden";
-  return `${digits.slice(0, 2)}XXXX${digits.slice(-2)}`;
-}
-
 function formatDate(value) {
   if (!value) return "Not available";
   const date = new Date(value);
@@ -306,4 +356,23 @@ function firstPositiveNumber(...values) {
     if (Number.isFinite(number) && number > 0) return number;
   }
   return 0;
+}
+
+function resolveQuoteProfileMediaUrl(value = "") {
+  const url = String(value || "").trim();
+  if (!url) return "";
+  if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+  if (/^https?:\/\//i.test(url)) {
+    if (
+      window.location.protocol === "https:" &&
+      url.startsWith("http://") &&
+      !/localhost|127\.0\.0\.1/i.test(url)
+    ) {
+      return url.replace(/^http:\/\//i, "https://");
+    }
+    return url;
+  }
+  const cleanPath = url.replace(/^\/+/, "");
+  if (cleanPath.startsWith("uploads/")) return `${FILE_BASE_URL}/${cleanPath}`;
+  return url.startsWith("/") ? url : `/${url}`;
 }
