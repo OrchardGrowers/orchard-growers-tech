@@ -143,10 +143,20 @@ export const debounce = <T extends (...args: any[]) => any>(
 };
 
 // Local storage utilities
+const getLocalStorage = (): any => {
+  try {
+    if (typeof globalThis === "undefined") return null;
+    const storageRef = (globalThis as any).localStorage;
+    return storageRef || null;
+  } catch {
+    return null;
+  }
+};
+
 export const storage = {
   get: <T>(key: string): T | null => {
     try {
-      const item = localStorage.getItem(key);
+      const item = getLocalStorage()?.getItem(key) ?? null;
       return item ? JSON.parse(item) : null;
     } catch {
       return null;
@@ -154,23 +164,26 @@ export const storage = {
   },
   set: <T>(key: string, value: T): void => {
     try {
-      localStorage.setItem(key, JSON.stringify(value));
+      getLocalStorage()?.setItem(key, JSON.stringify(value));
     } catch {
       // Ignore storage errors
     }
   },
   remove: (key: string): void => {
     try {
-      localStorage.removeItem(key);
+      getLocalStorage()?.removeItem(key);
     } catch {
       // Ignore storage errors
     }
   },
   clear: (): void => {
     try {
-      localStorage.clear();
+      getLocalStorage()?.clear();
     } catch {
       // Ignore storage errors
     }
   },
 };
+
+
+
