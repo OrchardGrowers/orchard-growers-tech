@@ -210,7 +210,7 @@ const newsItems = [
 
 const policyLinkGroups = [
   {
-    title: "Company",
+    title: "Who is eFruitMandi?",
     links: [
       { label: "About Us", path: "/about" },
       { label: "Our Story", path: "/our-story" },
@@ -249,6 +249,15 @@ const policyLinkGroups = [
       { label: "Shipping & Logistics Policy", path: "/shipping-logistics-policy" },
     ],
   },
+  {
+  title: "Media & Press Release",
+  links: [
+    { label: "Media Center", path: "/media" },
+    { label: "Press Release", path: "/press-release" },
+    { label: "News & Updates", path: "/news-updates" },
+    { label: "Blog", path: "/blog" },
+  ],
+},
 ];
 
 const LOT_OPEN_HOUR = 12;
@@ -1558,7 +1567,7 @@ function PolicyMiniLinks() {
       <Link to="/user-data-deletion" className="inline-flex hover:text-green-700 hover:underline">
         User data deletion
       </Link>
-      <p>(c) All rights reserved by Orchard Growers Pvt. Ltd.</p>
+      <p>© eFruitMandi All rights reserved. A Product by Orchard Growers Pvt. Ltd.</p>
     </nav>
   );
 }

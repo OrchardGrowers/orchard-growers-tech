@@ -11,6 +11,10 @@ import MainLayout from "./layouts/MainLayout";
 // 🔹 Pages
 import Home from "./pages/Home";
 const FruitLotsPage = lazy(() => import("./pages/FruitLotsPage"));
+const NewsUpdatesPage = lazy(() => import("./pages/NewsUpdatesPage"));
+const BlogPage = lazy(() => import("./pages/BlogPage"));
+const MediaPage = lazy(() => import("./pages/MediaPage"));
+const PressReleasePage = lazy(() => import("./pages/PressReleasePage"));
 const Orders = lazy(() => import("./pages/Orders"));
 const InvoicesChalan = lazy(() => import("./pages/InvoicesChalan"));
 const Delivery = lazy(() => import("./pages/Delivery"));
@@ -164,6 +168,10 @@ function App() {
             <Route path="/lots/:lotId/rating" element={<RateGrower />} />
             <Route path="/search" element={<SearchResults />} />
             <Route path="/fruit-lots/:fruitSlug" element={<FruitLotsPage />} />
+            <Route path="/media" element={<MediaPage />} />
+            <Route path="/press-release" element={<PressReleasePage />} />
+            <Route path="/news-updates" element={<NewsUpdatesPage />} />
+            <Route path="/blog" element={<BlogPage />} />
 
         </Route>
 
