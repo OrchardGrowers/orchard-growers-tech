@@ -5,9 +5,9 @@ export default function NewsUpdatesPage() {
   return (
     <>
       <SEO
-        title="News & Updates | eFruitMandi Fruit Market News India"
-        description="Read eFruitMandi news, platform updates, fruit market insights, grower guidance, buyer announcements and digital fruit marketplace updates from India."
-        keywords="eFruitMandi news, fruit market news India, digital fruit marketplace updates, fruit mandi news, Orchard Growers Private Limited news, grower updates, buyer updates, AgriTech news India"
+        title="News & Updates | eFruitMandi"
+        description="Latest news, platform updates, fruit market insights and announcements from eFruitMandi by Orchard Growers Private Limited."
+        keywords="eFruitMandi news, eFruitMandi updates, fruit market news India, digital fruit mandi updates, Orchard Growers news"
       />
 
       <div className="min-h-screen bg-[#eef3ef]">
@@ -101,45 +101,6 @@ export default function NewsUpdatesPage() {
             </p>
           </section>
 
-          <section className="mt-10 rounded-3xl bg-white p-8 shadow-sm">
-            <h2 className="text-2xl font-bold text-gray-900">
-              What We Share in News & Updates
-            </h2>
-
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl bg-green-50 p-5">
-                <h3 className="font-bold text-green-900">Platform Announcements</h3>
-                <p className="mt-2 text-gray-700">
-                  Updates about eFruitMandi features, user experience, grower tools,
-                  buyer access, verification systems and digital fruit marketplace improvements.
-                </p>
-              </div>
-
-              <div className="rounded-2xl bg-green-50 p-5">
-                <h3 className="font-bold text-green-900">Fruit Market Insights</h3>
-                <p className="mt-2 text-gray-700">
-                  Information related to fruit trade, mandi participation, seasonal fruit demand,
-                  logistics coordination, grading, packing and market awareness.
-                </p>
-              </div>
-
-              <div className="rounded-2xl bg-green-50 p-5">
-                <h3 className="font-bold text-green-900">Grower & Buyer Guidance</h3>
-                <p className="mt-2 text-gray-700">
-                  Practical updates for fruit growers, orchard owners, buyers, traders,
-                  commission agents, exporters and logistics partners across India.
-                </p>
-              </div>
-
-              <div className="rounded-2xl bg-green-50 p-5">
-                <h3 className="font-bold text-green-900">Company Updates</h3>
-                <p className="mt-2 text-gray-700">
-                  Official updates from Orchard Growers Private Limited, including
-                  eFruitMandi development, media announcements and business milestones.
-                </p>
-              </div>
-            </div>
-          </section>
           <section className="mt-10 rounded-3xl bg-green-950 p-8 text-white shadow-sm">
             <h2 className="text-2xl font-bold">
               Stay Connected with eFruitMandi
@@ -178,4 +139,3 @@ export default function NewsUpdatesPage() {
     </>
   );
 }
-

@@ -5,9 +5,9 @@ export default function BlogPage() {
   return (
     <>
       <SEO
-        title="eFruitMandi Blog | Fruit Market Insights, Grower & Buyer Guides India"
+        title="eFruitMandi Blog | Digital Fruit Marketplace, Grower Guides & Fruit Trade Insights"
         description="Read eFruitMandi blog by Orchard Growers Private Limited: fruit market insights, grower guides, buyer guides, digital mandi updates, logistics, KYC, OG Verified and fruit trade education."
-        keywords="eFruitMandi blog, fruit market insights India, grower guides, buyer guides, fruit marketplace India, apple growers, mango buyers, fruit logistics, fruit trading India, Orchard Growers Private Limited"
+        keywords="eFruitMandi blog, digital fruit mandi, fruit marketplace India, fruit growers blog, fruit buyers India, Orchard Growers, apple growers, mango buyers, fruit logistics, online fruit trading India"
       />
 
       <div className="min-h-screen bg-[#eef3ef]">

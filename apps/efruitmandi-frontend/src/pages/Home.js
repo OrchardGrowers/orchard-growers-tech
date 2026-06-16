@@ -1564,10 +1564,17 @@ function PolicyMiniLinks() {
           </div>
         </section>
       ))}
-      <Link to="/user-data-deletion" className="inline-flex hover:text-green-700 hover:underline">
-        User data deletion
-      </Link>
-      <p>© eFruitMandi All rights reserved. A Product by Orchard Growers Pvt. Ltd.</p>
+      <section>
+        <h2 className="mb-1 text-[10px] font-extrabold uppercase tracking-wide text-gray-700">
+          Data Deletion Policy
+        </h2>
+        <div className="flex flex-wrap gap-x-2 gap-y-1">
+          <Link to="/user-data-deletion" className="hover:text-green-700 hover:underline">
+            User Data Deletion
+          </Link>
+        </div>
+      </section>
+      <p>(c) eFruitMandi All rights reserved. A Product by Orchard Growers Pvt. Ltd.</p>
     </nav>
   );
 }

@@ -5,9 +5,9 @@ export default function MediaPage() {
   return (
     <>
       <SEO
-        title="Media Center | eFruitMandi Digital Fruit Marketplace"
-        description="Official Media Center of eFruitMandi by Orchard Growers Private Limited. Company information, media resources, fruit market insights, press notes and platform updates."
-        keywords="eFruitMandi Media Center, Orchard Growers Private Limited, Fruit Marketplace India, AgriTech Startup India, Digital Fruit Marketplace, Fruit Trading Platform India, Fruit Market News, Media Resources"
+        title="Media, Blogs and Fruit Market Updates | eFruitMandi"
+        description="Read media updates, fruit market insights, blogs, press notes and digital fruit marketplace stories from eFruitMandi by Orchard Growers Private Limited."
+        keywords="eFruitMandi media, fruit market blogs, fruit mandi news, digital fruit marketplace India, fruit market updates, fruit buyers, commission agents, mandi bhav"
       />
 
       <div className="min-h-screen bg-[#eef3ef]">

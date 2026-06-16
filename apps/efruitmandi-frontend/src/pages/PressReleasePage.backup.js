@@ -202,18 +202,6 @@ export default function PressReleasePage() {
                 <strong>Platform:</strong> eFruitMandi
               </p>
               <p>
-                <strong>CIN:</strong> U01100HP2022PTC009319
-              </p>
-              <p>
-                <strong>Startup India:</strong> Recognized Startup
-              </p>
-              <p>
-                <strong>MSME:</strong> Registered Enterprise
-              </p>
-              <p>
-                <strong>Founder & Executive Director:</strong> Pawan Kumar
-              </p>
-              <p>
                 <strong>Website:</strong>{" "}
                 <a
                   href="https://www.efruitmandi.live"
@@ -270,5 +258,3 @@ export default function PressReleasePage() {
     </>
   );
 }
-
-
