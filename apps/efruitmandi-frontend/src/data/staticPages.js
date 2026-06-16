@@ -1032,31 +1032,69 @@ export const staticPages = {
     ],
   }),
 
-  deletion: page({
+    deletion: page({
     route: "/user-data-deletion",
-    eyebrow: "Legal",
-    title: "User Data Deletion",
+    eyebrow: "Data Deletion Policy",
+    title: "User Data Deletion Policy",
     description:
-      "How eFruitMandi users can request deletion of account data where legally and operationally allowed.",
+      "eFruitMandi data deletion policy for account deletion, personal data erasure, verification, retention, grievance redressal, and lawful compliance in India.",
     intro:
-      "Users can request deletion of information that is no longer required for legal, payment, verification, dispute, security, or marketplace record purposes.",
+      "This policy explains how eFruitMandi users may request deletion or erasure of personal information connected with their account, listings, KYC, support records, quotations, deals, delivery, and payment activity, subject to lawful retention requirements.",
     sections: [
       {
         title: "How to request deletion",
         body: [
-          `Send a deletion request from your registered contact to ${business.email}. Include your name, registered phone or email, account role, and a clear request to delete your eFruitMandi data.`,
+          `Send a data deletion request from your registered email address or registered mobile number to ${business.email}. You may also contact support at ${business.phone}.`,
+        ],
+        bullets: [
+          "Your full name",
+          "Registered phone number or email address",
+          "Account role: Grower, Buyer, or Logistics Partner",
+          "A clear statement that you want to delete your eFruitMandi account data",
+          "Any relevant listing, KYC, quotation, deal, payment, or support reference",
         ],
       },
       {
         title: "Verification before deletion",
         body: [
-          "We may verify your identity with OTP, account details, or support follow-up before processing deletion so another person cannot remove your account without permission.",
+          "To protect users from unauthorized deletion requests, eFruitMandi may verify identity through OTP, registered account details, support follow-up, or other reasonable checks before processing a deletion request.",
+        ],
+      },
+      {
+        title: "Data that may be deleted or deactivated",
+        bullets: [
+          "Account profile details that are no longer required",
+          "Public profile visibility and optional profile information",
+          "Non-essential listing media or account content where deletion is legally and operationally possible",
+          "Marketing or communication preferences where applicable",
         ],
       },
       {
         title: "Records that may be retained",
         body: [
-          "Some records may be retained where required for completed deals, payments, invoices, disputes, fraud prevention, security logs, tax, regulatory, or legal compliance.",
+          "Some records may be retained where required for completed deals, payments, invoices, KYC verification, delivery records, dispute handling, fraud prevention, platform security, tax, accounting, regulatory, statutory, or legal compliance.",
+          "Where full deletion is not immediately possible, eFruitMandi may restrict access, deactivate the account, anonymize non-essential information, or retain only the minimum records required for lawful and operational purposes.",
+        ],
+      },
+      {
+        title: "Processing timeline",
+        body: [
+          "Deletion requests are reviewed after identity verification. eFruitMandi will normally acknowledge the request within a reasonable time and process eligible deletion requests as soon as operationally possible.",
+          "If a request cannot be fully completed because of legal, payment, tax, dispute, security, or marketplace record requirements, the user will be informed where reasonably possible.",
+        ],
+      },
+      {
+        title: "User rights and grievance redressal",
+        body: [
+          "Users may request access, correction, completion, updating, or erasure of personal data where legally and operationally permitted.",
+          `For privacy, deletion, or grievance requests, contact ${business.platform} at ${business.email} or ${business.phone}.`,
+        ],
+      },
+      {
+        title: "Important note",
+        body: [
+          "Deleting or deactivating an account may affect access to listings, quotes, deals, invoices, KYC status, OG Verified status, delivery records, support history, and marketplace services.",
+          "This policy should be read with the Privacy Policy, Terms of Service, KYC Verification Policy, Payment / Escrow Policy, Refund & Cancellation Policy, and Shipping & Logistics Policy.",
         ],
       },
     ],
