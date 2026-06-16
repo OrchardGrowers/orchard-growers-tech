@@ -1,4 +1,4 @@
-const business = {
+﻿const business = {
   company: "Orchard Growers Private Limited",
   platform: "eFruitMandi",
   domain: "https://www.efruitmandi.live",
@@ -924,37 +924,107 @@ export const staticPages = {
     eyebrow: "Help Center",
     title: "Grower Guide",
     description:
-      "A practical guide for growers using eFruitMandi to create listings, receive quotations, and manage consignments.",
+      "Complete grower guide for eFruitMandi covering fruit lot listing, buyer quotations, rate discovery, mandi terminology, grading, packing, logistics, KYC, OG Verified trust badge, payment safety, and grower rights.",
     intro:
-      "This guide helps growers prepare clear fruit lot listings and manage buyer interest.",
+      "eFruitMandi helps fruit growers and orchard owners list produce, receive buyer quotations, compare market interest, and complete fruit trade through mutual agreement. This guide explains mandi terms such as Phad, Boli, Ladani, Parcha, Bilty, Commission Agent, grading, packing, and fruit lots.",
     sections: [
       {
-        title: "Getting started",
-        steps: [
-          "Create or log in to your account.",
-          "Create a grower profile if required.",
-          "Complete free grower KYC.",
-          "Add orchard, contact, location, and map-point details where required.",
-        ],
-      },
-      {
-        title: "Creating a good listing",
-        bullets: [
-          "Use accurate fruit, variety, quality, packing, quantity, and grade details.",
-          "Upload clear grade-wise sample photos or videos where requested.",
-          "Mention correct farm, packing hall, or consignment location.",
-          "Keep listing information updated if the consignment status changes.",
-        ],
-      },
-      {
-        title: "Consignment rights",
+        title: "What is eFruitMandi for Growers?",
         body: [
-          "If a dispute cannot be resolved mutually, the grower has the right to withdraw or take back the consignment and may move it to another buyer, another market, or offline mandi.",
+          "eFruitMandi is a digital fruit marketplace and fruit trade facilitation platform by Orchard Growers Private Limited. It connects fruit growers, orchard owners, fruit producers, bulk fruit buyers, traders, commission agents, logistics partners, and market participants.",
+          "For growers, eFruitMandi helps create fruit lot listings with fruit type, variety, grade, packing, expected quantity, location, harvest stage, and sample photos. Buyers can review the lot and share quotations or proposed rates.",
+          "The final deal depends on mutual agreement between grower and buyer. Listing fruit on eFruitMandi does not force the grower to sell.",
+        ],
+      },
+      {
+        title: "Important clarification about Auction, Boli, Quote and Rate Discovery",
+        body: [
+          "On eFruitMandi, words such as Auction, Boli, Bid, Quotation, Quote, or Rate Discovery may be used only to explain the traditional fruit mandi price discovery concept. eFruitMandi is not a compulsory auction or forced sale platform.",
+          "In offline mandi systems, Boli or auction often means that fruit is offered through a commission agent and rate is discovered through buyers. eFruitMandi works differently because the grower can accept, reject, negotiate, pause, update, or withdraw a listing.",
+          "A transaction becomes meaningful only when grower and buyer mutually agree on rate, quantity, grade, packing, logistics, payment terms, and delivery conditions.",
+        ],
+      },
+      {
+        title: "Getting started as a Grower",
+        steps: [
+          "Create or log in to your eFruitMandi account.",
+          "Create a grower profile with correct name, mobile number, location, orchard details, and business information where required.",
+          "Complete free grower KYC.",
+          "Add orchard, farm, packing hall, or consignment location accurately.",
+          "Upload clear fruit photos, grade-wise sample images, and lot details.",
+          "Keep profile and listing information updated during harvest, packing, loading, and delivery stages.",
+        ],
+      },
+      {
+        title: "Fruit mandi terminology for growers",
+        body: [
+          "Phad: Phad is the trading space in a fruit or vegetable mandi where a commission agent coordinates trade discussion, Boli, rate discovery, and buyer-grower dealing.",
+          "Boli: Boli means price discovery or rate discussion. On eFruitMandi, Boli does not mean compulsory auction. It means buyer quote and grower-buyer negotiation.",
+          "Commission Agent: A commission agent coordinates offline mandi trade between growers and buyers and may handle rate discussion, sale record, payment follow-up, and mandi documentation.",
+          "Ladani: Ladani means bulk fruit buyer who buys fruit in large quantity for wholesale, retail, mandi, export, processing, or distribution.",
+          "Grower: A grower means fruit producer, orchard owner, farmer, bagwan, producer group, or seller of apple, mango, pear, plum, persimmon, pomegranate, grapes, citrus, cherry, peach, almond, or other fruit.",
+          "Parcha: Parcha is a mandi sale slip or transaction record containing quantity, rate, buyer, seller, grade, packing, and trade details.",
+          "Bilty: Bilty is a goods transport document used during fruit consignment movement. It records vehicle, transporter, route, dispatch, and destination details.",
+          "Challan or Invoice: Challan or invoice is an official transaction document containing buyer, seller, quantity, rate, payment, and trade details.",
+        ],
+      },
+      {
+        title: "Creating a strong fruit lot listing",
+        bullets: [
+          "Use accurate fruit name, variety, grade, packing, quantity, and location details.",
+          "Mention grade-wise quantity such as A+, A, B+, B, C+, C, D, ungraded, mixed grade, premium grade, table fruit, processing grade, or juice grade.",
+          "Upload clear grade-wise sample photos and videos.",
+          "Mention packing type such as carton, crate, wooden box, tray pack, loose packing, export packing, or local mandi packing.",
+          "Add pickup location, farm location, packing hall location, nearest road point, and loading point correctly.",
+          "Update listing if fruit is sold offline, partially sold, damaged, delayed, repacked, or withdrawn.",
+        ],
+      },
+      {
+        title: "Fruit grading, packing and buyer trust",
+        body: [
+          "Fruit grading is important for buyer trust. Buyers compare fruits based on size, color, maturity, shine, firmness, taste, defects, disease marks, bruising, and packing quality.",
+          "Growers should not mix high-grade and low-grade fruit without disclosure. If a lot has multiple grades, mention grade-wise quantity clearly.",
+          "Good packing protects fruit during loading, transport, unloading, and delivery. Strong packing can reduce damage and improve buyer confidence.",
+        ],
+      },
+      {
+        title: "Grower rights and consignment control",
+        body: [
+          "The grower remains free to accept or reject buyer quotations. Listing fruit on eFruitMandi does not make it compulsory to sell through the platform.",
+          "If the grower does not receive a satisfactory rate, the grower may wait, update the listing, negotiate, withdraw the lot, sell offline, move fruit to another mandi, or choose another buyer.",
+          "If a dispute cannot be resolved mutually, the grower has the right to withdraw or take back the consignment and may move it to another buyer, another market, or offline mandi, subject to applicable platform policies and already accepted deal terms.",
+        ],
+      },
+      {
+        title: "KYC, OG Verified and trust building",
+        body: [
+          "Grower KYC on eFruitMandi is free and helps create basic trust for buyers.",
+          "OG Verified or Trusted Badge is different from basic KYC. KYC supports identity trust, while OG Verified may support higher trust, quality review, orchard verification, and marketplace credibility.",
+          "A complete profile with KYC, correct photos, accurate location, proper grading, and transparent listing information can improve buyer confidence.",
+        ],
+      },
+      {
+        title: "Payment, logistics and documentation",
+        body: [
+          "Before confirming a deal, growers should understand payment mode, payment timing, platform process, transport responsibility, loading charges, labour charges, delivery point, and documentation requirements.",
+          "Important documents may include Parcha, Challan, Invoice, Bill, Bilty, delivery note, consignment record, buyer confirmation, and payment record.",
+          "Vehicle number, driver details, dispatch time, route, delivery location, and receiver details should be kept clear wherever possible.",
+        ],
+      },
+      {
+        title: "Grower FAQs",
+        body: [
+          "Is eFruitMandi an auction platform? No. eFruitMandi uses auction, Boli, quote, and rate discovery only to explain price discovery. It is not a compulsory auction or forced sale platform.",
+          "Can I reject a buyer quotation? Yes. A grower can reject a quotation if the rate, buyer, payment terms, logistics, or deal conditions are not suitable.",
+          "Can I sell fruit offline after listing? Yes, unless you have already accepted a specific deal under platform terms. If fruit is sold offline, update or remove the listing.",
+          "What is Phad? Phad is the trading space in mandi where commission agents coordinate trade between growers and buyers.",
+          "Who is Ladani? Ladani is a bulk fruit buyer who purchases fruit in large quantity.",
+          "What is Bilty? Bilty is a goods transport document used during movement of fruit consignments.",
+          "What is Parcha? Parcha is a mandi sale slip or transaction record.",
         ],
       },
     ],
   }),
-
   logisticsGuide: page({
     route: "/logistics-partner-guide",
     eyebrow: "Help Center",
