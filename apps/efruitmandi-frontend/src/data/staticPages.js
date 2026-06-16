@@ -1,4 +1,4 @@
-﻿const business = {
+const business = {
   company: "Orchard Growers Private Limited",
   platform: "eFruitMandi",
   domain: "https://www.efruitmandi.live",
@@ -901,6 +901,78 @@ export const staticPages = {
           "Platform records, tracking information, delivery acknowledgements, and communication logs do not create a guarantee of delivery, cargo condition, route accuracy, or commercial outcome.",
         ],
       },
+      {
+        title: "Consignment Documentation Requirements",
+        body: [
+          "Growers, Buyers, and Logistics Partners should maintain clear documentation for every fresh fruit consignment handled through platform-supported workflows.",
+          "Important documents may include fruit lot details, grade and packing records, pickup location, delivery address, vehicle number, driver information, bilty, challan, invoice, e-way bill where applicable, payment reference, and delivery acknowledgement.",
+          "Photos, videos, loading records, route updates, and proof of delivery may be used to support operational review, settlement verification, and dispute resolution.",
+          "Incomplete or inaccurate consignment documentation may delay delivery confirmation, payment settlement, support review, or dispute handling.",
+        ],
+      },
+      {
+        title: "Loading, Unloading, and Handling Standards",
+        body: [
+          "Fresh fruit consignments should be loaded, stacked, covered, and handled carefully to reduce bruising, pressure damage, heat exposure, moisture damage, and packing loss.",
+          "Growers and their appointed loading teams should ensure that cartons, crates, bags, or other packing units are arranged according to fruit type, grade, packing strength, and transport conditions.",
+          "Logistics Partners and drivers should avoid careless handling, overloading, unsafe stacking, unnecessary delays, and exposure to conditions that may damage perishable fruit.",
+          "Buyer-side unloading, inspection, and receipt should be completed in a reasonable time after vehicle arrival to reduce quality deterioration and avoid unnecessary detention.",
+        ],
+      },
+      {
+        title: "Transit Delays and Force Majeure",
+        body: [
+          "Fresh fruit transport may be affected by weather, road closures, traffic, vehicle breakdown, labour issues, strikes, government restrictions, natural events, network issues, or other operational disruptions.",
+          "Where delays occur, the concerned Logistics Partner or driver should share reasonable updates through available communication or platform-supported workflows.",
+          "eFruitMandi may record delay information for support and dispute review, but delay records do not automatically create platform liability for loss, damage, price change, or commercial outcome.",
+          "Users should understand that fruit value may change during transit due to perishability, market movement, delay, temperature, handling, and quality conditions.",
+        ],
+      },
+      {
+        title: "Delivery Disputes and Claims",
+        body: [
+          "Delivery disputes may include shortage, damaged packing, delayed arrival, route dispute, unloading delay, quality concern, quantity mismatch, vehicle detention, or proof of delivery disagreement.",
+          "The Buyer should raise visible delivery concerns as early as possible with photos, videos, unloading records, weight details, packing evidence, and delivery references.",
+          "The Grower and Logistics Partner should preserve loading proof, dispatch records, vehicle details, route communication, and other supporting information.",
+          "eFruitMandi may review platform records, communication logs, delivery acknowledgements, and submitted evidence to support dispute review, but final commercial responsibility remains subject to applicable transaction terms and platform policies.",
+        ],
+      },
+      {
+        title: "Cold Chain and Perishable Goods Handling",
+        body: [
+          "Some fruit categories may require special handling, temperature control, faster movement, ventilation, shade, insulation, refrigerated transport, or other cold-chain support.",
+          "Unless specifically agreed in writing, standard logistics coordination should not be assumed to include refrigerated transport, cold storage, controlled atmosphere handling, insurance, or specialized cargo protection.",
+          "Growers and Buyers should agree in advance if a consignment requires refrigerated vehicle, temperature monitoring, special packing, route priority, night movement, or other perishable goods handling requirements.",
+          "Failure to define special handling requirements before dispatch may increase the risk of fruit deterioration, quality disputes, and settlement delays.",
+        ],
+      },
+      {
+        title: "Insurance and Risk Allocation",
+        body: [
+          "Fruit insurance, transit insurance, cargo insurance, vehicle insurance, and risk protection remain the responsibility of the concerned participating parties unless separately agreed in writing.",
+          "eFruitMandi does not automatically provide insurance coverage for fruit consignments, vehicles, drivers, cargo loss, transit damage, theft, accident, delay, or commercial loss.",
+          "Growers, Buyers, and Logistics Partners should clearly agree on risk transfer, insurance responsibility, delivery terms, and claim handling before dispatch.",
+          "Where insurance is arranged by any party, claim processing shall depend on the insurer, policy terms, evidence, survey process, and applicable law.",
+        ],
+      },
+      {
+        title: "Cross-State Transportation Compliance",
+        body: [
+          "Where fresh fruit consignments move across districts or states, participating parties should comply with applicable transport, taxation, agricultural market, road safety, permit, e-way bill, invoice, and statutory requirements.",
+          "Logistics Partners and vehicle owners are responsible for vehicle documents, permits, driver licence, road compliance, and transport-related statutory obligations.",
+          "Growers and Buyers should ensure that commercial documents, tax details, consignment records, and delivery information are accurate where required.",
+          "eFruitMandi may support digital records and communication, but it does not replace statutory compliance obligations of the participating parties.",
+        ],
+      },
+      {
+        title: "Marketplace Logistics Disclaimer",
+        body: [
+          "eFruitMandi provides technology-enabled marketplace records, logistics visibility, communication support, delivery references, and settlement-related workflows where available.",
+          "The platform does not guarantee vehicle availability, delivery time, cargo condition, market price, buyer acceptance, grower payment, route accuracy, driver conduct, or absence of operational disputes.",
+          "Use of logistics features does not make eFruitMandi a transporter, carrier, freight forwarder, warehouse operator, insurer, broker, or cargo handling contractor unless specifically agreed in writing.",
+          "All users should read this policy together with the Payment and Escrow Policy, Commission and Fee Policy, Terms of Service, Community Guidelines, and applicable transaction records.",
+        ],
+      },
     ],
   }),
 
@@ -974,13 +1046,13 @@ export const staticPages = {
         title: "Important Mandi Terminology for Buyers",
         body: [
           "Traditional fruit mandis use many local words that are important for buyers to understand. eFruitMandi uses these terms to educate users and explain market practices in simple language.",
-          "Phad (फड़) means the designated trading place inside a fruit mandi or APMC mandi where a commission agent manages trading activity between growers and buyers. In many mandis, fruit lots are displayed, discussed, quoted, or auctioned from the Phad.",
-          "Boli (बोली) means the traditional price discovery process where buyers propose rates for a grower's produce. In English, it is often called auction, bidding, quote, quotation, or rate discovery.",
-          "Ladani (लदानी) means a bulk fruit buyer. A Ladani usually buys fruit in large quantity and supplies it to other mandis, wholesalers, retailers, supermarkets, processing units, or export markets.",
+          "Phad (???) means the designated trading place inside a fruit mandi or APMC mandi where a commission agent manages trading activity between growers and buyers. In many mandis, fruit lots are displayed, discussed, quoted, or auctioned from the Phad.",
+          "Boli (????) means the traditional price discovery process where buyers propose rates for a grower's produce. In English, it is often called auction, bidding, quote, quotation, or rate discovery.",
+          "Ladani (?????) means a bulk fruit buyer. A Ladani usually buys fruit in large quantity and supplies it to other mandis, wholesalers, retailers, supermarkets, processing units, or export markets.",
           "Commission Agent means the middle person or mandi agent who helps connect growers and buyers, manages Phad activity, coordinates Boli, prepares records, and supports settlement in traditional mandi systems.",
           "Grower means the fruit producer, orchard owner, farmer, or supplier who grows fruits such as apple, mango, pear, plum, persimmon, pomegranate, grapes, citrus, peach, cherry, kiwi, or other produce.",
-          "Parcha (पर्चा) is a mandi transaction slip or sale record. It may include fruit quantity, grade, rate, buyer name, seller name, commission, charges, and other trade details. In some regions, it is also called challan.",
-          "Bilty (बिल्टी) is a transport document or consignment note used when goods are moved from one place to another. It helps track loaded goods, transport details, destination, and delivery record.",
+          "Parcha (?????) is a mandi transaction slip or sale record. It may include fruit quantity, grade, rate, buyer name, seller name, commission, charges, and other trade details. In some regions, it is also called challan.",
+          "Bilty (??????) is a transport document or consignment note used when goods are moved from one place to another. It helps track loaded goods, transport details, destination, and delivery record.",
           "Challan or Invoice is an official transaction document that records buyer, seller, quantity, price, tax, payment, and other commercial details where applicable.",
         ],
       },
@@ -1145,14 +1217,14 @@ export const staticPages = {
         body: [
           "India's fruit trade has traditionally operated through fruit mandis, wholesale markets, APMC mandis, commission agents, traders, Ladanis, transporters, and fruit growers.",
           "Understanding how fruit mandis work helps buyers evaluate quotations, compare fruit lots, understand market behaviour, and communicate effectively with growers, commission agents, and logistics partners.",
-          "Traditional fruit trade uses terminology such as Phad (फड़), Boli (बोली), Ladani (लदानी), Commission Agent, Parcha (पर्चा), Bilty (बिल्टी), Challan, grading, packing, loading, unloading, and rate discovery.",
+          "Traditional fruit trade uses terminology such as Phad (???), Boli (????), Ladani (?????), Commission Agent, Parcha (?????), Bilty (??????), Challan, grading, packing, loading, unloading, and rate discovery.",
           "eFruitMandi preserves practical fruit mandi knowledge while helping buyers and growers use modern digital tools.",
         ],
       },
       {
         title: "Role of Ladani in Fruit Trade",
         body: [
-          "Ladani (लदानी) is a bulk fruit buyer who purchases fruit in large quantity and redistributes it to wholesalers, retailers, supermarkets, exporters, processors, cold stores, and other markets.",
+          "Ladani (?????) is a bulk fruit buyer who purchases fruit in large quantity and redistributes it to wholesalers, retailers, supermarkets, exporters, processors, cold stores, and other markets.",
           "Ladanis often evaluate grading, packing, transport cost, market demand, resale opportunities, shelf life, and logistics feasibility before procurement.",
           "Understanding Ladani operations helps buyers understand the wholesale fruit supply chain.",
         ],
@@ -1419,24 +1491,24 @@ export const staticPages = {
         body: [
           "India's fruit trade has traditionally operated through fruit mandis, wholesale markets, APMC mandis, commission agents, traders, Ladanis, transporters, and fruit growers.",
           "Understanding how traditional fruit mandis work helps growers make better decisions regarding fruit grading, packing, quotations, logistics, and buyer selection.",
-          "Traditional fruit trade uses terminology such as Phad (फड़), Boli (बोली), Ladani (लदानी), Commission Agent, Parcha (पर्चा), Bilty (बिल्टी), Challan, grading, packing, loading, unloading, and rate discovery.",
+          "Traditional fruit trade uses terminology such as Phad (???), Boli (????), Ladani (?????), Commission Agent, Parcha (?????), Bilty (??????), Challan, grading, packing, loading, unloading, and rate discovery.",
         ],
       },
       {
         title: "Role of Ladani from a Grower Perspective",
         body: [
-          "A Ladani (लदानी) is usually a bulk fruit buyer who purchases fruit in large quantities and supplies it to wholesale markets, retailers, processors, exporters, and other trade channels.",
+          "A Ladani (?????) is usually a bulk fruit buyer who purchases fruit in large quantities and supplies it to wholesale markets, retailers, processors, exporters, and other trade channels.",
           "Understanding Ladani requirements can help growers improve grading, packing, consistency, and logistics planning.",
         ],
       },
       {
         title: "Fruit Market Terminology Dictionary for Growers",
         body: [
-          "Phad (फड़) means the trading space inside a fruit mandi.",
-          "Boli (बोली) means the traditional rate discovery process.",
-          "Ladani (लदानी) means a bulk fruit buyer.",
-          "Parcha (पर्चा) means a mandi transaction slip.",
-          "Bilty (बिल्टी) means a transport document.",
+          "Phad (???) means the trading space inside a fruit mandi.",
+          "Boli (????) means the traditional rate discovery process.",
+          "Ladani (?????) means a bulk fruit buyer.",
+          "Parcha (?????) means a mandi transaction slip.",
+          "Bilty (??????) means a transport document.",
         ],
       },
       {
@@ -1723,3 +1795,4 @@ export const staticPageRouteTypes = [
 ];
 
 export { business };
+
