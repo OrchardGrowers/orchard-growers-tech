@@ -1012,6 +1012,65 @@ export const staticPages = {
         ],
       },
       {
+        title: "Offline Mandi vs eFruitMandi Digital Marketplace",
+        body: [
+          "In an offline fruit mandi, growers often depend on a local mandi, phad, commission agent, and available buyers on that day. The final rate may depend on arrival volume, demand, buyer presence, fruit quality, and negotiation strength.",
+          "eFruitMandi helps growers create digital visibility before moving fruit. A grower can list fruit lots online, receive buyer quotations, compare interest, and decide whether the offered rate is suitable.",
+          "This does not remove the importance of offline mandis. Instead, eFruitMandi gives growers an additional digital option for market communication, buyer discovery, and rate comparison.",
+        ],
+      },
+      {
+        title: "Pre-harvest planning for better fruit marketing",
+        body: [
+          "Growers should plan fruit marketing before harvest begins. Good planning includes expected harvest date, fruit variety, grade estimation, packing material, labour arrangement, transport access, and buyer communication.",
+          "For apple growers, mango growers, pear growers, plum growers, persimmon growers, pomegranate growers, grape growers, and citrus growers, early planning can reduce distress selling and improve buyer confidence.",
+          "A well-prepared grower can share accurate photos, quantity estimates, grading details, and dispatch timeline with buyers before the fruit reaches the mandi.",
+        ],
+      },
+      {
+        title: "Post-harvest handling and quality protection",
+        body: [
+          "Post-harvest handling directly affects fruit price. Rough harvesting, poor sorting, weak packing, overloading, moisture damage, heat exposure, and delayed transport can reduce buyer confidence and final value.",
+          "Growers should keep fruits clean, sorted, shaded, and properly packed. Damaged, diseased, bruised, undersized, overripe, or mixed-grade fruit should be disclosed clearly in the listing.",
+          "Transparent post-harvest handling improves trust between grower and buyer and reduces disputes after delivery.",
+        ],
+      },
+      {
+        title: "Fruit-wise grower guidance",
+        body: [
+          "Apple growers should mention variety, size grade, color percentage, carton packing, location, harvest date, and whether the fruit is table grade, premium grade, mixed grade, or processing grade.",
+          "Mango growers should mention variety, maturity stage, ripening condition, packing type, weight, harvest date, and whether the mango is suitable for table, wholesale, export, or processing use.",
+          "Pear, plum, peach, cherry, persimmon, pomegranate, grape, citrus, and other fruit growers should mention variety, firmness, maturity, shelf life, packing, grade, and dispatch timeline clearly.",
+        ],
+      },
+      {
+        title: "Commission agent, direct buyer and digital deal comparison",
+        body: [
+          "A commission agent can be useful in traditional mandi systems because the agent understands buyers, phad operations, local mandi practice, parcha, payment follow-up, and rate movement.",
+          "A direct buyer or Ladani may buy in bulk and may offer faster movement when quality, quantity, packing, and logistics match their requirement.",
+          "eFruitMandi creates a digital layer where growers can receive buyer interest, understand rate discovery, compare quotations, and then decide whether to deal through platform communication, offline mandi, commission agent, or another buyer option.",
+        ],
+      },
+      {
+        title: "How growers can improve SEO visibility of their fruit listings",
+        body: [
+          "A good fruit listing should use clear searchable words such as apple grower, mango grower, pear grower, fruit lot, bulk fruit supply, orchard fresh fruit, mandi rate, fruit buyer, fruit trader, and fruit packing.",
+          "Growers should avoid vague titles. Instead of writing only fresh fruit available, use specific details such as fresh apple lot from Himachal Pradesh, mango lot for bulk buyers, pear grower supply, or premium pomegranate lot.",
+          "Clear listing titles, accurate descriptions, location details, fruit variety, grade, packing, and photos help buyers find the right produce faster.",
+        ],
+      },
+      {
+        title: "Common mistakes growers should avoid",
+        bullets: [
+          "Do not upload old or misleading fruit photos.",
+          "Do not hide grade mixing, bruising, disease marks, or packing problems.",
+          "Do not list unrealistic quantity if the fruit is not ready.",
+          "Do not confirm dispatch without payment clarity and buyer confirmation.",
+          "Do not depend only on verbal communication; keep records, photos, videos, bilty, challan, parcha, and payment proof.",
+          "Do not treat eFruitMandi as a forced auction platform. Final trade depends on mutual agreement.",
+        ],
+           },
+      {
         title: "Grower FAQs",
         body: [
           "Is eFruitMandi an auction platform? No. eFruitMandi uses auction, Boli, quote, and rate discovery only to explain price discovery. It is not a compulsory auction or forced sale platform.",
@@ -1237,3 +1296,5 @@ export const staticPageRouteTypes = [
 ];
 
 export { business };
+
+
