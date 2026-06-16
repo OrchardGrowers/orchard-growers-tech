@@ -90,19 +90,11 @@ const readResponseJson = async (res: Response) => {
 };
 
 const getNetworkErrorMessage = (err: unknown) => {
-  console.error('Admin API network error:', err);
-
-  if (err instanceof DOMException && err.name === 'AbortError') {
-    return 'Server response timed out. Please try again in a few moments.';
-  }
-
   if (err instanceof TypeError) {
-    return 'Unable to reach the server. The backend may be starting up or there may be a temporary network issue. Please try again in 20–30 seconds.';
+    return 'Admin API request failed. Check VITE_API_BASE_URL, HTTPS, and backend CORS origins.';
   }
 
-  return err instanceof Error
-    ? err.message
-    : 'Unable to connect to the admin service. Please try again later.';
+  return err instanceof Error ? err.message : 'Admin API request failed';
 };
 const formatDate = (value?: string) => {
   if (!value) return 'Not available';
