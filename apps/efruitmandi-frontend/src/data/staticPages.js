@@ -973,6 +973,65 @@ export const staticPages = {
           "All users should read this policy together with the Payment and Escrow Policy, Commission and Fee Policy, Terms of Service, Community Guidelines, and applicable transaction records.",
         ],
       },
+      {
+        title: "Fruit Transportation Network",
+        body: [
+          "eFruitMandi aims to support a digital fruit transportation network connecting growers, buyers, drivers, transporters, logistics coordinators, and fruit trade participants across India.",
+          "The network may support apple transportation, mango transportation, pear transportation, pomegranate transportation, grape transportation, plum transportation, persimmon transportation, and other seasonal fruit logistics requirements.",
+          "Digital visibility of transport requirements may help reduce communication gaps and improve coordination efficiency.",
+        ],
+      },
+      {
+        title: "Driver Registration and Verification",
+        body: [
+          "Drivers participating through platform-supported logistics workflows may be required to maintain valid identity records, licence information, vehicle details, and contact information.",
+          "Verification requirements may vary depending on operational needs, compliance requirements, and platform policies.",
+          "Driver records may be used for route coordination, delivery verification, operational communication, dispute review, and platform security purposes.",
+        ],
+      },
+      {
+        title: "Pickup and Delivery Workflow",
+        body: [
+          "The pickup workflow may include consignment confirmation, vehicle assignment, loading verification, dispatch recording, route monitoring, delivery acknowledgement, and settlement support.",
+          "Participants should ensure timely communication regarding loading readiness, dispatch timing, route delays, unloading status, and delivery completion.",
+          "Operational records may assist with logistics coordination, dispute management, payment review, and transaction transparency.",
+        ],
+      },
+      {
+        title: "Fruit Transport Charges and Cost Factors",
+        body: [
+          "Fruit transportation cost may depend on distance, fruit category, vehicle size, route conditions, fuel prices, loading requirements, unloading requirements, refrigeration needs, seasonal demand, and operational availability.",
+          "Transport charges may vary between regions, fruit varieties, vehicle types, and market conditions.",
+          "eFruitMandi may display logistics-related information where available, but final transport pricing remains subject to agreement between participating parties.",
+        ],
+      },
+      {
+        title: "Inter-State Fruit Transportation",
+        body: [
+          "Fruit consignments may move between producing regions and consumption markets across multiple Indian states.",
+          "Inter-state transportation may require additional documentation, route planning, compliance checks, coordination points, and delivery verification processes.",
+          "Participants should ensure compliance with all applicable regulatory, taxation, transport, and commercial requirements.",
+        ],
+      },
+      {
+        title: "Seasonal Fruit Logistics",
+        body: [
+          "Different fruit categories may require different logistics planning due to perishability, harvest timing, storage characteristics, packaging methods, and transport sensitivity.",
+          "Apple logistics, mango logistics, pear logistics, grape logistics, pomegranate logistics, plum logistics, and persimmon logistics may involve different operational considerations.",
+          "Participants should plan transportation according to the specific handling requirements of each fruit category.",
+        ],
+      },
+      {
+        title: "Logistics Frequently Asked Questions",
+        bullets: [
+          "Can eFruitMandi guarantee delivery timelines? No. Delivery depends on operational conditions and participating parties.",
+          "Does eFruitMandi own transport vehicles? No. The platform acts as a technology and marketplace facilitator unless expressly agreed otherwise in writing.",
+          "Can transport delays affect fruit quality? Yes. Fresh fruit is perishable and may be affected by delay, temperature, handling, and route conditions.",
+          "Who is responsible for transport compliance? The participating parties remain responsible for applicable compliance obligations.",
+          "Can GPS tracking always be available? No. Tracking availability may depend on devices, connectivity, permissions, and operational conditions.",
+        ],
+      },
+
     ],
   }),
 
@@ -1795,4 +1854,5 @@ export const staticPageRouteTypes = [
 ];
 
 export { business };
+
 
