@@ -34,7 +34,6 @@ const page = ({
 });
 
 export const staticPages = {
-
   about: page({
     route: "/about",
     eyebrow: "Company",
@@ -45,41 +44,40 @@ export const staticPages = {
       "eFruitMandi is built to support India's fruit trade with structured listings, quotations, KYC, OG Verified trust systems, logistics records, and digital marketplace tools.",
     sections: [
       {
-            "title": "About eFruitMandi",
-            "body": [
-                  "eFruitMandi is a digital fruit marketplace facilitation platform operated by Orchard Growers Private Limited. The platform has been created for India's fresh fruit ecosystem, including fruit growers, orchard owners, buyers, commission agents, traders, logistics partners, packers, and future export-linked participants.",
-                  "The company is based in Himachal Pradesh, a region where fruit cultivation is not just an agricultural activity but a way of life for thousands of families. eFruitMandi has been built from practical field experience, not only from a software idea. Its foundation comes from more than 14 years of practical fruit industry experience in orchard management, fruit production, grading, packing, post-harvest handling, and horticulture operations.",
-                  "Along with this practical experience, the platform is backed by more than 5 years of focused research on the sale and purchase of fruits and vegetables. This research includes mandi systems, commission agent networks, buyer behavior, grower challenges, trader practices, logistics issues, price discovery, payment risks, supply chain gaps, and digital marketplace opportunities.",
-                  "eFruitMandi is designed to help growers present fruit lots in a structured way, buyers discover available fruit consignments, and logistics partners support movement where required. The platform focuses on listings, quotations, deal records, KYC, payment references, delivery support, dispute records, and trust-building features like OG Verified and Trusted Badge.",
-                  "Orchard Growers Private Limited created eFruitMandi with a long-term vision to modernize fruit trade without disconnecting it from real-world mandi practices. The platform does not claim to replace every existing relationship in the fruit industry. Instead, it creates a digital layer where information can be recorded, verified, compared, and managed more clearly.",
-                  "In India's fruit trade, growers often face challenges such as limited buyer reach, uncertain price discovery, dependence on local networks, transport delays, payment risk, quality disputes, and lack of digital records. Buyers also face challenges in finding reliable growers, verifying quality, understanding packing standards, and coordinating logistics. eFruitMandi has been developed to reduce these gaps through a structured marketplace process.",
-                  "The platform supports multiple fruit categories, including apple, mango, pear, plum, persimmon, pomegranate, grapes, and other seasonal fruits. The goal is to build an all-India digital fruit mandi network where fruit growers and buyers can connect before physical movement of produce begins.",
-                  "eFruitMandi is a marketplace facilitation platform. It does not directly own, buy, sell, transport, grade, or insure fruit unless separately stated in writing. Final commercial decisions remain between growers and buyers. The platform helps organize the process, document important activity, and support transparency.",
-                  "The company believes that Indian fruit growers need better access to buyers, better documentation, stronger trust systems, and practical technology that works for real agricultural conditions. eFruitMandi has therefore been built around simple user flows, mobile-first access, PWA functionality, KYC verification, listing tools, quotation systems, and support processes.",
-                  "The long-term objective is to create a trusted national fruit marketplace where growers can list produce before going to mandi, buyers can review lots before committing, logistics partners can coordinate movement, and support teams can review records when disputes arise.",
-                  "eFruitMandi also supports the idea that technology should not remove human negotiation from fruit trade. Fruit quality, grade, packing, timing, and market demand can vary widely. Therefore, the platform keeps direct grower-buyer decision-making at the center while improving the information available to both sides.",
-                  "Orchard Growers Private Limited is committed to building eFruitMandi as a serious AgriTech platform for India. The company aims to support growers, buyers, logistics providers, commission agents, exporters, and related stakeholders through digital tools that are practical, transparent, and field-informed."
-            ]
+        title: "About eFruitMandi",
+        body: [
+          "eFruitMandi is a digital fruit marketplace facilitation platform operated by Orchard Growers Private Limited. The platform has been created for India's fresh fruit ecosystem, including fruit growers, orchard owners, buyers, commission agents, traders, logistics partners, packers, and future export-linked participants.",
+          "The company is based in Himachal Pradesh, a region where fruit cultivation is not just an agricultural activity but a way of life for thousands of families. eFruitMandi has been built from practical field experience, not only from a software idea. Its foundation comes from more than 14 years of practical fruit industry experience in orchard management, fruit production, grading, packing, post-harvest handling, and horticulture operations.",
+          "Along with this practical experience, the platform is backed by more than 5 years of focused research on the sale and purchase of fruits and vegetables. This research includes mandi systems, commission agent networks, buyer behavior, grower challenges, trader practices, logistics issues, price discovery, payment risks, supply chain gaps, and digital marketplace opportunities.",
+          "eFruitMandi is designed to help growers present fruit lots in a structured way, buyers discover available fruit consignments, and logistics partners support movement where required. The platform focuses on listings, quotations, deal records, KYC, payment references, delivery support, dispute records, and trust-building features like OG Verified and Trusted Badge.",
+          "Orchard Growers Private Limited created eFruitMandi with a long-term vision to modernize fruit trade without disconnecting it from real-world mandi practices. The platform does not claim to replace every existing relationship in the fruit industry. Instead, it creates a digital layer where information can be recorded, verified, compared, and managed more clearly.",
+          "In India's fruit trade, growers often face challenges such as limited buyer reach, uncertain price discovery, dependence on local networks, transport delays, payment risk, quality disputes, and lack of digital records. Buyers also face challenges in finding reliable growers, verifying quality, understanding packing standards, and coordinating logistics. eFruitMandi has been developed to reduce these gaps through a structured marketplace process.",
+          "The platform supports multiple fruit categories, including apple, mango, pear, plum, persimmon, pomegranate, grapes, and other seasonal fruits. The goal is to build an all-India digital fruit mandi network where fruit growers and buyers can connect before physical movement of produce begins.",
+          "eFruitMandi is a marketplace facilitation platform. It does not directly own, buy, sell, transport, grade, or insure fruit unless separately stated in writing. Final commercial decisions remain between growers and buyers. The platform helps organize the process, document important activity, and support transparency.",
+          "The company believes that Indian fruit growers need better access to buyers, better documentation, stronger trust systems, and practical technology that works for real agricultural conditions. eFruitMandi has therefore been built around simple user flows, mobile-first access, PWA functionality, KYC verification, listing tools, quotation systems, and support processes.",
+          "The long-term objective is to create a trusted national fruit marketplace where growers can list produce before going to mandi, buyers can review lots before committing, logistics partners can coordinate movement, and support teams can review records when disputes arise.",
+          "eFruitMandi also supports the idea that technology should not remove human negotiation from fruit trade. Fruit quality, grade, packing, timing, and market demand can vary widely. Therefore, the platform keeps direct grower-buyer decision-making at the center while improving the information available to both sides.",
+          "Orchard Growers Private Limited is committed to building eFruitMandi as a serious AgriTech platform for India. The company aims to support growers, buyers, logistics providers, commission agents, exporters, and related stakeholders through digital tools that are practical, transparent, and field-informed.",
+        ],
       },
       {
-            "title": "Business details",
-            "bullets": [
-                  "Company: ${business.company}",
-                  "Platform: ${business.platform}",
-                  "Domain: ${business.domain}",
-                  "Registered address: ${business.address}",
-                  "Legal jurisdiction: ${business.jurisdiction}"
-            ]
+        title: "Business details",
+        bullets: [
+          "Company: ${business.company}",
+          "Platform: ${business.platform}",
+          "Domain: ${business.domain}",
+          "Registered address: ${business.address}",
+          "Legal jurisdiction: ${business.jurisdiction}",
+        ],
       },
       {
-            "title": "Important marketplace note",
-            "body": [
-                  "eFruitMandi is a marketplace facilitation platform. It does not directly own, buy, sell, transport, grade, or insure fruit unless separately stated in writing."
-            ]
-      }
-],
+        title: "Important marketplace note",
+        body: [
+          "eFruitMandi is a marketplace facilitation platform. It does not directly own, buy, sell, transport, grade, or insure fruit unless separately stated in writing.",
+        ],
+      },
+    ],
   }),
-
 
   story: page({
     route: "/our-story",
@@ -91,31 +89,30 @@ export const staticPages = {
       "eFruitMandi was created from practical fruit industry experience and years of research on fruit and vegetable sale, purchase, mandi systems, buyer networks, and supply chain gaps.",
     sections: [
       {
-            "title": "How eFruitMandi started",
-            "body": [
-                  "The story of eFruitMandi begins in the orchards and fruit-growing regions of Himachal Pradesh. It did not begin as a simple app idea or a generic marketplace concept. It grew from years of direct observation, practical fruit industry experience, and continuous study of how fruits and vegetables are actually sold, purchased, transported, negotiated, and settled in Indian markets.",
-                  "The founder's background includes more than 14 years of practical experience in the fruit industry, including orchard management, fruit production, grading, packing, post-harvest handling, and horticulture operations. This experience created a close understanding of what fruit growers face during every season: weather uncertainty, harvesting pressure, packing decisions, labour availability, transport timing, buyer negotiation, price fluctuation, and payment concerns.",
-                  "Over time, it became clear that many growers produce good quality fruit but do not always receive the best market access or transparent price information. Many growers still depend on limited buyer networks or traditional mandi channels. These systems have their own importance, but they also create challenges when information is incomplete, records are weak, and communication happens informally.",
-                  "Alongside field experience, more than 5 years were spent studying fruit and vegetable sale and purchase systems. This included observing mandi behavior, commission agent roles, buyer requirements, trader networks, logistics arrangements, price discovery methods, payment cycles, and quality disputes. The study showed that the problem was not only price. The bigger issue was lack of structured information, verified trust, transparent records, and reliable digital coordination.",
-                  "eFruitMandi was created to address these practical challenges. The goal was not to build a platform that ignores existing mandi culture. Instead, the goal was to create a digital fruit marketplace layer that can support growers, buyers, commission agents, logistics partners, and exporters with better records and wider visibility.",
-                  "Fresh fruit is different from many other products. It is perishable, grade-sensitive, season-dependent, region-specific, and highly affected by time. A delay of one or two days can change value. Poor packing can affect quality. Weak communication can create disputes. Missing records can make payment settlement difficult. eFruitMandi was built with these realities in mind.",
-                  "The platform therefore focuses on fruit lot listings, grade-wise information, packing details, location, media, quotations, deal records, KYC, support references, logistics coordination, and dispute documentation. These are not random features. They are based on real problems seen in fruit trade.",
-                  "The vision behind eFruitMandi is also national. Although the platform has strong roots in Himachal Pradesh and orchard-growing regions, it is not limited to apples or one state. India has a large fruit economy, including mango, pear, plum, persimmon, pomegranate, grapes, citrus, banana, and many other fruits. eFruitMandi aims to serve the wider fruit industry across India.",
-                  "The story is also about trust. In agricultural trade, trust is everything. Buyers want confidence in growers and produce. Growers want confidence in buyers and payments. Logistics partners need clear routes and settlement references. eFruitMandi uses KYC, OG Verified, Trusted Badge, structured records, and support processes to strengthen that trust.",
-                  "The company understands that digital adoption in agriculture takes time. Many users are comfortable with phone calls, WhatsApp, local agents, and personal relationships. eFruitMandi does not reject those practices. Instead, it gives them a more organized digital backbone so that important information is not lost.",
-                  "The long-term journey of eFruitMandi is to move from local fruit listing support to a wider digital fruit market network. The platform can support pre-mandi price discovery, buyer discovery, grower onboarding, logistics coordination, verified profiles, market communication, and eventually stronger export-linked opportunities.",
-                  "This story is still developing. eFruitMandi is being built step by step, with learning from growers, buyers, market participants, and real operational feedback. The aim is not only to launch a website, but to build a trusted digital institution for India's fruit trade ecosystem."
-            ]
+        title: "How eFruitMandi started",
+        body: [
+          "The story of eFruitMandi begins in the orchards and fruit-growing regions of Himachal Pradesh. It did not begin as a simple app idea or a generic marketplace concept. It grew from years of direct observation, practical fruit industry experience, and continuous study of how fruits and vegetables are actually sold, purchased, transported, negotiated, and settled in Indian markets.",
+          "The founder's background includes more than 14 years of practical experience in the fruit industry, including orchard management, fruit production, grading, packing, post-harvest handling, and horticulture operations. This experience created a close understanding of what fruit growers face during every season: weather uncertainty, harvesting pressure, packing decisions, labour availability, transport timing, buyer negotiation, price fluctuation, and payment concerns.",
+          "Over time, it became clear that many growers produce good quality fruit but do not always receive the best market access or transparent price information. Many growers still depend on limited buyer networks or traditional mandi channels. These systems have their own importance, but they also create challenges when information is incomplete, records are weak, and communication happens informally.",
+          "Alongside field experience, more than 5 years were spent studying fruit and vegetable sale and purchase systems. This included observing mandi behavior, commission agent roles, buyer requirements, trader networks, logistics arrangements, price discovery methods, payment cycles, and quality disputes. The study showed that the problem was not only price. The bigger issue was lack of structured information, verified trust, transparent records, and reliable digital coordination.",
+          "eFruitMandi was created to address these practical challenges. The goal was not to build a platform that ignores existing mandi culture. Instead, the goal was to create a digital fruit marketplace layer that can support growers, buyers, commission agents, logistics partners, and exporters with better records and wider visibility.",
+          "Fresh fruit is different from many other products. It is perishable, grade-sensitive, season-dependent, region-specific, and highly affected by time. A delay of one or two days can change value. Poor packing can affect quality. Weak communication can create disputes. Missing records can make payment settlement difficult. eFruitMandi was built with these realities in mind.",
+          "The platform therefore focuses on fruit lot listings, grade-wise information, packing details, location, media, quotations, deal records, KYC, support references, logistics coordination, and dispute documentation. These are not random features. They are based on real problems seen in fruit trade.",
+          "The vision behind eFruitMandi is also national. Although the platform has strong roots in Himachal Pradesh and orchard-growing regions, it is not limited to apples or one state. India has a large fruit economy, including mango, pear, plum, persimmon, pomegranate, grapes, citrus, banana, and many other fruits. eFruitMandi aims to serve the wider fruit industry across India.",
+          "The story is also about trust. In agricultural trade, trust is everything. Buyers want confidence in growers and produce. Growers want confidence in buyers and payments. Logistics partners need clear routes and settlement references. eFruitMandi uses KYC, OG Verified, Trusted Badge, structured records, and support processes to strengthen that trust.",
+          "The company understands that digital adoption in agriculture takes time. Many users are comfortable with phone calls, WhatsApp, local agents, and personal relationships. eFruitMandi does not reject those practices. Instead, it gives them a more organized digital backbone so that important information is not lost.",
+          "The long-term journey of eFruitMandi is to move from local fruit listing support to a wider digital fruit market network. The platform can support pre-mandi price discovery, buyer discovery, grower onboarding, logistics coordination, verified profiles, market communication, and eventually stronger export-linked opportunities.",
+          "This story is still developing. eFruitMandi is being built step by step, with learning from growers, buyers, market participants, and real operational feedback. The aim is not only to launch a website, but to build a trusted digital institution for India's fruit trade ecosystem.",
+        ],
       },
       {
-            "title": "Marketplace facilitation approach",
-            "body": [
-                  "eFruitMandi is a marketplace facilitation platform. It does not directly own, buy, sell, transport, grade, or insure fruit unless separately stated in writing."
-            ]
-      }
-],
+        title: "Marketplace facilitation approach",
+        body: [
+          "eFruitMandi is a marketplace facilitation platform. It does not directly own, buy, sell, transport, grade, or insure fruit unless separately stated in writing.",
+        ],
+      },
+    ],
   }),
-
 
   visionMission: page({
     route: "/vision-mission",
@@ -127,36 +124,35 @@ export const staticPages = {
       "Our vision and mission are centered on grower empowerment, buyer trust, logistics clarity, market transparency, documentation, KYC, OG Verified trust systems, and practical technology.",
     sections: [
       {
-            "title": "Vision and mission",
-            "body": [
-                  "The vision of eFruitMandi is to support a transparent, trusted, and efficient digital fruit marketplace for India. The platform aims to help growers, buyers, logistics partners, commission agents, traders, exporters, and other fruit industry stakeholders connect through better information, stronger documentation, and practical digital tools.",
-                  "India's fruit industry has huge potential. The country produces many categories of fruits across different climatic zones, including apples in hill states, mangoes in many regions, pears, plums, persimmons, pomegranates, grapes, citrus fruits, and other seasonal produce. Despite this strength, many growers still face market access limitations, weak price discovery, payment uncertainty, and fragmented buyer networks.",
-                  "eFruitMandi's vision is to reduce these gaps by creating a marketplace where fruit lots can be listed before physical movement, buyers can review produce information in a structured format, logistics partners can support movement, and support teams can review records when required.",
-                  "The mission of eFruitMandi is practical. The platform is not built around theory alone. It is built on more than 14 years of fruit industry experience and more than 5 years of research on the sale and purchase of fruits and vegetables. This combination of field knowledge and market study helps the platform focus on real needs.",
-                  "The first mission is to empower growers. Growers should be able to present their fruit lots with grade, quantity, packing, location, images, videos, and other important details. They should not remain dependent only on limited local networks. A grower should have a digital identity, KYC record, and marketplace presence.",
-                  "The second mission is to support buyers. Buyers need reliable information before making quotations or finalizing deals. eFruitMandi helps buyers review listings, understand available fruit lots, communicate interest, and create documented quotation records.",
-                  "The third mission is to improve trust. Trust is central to fruit trade. KYC, OG Verified, Trusted Badge, support records, dispute references, and clear platform policies help build confidence between participants.",
-                  "The fourth mission is to support logistics coordination. Fruit movement requires timing, route clarity, vehicle coordination, labour, loading, unloading, and settlement references. eFruitMandi supports logistics details where applicable so that delivery records are clearer.",
-                  "The fifth mission is to create transparent records. In many fruit transactions, disputes arise because important details were not recorded properly. eFruitMandi supports structured records for listings, quotations, deals, payments, delivery, and support issues.",
-                  "The sixth mission is to help modernize fruit marketing in India. Digital tools can make the system more efficient, but they must be simple enough for real users. eFruitMandi is therefore built as a mobile-first, practical platform with PWA functionality and future mobile app direction.",
-                  "The seventh mission is to support all-India expansion. The platform is not limited to one fruit or one region. It aims to become useful for fruit growers and buyers across states, markets, and fruit categories.",
-                  "The eighth mission is to support future export readiness. Indian fruits have domestic and export potential, but export-linked trade requires stronger quality, packing, traceability, documentation, and verified participants. eFruitMandi can gradually support this direction.",
-                  "The platform's operating principle is clear: eFruitMandi is a marketplace facilitation platform. It does not directly own, buy, sell, transport, grade, or insure fruit unless separately stated in writing. Final deal decisions remain between grower and buyer. The platform supports information, records, trust, and process clarity.",
-                  "The long-term vision is to make eFruitMandi a trusted digital fruit mandi network where growers can list before going to mandi, buyers can discover produce before committing capital, logistics partners can coordinate movement, and market participants can work with more confidence."
-            ]
+        title: "Vision and mission",
+        body: [
+          "The vision of eFruitMandi is to support a transparent, trusted, and efficient digital fruit marketplace for India. The platform aims to help growers, buyers, logistics partners, commission agents, traders, exporters, and other fruit industry stakeholders connect through better information, stronger documentation, and practical digital tools.",
+          "India's fruit industry has huge potential. The country produces many categories of fruits across different climatic zones, including apples in hill states, mangoes in many regions, pears, plums, persimmons, pomegranates, grapes, citrus fruits, and other seasonal produce. Despite this strength, many growers still face market access limitations, weak price discovery, payment uncertainty, and fragmented buyer networks.",
+          "eFruitMandi's vision is to reduce these gaps by creating a marketplace where fruit lots can be listed before physical movement, buyers can review produce information in a structured format, logistics partners can support movement, and support teams can review records when required.",
+          "The mission of eFruitMandi is practical. The platform is not built around theory alone. It is built on more than 14 years of fruit industry experience and more than 5 years of research on the sale and purchase of fruits and vegetables. This combination of field knowledge and market study helps the platform focus on real needs.",
+          "The first mission is to empower growers. Growers should be able to present their fruit lots with grade, quantity, packing, location, images, videos, and other important details. They should not remain dependent only on limited local networks. A grower should have a digital identity, KYC record, and marketplace presence.",
+          "The second mission is to support buyers. Buyers need reliable information before making quotations or finalizing deals. eFruitMandi helps buyers review listings, understand available fruit lots, communicate interest, and create documented quotation records.",
+          "The third mission is to improve trust. Trust is central to fruit trade. KYC, OG Verified, Trusted Badge, support records, dispute references, and clear platform policies help build confidence between participants.",
+          "The fourth mission is to support logistics coordination. Fruit movement requires timing, route clarity, vehicle coordination, labour, loading, unloading, and settlement references. eFruitMandi supports logistics details where applicable so that delivery records are clearer.",
+          "The fifth mission is to create transparent records. In many fruit transactions, disputes arise because important details were not recorded properly. eFruitMandi supports structured records for listings, quotations, deals, payments, delivery, and support issues.",
+          "The sixth mission is to help modernize fruit marketing in India. Digital tools can make the system more efficient, but they must be simple enough for real users. eFruitMandi is therefore built as a mobile-first, practical platform with PWA functionality and future mobile app direction.",
+          "The seventh mission is to support all-India expansion. The platform is not limited to one fruit or one region. It aims to become useful for fruit growers and buyers across states, markets, and fruit categories.",
+          "The eighth mission is to support future export readiness. Indian fruits have domestic and export potential, but export-linked trade requires stronger quality, packing, traceability, documentation, and verified participants. eFruitMandi can gradually support this direction.",
+          "The platform's operating principle is clear: eFruitMandi is a marketplace facilitation platform. It does not directly own, buy, sell, transport, grade, or insure fruit unless separately stated in writing. Final deal decisions remain between grower and buyer. The platform supports information, records, trust, and process clarity.",
+          "The long-term vision is to make eFruitMandi a trusted digital fruit mandi network where growers can list before going to mandi, buyers can discover produce before committing capital, logistics partners can coordinate movement, and market participants can work with more confidence.",
+        ],
       },
       {
-            "title": "Core operating principles",
-            "bullets": [
-                  "The platform does not promise any sale, rate, profit, or final outcome.",
-                  "Final deal decisions are between grower and buyer.",
-                  "Fruit is perishable, so policies depend on consignment status and operational confirmation.",
-                  "KYC and OG Verified are trust-building tools, not absolute guarantees."
-            ]
-      }
-],
+        title: "Core operating principles",
+        bullets: [
+          "The platform does not promise any sale, rate, profit, or final outcome.",
+          "Final deal decisions are between grower and buyer.",
+          "Fruit is perishable, so policies depend on consignment status and operational confirmation.",
+          "KYC and OG Verified are trust-building tools, not absolute guarantees.",
+        ],
+      },
+    ],
   }),
-
 
   why: page({
     route: "/why-efruitmandi",
@@ -168,45 +164,44 @@ export const staticPages = {
       "eFruitMandi is designed for practical fruit trade realities where growers need wider reach, buyers need reliable information, logistics needs coordination, and all parties need better trust records.",
     sections: [
       {
-            "title": "Why choose eFruitMandi",
-            "body": [
-                  "eFruitMandi is needed because India's fruit trade is large, valuable, and full of opportunity, but still faces many practical challenges. Growers produce fruit with hard work over many months, but when the selling season arrives, they often face limited buyer reach, uncertain rates, transport pressure, quality disputes, and payment concerns.",
-                  "The platform is different because it has been designed from real fruit industry experience. It is backed by more than 14 years of practical experience in orchard management, fruit production, grading, packing, post-harvest handling, and horticulture operations. It is also supported by more than 5 years of research on sale and purchase systems of fruits and vegetables.",
-                  "Many digital platforms fail because they do not understand ground realities. Fruit trade is not like selling a fixed factory product. Fruit quality changes by grade, size, color, maturity, packing, season, weather, transport time, and market demand. eFruitMandi is designed with this complexity in mind.",
-                  "For growers, eFruitMandi provides a way to create structured fruit lot listings. A grower can present fruit details, quantity, grade, packing, location, photos, videos, and other information. This creates better visibility and helps buyers review produce before direct communication or quotation.",
-                  "For buyers, eFruitMandi provides organized access to fruit listings. Instead of depending only on scattered calls or informal references, buyers can review available lots, compare details, and share quotations through a documented platform process.",
-                  "For logistics partners, the platform supports delivery-related records where they are appointed through the grower or seller side. Fruit transport needs clarity because delay, route confusion, or poor coordination can damage value.",
-                  "For commission agents and market-linked participants, eFruitMandi can become a digital communication layer. The platform does not need to remove existing mandi systems. It can make them more transparent, searchable, and documented.",
-                  "One major reason to choose eFruitMandi is trust. The platform includes KYC and optional OG Verified / Trusted Badge features. These systems help build confidence between growers and buyers. In future, verified profiles can become important for serious fruit trade and export-linked opportunities.",
-                  "Another reason is documentation. In traditional systems, many discussions happen verbally. When disputes arise, users may not have clear records. eFruitMandi supports listing records, quotation records, deal references, payment references, delivery details, and support history.",
-                  "Another reason is price discovery. Before going to mandi or finalizing a deal, growers need better market communication. eFruitMandi can help growers understand buyer interest and possible market demand. The platform does not promise any fixed sale or price, but it improves information flow.",
-                  "Another reason is scalability. India needs a fruit marketplace that can work across states and categories. eFruitMandi is not only for apple growers. It is designed for apples, mangoes, pears, plums, persimmons, pomegranates, grapes, and other fruits across India.",
-                  "Another reason is future readiness. The fruit industry is moving toward digital payments, verified sellers, traceability, quality documentation, logistics tracking, and online buyer discovery. eFruitMandi is being built in that direction with PWA functionality, future mobile app plans, KYC, support systems, and structured marketplace workflows.",
-                  "eFruitMandi is also important because it is founder-led with real industry understanding. The platform is not only a technical product. It is connected to orchard experience, grower problems, mandi observations, buyer behavior, and supply chain realities.",
-                  "The platform also respects human decision-making. Fruit trade depends on negotiation, inspection, timing, and trust. eFruitMandi does not remove these elements. It helps users manage them better.",
-                  "In simple terms, eFruitMandi is needed because growers need better reach, buyers need better information, logistics needs coordination, and the fruit industry needs stronger digital trust."
-            ]
+        title: "Why choose eFruitMandi",
+        body: [
+          "eFruitMandi is needed because India's fruit trade is large, valuable, and full of opportunity, but still faces many practical challenges. Growers produce fruit with hard work over many months, but when the selling season arrives, they often face limited buyer reach, uncertain rates, transport pressure, quality disputes, and payment concerns.",
+          "The platform is different because it has been designed from real fruit industry experience. It is backed by more than 14 years of practical experience in orchard management, fruit production, grading, packing, post-harvest handling, and horticulture operations. It is also supported by more than 5 years of research on sale and purchase systems of fruits and vegetables.",
+          "Many digital platforms fail because they do not understand ground realities. Fruit trade is not like selling a fixed factory product. Fruit quality changes by grade, size, color, maturity, packing, season, weather, transport time, and market demand. eFruitMandi is designed with this complexity in mind.",
+          "For growers, eFruitMandi provides a way to create structured fruit lot listings. A grower can present fruit details, quantity, grade, packing, location, photos, videos, and other information. This creates better visibility and helps buyers review produce before direct communication or quotation.",
+          "For buyers, eFruitMandi provides organized access to fruit listings. Instead of depending only on scattered calls or informal references, buyers can review available lots, compare details, and share quotations through a documented platform process.",
+          "For logistics partners, the platform supports delivery-related records where they are appointed through the grower or seller side. Fruit transport needs clarity because delay, route confusion, or poor coordination can damage value.",
+          "For commission agents and market-linked participants, eFruitMandi can become a digital communication layer. The platform does not need to remove existing mandi systems. It can make them more transparent, searchable, and documented.",
+          "One major reason to choose eFruitMandi is trust. The platform includes KYC and optional OG Verified / Trusted Badge features. These systems help build confidence between growers and buyers. In future, verified profiles can become important for serious fruit trade and export-linked opportunities.",
+          "Another reason is documentation. In traditional systems, many discussions happen verbally. When disputes arise, users may not have clear records. eFruitMandi supports listing records, quotation records, deal references, payment references, delivery details, and support history.",
+          "Another reason is price discovery. Before going to mandi or finalizing a deal, growers need better market communication. eFruitMandi can help growers understand buyer interest and possible market demand. The platform does not promise any fixed sale or price, but it improves information flow.",
+          "Another reason is scalability. India needs a fruit marketplace that can work across states and categories. eFruitMandi is not only for apple growers. It is designed for apples, mangoes, pears, plums, persimmons, pomegranates, grapes, and other fruits across India.",
+          "Another reason is future readiness. The fruit industry is moving toward digital payments, verified sellers, traceability, quality documentation, logistics tracking, and online buyer discovery. eFruitMandi is being built in that direction with PWA functionality, future mobile app plans, KYC, support systems, and structured marketplace workflows.",
+          "eFruitMandi is also important because it is founder-led with real industry understanding. The platform is not only a technical product. It is connected to orchard experience, grower problems, mandi observations, buyer behavior, and supply chain realities.",
+          "The platform also respects human decision-making. Fruit trade depends on negotiation, inspection, timing, and trust. eFruitMandi does not remove these elements. It helps users manage them better.",
+          "In simple terms, eFruitMandi is needed because growers need better reach, buyers need better information, logistics needs coordination, and the fruit industry needs stronger digital trust.",
+        ],
       },
       {
-            "title": "Useful for",
-            "bullets": [
-                  "Fruit growers and orchard owners",
-                  "Fruit buyers and bulk purchasers",
-                  "Commission agents and mandi-linked participants",
-                  "Fruit traders and exporters",
-                  "Logistics partners and delivery coordinators",
-                  "Packing, grading, and support service providers"
-            ]
+        title: "Useful for",
+        bullets: [
+          "Fruit growers and orchard owners",
+          "Fruit buyers and bulk purchasers",
+          "Commission agents and mandi-linked participants",
+          "Fruit traders and exporters",
+          "Logistics partners and delivery coordinators",
+          "Packing, grading, and support service providers",
+        ],
       },
       {
-            "title": "Important marketplace note",
-            "body": [
-                  "eFruitMandi is a marketplace facilitation platform. It does not directly own, buy, sell, transport, grade, or insure fruit unless separately stated in writing."
-            ]
-      }
-],
+        title: "Important marketplace note",
+        body: [
+          "eFruitMandi is a marketplace facilitation platform. It does not directly own, buy, sell, transport, grade, or insure fruit unless separately stated in writing.",
+        ],
+      },
+    ],
   }),
-
 
   contact: page({
     route: "/contact",
@@ -218,38 +213,38 @@ export const staticPages = {
       "Use the official contact details below for eFruitMandi support requests, marketplace questions, payment follow-up, KYC help, OG Verified support, or reporting a problem.",
     sections: [
       {
-            "title": "Contact eFruitMandi",
-            "body": [
-                  "eFruitMandi support is available for growers, buyers, logistics partners, and marketplace users who need help with account access, registration, KYC, fruit listings, quotations, deal records, payment references, delivery coordination, support requests, or dispute-related information.",
-                  "Users can contact eFruitMandi through the official email, phone, WhatsApp number, and website details provided on this page. While contacting support, users should provide their registered name, registered mobile number or email address, platform role, and the relevant listing, quotation, deal, payment, delivery, KYC, or support reference.",
-                  "For grower support, users may contact eFruitMandi for help with profile creation, KYC submission, fruit lot listing, grade information, packing details, media upload, quotation review, OG Verified process, Trusted Badge information, and support records.",
-                  "For buyer support, users may contact eFruitMandi for help with account registration, KYC, listing review, quotation submission, deal references, payment process questions, buyer verification, and support escalation.",
-                  "For logistics partner support, users may contact eFruitMandi regarding delivery details, vehicle information, route references, settlement references, and delivery-related support where logistics coordination is applicable.",
-                  "For payment or settlement support, users should share clear reference details, screenshots, transaction information, and deal references. eFruitMandi can review platform records and guide the next step based on available information and applicable policies.",
-                  "For disputes, users should share complete details, including photos, videos, screenshots, call details, listing information, quotation references, delivery information, and payment details. Fruit quality, grade, rate, and consignment matters are generally between grower and buyer, but eFruitMandi can review platform records and assist with support information where possible.",
-                  "For urgent safety, unlawful detention, threat, fraud, or serious legal matters, users should contact local authorities first. eFruitMandi support can assist with platform records but does not replace law enforcement, courts, or legal authorities.",
-                  "Official support should be contacted only through verified eFruitMandi channels. Users should avoid sharing OTP, passwords, bank credentials, or sensitive documents with unauthorized persons."
-            ]
+        title: "Contact eFruitMandi",
+        body: [
+          "eFruitMandi support is available for growers, buyers, logistics partners, and marketplace users who need help with account access, registration, KYC, fruit listings, quotations, deal records, payment references, delivery coordination, support requests, or dispute-related information.",
+          "Users can contact eFruitMandi through the official email, phone, WhatsApp number, and website details provided on this page. While contacting support, users should provide their registered name, registered mobile number or email address, platform role, and the relevant listing, quotation, deal, payment, delivery, KYC, or support reference.",
+          "For grower support, users may contact eFruitMandi for help with profile creation, KYC submission, fruit lot listing, grade information, packing details, media upload, quotation review, OG Verified process, Trusted Badge information, and support records.",
+          "For buyer support, users may contact eFruitMandi for help with account registration, KYC, listing review, quotation submission, deal references, payment process questions, buyer verification, and support escalation.",
+          "For logistics partner support, users may contact eFruitMandi regarding delivery details, vehicle information, route references, settlement references, and delivery-related support where logistics coordination is applicable.",
+          "For payment or settlement support, users should share clear reference details, screenshots, transaction information, and deal references. eFruitMandi can review platform records and guide the next step based on available information and applicable policies.",
+          "For disputes, users should share complete details, including photos, videos, screenshots, call details, listing information, quotation references, delivery information, and payment details. Fruit quality, grade, rate, and consignment matters are generally between grower and buyer, but eFruitMandi can review platform records and assist with support information where possible.",
+          "For urgent safety, unlawful detention, threat, fraud, or serious legal matters, users should contact local authorities first. eFruitMandi support can assist with platform records but does not replace law enforcement, courts, or legal authorities.",
+          "Official support should be contacted only through verified eFruitMandi channels. Users should avoid sharing OTP, passwords, bank credentials, or sensitive documents with unauthorized persons.",
+        ],
       },
       {
-            "title": "Support channels",
-            "bullets": [
-                  "Email: ${business.email}",
-                  "Phone and WhatsApp: ${business.phone}",
-                  "Website: ${business.domain}",
-                  "Registered address: ${business.address}"
-            ]
+        title: "Support channels",
+        bullets: [
+          "Email: ${business.email}",
+          "Phone and WhatsApp: ${business.phone}",
+          "Website: ${business.domain}",
+          "Registered address: ${business.address}",
+        ],
       },
       {
-            "title": "What to include",
-            "bullets": [
-                  "Your registered name and phone number or email.",
-                  "Your role: Grower, Buyer, or Logistics Partner.",
-                  "Relevant listing, quotation, deal, payment, delivery, or KYC reference.",
-                  "Clear screenshots, photos, documents, or delivery details where available."
-            ]
-      }
-],
+        title: "What to include",
+        bullets: [
+          "Your registered name and phone number or email.",
+          "Your role: Grower, Buyer, or Logistics Partner.",
+          "Relevant listing, quotation, deal, payment, delivery, or KYC reference.",
+          "Clear screenshots, photos, documents, or delivery details where available.",
+        ],
+      },
+    ],
   }),
 
   faqs: page({
@@ -838,6 +833,74 @@ export const staticPages = {
           "eFruitMandi does not directly transport, insure, or own fruit unless separately stated in writing. Fruit is perishable, and delivery timelines depend on operational conditions.",
         ],
       },
+      {
+        title: "Digital Logistics Workflow",
+        body: [
+          "eFruitMandi may provide a digital logistics workflow to support communication, tracking records, delivery verification, and settlement activities between Growers, Buyers, and Logistics Partners.",
+          "After a Grower and Buyer mutually agree on a transaction, the Grower may arrange transportation independently or through a Logistics Partner registered on the eFruitMandi platform.",
+          "The workflow is intended to improve visibility, accountability, delivery confirmation, and transaction transparency for fresh fruit consignments.",
+        ],
+      },
+      {
+        title: "Grower Responsibilities Before Dispatch",
+        body: [
+          "The Grower is responsible for grading, packing, loading readiness, documentation, dispatch preparation, and providing accurate consignment information before transportation begins.",
+          "The Grower should ensure that fruit quantity, grade, variety, packing type, loading point, and dispatch timing are correctly recorded.",
+          "Photographs, videos, packing records, and loading evidence may be maintained for quality verification and dispute review purposes.",
+          "The Grower should ensure that the assigned logistics partner receives correct pickup instructions and consignment details before dispatch.",
+          "Improper packing, inaccurate declarations, missing documentation, or incorrect quantity information may increase the risk of delivery disputes and commercial losses.",
+        ],
+      },
+      {
+        title: "Logistics Partner and Driver Requirements",
+        body: [
+          "A Logistics Partner may be an individual transporter, vehicle owner, transport company, fleet operator, logistics firm, or authorized transport representative.",
+          "Logistics Partners may be required to maintain platform registration, complete applicable verification requirements, and provide accurate operational information.",
+          "Vehicle registration details, driver information, transport documents, pickup records, transit updates, and delivery confirmations may be maintained where applicable.",
+          "Drivers may be required to use approved platform tools or mobile applications for status updates, route visibility, and operational communication.",
+          "Vehicle fitness, permits, statutory compliance, driver conduct, cargo transportation obligations, and road safety compliance remain the responsibility of the Logistics Partner and vehicle owner.",
+        ],
+      },
+      {
+        title: "Buyer Delivery Verification",
+        body: [
+          "Upon arrival of the consignment, the Buyer should inspect the delivery and verify receipt where applicable.",
+          "Delivery confirmation may be completed through OTP verification, digital acknowledgement, proof of delivery, electronic confirmation, or other approved platform methods.",
+          "The Buyer should promptly report visible shortages, transport damage, packaging concerns, or delivery discrepancies through available platform workflows.",
+          "Delivery acknowledgements may be used for transaction records, dispute review, operational verification, and settlement workflows.",
+          "Failure to raise delivery concerns within a reasonable review period may be treated as successful delivery acknowledgement where permitted by applicable policies.",
+        ],
+      },
+      {
+        title: "Escrow Release and Settlement Workflow",
+        body: [
+          "Where escrow, payment holding, or settlement protection services are enabled, payment may be temporarily held until applicable verification requirements are completed.",
+          "Successful delivery confirmation through OTP verification, digital acknowledgement, proof of delivery, or other approved platform methods may be used as part of the settlement process.",
+          "Payment release may depend on transaction status, delivery confirmation, dispute status, compliance requirements, platform policies, and other verification conditions.",
+          "eFruitMandi may maintain transaction records, communication logs, delivery records, and operational information to support settlement review and dispute resolution.",
+          "The exact payment release timeline shall be governed by the applicable Payment and Escrow Policy.",
+        ],
+      },
+      {
+        title: "GPS Tracking and Operational Visibility",
+        body: [
+          "The platform may provide GPS-based tracking, route visibility, location updates, timestamps, and operational monitoring features where available.",
+          "Registered drivers or logistics partners may be required to use approved mobile applications or platform tools for operational updates and delivery tracking.",
+          "Location information may be used for delivery verification, route monitoring, fraud prevention, operational coordination, dispute review, and platform security.",
+          "Tracking information may not always be available due to network limitations, device issues, user actions, technical interruptions, or operational constraints.",
+          "Platform tracking services are provided for operational convenience and record management purposes only.",
+        ],
+      },
+      {
+        title: "Limitation of Logistics Liability",
+        body: [
+          "eFruitMandi acts as a technology platform and marketplace facilitator unless expressly agreed otherwise in writing.",
+          "eFruitMandi does not operate as a transport carrier, freight company, courier service, vehicle owner, warehouse operator, insurer, or logistics contractor.",
+          "Responsibility for transportation, permits, insurance, cargo safety, driver conduct, statutory compliance, vehicle fitness, and physical movement of goods remains with the participating parties.",
+          "Fruit is a perishable commodity and transit outcomes may depend on weather conditions, road conditions, traffic, handling practices, operational disruptions, and other factors beyond platform control.",
+          "Platform records, tracking information, delivery acknowledgements, and communication logs do not create a guarantee of delivery, cargo condition, route accuracy, or commercial outcome.",
+        ],
+      },
     ],
   }),
 
@@ -895,7 +958,7 @@ export const staticPages = {
           "eFruitMandi is a digital fruit marketplace and fruit trade facilitation platform by Orchard Growers Private Limited. It connects fruit buyers with fruit growers, orchard owners, fruit producers, traders, commission agents, logistics partners, and other market participants.",
           "For buyers, eFruitMandi helps discover available fruit lots, review fruit type, variety, grade, packing, estimated quantity, location, harvest stage, photos, videos, and grower details where available.",
           "The platform is useful for wholesale fruit buyers, fruit traders, commission agents, fruit shops, retail chains, exporters, processors, juice units, hotels, institutional buyers, and anyone sourcing fruit in bulk.",
-          "eFruitMandi does not force any buyer to purchase and does not force any grower to sell. Final trade depends on mutual agreement between buyer and grower regarding rate, quantity, grade, packing, logistics, payment, and delivery conditions."
+          "eFruitMandi does not force any buyer to purchase and does not force any grower to sell. Final trade depends on mutual agreement between buyer and grower regarding rate, quantity, grade, packing, logistics, payment, and delivery conditions.",
         ],
       },
       {
@@ -904,7 +967,7 @@ export const staticPages = {
           "A buyer on eFruitMandi may be an individual trader, fruit wholesaler, fruit and vegetable commission agent, Ladani, retailer, exporter, processor, institutional buyer, supermarket buyer, hotel supplier, juice plant, cold store operator, or fruit procurement agency.",
           "Small buyers can use the platform to discover fruit lots and connect with growers. Large buyers can use it to source bulk fruit directly from growing regions, compare quality, review lot details, and plan procurement.",
           "Commission agents can also use eFruitMandi to discover fruit growers, understand market supply, coordinate with Ladanis, and improve digital visibility for fruit trade.",
-          "The buyer guide is written for practical mandi users as well as new digital fruit buyers who want to understand fruit sourcing, mandi terms, fruit grading, packing, logistics, bilty, challan, parcha, and payment safety."
+          "The buyer guide is written for practical mandi users as well as new digital fruit buyers who want to understand fruit sourcing, mandi terms, fruit grading, packing, logistics, bilty, challan, parcha, and payment safety.",
         ],
       },
       {
@@ -918,17 +981,18 @@ export const staticPages = {
           "Grower means the fruit producer, orchard owner, farmer, or supplier who grows fruits such as apple, mango, pear, plum, persimmon, pomegranate, grapes, citrus, peach, cherry, kiwi, or other produce.",
           "Parcha (पर्चा) is a mandi transaction slip or sale record. It may include fruit quantity, grade, rate, buyer name, seller name, commission, charges, and other trade details. In some regions, it is also called challan.",
           "Bilty (बिल्टी) is a transport document or consignment note used when goods are moved from one place to another. It helps track loaded goods, transport details, destination, and delivery record.",
-          "Challan or Invoice is an official transaction document that records buyer, seller, quantity, price, tax, payment, and other commercial details where applicable."
+          "Challan or Invoice is an official transaction document that records buyer, seller, quantity, price, tax, payment, and other commercial details where applicable.",
         ],
       },
       {
-        title: "Clarification about Auction, Boli, Bid, Quote and Rate Discovery",
+        title:
+          "Clarification about Auction, Boli, Bid, Quote and Rate Discovery",
         body: [
           "On eFruitMandi, words such as Auction, Boli, Bid, Quote, Quotation, Offer, and Rate Discovery may be used only to explain the traditional fruit mandi price discovery system.",
           "eFruitMandi is not a compulsory auction platform and does not create a forced sale. A quotation shared by a buyer is only a proposed rate or commercial interest.",
           "A final deal becomes meaningful only when the buyer and grower mutually agree on fruit quality, grade, rate, packing, quantity, loading, logistics, payment, and delivery terms.",
           "Buyers should not treat a quotation as automatic ownership of the fruit lot. Growers can accept, reject, negotiate, pause, update, or withdraw their listings depending on market situation and mutual understanding.",
-          "This clarification is important because traditional mandi words like Boli, auction, Phad, commission agent, Ladani, parcha, and bilty are used for education and market communication, not for creating a forced transaction."
+          "This clarification is important because traditional mandi words like Boli, auction, Phad, commission agent, Ladani, parcha, and bilty are used for education and market communication, not for creating a forced transaction.",
         ],
       },
       {
@@ -940,7 +1004,7 @@ export const staticPages = {
           "Review available fruit lots carefully before sharing a quotation.",
           "Check fruit type, variety, grade, packing, quantity, location, harvest stage, photos, videos, and grower details.",
           "Share a realistic quotation based on quality, market demand, logistics cost, commission, labour, packing, and expected resale value.",
-          "Finalize the deal only after mutual agreement with the grower."
+          "Finalize the deal only after mutual agreement with the grower.",
         ],
       },
       {
@@ -950,7 +1014,7 @@ export const staticPages = {
           "A good buyer should compare fruit lots based on location, variety, size, grade, packing, expected quantity, harvest date, transport feasibility, photos, and grower credibility.",
           "Bulk fruit buyers should also consider road distance, loading point, packing type, shelf life, market demand, delivery time, and risk of damage during transport.",
           "For example, an apple buyer may compare A grade, B grade, mixed grade, carton packing, orchard location, expected harvest date, transport route, and estimated mandi resale rate before sharing a quotation.",
-          "A mango buyer may focus on variety, ripening stage, size, packing, distance, transit time, and damage risk. A pear buyer may focus on maturity, firmness, packing strength, and handling requirements."
+          "A mango buyer may focus on variety, ripening stage, size, packing, distance, transit time, and damage risk. A pear buyer may focus on maturity, firmness, packing strength, and handling requirements.",
         ],
       },
       {
@@ -963,7 +1027,7 @@ export const staticPages = {
           "Location of orchard, farm, packing point, cold store, collection center, or dispatch point.",
           "Photos and videos showing sample fruit quality, colour, size, bruising, disease marks, grading, and packing condition.",
           "Harvest stage and expected availability date.",
-          "Logistics feasibility, loading point, road access, expected delivery time, and transport requirement."
+          "Logistics feasibility, loading point, road access, expected delivery time, and transport requirement.",
         ],
       },
       {
@@ -973,7 +1037,7 @@ export const staticPages = {
           "Buyers should never rely only on fruit name or variety. Grade, packing, photos, and sample quality matter strongly in wholesale fruit trade.",
           "A+ grade generally indicates premium fruit quality. A grade indicates good marketable quality. B+, B, C+, C, D, mixed grade, or ungraded fruit may be suitable for different markets, processing, juice, local sale, or lower price segments.",
           "Before finalizing a deal, buyers should clearly discuss grade percentage, mixed grade possibility, damaged fruit tolerance, packing standard, sample photos, and inspection process.",
-          "In fruit trade, the same fruit name can have very different market value depending on grade. Apple A grade, mango export grade, pear premium grade, and processing grade fruit cannot be compared only by quantity."
+          "In fruit trade, the same fruit name can have very different market value depending on grade. Apple A grade, mango export grade, pear premium grade, and processing grade fruit cannot be compared only by quantity.",
         ],
       },
       {
@@ -982,7 +1046,7 @@ export const staticPages = {
           "Packing plays a major role in fruit safety, transport, resale value, and buyer satisfaction. Poor packing can damage even good quality fruit during loading, unloading, and long-distance transport.",
           "Buyers should confirm packing type, carton strength, crate quality, tray usage, fruit layering, ventilation, padding, weight per carton, branding, label details, and export or domestic market requirements.",
           "For long-distance fruit logistics, buyers should check whether the fruit requires normal transport, covered vehicle, refrigerated vehicle, cold chain, or quick dispatch.",
-          "Packing standards may differ for apple, mango, pear, pomegranate, grapes, plum, persimmon, peach, cherry, citrus, and kiwi. Buyers should never assume that one packing method is suitable for every fruit."
+          "Packing standards may differ for apple, mango, pear, pomegranate, grapes, plum, persimmon, peach, cherry, citrus, and kiwi. Buyers should never assume that one packing method is suitable for every fruit.",
         ],
       },
       {
@@ -994,7 +1058,7 @@ export const staticPages = {
           "Share a quotation or proposed rate through the available platform flow.",
           "Discuss final terms with the grower where required.",
           "Proceed only after mutual agreement and payment clarity.",
-          "Keep records of quotation, final rate, quantity, grade, payment proof, bilty, challan, parcha, and delivery confirmation."
+          "Keep records of quotation, final rate, quantity, grade, payment proof, bilty, challan, parcha, and delivery confirmation.",
         ],
       },
       {
@@ -1004,7 +1068,7 @@ export const staticPages = {
           "Before making payment, buyers should verify grower details, lot information, fruit grade, packing, dispatch point, quantity, and agreed rate.",
           "If a buyer is purchasing through a commission agent, the buyer should also maintain records of commission, mandi charges, transport charges, labour charges, and settlement terms.",
           "Buyers should avoid unclear verbal deals, unrealistic rates, unknown parties without KYC, and transactions without proper documentation.",
-          "KYC, OG Verified details where available, platform records, photos, videos, transaction slips, and transport documents can help build trust in digital fruit trade."
+          "KYC, OG Verified details where available, platform records, photos, videos, transaction slips, and transport documents can help build trust in digital fruit trade.",
         ],
       },
       {
@@ -1014,7 +1078,7 @@ export const staticPages = {
           "Buyers should confirm vehicle type, loading time, unloading location, driver contact, route, expected arrival, bilty, challan, transport charges, and responsibility for damage.",
           "Bilty is especially important in transport because it records movement of goods. Challan or invoice records commercial transaction details. Parcha may record mandi sale or transaction information.",
           "For delicate fruit, buyers should consider faster dispatch, careful loading, ventilation, temperature control, and proper unloading arrangements.",
-          "Long-distance buyers should calculate transport cost, loading cost, unloading cost, wastage risk, transit loss, market arrival timing, and resale demand before finalizing the quotation."
+          "Long-distance buyers should calculate transport cost, loading cost, unloading cost, wastage risk, transit loss, market arrival timing, and resale demand before finalizing the quotation.",
         ],
       },
       {
@@ -1026,7 +1090,7 @@ export const staticPages = {
           "Do not hold a grower's consignment unlawfully.",
           "Make payment as per agreed terms.",
           "Raise disputes quickly with clear evidence.",
-          "Understand that growers may accept, reject, negotiate, pause, update, or withdraw fruit listings before final agreement."
+          "Understand that growers may accept, reject, negotiate, pause, update, or withdraw fruit listings before final agreement.",
         ],
       },
       {
@@ -1035,7 +1099,7 @@ export const staticPages = {
           "In traditional fruit mandis, commission agents and Ladanis play an important role in trade flow. A commission agent connects growers and buyers, while a Ladani usually buys fruit in bulk for resale or distribution.",
           "eFruitMandi helps bring this traditional fruit trade language into a digital format. Buyers, growers, commission agents, Ladanis, and logistics partners can understand each other's role more clearly.",
           "The aim is not to remove genuine market participants, but to make fruit trading more transparent, searchable, documented, and accessible.",
-          "A fruit and vegetable commission agent may still play a role in local mandi trade, but digital documentation, KYC, buyer records, grower records, and logistics tracking can reduce confusion and improve trust."
+          "A fruit and vegetable commission agent may still play a role in local mandi trade, but digital documentation, KYC, buyer records, grower records, and logistics tracking can reduce confusion and improve trust.",
         ],
       },
       {
@@ -1046,7 +1110,7 @@ export const staticPages = {
           "Buyers have the right to negotiate before final agreement.",
           "Buyers have the right to receive agreed fruit quality and quantity as per confirmed deal terms.",
           "Buyers have the right to raise a dispute with evidence if quality, quantity, payment, or delivery terms are not followed.",
-          "Buyers have the right to maintain and request relevant documents such as invoice, challan, bilty, parcha, and payment proof."
+          "Buyers have the right to maintain and request relevant documents such as invoice, challan, bilty, parcha, and payment proof.",
         ],
       },
       {
@@ -1059,7 +1123,7 @@ export const staticPages = {
           "Do not hold a grower's consignment unlawfully.",
           "Maintain records such as payment proof, bilty, challan, parcha, invoice, photos, and communication history.",
           "Raise disputes quickly with clear evidence.",
-          "Respect grower time, harvest risk, packing effort, labour cost, and logistics limitations."
+          "Respect grower time, harvest risk, packing effort, labour cost, and logistics limitations.",
         ],
       },
       {
@@ -1072,17 +1136,17 @@ export const staticPages = {
           "Do not delay pickup after confirming dispatch.",
           "Do not compare different grades as if they have the same market value.",
           "Do not treat eFruitMandi as a forced auction platform. Final trade depends on mutual agreement.",
-          "Do not ignore transport time, weather, road condition, loading quality, and unloading arrangements."
+          "Do not ignore transport time, weather, road condition, loading quality, and unloading arrangements.",
         ],
       },
-      
+
       {
         title: "Understanding Traditional Fruit Mandi System",
         body: [
           "India's fruit trade has traditionally operated through fruit mandis, wholesale markets, APMC mandis, commission agents, traders, Ladanis, transporters, and fruit growers.",
           "Understanding how fruit mandis work helps buyers evaluate quotations, compare fruit lots, understand market behaviour, and communicate effectively with growers, commission agents, and logistics partners.",
           "Traditional fruit trade uses terminology such as Phad (फड़), Boli (बोली), Ladani (लदानी), Commission Agent, Parcha (पर्चा), Bilty (बिल्टी), Challan, grading, packing, loading, unloading, and rate discovery.",
-          "eFruitMandi preserves practical fruit mandi knowledge while helping buyers and growers use modern digital tools."
+          "eFruitMandi preserves practical fruit mandi knowledge while helping buyers and growers use modern digital tools.",
         ],
       },
       {
@@ -1090,7 +1154,7 @@ export const staticPages = {
         body: [
           "Ladani (लदानी) is a bulk fruit buyer who purchases fruit in large quantity and redistributes it to wholesalers, retailers, supermarkets, exporters, processors, cold stores, and other markets.",
           "Ladanis often evaluate grading, packing, transport cost, market demand, resale opportunities, shelf life, and logistics feasibility before procurement.",
-          "Understanding Ladani operations helps buyers understand the wholesale fruit supply chain."
+          "Understanding Ladani operations helps buyers understand the wholesale fruit supply chain.",
         ],
       },
       {
@@ -1098,43 +1162,42 @@ export const staticPages = {
         body: [
           "Fruit commission agents coordinate between growers and buyers and often help facilitate trade communication, market information, documentation, and transaction workflows.",
           "In many traditional fruit mandis, commission agents operate from a Phad where fruit lots are reviewed and commercial discussions take place.",
-          "Common industry search terms include Fruit Commission Agent, Fruit and Vegetable Commission Agent, APMC Commission Agent, Fruit Market Agent, and Wholesale Fruit Agent."
+          "Common industry search terms include Fruit Commission Agent, Fruit and Vegetable Commission Agent, APMC Commission Agent, Fruit Market Agent, and Wholesale Fruit Agent.",
         ],
       },
       {
         title: "Apple Buying Guide",
         body: [
           "Apple buyers should evaluate grading, size, colour, maturity, packing quality, storage history, transport distance, and market demand before procurement.",
-          "Apple procurement decisions should be based on quality, packing, grading consistency, and commercial feasibility rather than variety name alone."
+          "Apple procurement decisions should be based on quality, packing, grading consistency, and commercial feasibility rather than variety name alone.",
         ],
       },
       {
         title: "Mango Buying Guide",
         body: [
-          "Mango buyers should review variety, maturity stage, sweetness, packing quality, transport duration, market demand, and destination requirements before finalizing procurement decisions."
+          "Mango buyers should review variety, maturity stage, sweetness, packing quality, transport duration, market demand, and destination requirements before finalizing procurement decisions.",
         ],
       },
       {
         title: "Pear Buying Guide",
         body: [
-          "Pear buyers should evaluate fruit firmness, grading consistency, maturity, packing quality, shelf life, and transportation requirements."
+          "Pear buyers should evaluate fruit firmness, grading consistency, maturity, packing quality, shelf life, and transportation requirements.",
         ],
       },
       {
         title: "Export Fruit Procurement",
         body: [
           "Export-oriented fruit buyers often operate under stricter grading, packing, traceability, documentation, and logistics requirements than domestic markets.",
-          "Export procurement planning should consider destination requirements, transit conditions, compliance expectations, and fruit quality standards."
+          "Export procurement planning should consider destination requirements, transit conditions, compliance expectations, and fruit quality standards.",
         ],
       },
       {
         title: "Benefits of OG Verified and Trusted Buyer Status",
         body: [
           "Trust, transparency, documentation, responsible trade behaviour, and long-term business relationships are important for sustainable fruit trade.",
-          "OG Verified and Trusted Buyer programs help improve confidence and professional communication between market participants."
+          "OG Verified and Trusted Buyer programs help improve confidence and professional communication between market participants.",
         ],
       },
-
 
       {
         title: "Fruit Market Terminology Dictionary for Buyers",
@@ -1153,7 +1216,7 @@ export const staticPages = {
           "Parcha (\u092a\u0930\u094d\u091a\u093e) means a mandi sale record or transaction slip used in fruit trade.",
           "Phad (\u092b\u0921\u093c) means the trading space inside a fruit mandi where commission agents coordinate trade activity.",
           "Quotation means a proposed buying rate shared by a buyer for a fruit lot.",
-          "Rate Discovery means the process of finding a fair market rate through buyer interest, quotation, negotiation, or mandi price signals."
+          "Rate Discovery means the process of finding a fair market rate through buyer interest, quotation, negotiation, or mandi price signals.",
         ],
       },
       {
@@ -1162,7 +1225,7 @@ export const staticPages = {
           "Example 1: A wholesale apple buyer from Delhi reviews multiple apple lots from Himachal Pradesh. Instead of quoting only on fruit name, the buyer compares grade, carton quality, orchard location, dispatch timing, transport cost, and expected resale demand.",
           "Example 2: A mango buyer compares two mango lots. One has better variety but longer transport distance, while the other has slightly lower grade but faster delivery. The buyer calculates total landed cost before quotation.",
           "Example 3: A Ladani purchases mixed grade fruit for local wholesale markets. The buyer checks grading percentage, packing type, bilty, challan, loading arrangement, and payment terms before final agreement.",
-          "Example 4: An export-focused buyer reviews fruit quality more strictly and asks for better grading, packing, traceability, and logistics planning before procurement."
+          "Example 4: An export-focused buyer reviews fruit quality more strictly and asks for better grading, packing, traceability, and logistics planning before procurement.",
         ],
       },
       {
@@ -1175,11 +1238,11 @@ export const staticPages = {
           "Understand the difference between quotation and final agreement.",
           "Check whether the fruit is suitable for wholesale, retail, processing, export, or local sale.",
           "Respect grower time, harvest risk, packing effort, and transport limitations.",
-          "Use KYC, OG Verified details, and platform records to improve trust."
+          "Use KYC, OG Verified details, and platform records to improve trust.",
         ],
       },
 
-{
+      {
         title: "Buyer FAQs",
         body: [
           "Is eFruitMandi an auction platform? No. eFruitMandi uses auction, Boli, quote, bid, and rate discovery only to explain price discovery. It is not a compulsory auction or forced sale platform.",
@@ -1193,7 +1256,7 @@ export const staticPages = {
           "Is KYC required for buyers? Buyer KYC may be required for trust, safety, payment clarity, and dispute handling.",
           "What should buyers check before payment? Buyers should check grower details, fruit grade, packing, quantity, location, dispatch timing, bilty, challan, and agreed terms.",
           "Can commission agents use eFruitMandi? Yes. Fruit and vegetable commission agents can use eFruitMandi to improve discovery, market communication, and digital trade coordination.",
-          "Can exporters use eFruitMandi? Yes. Exporters can use eFruitMandi to discover fruit lots, review quality, packing, location, and grower information where available."
+          "Can exporters use eFruitMandi? Yes. Exporters can use eFruitMandi to discover fruit lots, review quality, packing, location, and grower information where available.",
         ],
       },
     ],
@@ -1217,7 +1280,8 @@ export const staticPages = {
         ],
       },
       {
-        title: "Important clarification about Auction, Boli, Quote and Rate Discovery",
+        title:
+          "Important clarification about Auction, Boli, Quote and Rate Discovery",
         body: [
           "On eFruitMandi, words such as Auction, Boli, Bid, Quotation, Quote, or Rate Discovery may be used only to explain the traditional fruit mandi price discovery concept. eFruitMandi is not a compulsory auction or forced sale platform.",
           "In offline mandi systems, Boli or auction often means that fruit is offered through a commission agent and rate is discovered through buyers. eFruitMandi works differently because the grower can accept, reject, negotiate, pause, update, or withdraw a listing.",
@@ -1349,20 +1413,20 @@ export const staticPages = {
           "Do not depend only on verbal communication; keep records, photos, videos, bilty, challan, parcha, and payment proof.",
           "Do not treat eFruitMandi as a forced auction platform. Final trade depends on mutual agreement.",
         ],
-           },
+      },
       {
         title: "Understanding Traditional Fruit Mandi System for Growers",
         body: [
           "India's fruit trade has traditionally operated through fruit mandis, wholesale markets, APMC mandis, commission agents, traders, Ladanis, transporters, and fruit growers.",
           "Understanding how traditional fruit mandis work helps growers make better decisions regarding fruit grading, packing, quotations, logistics, and buyer selection.",
-          "Traditional fruit trade uses terminology such as Phad (फड़), Boli (बोली), Ladani (लदानी), Commission Agent, Parcha (पर्चा), Bilty (बिल्टी), Challan, grading, packing, loading, unloading, and rate discovery."
+          "Traditional fruit trade uses terminology such as Phad (फड़), Boli (बोली), Ladani (लदानी), Commission Agent, Parcha (पर्चा), Bilty (बिल्टी), Challan, grading, packing, loading, unloading, and rate discovery.",
         ],
       },
       {
         title: "Role of Ladani from a Grower Perspective",
         body: [
           "A Ladani (लदानी) is usually a bulk fruit buyer who purchases fruit in large quantities and supplies it to wholesale markets, retailers, processors, exporters, and other trade channels.",
-          "Understanding Ladani requirements can help growers improve grading, packing, consistency, and logistics planning."
+          "Understanding Ladani requirements can help growers improve grading, packing, consistency, and logistics planning.",
         ],
       },
       {
@@ -1372,7 +1436,7 @@ export const staticPages = {
           "Boli (बोली) means the traditional rate discovery process.",
           "Ladani (लदानी) means a bulk fruit buyer.",
           "Parcha (पर्चा) means a mandi transaction slip.",
-          "Bilty (बिल्टी) means a transport document."
+          "Bilty (बिल्टी) means a transport document.",
         ],
       },
       {
@@ -1381,7 +1445,7 @@ export const staticPages = {
           "Apple growers should provide clear information about variety, grade, size, colour percentage, carton packing, harvest date, orchard location, expected quantity, and dispatch timeline.",
           "For apple buyers, details such as A grade, B grade, mixed grade, premium grade, table grade, processing grade, carton quality, storage condition, and transport feasibility are important.",
           "Apple growers from Himachal Pradesh, Jammu and Kashmir, Uttarakhand, and other apple growing regions can improve buyer confidence by sharing recent photos, grade-wise samples, packing details, and realistic quantity.",
-          "A good apple lot listing should clearly mention whether the fruit is suitable for wholesale trade, retail sale, cold storage, processing, export, or direct market supply."
+          "A good apple lot listing should clearly mention whether the fruit is suitable for wholesale trade, retail sale, cold storage, processing, export, or direct market supply.",
         ],
       },
       {
@@ -1390,7 +1454,7 @@ export const staticPages = {
           "Mango growers should mention variety, maturity stage, ripening condition, fruit size, packing type, harvest date, estimated quantity, location, and dispatch readiness.",
           "Different mango varieties serve different markets such as wholesale mandis, retail chains, pulp processing units, exporters, and direct fruit buyers.",
           "Clear information about maturity, sweetness, packing, transport time, and shelf life helps mango buyers make better quotations.",
-          "Mango growers should avoid uploading old photos or unclear quality information because mango trade is highly sensitive to ripening stage and transit timing."
+          "Mango growers should avoid uploading old photos or unclear quality information because mango trade is highly sensitive to ripening stage and transit timing.",
         ],
       },
       {
@@ -1399,7 +1463,7 @@ export const staticPages = {
           "Pear growers should share information about variety, firmness, size, colour, maturity, packing, grade, quantity, location, and dispatch timeline.",
           "Pear quality can be affected by rough handling, weak packing, delayed transport, and poor loading. Therefore, growers should maintain packing clarity and transport coordination.",
           "Buyers usually compare pear lots based on firmness, uniformity, grade, shelf life, packing strength, and distance from market.",
-          "Clear documentation and sample photos can reduce disputes and improve buyer trust."
+          "Clear documentation and sample photos can reduce disputes and improve buyer trust.",
         ],
       },
       {
@@ -1408,7 +1472,7 @@ export const staticPages = {
           "Export-oriented fruit growers may need stricter grading, packing, documentation, traceability, quality control, and logistics planning than normal domestic fruit trade.",
           "Export buyers may ask for uniform size, better packing, specific maturity level, residue awareness, orchard details, dispatch records, and transport planning.",
           "Growers who want to supply export markets should maintain detailed records of orchard practices, harvest date, grade-wise packing, buyer communication, challan, invoice, bilty, and dispatch details.",
-          "Export readiness depends on buyer requirement, destination market, quality standard, packing method, logistics route, and compliance expectations."
+          "Export readiness depends on buyer requirement, destination market, quality standard, packing method, logistics route, and compliance expectations.",
         ],
       },
       {
@@ -1421,7 +1485,7 @@ export const staticPages = {
           "Maintain bilty, challan, parcha, invoice, and payment records.",
           "Communicate clearly before loading and dispatch.",
           "Update listing if fruit is sold offline or quantity changes.",
-          "Respect buyer inspection, logistics timing, and payment clarity."
+          "Respect buyer inspection, logistics timing, and payment clarity.",
         ],
       },
       {
@@ -1429,7 +1493,7 @@ export const staticPages = {
         body: [
           "Growers can improve digital discovery by using clear listing words such as apple grower in Himachal Pradesh, mango grower in India, pear grower supply, bulk fruit lot, fresh fruit from orchard, fruit packing, fruit grading, fruit mandi rate, wholesale fruit buyer, Ladani, and fruit trader.",
           "A listing with fruit type, variety, grade, packing, location, quantity, harvest date, and clear photos is more useful than a vague listing with only fruit name.",
-          "Searchable and accurate listings help eFruitMandi connect growers with relevant buyers, commission agents, Ladanis, exporters, wholesalers, and logistics partners."
+          "Searchable and accurate listings help eFruitMandi connect growers with relevant buyers, commission agents, Ladanis, exporters, wholesalers, and logistics partners.",
         ],
       },
 
@@ -1565,7 +1629,7 @@ export const staticPages = {
     ],
   }),
 
-    deletion: page({
+  deletion: page({
     route: "/user-data-deletion",
     eyebrow: "Data Deletion Policy",
     title: "User Data Deletion Policy",
@@ -1659,9 +1723,3 @@ export const staticPageRouteTypes = [
 ];
 
 export { business };
-
-
-
-
-
-
