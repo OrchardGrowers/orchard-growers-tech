@@ -1351,6 +1351,31 @@ export const staticPages = {
         ],
            },
       {
+        title: "Understanding Traditional Fruit Mandi System for Growers",
+        body: [
+          "India's fruit trade has traditionally operated through fruit mandis, wholesale markets, APMC mandis, commission agents, traders, Ladanis, transporters, and fruit growers.",
+          "Understanding how traditional fruit mandis work helps growers make better decisions regarding fruit grading, packing, quotations, logistics, and buyer selection.",
+          "Traditional fruit trade uses terminology such as Phad (फड़), Boli (बोली), Ladani (लदानी), Commission Agent, Parcha (पर्चा), Bilty (बिल्टी), Challan, grading, packing, loading, unloading, and rate discovery."
+        ],
+      },
+      {
+        title: "Role of Ladani from a Grower Perspective",
+        body: [
+          "A Ladani (लदानी) is usually a bulk fruit buyer who purchases fruit in large quantities and supplies it to wholesale markets, retailers, processors, exporters, and other trade channels.",
+          "Understanding Ladani requirements can help growers improve grading, packing, consistency, and logistics planning."
+        ],
+      },
+      {
+        title: "Fruit Market Terminology Dictionary for Growers",
+        body: [
+          "Phad (फड़) means the trading space inside a fruit mandi.",
+          "Boli (बोली) means the traditional rate discovery process.",
+          "Ladani (लदानी) means a bulk fruit buyer.",
+          "Parcha (पर्चा) means a mandi transaction slip.",
+          "Bilty (बिल्टी) means a transport document."
+        ],
+      },
+      {
         title: "Grower FAQs",
         body: [
           "Is eFruitMandi an auction platform? No. eFruitMandi uses auction, Boli, quote, and rate discovery only to explain price discovery. It is not a compulsory auction or forced sale platform.",
@@ -1576,6 +1601,8 @@ export const staticPageRouteTypes = [
 ];
 
 export { business };
+
+
 
 
 
