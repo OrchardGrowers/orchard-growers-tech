@@ -1521,6 +1521,34 @@ export const staticPages = {
         ],
       },
       {
+        title: "Consequences of repeated violations",
+        body: [
+          "Repeated violations may result in progressively stronger enforcement measures. A history of misleading listings, payment disputes, abusive conduct, policy violations, fake documents, or repeated complaints may affect account privileges and marketplace participation.",
+          "eFruitMandi may consider previous warnings, suspension history, verification status, dispute records, and overall marketplace behaviour when evaluating future enforcement actions.",
+        ],
+      },
+      {
+        title: "Market manipulation and artificial activity",
+        body: [
+          "Users should not attempt to artificially influence marketplace activity through fake quotations, fabricated demand, coordinated pricing behaviour, false availability claims, misleading transaction reports, or other deceptive commercial practices.",
+          "Price discovery should reflect genuine commercial interest and real market conditions.",
+        ],
+      },
+      {
+        title: "Community reporting responsibility",
+        body: [
+          "Every participant plays a role in maintaining marketplace safety. Users are encouraged to report fraud, impersonation, fake listings, misleading information, abusive conduct, suspicious payment activity, or other concerns that may affect the wider community.",
+          "Good-faith reporting helps improve trust and protects legitimate marketplace participants.",
+        ],
+      },
+      {
+        title: "Policy updates and future changes",
+        body: [
+          "These Community Guidelines may be updated periodically to reflect operational improvements, legal requirements, security considerations, industry practices, technological developments, and marketplace feedback.",
+          "Users are encouraged to review policy updates periodically to remain informed about current platform expectations.",
+        ],
+      },
+      {
         title: "Community Guidelines FAQs",
         body: [
           "Can a user be suspended for misleading information? Yes. Serious or repeated misinformation may result in review or suspension.",
@@ -2400,4 +2428,3 @@ export const staticPageRouteTypes = [
 ];
 
 export { business };
-
