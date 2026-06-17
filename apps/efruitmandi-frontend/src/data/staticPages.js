@@ -1464,6 +1464,75 @@ export const staticPages = {
           "Failure to cooperate during a reasonable investigation may affect trust assessments and account status reviews.",
         ],
       },
+      {
+        title: "Buyer conduct standards",
+        body: [
+          "Buyers should make quotations and purchase enquiries only when there is genuine business interest. Artificial bidding, fake demand creation, misleading negotiations, or repeated cancellation without reasonable cause may negatively affect marketplace trust.",
+          "Buyers should communicate clearly regarding quantity requirements, fruit specifications, loading timelines, payment expectations, logistics arrangements, and delivery destinations.",
+        ],
+      },
+      {
+        title: "Grower conduct standards",
+        body: [
+          "Growers should accurately represent fruit quality, grade, size, packing condition, quantity, and harvest status. Hidden defects, grade mixing, misleading photos, or unrealistic claims can create disputes and damage trust.",
+          "Growers should maintain proper communication with buyers regarding harvesting, sorting, packing, loading, dispatch, and expected delivery schedules.",
+        ],
+      },
+      {
+        title: "Logistics and driver conduct",
+        body: [
+          "Drivers and logistics partners should maintain professional communication and provide accurate transport information where applicable. Delivery status, route delays, loading issues, and operational changes should be communicated promptly.",
+          "Logistics participants should avoid false delivery claims, inaccurate route information, unauthorized consignment handling, or misuse of transport records.",
+        ],
+      },
+      {
+        title: "Quality misrepresentation policy",
+        body: [
+          "Users must not intentionally misrepresent fruit quality, grade, size, maturity, freshness, packing condition, storage condition, or commercial value.",
+          "Quality-related disputes often arise from inaccurate representation. Honest disclosure helps reduce conflict and supports long-term business relationships.",
+        ],
+      },
+      {
+        title: "Payment responsibility and ethics",
+        body: [
+          "Participants should honor agreed payment commitments and communicate promptly if payment-related issues arise. Deliberate delay tactics, misleading settlement information, or dishonest payment communication may result in account review.",
+          "Users should maintain proper records of invoices, challans, bilty records, payment references, and transaction communications whenever possible.",
+        ],
+      },
+      {
+        title: "Reporting abuse and policy violations",
+        body: [
+          "Users are encouraged to report suspected fraud, fake profiles, misleading listings, payment abuse, document misuse, impersonation, harassment, or other serious policy concerns through official support channels.",
+          "Reports should be made in good faith and supported by available evidence whenever possible.",
+        ],
+      },
+      {
+        title: "Account review and enforcement",
+        body: [
+          "eFruitMandi may review accounts, communications, listings, verification records, complaint history, dispute records, and other relevant information when investigating policy concerns.",
+          "Enforcement actions may include warnings, content removal, feature restrictions, temporary suspension, permanent suspension, badge review, or other actions considered necessary for marketplace safety.",
+        ],
+      },
+      {
+        title: "Marketplace safety framework",
+        body: [
+          "Marketplace safety depends on cooperation among growers, buyers, logistics providers, and platform administrators. Users should take reasonable precautions before entering commercial arrangements.",
+          "Verification, documentation, communication records, and responsible business practices all contribute to a safer trading environment.",
+        ],
+      },
+      {
+        title: "Community Guidelines FAQs",
+        body: [
+          "Can a user be suspended for misleading information? Yes. Serious or repeated misinformation may result in review or suspension.",
+          "Can disputes affect account status? Yes. Verified complaints, fraud concerns, or repeated misconduct may trigger enforcement review.",
+          "Are users allowed to upload edited fruit photos? Users should avoid misleading edits that create false expectations regarding fruit quality or condition.",
+          "Can buyers and growers report each other? Yes. Users may report suspected policy violations through support channels.",
+          "Do Community Guidelines apply after KYC approval? Yes. Verification status does not exempt any user from platform rules.",
+          "Can logistics partners be reviewed? Yes. Logistics participants may be reviewed when complaints, safety concerns, or operational issues arise.",
+          "Does eFruitMandi guarantee every transaction? No. Users remain responsible for their commercial decisions and agreements.",
+          "Can Community Guidelines change? Yes. Policies may evolve as marketplace requirements and operational standards develop.",
+        ],
+      },
     ],
   }),
 
