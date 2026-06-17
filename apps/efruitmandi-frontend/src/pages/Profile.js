@@ -23,7 +23,11 @@ import {
 } from "../utils/msg91OtpWidget";
 
 const logoUrl = `${process.env.PUBLIC_URL || ""}/logo.png`;
-const stripApiSuffix = (value = "") => value.trim().replace(/\/+$/, "").replace(/\/api$/i, "");
+const stripApiSuffix = (value = "") =>
+  value
+    .trim()
+    .replace(/\/+$/, "")
+    .replace(/\/api$/i, "");
 const EFRUIT_APP_NAME = process.env.VITE_APP_NAME || "efruitmandi";
 const OTP_RESEND_SECONDS = 60;
 const OTP_EXPIRY_SECONDS = Number(process.env.VITE_OTP_EXPIRY_SECONDS || 300);
@@ -58,15 +62,22 @@ const getEfruitOAuthUrl = (provider, mode, termsAccepted) => {
       process.env.REACT_APP_API_BASE_URL ||
       process.env.VITE_API_URL ||
       process.env.REACT_APP_API_URL ||
-      "https://api.efruitmandi.live"
+      "https://api.efruitmandi.live",
   );
   if (apiOrigin) {
     const configuredUrl =
       provider === "google"
-        ? process.env.VITE_GOOGLE_AUTH_URL || process.env.REACT_APP_GOOGLE_AUTH_URL
-        : process.env.VITE_FACEBOOK_AUTH_URL || process.env.REACT_APP_FACEBOOK_AUTH_URL;
-    const baseUrl = configuredUrl || `${apiOrigin}/api/auth/efruitmandi/${provider}`;
-    return addOAuthParams(withOAuthAppParam(baseUrl, EFRUIT_APP_NAME), mode, termsAccepted);
+        ? process.env.VITE_GOOGLE_AUTH_URL ||
+          process.env.REACT_APP_GOOGLE_AUTH_URL
+        : process.env.VITE_FACEBOOK_AUTH_URL ||
+          process.env.REACT_APP_FACEBOOK_AUTH_URL;
+    const baseUrl =
+      configuredUrl || `${apiOrigin}/api/auth/efruitmandi/${provider}`;
+    return addOAuthParams(
+      withOAuthAppParam(baseUrl, EFRUIT_APP_NAME),
+      mode,
+      termsAccepted,
+    );
   }
 
   return "";
@@ -75,7 +86,10 @@ const readOAuthUser = (encodedUser) => {
   if (!encodedUser) return null;
   try {
     const normalized = encodedUser.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
+    const padded = normalized.padEnd(
+      normalized.length + ((4 - (normalized.length % 4)) % 4),
+      "=",
+    );
     return JSON.parse(atob(padded));
   } catch {
     return null;
@@ -109,7 +123,8 @@ const trustBadges = [
     detail: "Payment Gateway",
     logo: "https://www.billdesk.com/web/billdesk-1.png",
     logoClass: "h-9 w-9 rounded-md bg-white object-contain p-1",
-    mobileLogoClass: "h-5 w-5 rounded-sm bg-white object-contain p-0.5 lg:h-9 lg:w-9 lg:rounded-md lg:p-1",
+    mobileLogoClass:
+      "h-5 w-5 rounded-sm bg-white object-contain p-0.5 lg:h-9 lg:w-9 lg:rounded-md lg:p-1",
   },
   {
     title: "Orchard Growers",
@@ -216,24 +231,37 @@ export default function Profile() {
 
   const strength = useMemo(
     () => getPasswordStrength(signupForm.password),
-    [signupForm.password]
+    [signupForm.password],
   );
 
   const normalizeContact = (value) => value.trim().toLowerCase();
   const isPhoneIdentifier = (value) => Boolean(normalizeIndianMobile(value));
-  const isOtpExpired = (targetMode) => Boolean(otpExpiresAt[targetMode] && otpExpiresAt[targetMode] <= Date.now());
-  const hasOtpRequest = (targetMode) => Boolean(mobileOtpSent[targetMode] || otpExpiresAt[targetMode]);
+  const isOtpExpired = (targetMode) =>
+    Boolean(otpExpiresAt[targetMode] && otpExpiresAt[targetMode] <= Date.now());
+  const hasOtpRequest = (targetMode) =>
+    Boolean(mobileOtpSent[targetMode] || otpExpiresAt[targetMode]);
   const sanitizeAuthMessage = (err, fallback) => {
     const status = err?.response?.status;
-    const serverMessage = String(err?.response?.data?.msg || err?.response?.data?.message || "").trim();
-    if (status === 404 || /user\s+not\s+found|account.*not.*exist|does\s+not\s+exist/i.test(serverMessage)) {
+    const serverMessage = String(
+      err?.response?.data?.msg || err?.response?.data?.message || "",
+    ).trim();
+    if (
+      status === 404 ||
+      /user\s+not\s+found|account.*not.*exist|does\s+not\s+exist/i.test(
+        serverMessage,
+      )
+    ) {
       return "No. does not exist, please check the no. and enter again.";
     }
-    if (status === 429) return "Too many invalid OTP attempts. Please request a new OTP.";
+    if (status === 429)
+      return "Too many invalid OTP attempts. Please request a new OTP.";
     if (/expired/i.test(serverMessage)) return "Invalid or expired OTP.";
-    if (/request.*otp|otp.*first/i.test(serverMessage)) return "Please request OTP first.";
-    if (/invalid.*otp|otp verification failed/i.test(serverMessage)) return "Invalid or expired OTP.";
-    if (/could not send|unable to send/i.test(serverMessage)) return "Could not send OTP. Please try again.";
+    if (/request.*otp|otp.*first/i.test(serverMessage))
+      return "Please request OTP first.";
+    if (/invalid.*otp|otp verification failed/i.test(serverMessage))
+      return "Invalid or expired OTP.";
+    if (/could not send|unable to send/i.test(serverMessage))
+      return "Could not send OTP. Please try again.";
     return serverMessage || fallback;
   };
 
@@ -241,8 +269,12 @@ export default function Profile() {
     if (!otpExpiresAt.login && !otpExpiresAt.signup) return undefined;
     const timer = window.setInterval(() => {
       const now = Date.now();
-      const expiredLogin = Boolean(otpExpiresAt.login && otpExpiresAt.login <= now);
-      const expiredSignup = Boolean(otpExpiresAt.signup && otpExpiresAt.signup <= now);
+      const expiredLogin = Boolean(
+        otpExpiresAt.login && otpExpiresAt.login <= now,
+      );
+      const expiredSignup = Boolean(
+        otpExpiresAt.signup && otpExpiresAt.signup <= now,
+      );
       if (!expiredLogin && !expiredSignup) return;
 
       setOtpExpiresAt((current) => ({
@@ -307,10 +339,13 @@ export default function Profile() {
 
   const showError = (text) => setMessage({ type: "error", text });
   const showSuccess = (text) => setMessage({ type: "success", text });
-  const getAuthIdentifier = (value) => normalizeIndianMobile(value) || normalizeContact(value);
+  const getAuthIdentifier = (value) =>
+    normalizeIndianMobile(value) || normalizeContact(value);
   const getPendingAuthRedirect = () => {
     try {
-      return JSON.parse(sessionStorage.getItem("efruitmandiPendingAuthRedirect") || "{}");
+      return JSON.parse(
+        sessionStorage.getItem("efruitmandiPendingAuthRedirect") || "{}",
+      );
     } catch {
       return {};
     }
@@ -323,12 +358,18 @@ export default function Profile() {
     const targetProfile = override.requiredProfile || requiredProfile;
 
     if (targetProfile === "buyer" && !hasBuyerProfile(authUser)) {
-      navigate("/register-buyer", { replace: true, state: { from: targetPath } });
+      navigate("/register-buyer", {
+        replace: true,
+        state: { from: targetPath },
+      });
       return;
     }
 
     if (targetProfile === "grower" && !hasGrowerProfile(authUser)) {
-      navigate("/register-grower", { replace: true, state: { from: targetPath } });
+      navigate("/register-grower", {
+        replace: true,
+        state: { from: targetPath },
+      });
       return;
     }
 
@@ -345,7 +386,9 @@ export default function Profile() {
   }, [location.state?.mode, routeMessage]);
 
   useEffect(() => {
-    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const hashParams = new URLSearchParams(
+      window.location.hash.replace(/^#/, ""),
+    );
     const queryParams = new URLSearchParams(location.search);
     const oauthError = queryParams.get("oauthError");
     const oauthSignup = queryParams.get("oauthSignup");
@@ -417,15 +460,26 @@ export default function Profile() {
       setResetMode(true);
       setVerifiedContact((current) => ({ ...current, login: "" }));
       setOtpVerificationToken((current) => ({ ...current, login: "" }));
-      setMobileOtpReqId((current) => ({ ...current, login: res.data?.reqId || res.data?.requestId || "" }));
-      setMobileOtpFlow((current) => ({ ...current, login: res.data?.otpFlow || "" }));
+      setMobileOtpReqId((current) => ({
+        ...current,
+        login: res.data?.reqId || res.data?.requestId || "",
+      }));
+      setMobileOtpFlow((current) => ({
+        ...current,
+        login: res.data?.otpFlow || "",
+      }));
       setMobileOtpSent((current) => ({ ...current, login: true }));
-      setOtpExpiresAt((current) => ({ ...current, login: Date.now() + OTP_EXPIRY_SECONDS * 1000 }));
+      setOtpExpiresAt((current) => ({
+        ...current,
+        login: Date.now() + OTP_EXPIRY_SECONDS * 1000,
+      }));
       setOtpAttemptCount((current) => ({ ...current, login: 0 }));
       setOtpCooldown((current) => ({ ...current, login: OTP_RESEND_SECONDS }));
       showSuccess(res.data?.message || "OTP sent successfully.");
     } catch (err) {
-      showError(sanitizeAuthMessage(err, "Could not send OTP. Please try again."));
+      showError(
+        sanitizeAuthMessage(err, "Could not send OTP. Please try again."),
+      );
     } finally {
       setLoading(false);
     }
@@ -455,30 +509,65 @@ export default function Profile() {
         const widgetId = getEfruitMandiWidgetId();
         const tokenAuth = getEfruitMandiTokenAuth();
         const phone = normalizeIndianMobile(identifier);
-        const result = await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone, mode: targetMode });
-        setMobileOtpReqId((current) => ({ ...current, [targetMode]: result.reqId || "" }));
-        setMobileOtpFlow((current) => ({ ...current, [targetMode]: result.data?.otpFlow || "" }));
+        const result = await sendMsg91WidgetOtp({
+          widgetId,
+          tokenAuth,
+          phone,
+          mode: targetMode,
+        });
+        setMobileOtpReqId((current) => ({
+          ...current,
+          [targetMode]: result.reqId || "",
+        }));
+        setMobileOtpFlow((current) => ({
+          ...current,
+          [targetMode]: result.data?.otpFlow || "",
+        }));
         setMobileOtpSent((current) => ({ ...current, [targetMode]: true }));
-        setOtpCooldown((current) => ({ ...current, [targetMode]: OTP_RESEND_SECONDS }));
+        setOtpCooldown((current) => ({
+          ...current,
+          [targetMode]: OTP_RESEND_SECONDS,
+        }));
         setVerifiedContact((current) => ({ ...current, [targetMode]: "" }));
-        setOtpVerificationToken((current) => ({ ...current, [targetMode]: "" }));
-        setOtpExpiresAt((current) => ({ ...current, [targetMode]: Date.now() + OTP_EXPIRY_SECONDS * 1000 }));
+        setOtpVerificationToken((current) => ({
+          ...current,
+          [targetMode]: "",
+        }));
+        setOtpExpiresAt((current) => ({
+          ...current,
+          [targetMode]: Date.now() + OTP_EXPIRY_SECONDS * 1000,
+        }));
         setOtpAttemptCount((current) => ({ ...current, [targetMode]: 0 }));
         showSuccess("OTP sent successfully.");
         return;
       }
 
-      const res = await API.post("/auth/send-otp", { identifier, platform: "efruitmandi", mode: targetMode });
+      const res = await API.post("/auth/send-otp", {
+        identifier,
+        platform: "efruitmandi",
+        mode: targetMode,
+      });
       setVerifiedContact((current) => ({ ...current, [targetMode]: "" }));
       setOtpVerificationToken((current) => ({ ...current, [targetMode]: "" }));
       setMobileOtpSent((current) => ({ ...current, [targetMode]: false }));
-      setMobileOtpFlow((current) => ({ ...current, [targetMode]: res.data?.otpFlow || "" }));
-      setOtpCooldown((current) => ({ ...current, [targetMode]: OTP_RESEND_SECONDS }));
-      setOtpExpiresAt((current) => ({ ...current, [targetMode]: Date.now() + OTP_EXPIRY_SECONDS * 1000 }));
+      setMobileOtpFlow((current) => ({
+        ...current,
+        [targetMode]: res.data?.otpFlow || "",
+      }));
+      setOtpCooldown((current) => ({
+        ...current,
+        [targetMode]: OTP_RESEND_SECONDS,
+      }));
+      setOtpExpiresAt((current) => ({
+        ...current,
+        [targetMode]: Date.now() + OTP_EXPIRY_SECONDS * 1000,
+      }));
       setOtpAttemptCount((current) => ({ ...current, [targetMode]: 0 }));
       showSuccess(res.data?.message || "OTP sent successfully.");
     } catch (err) {
-      showError(sanitizeAuthMessage(err, "Could not send OTP. Please try again."));
+      showError(
+        sanitizeAuthMessage(err, "Could not send OTP. Please try again."),
+      );
     } finally {
       setLoading(false);
     }
@@ -487,7 +576,8 @@ export default function Profile() {
   const handleVerifyOtp = async (targetMode) => {
     const form = targetMode === "login" ? loginForm : signupForm;
     const identifier = getAuthIdentifier(form.identifier);
-    const otpPurpose = resetMode && targetMode === "login" ? "forgot-password" : "auth";
+    const otpPurpose =
+      resetMode && targetMode === "login" ? "forgot-password" : "auth";
 
     if (!identifier || !form.otp.trim()) {
       showError("Enter email/phone and OTP.");
@@ -513,7 +603,10 @@ export default function Profile() {
 
     try {
       setLoading(true);
-      if (isPhoneIdentifier(identifier) && (otpPurpose === "auth" || mobileOtpFlow[targetMode] === "widget")) {
+      if (
+        isPhoneIdentifier(identifier) &&
+        (otpPurpose === "auth" || mobileOtpFlow[targetMode] === "widget")
+      ) {
         const widgetId = getEfruitMandiWidgetId();
         const tokenAuth = getEfruitMandiTokenAuth();
         const reqId = mobileOtpReqId[targetMode];
@@ -522,7 +615,15 @@ export default function Profile() {
           return;
         }
 
-        const result = await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp: form.otp.trim(), reqId, phone: identifier, mode: otpPurpose === "forgot-password" ? "forgot-password" : targetMode });
+        const result = await verifyMsg91WidgetOtp({
+          widgetId,
+          tokenAuth,
+          otp: form.otp.trim(),
+          reqId,
+          phone: identifier,
+          mode:
+            otpPurpose === "forgot-password" ? "forgot-password" : targetMode,
+        });
         if (!result.data?.otpVerificationToken) {
           throw new Error("OTP verification failed.");
         }
@@ -561,7 +662,10 @@ export default function Profile() {
     } catch (err) {
       setVerifiedContact((current) => ({ ...current, [targetMode]: "" }));
       setOtpVerificationToken((current) => ({ ...current, [targetMode]: "" }));
-      setOtpAttemptCount((current) => ({ ...current, [targetMode]: current[targetMode] + 1 }));
+      setOtpAttemptCount((current) => ({
+        ...current,
+        [targetMode]: current[targetMode] + 1,
+      }));
       showError(sanitizeAuthMessage(err, "Invalid or expired OTP."));
     } finally {
       setLoading(false);
@@ -583,8 +687,14 @@ export default function Profile() {
         showError("Passwords do not match.");
         return;
       }
-      if (loginForm.password.length < 8 || !/[A-Za-z]/.test(loginForm.password) || !/\d/.test(loginForm.password)) {
-        showError("Password must be at least 8 characters and include a letter and a number.");
+      if (
+        loginForm.password.length < 8 ||
+        !/[A-Za-z]/.test(loginForm.password) ||
+        !/\d/.test(loginForm.password)
+      ) {
+        showError(
+          "Password must be at least 8 characters and include a letter and a number.",
+        );
         return;
       }
 
@@ -602,7 +712,9 @@ export default function Profile() {
         setVerifiedContact((current) => ({ ...current, login: "" }));
         setOtpVerificationToken((current) => ({ ...current, login: "" }));
         setOtpExpiresAt((current) => ({ ...current, login: 0 }));
-        showSuccess(res.data?.message || "Password reset successful. Please login.");
+        showSuccess(
+          res.data?.message || "Password reset successful. Please login.",
+        );
       } catch (err) {
         showError(sanitizeAuthMessage(err, "Could not reset password."));
       } finally {
@@ -662,7 +774,9 @@ export default function Profile() {
     }
 
     if (!acceptedTerms) {
-      showError("Accept Terms & Conditions before continuing.");
+      showError(
+        "Accept Terms of Service and Privacy Policy before continuing.",
+      );
       return;
     }
 
@@ -678,7 +792,9 @@ export default function Profile() {
       });
 
       saveSession(registerRes.data);
-      const freshUser = await loadAuthenticatedUser(registerRes.data.user || {});
+      const freshUser = await loadAuthenticatedUser(
+        registerRes.data.user || {},
+      );
       navigateAfterAuth(freshUser);
     } catch (err) {
       showError(err.response?.data?.msg || "Signup failed. Please try again.");
@@ -690,7 +806,7 @@ export default function Profile() {
   const startOAuth = (provider) => {
     sessionStorage.setItem(
       "efruitmandiPendingAuthRedirect",
-      JSON.stringify({ from: returnTo, requiredProfile })
+      JSON.stringify({ from: returnTo, requiredProfile }),
     );
 
     if (mode === "signup") {
@@ -698,9 +814,15 @@ export default function Profile() {
       return;
     }
 
-    const url = getEfruitOAuthUrl(provider, mode, mode === "signup" && acceptedTerms);
+    const url = getEfruitOAuthUrl(
+      provider,
+      mode,
+      mode === "signup" && acceptedTerms,
+    );
     if (!url) {
-      showError(`${provider === "google" ? "Google" : "Facebook"} login is not configured.`);
+      showError(
+        `${provider === "google" ? "Google" : "Facebook"} login is not configured.`,
+      );
       return;
     }
     window.location.href = url;
@@ -713,14 +835,19 @@ export default function Profile() {
   const loginIdentifier = getAuthIdentifier(loginForm.identifier);
   const signupIdentifier = getAuthIdentifier(signupForm.identifier);
   const loginCanSubmit = resetMode
-    ? Boolean(loginIdentifier && loginForm.otp.trim() && loginForm.password && loginForm.confirmPassword)
+    ? Boolean(
+        loginIdentifier &&
+        loginForm.otp.trim() &&
+        loginForm.password &&
+        loginForm.confirmPassword,
+      )
     : Boolean(loginIdentifier && loginForm.password && activeVerified);
   const signupCanSubmit = Boolean(
     signupForm.name.trim() &&
-      signupIdentifier &&
-      signupForm.password &&
-      activeVerified &&
-      acceptedTerms
+    signupIdentifier &&
+    signupForm.password &&
+    activeVerified &&
+    acceptedTerms,
   );
 
   return (
@@ -733,7 +860,11 @@ export default function Profile() {
             className="absolute left-6 top-4 rounded-md p-1 sm:left-8 lg:left-8 lg:top-7"
             aria-label="Go to home"
           >
-            <img src={logoUrl} alt="E-Fruit Mandi" className="h-8 w-auto sm:h-10 lg:h-16 xl:h-20" />
+            <img
+              src={logoUrl}
+              alt="E-Fruit Mandi"
+              className="h-8 w-auto sm:h-10 lg:h-16 xl:h-20"
+            />
           </button>
 
           <div className="max-w-2xl pt-12 sm:pt-14 lg:pt-0">
@@ -744,7 +875,8 @@ export default function Profile() {
               Innovative, Trusted, and Authentic Fruit Trading Platform
             </h1>
             <p className="mt-2 max-w-xl text-[10px] font-medium leading-4 sm:text-xs lg:mt-5 lg:text-sm lg:leading-6 xl:text-base">
-              Sell, Buy, Manage Horticulture Produce Payments and Logestics All at One place.
+              Sell, Buy, Manage Horticulture Produce Payments and Logestics All
+              at One place.
             </p>
             <div className="mt-3 grid max-w-xl grid-cols-3 gap-1.5 lg:mt-8 lg:gap-3">
               {trustBadges.map((item) => (
@@ -782,34 +914,38 @@ export default function Profile() {
         <main className="flex h-full min-h-0 justify-center overflow-y-auto bg-white px-4 py-3 sm:px-7 lg:overflow-hidden lg:px-6 lg:py-2">
           <div className="flex min-h-full w-full max-w-[390px] flex-col lg:max-w-[360px]">
             <div className="grid grid-cols-2 rounded-lg bg-gray-100 p-1">
-            <button
-              type="button"
-              onClick={() => changeMode("login")}
-              className={`rounded-md py-1.5 text-xs font-semibold ${
-                mode === "login"
-                  ? "bg-white text-green-800 shadow-sm"
-                  : "text-gray-500"
-              }`}
-            >
-              Login
-            </button>
-            <button
-              type="button"
-              onClick={() => changeMode("signup")}
-              className={`rounded-md py-1.5 text-xs font-semibold ${
-                mode === "signup"
-                  ? "bg-white text-green-800 shadow-sm"
-                  : "text-gray-500"
-              }`}
-            >
-              Signup
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={() => changeMode("login")}
+                className={`rounded-md py-1.5 text-xs font-semibold ${
+                  mode === "login"
+                    ? "bg-white text-green-800 shadow-sm"
+                    : "text-gray-500"
+                }`}
+              >
+                Login
+              </button>
+              <button
+                type="button"
+                onClick={() => changeMode("signup")}
+                className={`rounded-md py-1.5 text-xs font-semibold ${
+                  mode === "signup"
+                    ? "bg-white text-green-800 shadow-sm"
+                    : "text-gray-500"
+                }`}
+              >
+                Signup
+              </button>
+            </div>
 
             <div className="pt-3 lg:pt-2">
               <p className="text-xs font-bold text-green-700">E-Fruit Mandi</p>
               <h2 className="mt-1 text-xl font-black leading-tight text-gray-950 sm:text-2xl lg:text-xl">
-                {resetMode ? "Reset your password" : mode === "login" ? "Welcome back" : "Create your account"}
+                {resetMode
+                  ? "Reset your password"
+                  : mode === "login"
+                    ? "Welcome back"
+                    : "Create your account"}
               </h2>
               {mode === "login" && (
                 <p className="mt-1 text-xs text-gray-500 sm:text-sm lg:text-xs">
@@ -837,12 +973,18 @@ export default function Profile() {
                     mode="login"
                     form={loginForm}
                     setForm={(updater) => setLoginForm(updater)}
-                    onIdentifierChange={(value) => updateIdentifier("login", value)}
+                    onIdentifierChange={(value) =>
+                      updateIdentifier("login", value)
+                    }
                     verified={activeVerified}
                     loading={loading}
                     otpCooldown={otpCooldown.login}
                     otpSent={hasOtpRequest("login")}
-                    onSendOtp={() => (resetMode ? requestPasswordResetOtp() : handleSendOtp("login"))}
+                    onSendOtp={() =>
+                      resetMode
+                        ? requestPasswordResetOtp()
+                        : handleSendOtp("login")
+                    }
                     onVerifyOtp={() => handleVerifyOtp("login")}
                     disableAutofill
                   />
@@ -875,17 +1017,26 @@ export default function Profile() {
 
                   <button
                     type="button"
-                    onClick={resetMode ? () => {
-                      setResetMode(false);
-                      setLoginForm(initialLogin);
-                      setMessage({ type: "", text: "" });
-                    } : requestPasswordResetOtp}
+                    onClick={
+                      resetMode
+                        ? () => {
+                            setResetMode(false);
+                            setLoginForm(initialLogin);
+                            setMessage({ type: "", text: "" });
+                          }
+                        : requestPasswordResetOtp
+                    }
                     className="mb-3 block w-full text-left text-xs font-semibold text-green-700 lg:mb-2"
                   >
                     {resetMode ? "Back to login" : "Forgot password?"}
                   </button>
 
-                  <SubmitButton loading={loading} disabled={!loginCanSubmit} label={resetMode ? "Reset password" : "Login"} loadingLabel="Please wait..." />
+                  <SubmitButton
+                    loading={loading}
+                    disabled={!loginCanSubmit}
+                    label={resetMode ? "Reset password" : "Login"}
+                    loadingLabel="Please wait..."
+                  />
                 </form>
               ) : (
                 <form onSubmit={handleSignup} autoComplete="off">
@@ -905,7 +1056,9 @@ export default function Profile() {
                     mode="signup"
                     form={signupForm}
                     setForm={(updater) => setSignupForm(updater)}
-                    onIdentifierChange={(value) => updateIdentifier("signup", value)}
+                    onIdentifierChange={(value) =>
+                      updateIdentifier("signup", value)
+                    }
                     verified={activeVerified}
                     loading={loading}
                     otpCooldown={otpCooldown.signup}
@@ -927,9 +1080,17 @@ export default function Profile() {
 
                   <PasswordStrength strength={strength} />
 
-                  <TermsAcceptance checked={acceptedTerms} onChange={setAcceptedTerms} />
+                  <TermsAcceptance
+                    checked={acceptedTerms}
+                    onChange={setAcceptedTerms}
+                  />
 
-                  <SubmitButton loading={loading} disabled={!signupCanSubmit} label="Signup" loadingLabel="Creating..." />
+                  <SubmitButton
+                    loading={loading}
+                    disabled={!signupCanSubmit}
+                    label="Signup"
+                    loadingLabel="Creating..."
+                  />
                 </form>
               )}
             </div>
@@ -946,7 +1107,15 @@ export default function Profile() {
                   <button
                     key={item.label}
                     type="button"
-                    onClick={() => (item.provider ? startOAuth(item.provider) : window.open(item.href, "_blank", "noopener,noreferrer"))}
+                    onClick={() =>
+                      item.provider
+                        ? startOAuth(item.provider)
+                        : window.open(
+                            item.href,
+                            "_blank",
+                            "noopener,noreferrer",
+                          )
+                    }
                     aria-label={item.label}
                     title={item.label}
                     className={`flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 text-lg ${item.className}`}
@@ -958,13 +1127,17 @@ export default function Profile() {
 
               <button
                 type="button"
-                onClick={() => changeMode(mode === "login" ? "signup" : "login")}
+                onClick={() =>
+                  changeMode(mode === "login" ? "signup" : "login")
+                }
                 className="mt-2 block w-full text-center text-xs text-gray-500 lg:mt-1.5"
               >
                 {mode === "login" ? (
                   <>
                     New to E-Fruit Mandi?{" "}
-                    <span className="font-bold text-green-700">Create account</span>
+                    <span className="font-bold text-green-700">
+                      Create account
+                    </span>
                   </>
                 ) : (
                   <>
@@ -987,7 +1160,9 @@ export default function Profile() {
             setPendingSocialProvider(null);
             const url = getEfruitOAuthUrl(provider, "signup", true);
             if (!url) {
-              showError(`${provider === "google" ? "Google" : "Facebook"} signup is not configured.`);
+              showError(
+                `${provider === "google" ? "Google" : "Facebook"} signup is not configured.`,
+              );
               return;
             }
             window.location.href = url;
@@ -1008,9 +1183,23 @@ function TermsAcceptance({ checked, onChange }) {
         className="mt-1"
       />
       <span>
-        I accept the{" "}
-        <Link to="/terms-and-conditions" className="font-semibold text-green-700 underline">
-          Terms & Conditions
+        I agree to the{" "}
+        <Link
+          to="/terms-of-service"
+          target="_blank"
+          rel="noreferrer"
+          className="font-semibold text-green-700 underline"
+        >
+          Terms of Service
+        </Link>{" "}
+        and{" "}
+        <Link
+          to="/privacy-policy"
+          target="_blank"
+          rel="noreferrer"
+          className="font-semibold text-green-700 underline"
+        >
+          Privacy Policy
         </Link>
       </span>
     </label>
@@ -1043,14 +1232,22 @@ function ContactOtpFields({
           value: form.identifier,
           onChange: (e) => onIdentifierChange(e.target.value),
           placeholder: "Enter email or phone number",
-          autoComplete: disableAutofill ? "off" : mode === "login" ? "username" : "email",
-          name: disableAutofill ? "efruitmandi-login-contact" : `${mode}-identifier`,
+          autoComplete: disableAutofill
+            ? "off"
+            : mode === "login"
+              ? "username"
+              : "email",
+          name: disableAutofill
+            ? "efruitmandi-login-contact"
+            : `${mode}-identifier`,
         }}
       />
 
       <div className="mb-2 lg:mb-1.5">
         <div className="mb-1 flex items-center justify-between">
-          <label className="text-xs font-semibold text-gray-700">OTP verification</label>
+          <label className="text-xs font-semibold text-gray-700">
+            OTP verification
+          </label>
           {verified && (
             <span className="inline-flex items-center gap-1 text-xs font-bold text-green-700">
               <FaCheck /> Verified
@@ -1072,7 +1269,8 @@ function ContactOtpFields({
             onClick={onSendOtp}
             className="rounded-md bg-green-50 px-2 py-1.5 text-[11px] font-bold text-green-700 disabled:opacity-50 sm:px-3 sm:text-xs lg:py-1"
           >
-            <FaPaperPlane className="inline-block" /> {otpCooldown > 0 ? `${otpCooldown}s` : "Request OTP"}
+            <FaPaperPlane className="inline-block" />{" "}
+            {otpCooldown > 0 ? `${otpCooldown}s` : "Request OTP"}
           </button>
           <button
             type="button"
@@ -1144,18 +1342,32 @@ function TermsSignupModal({ onCancel, onAccept }) {
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/45 px-4">
       <div className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl">
-        <h2 className="text-lg font-black text-gray-950">Accept Terms & Conditions</h2>
+        <h2 className="text-lg font-black text-gray-950">
+          Accept Terms of Service and Privacy Policy
+        </h2>
         <p className="mt-2 text-sm leading-6 text-gray-600">
-          Please accept the Terms & Conditions to create your account with social signup.
+          Please accept the Terms of Service and Privacy Policy to create your
+          account with social signup.
         </p>
-        <Link to="/terms-and-conditions" className="mt-3 inline-flex text-sm font-bold text-green-700 underline">
-          Read Terms & Conditions
+        <Link
+          to="/terms-of-service"
+          className="mt-3 inline-flex text-sm font-bold text-green-700 underline"
+        >
+          Read Terms of Service
         </Link>
         <div className="mt-5 grid grid-cols-2 gap-2">
-          <button type="button" onClick={onCancel} className="rounded-md bg-gray-100 px-4 py-2 text-sm font-bold text-gray-700">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md bg-gray-100 px-4 py-2 text-sm font-bold text-gray-700"
+          >
             Cancel
           </button>
-          <button type="button" onClick={onAccept} className="rounded-md bg-green-700 px-4 py-2 text-sm font-bold text-white">
+          <button
+            type="button"
+            onClick={onAccept}
+            className="rounded-md bg-green-700 px-4 py-2 text-sm font-bold text-white"
+          >
             Accept & Continue
           </button>
         </div>
