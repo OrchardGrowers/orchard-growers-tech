@@ -715,6 +715,159 @@ export const staticPages = {
           "Separate role profiles may require separate KYC or business details. Separate buyer and logistics businesses must maintain separate accounts, separate KYC, and separate business identities.",
         ],
       },
+      {
+        title: "Why KYC matters",
+        body: [
+          "Know Your Customer (KYC) verification helps create a safer and more transparent fruit marketplace. Verification reduces fake profiles, improves accountability, supports payment confidence, and helps buyers, growers, and logistics partners interact with greater trust.",
+          "KYC allows eFruitMandi to maintain accurate records, investigate complaints, improve support quality, and reduce misuse of marketplace services.",
+        ],
+      },
+      {
+        title: "Information required for KYC",
+        body: [
+          "Depending on the account type, eFruitMandi may request identity details, business details, mobile number, email address, address information, bank or settlement information, tax-related details, business registration records, orchard or premises information, and supporting documents.",
+          "Growers, buyers, and logistics partners must submit accurate, current, and complete information. Wrong, outdated, unclear, edited, forged, or misleading documents may delay verification or result in rejection.",
+        ],
+      },
+      {
+        title: "Grower KYC verification",
+        body: [
+          "Grower KYC helps confirm the identity and marketplace profile of fruit growers using eFruitMandi. It supports safer communication between growers, buyers, and platform support teams.",
+          "Grower KYC does not guarantee fruit quality, production volume, final sale, rate, profit, buyer response, or delivery outcome. Growers remain responsible for honestly representing fruit grade, packing, harvest status, quantity, location, and availability.",
+        ],
+      },
+      {
+        title: "Buyer KYC verification",
+        body: [
+          "Buyer KYC helps create confidence for growers who receive quotations, enquiries, or purchase interest through eFruitMandi. Verified buyer records improve accountability and reduce fake or misleading buyer activity.",
+          "Buyer KYC does not guarantee payment capacity, purchase volume, business reliability, creditworthiness, or future conduct. Growers should still take practical business precautions before confirming any deal.",
+        ],
+      },
+      {
+        title: "Logistics partner KYC verification",
+        body: [
+          "Logistics partner KYC helps identify drivers, transport operators, and logistics businesses that may support fruit movement through marketplace records.",
+          "Verification may include identity details, contact information, vehicle or business details, and operational records. Logistics KYC does not guarantee delivery time, cargo condition, insurance coverage, vehicle condition, or route performance.",
+        ],
+      },
+      {
+        title: "KYC and OG Verified are different",
+        body: [
+          "KYC is mandatory and free. It mainly supports identity, business, payment, compliance, and support records.",
+          "OG Verified or Trusted Badge is a separate trust and physical verification program. It may include farm visit, premises inspection, video documentation, business assessment, and quality confidence checks. KYC approval does not automatically provide OG Verified status.",
+        ],
+      },
+      {
+        title: "Document review process",
+        body: [
+          "KYC documents may be reviewed manually, automatically, or through internal verification procedures. Some requests may be approved quickly, while others may require clearer images, updated documents, additional details, or support follow-up.",
+          "Submitting KYC does not mean automatic approval. eFruitMandi may reject, hold, or re-check any verification request if information is incomplete, inconsistent, suspicious, or unsuitable for review.",
+        ],
+      },
+      {
+        title: "Fraud prevention and account safety",
+        body: [
+          "KYC helps reduce fake accounts, duplicate profiles, impersonation, false business claims, misleading fruit listings, fake buyer interest, payment-related misuse, and other activities that can damage marketplace trust.",
+          "eFruitMandi may restrict, suspend, or review accounts involved in suspicious activity, false documents, abusive behavior, repeated complaints, or misuse of marketplace services.",
+        ],
+      },
+      {
+        title: "Re-verification and profile updates",
+        body: [
+          "Users may be asked to complete re-verification if their documents expire, business details change, account activity changes, security concerns arise, or platform policies are updated.",
+          "Users should keep their KYC and profile information accurate. Any change in mobile number, business name, address, bank details, role, vehicle details, or authorized representative information should be updated when required.",
+        ],
+      },
+      {
+        title: "KYC data protection",
+        body: [
+          "eFruitMandi treats verification information as sensitive marketplace data. Access may be limited to authorized team members, support staff, verification personnel, legal advisors, compliance teams, or service providers where required for legitimate business purposes.",
+          "No digital system can be guaranteed to be completely risk-free. Users should avoid sharing documents publicly and should submit verification information only through official eFruitMandi channels.",
+        ],
+      },
+      {
+        title: "KYC limitations",
+        body: [
+          "KYC is not a guarantee, insurance, endorsement, recommendation, credit check, quality certificate, legal opinion, or business success certificate.",
+          "KYC only means that certain submitted information has been reviewed according to applicable platform procedures. Every user remains responsible for their own business decisions, communication, pricing, dispatch, delivery, and payment confirmation.",
+        ],
+      },
+      {
+        title: "Individual verification standards",
+        body: [
+          "Individual verification may include identity confirmation, mobile verification, address details, role confirmation, and basic marketplace activity review. The purpose is to confirm that the person using the account is connected with the role selected on eFruitMandi.",
+          "Individual users must not create misleading profiles, use another person’s identity, hide their actual role, or submit documents that do not belong to them.",
+        ],
+      },
+      {
+        title: "Business entity verification",
+        body: [
+          "Business entities such as companies, firms, partnerships, LLPs, cooperatives, producer groups, wholesalers, exporters, retailers, and logistics businesses may be asked to provide registration details, authorized representative information, tax details, address proof, and operational records.",
+          "Business verification helps eFruitMandi understand whether the account is being operated by a genuine business or authorized person. It does not mean that eFruitMandi guarantees the business, its financial condition, or future performance.",
+        ],
+      },
+      {
+        title: "Verification timelines",
+        body: [
+          "KYC review timelines may vary depending on document clarity, account type, workload, risk checks, support follow-up, and completeness of information.",
+          "Some requests may be reviewed quickly, while others may require additional clarification. Users should avoid repeated submissions of unclear or incorrect documents because this can delay the process.",
+        ],
+      },
+      {
+        title: "High-risk activity review",
+        body: [
+          "eFruitMandi may conduct additional review when an account shows unusual activity, repeated complaints, inconsistent information, suspicious quotations, misleading listings, payment concerns, or behavior that may affect marketplace trust.",
+          "During review, some account features may be limited until the concern is resolved. This helps protect growers, buyers, logistics partners, and the platform ecosystem.",
+        ],
+      },
+      {
+        title: "Account suspension scenarios",
+        body: [
+          "An account may be restricted, suspended, or permanently removed if the user submits fake documents, misuses another person’s identity, creates duplicate misleading accounts, attempts fraud, repeatedly violates marketplace policies, or refuses reasonable verification requests.",
+          "Suspension may also occur when the account is connected with abusive communication, false fruit claims, fake buyer enquiries, payment misuse, logistics misuse, or activity that harms other users.",
+        ],
+      },
+      {
+        title: "Appeal and correction process",
+        body: [
+          "If a KYC request is rejected or an account is restricted, the user may contact eFruitMandi support with corrected information, clearer documents, or a reasonable explanation.",
+          "Appeals are reviewed based on available information. Submitting an appeal does not guarantee approval, restoration, or reversal of a previous decision.",
+        ],
+      },
+      {
+        title: "Payment and settlement confidence",
+        body: [
+          "KYC supports safer payment and settlement records by helping eFruitMandi connect marketplace activity with verified user information.",
+          "KYC may assist in support, dispute review, transaction records, invoices, challans, refunds, settlement checks, and payment-related communication. However, KYC does not guarantee that every payment or transaction will be successful.",
+        ],
+      },
+      {
+        title: "Record retention and compliance support",
+        body: [
+          "eFruitMandi may retain KYC records for operational, legal, compliance, fraud prevention, dispute resolution, audit, support, and security purposes as required by applicable policies and laws.",
+          "Records may be kept even after account closure where retention is necessary for lawful, regulatory, security, or business reasons.",
+        ],
+      },
+      {
+        title: "User responsibilities after KYC",
+        body: [
+          "Verified users must continue to follow marketplace rules. They must communicate honestly, provide accurate fruit information, maintain professional behavior, and update important account or business details when required.",
+          "A verified status can be reviewed, suspended, or removed if later conduct creates trust concerns.",
+        ],
+      },
+      {
+        title: "KYC FAQs",
+        body: [
+          "Is KYC free on eFruitMandi? Yes. Mandatory KYC is free for growers, buyers, and logistics partners.",
+          "Is KYC the same as OG Verified? No. KYC is identity and record verification. OG Verified or Trusted Badge is a separate physical verification and trust program.",
+          "Does KYC guarantee fruit quality? No. Fruit quality depends on actual grade, packing, harvest condition, handling, and inspection.",
+          "Can KYC be rejected? Yes. KYC may be rejected if documents are unclear, incomplete, expired, inconsistent, fake, edited, or unsuitable for review.",
+          "Can eFruitMandi ask for KYC again? Yes. Re-verification may be required when information changes, documents expire, or trust concerns arise.",
+          "Does KYC guarantee payment? No. KYC improves records and accountability, but users must still confirm deal terms and payment details carefully.",
+          "Can verified status be removed? Yes. Verification status may be reviewed or removed if the user violates policies or submits false information.",
+          "Can one person use multiple roles? Role combinations may be allowed only as per platform rules and business identity requirements. Separate buyer and logistics businesses must maintain separate accounts and separate KYC.",
+        ],
+      },
     ],
   }),
 
@@ -1031,7 +1184,6 @@ export const staticPages = {
           "Can GPS tracking always be available? No. Tracking availability may depend on devices, connectivity, permissions, and operational conditions.",
         ],
       },
-
     ],
   }),
 
@@ -1854,5 +2006,3 @@ export const staticPageRouteTypes = [
 ];
 
 export { business };
-
-
