@@ -2178,6 +2178,90 @@ export const staticPages = {
           "eFruitMandi does not directly grade fruit unless separately stated in writing. Listing information is provided by users and may be reviewed for support or safety purposes.",
         ],
       },
+      {
+        title: "Introduction to fruit grading and packing",
+        body: [
+          "Fruit grading and packing are important quality management practices that help growers, buyers, transporters, wholesalers, retailers, and exporters communicate consistently about fruit quality. Proper grading improves transparency, reduces misunderstandings, supports fair pricing, and helps buyers understand the expected condition of a consignment before purchase.",
+          "eFruitMandi encourages growers and buyers to use clear grading standards whenever possible. Consistent grading helps improve trust, simplifies negotiations, reduces disputes, and supports more efficient fruit trade across different market regions.",
+        ],
+      },
+      {
+        title: "Why fruit grading matters",
+        body: [
+          "Fruit grading helps separate fruit based on quality, size, appearance, maturity, and market suitability. Different grades often have different commercial value because buyers may require specific quality standards for wholesale, retail, processing, hospitality, export, or institutional use.",
+          "Accurate grading allows buyers to compare consignments more effectively and helps growers present their produce in a transparent manner. Good grading practices can reduce disputes related to fruit condition and quality expectations.",
+        ],
+      },
+      {
+        title: "Domestic market grade versus export grade",
+        body: [
+          "Domestic market standards and export market standards may differ significantly. Export markets often require stricter requirements relating to appearance, size uniformity, maturity, color development, packaging quality, traceability, and defect tolerance.",
+          "Fruit suitable for domestic sale may not always qualify for export-grade requirements. Growers should understand the expectations of their target market before harvest, grading, and packing operations begin.",
+        ],
+      },
+      {
+        title: "A+ grade fruit",
+        body: [
+          "A+ grade generally represents premium fruit with excellent appearance, strong color development, good size uniformity, minimal visible defects, and strong commercial presentation.",
+          "A+ grade fruit should normally be free from significant bruising, cracking, disease damage, insect injury, sunburn, decay, or packing-related defects. Exact standards may vary by fruit type and market conditions.",
+        ],
+      },
+      {
+        title: "A grade fruit",
+        body: [
+          "A grade fruit typically represents high-quality produce suitable for demanding wholesale and retail markets. Minor cosmetic variation may be acceptable where overall appearance remains attractive.",
+          "A grade fruit should maintain good size consistency, acceptable color development, sound packing quality, and limited visible defects.",
+        ],
+      },
+      {
+        title: "B+ grade fruit",
+        body: [
+          "B+ grade fruit may contain moderate variation in appearance, color, size, or cosmetic condition while remaining commercially acceptable for many market channels.",
+          "Fruit in this category may still have strong eating quality even if visual appearance does not meet premium-grade expectations.",
+        ],
+      },
+      {
+        title: "B grade fruit",
+        body: [
+          "B grade fruit may show greater variability in size, color, maturity, shape, or cosmetic condition. Such fruit may remain suitable for local markets, value-oriented buyers, processing applications, or alternative distribution channels.",
+          "Accurate disclosure of condition is important when marketing B grade consignments.",
+        ],
+      },
+      {
+        title: "C and D grade fruit",
+        body: [
+          "C grade and D grade fruit generally represent lower commercial quality due to defects, irregular appearance, reduced shelf life, mechanical damage, disease impact, maturity concerns, or other quality limitations.",
+          "These grades may still have value for processing, local consumption, livestock applications, or specialized market uses depending on the fruit type and condition.",
+        ],
+      },
+      {
+        title: "Mixed grade and ungraded fruit",
+        body: [
+          "Mixed grade consignments contain fruit from multiple quality categories. Such consignments should be clearly disclosed so buyers understand expected variability.",
+          "Ungraded fruit should not be represented as premium fruit. Honest disclosure supports marketplace trust and reduces quality-related disputes.",
+        ],
+      },
+      {
+        title: "Fruit size classification",
+        body: [
+          "Fruit size is an important grading factor in many markets. Buyers may prefer specific size ranges depending on consumer demand, packaging requirements, retail presentation, or export specifications.",
+          "Where practical, growers should sort fruit into reasonably consistent size categories before packing and dispatch.",
+        ],
+      },
+      {
+        title: "Colour and appearance classification",
+        body: [
+          "Color development often influences market value because appearance affects buyer perception and retail presentation. However, color alone should not be used as the only indicator of eating quality or maturity.",
+          "Color standards may vary depending on fruit variety, growing region, climate conditions, and market requirements.",
+        ],
+      },
+      {
+        title: "Fruit maturity standards",
+        body: [
+          "Maturity affects shelf life, transport safety, taste, texture, ripening behavior, and buyer satisfaction. Fruit harvested too early may lack eating quality, while over-mature fruit may soften quickly and suffer higher transit loss.",
+          "Growers should consider market distance, expected transport time, fruit variety, and buyer requirement before harvest and packing.",
+        ],
+      },
     ],
   }),
 
@@ -2316,3 +2400,4 @@ export const staticPageRouteTypes = [
 ];
 
 export { business };
+
