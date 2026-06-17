@@ -1380,6 +1380,90 @@ export const staticPages = {
           "eFruitMandi may review, restrict, suspend, or escalate activity that appears fraudulent, unsafe, unlawful, abusive, or against platform policy.",
         ],
       },
+      {
+        title: "Purpose of community guidelines",
+        body: [
+          "Community Guidelines help create a professional digital fruit marketplace where growers, buyers, logistics partners, commission agents, traders, transporters, and other participants can communicate responsibly and conduct business with confidence.",
+          "These guidelines are intended to improve trust, transparency, safety, accountability, and long-term marketplace quality. All users are expected to follow both the spirit and the wording of these guidelines.",
+        ],
+      },
+      {
+        title: "Professional marketplace conduct",
+        body: [
+          "Users should behave professionally when communicating through eFruitMandi. Conversations should remain focused on genuine fruit trade, logistics coordination, pricing discussions, payment communication, quality clarification, and business-related matters.",
+          "Professional conduct helps create a positive environment where growers and buyers can build long-term business relationships.",
+        ],
+      },
+      {
+        title: "Honest communication standards",
+        body: [
+          "Users must communicate honestly regarding fruit quality, grading, packing, quantity, location, harvest condition, loading readiness, delivery expectations, payment arrangements, and other commercial information.",
+          "Misleading statements, false promises, fake commitments, or intentional concealment of important facts may damage marketplace trust and may lead to account review.",
+        ],
+      },
+      {
+        title: "Fruit listing accuracy",
+        body: [
+          "Fruit listings should accurately describe the product being offered. Users should provide realistic information regarding variety, grade, size, packing condition, maturity level, approximate quantity, and location.",
+          "Listings should not exaggerate quality, hide visible defects, or create unrealistic expectations about the condition of the consignment.",
+        ],
+      },
+      {
+        title: "Photo and video standards",
+        body: [
+          "Photos and videos uploaded to the platform should reasonably represent the actual fruit, orchard, packing condition, storage condition, or business operation being described.",
+          "Users should not upload edited, manipulated, misleading, stolen, unrelated, or outdated media that may create confusion regarding the actual product or business.",
+        ],
+      },
+      {
+        title: "Prohibited activities",
+        body: [
+          "Users must not engage in fraud, impersonation, identity misuse, fake buyer activity, fake grower activity, document manipulation, payment abuse, account misuse, harassment, threats, unlawful conduct, or activities that damage marketplace trust.",
+          "Any attempt to intentionally mislead other participants may result in restrictions, suspension, or permanent removal from the platform.",
+        ],
+      },
+      {
+        title: "Misleading information policy",
+        body: [
+          "Users should not intentionally provide false orchard information, fake business details, incorrect contact information, inaccurate fruit descriptions, false quantity claims, fake transport arrangements, or misleading payment statements.",
+          "Trust within the fruit trade ecosystem depends on reliable information. Repeated misinformation may result in enforcement action.",
+        ],
+      },
+      {
+        title: "Spam and promotional abuse",
+        body: [
+          "Users should not use eFruitMandi for mass spam, irrelevant promotions, misleading advertisements, repeated unsolicited messages, or unrelated commercial activities.",
+          "Marketplace tools should be used for genuine fruit trade and related business purposes only.",
+        ],
+      },
+      {
+        title: "Respectful communication",
+        body: [
+          "All users should communicate respectfully regardless of region, language, business size, transaction value, experience level, or marketplace role.",
+          "Abusive language, intimidation, harassment, discrimination, threats, personal attacks, or repeated disruptive behavior are not acceptable.",
+        ],
+      },
+      {
+        title: "Marketplace trust principles",
+        body: [
+          "Trust is one of the most important foundations of agricultural commerce. Growers, buyers, logistics partners, commission agents, and service providers all benefit when information is accurate and commitments are respected.",
+          "Users are encouraged to maintain transparency, document important agreements, preserve transaction records, communicate promptly, and act responsibly throughout the business process.",
+        ],
+      },
+      {
+        title: "Responsible use of quotations",
+        body: [
+          "Quotations, offers, and price discussions should be made in good faith. Users should avoid creating fake interest, artificial demand, misleading quotations, or non-serious negotiations that waste the time of other participants.",
+          "Price discovery tools should be used responsibly and for genuine commercial purposes.",
+        ],
+      },
+      {
+        title: "Support and dispute cooperation",
+        body: [
+          "If a dispute arises, users should cooperate with support reviews by providing accurate information, relevant records, photographs, videos, invoices, challans, transport records, payment references, or other supporting evidence where available.",
+          "Failure to cooperate during a reasonable investigation may affect trust assessments and account status reviews.",
+        ],
+      },
     ],
   }),
 
