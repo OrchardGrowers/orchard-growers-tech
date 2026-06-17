@@ -255,7 +255,7 @@ const policyLinkGroups = [
     { label: "Media Center", path: "/media" },
     { label: "Press Release", path: "/press-release" },
     { label: "News & Updates", path: "/news-updates" },
-    { label: "Blog", path: "/blog" },
+    { label: "Horticulture Blog", path: "/blog" },
   ],
 },
 ];

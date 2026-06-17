@@ -167,10 +167,10 @@ function App() {
             <Route path="/lots/:lotId/rating" element={<RateGrower />} />
             <Route path="/search" element={<SearchResults />} />
             <Route path="/fruit-lots/:fruitSlug" element={<FruitLotsPage />} />
-            <Route path="/fruit-buyers/:fruitSlug" element={<FruitSeoPage type="buyers" />} />
-            <Route path="/fruit-growers/:fruitSlug" element={<FruitSeoPage type="growers" />} />
-            <Route path="/:fruitSlug-market-price" element={<FruitSeoPage type="marketPrice" />} />
-            <Route path="/fruit-transport" element={<FruitSeoPage type="transport" />} />
+            <Route path="/blog/fruit-buyers/:fruitSlug" element={<FruitSeoPage type="buyers" />} />
+            <Route path="/blog/fruit-growers/:fruitSlug" element={<FruitSeoPage type="growers" />} />
+            <Route path="/blog/:fruitSlug-market-price" element={<FruitSeoPage type="marketPrice" />} />
+            <Route path="/blog/fruit-transport" element={<FruitSeoPage type="transport" />} />
             <Route path="/media" element={<MediaPage />} />
             <Route path="/press-release" element={<PressReleasePage />} />
             <Route path="/news-updates" element={<NewsUpdatesPage />} />

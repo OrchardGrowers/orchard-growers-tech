@@ -25,6 +25,7 @@ import hsnRoutes from "./routes/hsnRoutes.js";
 import debugRoutes from "./routes/debugRoutes.js";
 import logisticsRoutes from "./routes/logisticsRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
+import searchRoutes from "./routes/searchRoutes.js";
 
 import Auction from "./models/Auction.js";
 import Order from "./models/Order.js";
@@ -186,6 +187,7 @@ app.use("/api/hsn", hsnRoutes);
 app.use("/api/debug", debugRoutes);
 app.use("/api/logistics", logisticsRoutes);
 app.use("/api/uploads", uploadRoutes);
+app.use("/api/search", searchRoutes);
 
 app.get("/", (req, res) => {
   res.send("API Running...");
@@ -623,3 +625,5 @@ server.listen(PORT, "0.0.0.0", () => {
 server.on("error", (err) => {
   console.error("Server error:", err);
 });
+
+
