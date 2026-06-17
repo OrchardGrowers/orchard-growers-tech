@@ -910,6 +910,163 @@ export const staticPages = {
           "OG Verified supports trust, quality confidence, physical verification, and better confidence in future deals. It does not guarantee a rate, sale, profit, or final outcome.",
         ],
       },
+      {
+        title: "Difference between KYC and OG Verified",
+        body: [
+          "KYC and OG Verified serve different purposes. KYC is a mandatory identity and record verification process designed to improve marketplace transparency, payment confidence, compliance support, and user accountability.",
+          "OG Verified is a separate trust and physical verification program that may involve field assessment, farm inspection, premises verification, video documentation, business review, and trust evaluation. A user may complete KYC and still not qualify for OG Verified status.",
+          "OG Verified should not be interpreted as a government certification, product certification, export license, legal approval, insurance policy, or guarantee of future business performance.",
+        ],
+      },
+      {
+        title: "Why physical verification matters",
+        body: [
+          "Fruit trading often involves participants located in different districts, states, and market regions. Physical verification helps create additional confidence beyond digital identity records.",
+          "Verification may help confirm that a grower, buyer, orchard, warehouse, collection point, packing facility, office location, or business premises genuinely exists and is connected to the applicant.",
+          "Physical verification supports trust-building but does not eliminate all business risks. Users should continue to conduct independent commercial evaluation before entering into transactions.",
+        ],
+      },
+      {
+        title: "Who can apply for OG Verified",
+        body: [
+          "OG Verified is primarily available to growers and buyers operating through the eFruitMandi ecosystem. Eligibility requirements may change over time based on operational priorities and marketplace needs.",
+          "Applicants must generally maintain an active account, complete mandatory KYC requirements, cooperate with verification procedures, and provide accurate information during the review process.",
+        ],
+      },
+      {
+        title: "Grower verification standards",
+        body: [
+          "Grower verification may include orchard assessment, operational review, fruit handling practices, packing procedures, grading awareness, harvesting methods, storage practices, and overall marketplace conduct.",
+          "The purpose is not to judge farming style but to better understand operational practices and improve trust indicators available within the platform ecosystem.",
+        ],
+      },
+      {
+        title: "Buyer verification standards",
+        body: [
+          "Buyer verification may include review of business operations, procurement practices, storage facilities, trading history, market presence, communication standards, and professional conduct.",
+          "Verification may help growers identify buyers that have undergone additional trust review beyond basic account registration requirements.",
+        ],
+      },
+      {
+        title: "Video documentation process",
+        body: [
+          "As part of the verification process, Orchard Growers or eFruitMandi representatives may record photographs, videos, interviews, site observations, operational activities, or verification evidence where appropriate.",
+          "Video documentation helps improve review quality, supports future audit requirements, and may assist in resolving verification disputes or trust-related concerns.",
+        ],
+      },
+      {
+        title: "Business assessment framework",
+        body: [
+          "The verification process may consider factors such as operational transparency, business consistency, marketplace reputation, communication quality, document availability, infrastructure readiness, and willingness to cooperate with verification procedures.",
+          "Assessment criteria may evolve as the platform develops new trust programs and quality standards.",
+        ],
+      },
+      {
+        title: "Benefits of OG Verified status",
+        body: [
+          "OG Verified status may improve visibility, increase marketplace confidence, strengthen profile credibility, improve buyer-grower communication, and support future trust-based features introduced by eFruitMandi.",
+          "Additional benefits may be introduced in the future. Availability of benefits may vary depending on platform development priorities and operational requirements.",
+        ],
+      },
+      {
+        title: "Limitations of OG Verified status",
+        body: [
+          "OG Verified does not guarantee fruit quality, transaction success, payment completion, logistics performance, buyer behavior, grower behavior, profitability, or business outcomes.",
+          "The badge should be viewed as an additional trust indicator rather than a guarantee or endorsement of every future action taken by a verified participant.",
+        ],
+      },
+      {
+        title: "General trust principles",
+        body: [
+          "Trust is built through consistent behavior over time. Verification is only one component of marketplace trust. Communication quality, transparency, professionalism, accurate listings, responsible conduct, and fair dealing practices remain important factors.",
+          "All users are encouraged to maintain ethical business practices regardless of verification status.",
+        ],
+      },
+      {
+        title: "Approval criteria",
+        body: [
+          "OG Verified approval may depend on completed KYC, accurate profile information, cooperation during physical verification, reasonable operational transparency, and satisfactory review of farm, premises, business, or marketplace conduct.",
+          "Approval is not automatic after payment of the fee. The verification fee supports the review process, visit, documentation, assessment, and administrative work. Final approval depends on whether the trust standards are reasonably met.",
+        ],
+      },
+      {
+        title: "Rejection criteria",
+        body: [
+          "An application may be rejected if the applicant provides false information, refuses reasonable verification, hides important facts, submits misleading documents, or fails to meet basic trust expectations.",
+          "Rejection may also occur if the orchard, premises, business activity, or applicant identity cannot be reasonably verified.",
+        ],
+      },
+      {
+        title: "Badge suspension rules",
+        body: [
+          "OG Verified status may be temporarily suspended if complaints, suspicious activity, inconsistent information, quality disputes, payment concerns, misleading communication, or policy violations require review.",
+          "During suspension, the badge may be hidden, limited, or marked under review until the concern is resolved.",
+        ],
+      },
+      {
+        title: "Badge revocation rules",
+        body: [
+          "The badge may be revoked if serious trust violations are found. This may include fake claims, repeated complaints, deliberate misrepresentation, fraud attempts, abusive conduct, document manipulation, or misuse of the OG Verified identity.",
+          "Revocation does not automatically remove the user from the platform, but serious violations may also lead to account restrictions or suspension under applicable marketplace policies.",
+        ],
+      },
+      {
+        title: "Complaint investigation framework",
+        body: [
+          "If a complaint is raised against an OG Verified user, eFruitMandi may review communication records, listing details, photos, videos, dispatch information, payment references, logistics records, and user statements.",
+          "The purpose of investigation is to understand whether the complaint relates to quality, conduct, communication, payment, delivery, or misuse of trust indicators.",
+        ],
+      },
+      {
+        title: "Marketplace reputation review",
+        body: [
+          "OG Verified users are expected to maintain professional behavior after approval. Their marketplace reputation may be influenced by accurate listings, timely responses, fair communication, responsible commitments, and complaint history.",
+          "A user who was approved earlier may be reviewed again if later conduct creates trust concerns.",
+        ],
+      },
+      {
+        title: "Renewal and re-assessment",
+        body: [
+          "OG Verified status may require renewal, re-assessment, or fresh review depending on platform policy, seasonal activity, business changes, complaint history, or expiry of verification records.",
+          "eFruitMandi may update renewal rules, validity periods, and re-verification requirements as the platform evolves.",
+        ],
+      },
+      {
+        title: "Use of badge identity",
+        body: [
+          "Users must not misuse the OG Verified badge, copy it outside allowed contexts, create fake verification claims, or suggest that the badge provides guarantees beyond this policy.",
+          "Any misuse of the badge name, logo, status, or trust representation may result in badge removal or account action.",
+        ],
+      },
+      {
+        title: "Grower benefits",
+        body: [
+          "For growers, OG Verified may improve profile credibility, help buyers feel more confident, support better communication, and show that the grower has undergone additional trust review beyond basic KYC.",
+          "It may also help create stronger long-term marketplace identity for serious orchard owners and fruit sellers.",
+        ],
+      },
+      {
+        title: "Buyer benefits",
+        body: [
+          "For buyers, OG Verified may improve trust with growers, support professional procurement identity, and create confidence that the buyer has undergone additional verification review.",
+          "This can be useful for wholesalers, retailers, exporters, institutional buyers, and serious fruit traders who want stronger marketplace credibility.",
+        ],
+      },
+      {
+        title: "OG Verified FAQs",
+        body: [
+          "Is OG Verified mandatory? No. Mandatory KYC is required for marketplace trust records, but OG Verified is a separate paid trust and physical verification program.",
+          "What is the fee? The current fee is Rs. 5,000, subject to policy updates.",
+          "Does paying the fee guarantee approval? No. The fee supports the verification process. Approval depends on review results.",
+          "Does OG Verified guarantee fruit quality? No. It supports trust and physical verification but does not guarantee every future consignment.",
+          "Does OG Verified replace KYC? No. KYC remains mandatory and separate.",
+          "Can the badge be removed? Yes. The badge may be suspended or revoked if trust concerns, complaints, or policy violations arise.",
+          "Is OG Verified a government certificate? No. It is a platform trust program operated by eFruitMandi / Orchard Growers.",
+          "Can buyers also apply? Yes. OG Verified may apply to eligible growers and buyers.",
+          "Does the badge guarantee sale or profit? No. It does not guarantee rate, sale, profit, payment, delivery, or final business outcome.",
+          "Can the rules change? Yes. eFruitMandi may update rules, fees, eligibility, review standards, and renewal requirements.",
+        ],
+      },
     ],
   }),
 
