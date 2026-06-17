@@ -25,7 +25,6 @@ const RegisterDriver = lazy(() => import("./pages/RegisterDriver"));
 const ListNewLot = lazy(() => import("./pages/ListNewLot"));
 const GetVerified = lazy(() => import("./pages/GetVerified"));
 const Kyc = lazy(() => import("./pages/Kyc"));
-const TermsAndConditions = lazy(() => import("./pages/TermsAndConditions"));
 const PolicyPage = lazy(() => import("./pages/PolicyPage"));
 const GpsTracking = lazy(() => import("./pages/GpsTracking"));
 const EscrowWorkflow = lazy(() => import("./pages/EscrowWorkflow"));
@@ -140,7 +139,6 @@ function App() {
             <Route path="/kyc" element={<Kyc />} />
             <Route path="/kyc/status" element={<Kyc />} />
             <Route path="/profile/kyc" element={<Kyc />} />
-            <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
             <Route path="/about" element={<PolicyPage type="about" />} />
             <Route path="/our-story" element={<PolicyPage type="story" />} />
             <Route path="/vision-mission" element={<PolicyPage type="visionMission" />} />
