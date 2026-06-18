@@ -228,10 +228,12 @@ export default function SearchResults() {
       },
     ];
 
-    return [...blogItems, ...mediaItems, ...fruitItems, ...staticItems].filter((item) => {
+    const normalItems = [...blogItems, ...mediaItems, ...fruitItems, ...staticItems].filter((item) => {
       const haystack = flattenText(item).toLowerCase();
       return words.every((word) => haystack.includes(word));
     });
+
+    return [...priorityItems, ...normalItems];
   }, [words]);
 
   const totalResults = profiles.length + lots.length + contentResults.length;
@@ -436,6 +438,7 @@ function getImageUrl(product) {
 
   return resolveImageUrl(image);
 }
+
 
 
 
