@@ -576,8 +576,8 @@ export default function Home() {
       />
     </div>
 
-    <div className="hidden w-full gap-5 md:grid md:grid-cols-[218px_minmax(0,1fr)] lg:grid-cols-[218px_minmax(0,1fr)_314px] xl:grid-cols-[240px_minmax(0,1fr)_340px]">
-      <aside className="auto-hide-column-scroll sticky top-16 max-h-[calc(100vh-5rem)] self-start space-y-2.5 overflow-y-auto pr-1">
+    <div className="hidden h-[calc(100vh-4rem)] w-full gap-5 overflow-hidden md:grid md:grid-cols-[218px_minmax(0,1fr)] lg:grid-cols-[218px_minmax(0,1fr)_314px] xl:grid-cols-[240px_minmax(0,1fr)_340px]">
+      <aside className="auto-hide-column-scroll min-h-0 h-full space-y-2.5 overflow-y-auto pr-1 overscroll-contain">
         <ProfileCard
           user={user}
           onOpen={openProfileEntry}
@@ -587,7 +587,7 @@ export default function Home() {
         <PolicyMiniLinks />
       </aside>
 
-      <section className="min-w-0 space-y-3">
+      <section className="min-h-0 min-w-0 space-y-3 overflow-y-auto pr-1 overscroll-contain">
         <BannerSlider />
 
         <div className="flex items-center gap-3">
@@ -630,7 +630,7 @@ export default function Home() {
         )}
       </section>
 
-      <aside className="auto-hide-column-scroll sticky top-16 hidden max-h-[calc(100vh-5rem)] self-start space-y-2.5 overflow-y-auto pr-1 lg:block">
+      <aside className="auto-hide-column-scroll hidden min-h-0 h-full space-y-2.5 overflow-y-auto pr-1 overscroll-contain lg:block">
         <NewsCard />
             <AdCard user={user} onListLot={openListLotFlow} />
       </aside>
@@ -2030,3 +2030,6 @@ function getLotDetails(product = {}) {
     { label: "Description", value: product.description },
   ].filter((detail) => detail.value !== undefined && detail.value !== null && String(detail.value).trim());
 }
+
+
+
