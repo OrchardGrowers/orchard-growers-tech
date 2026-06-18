@@ -31,7 +31,7 @@ const priorityContentCards = [
   {
     type: "Marketplace",
     title: "Live Fruit Lots",
-    url: "/fruit-lots",
+    url: "/auctions",
     description: "View live fruit lots, available fruit listings, grower lots and marketplace fruit supply.",
     keywords: [
       "live fruit lots",
@@ -48,9 +48,9 @@ const priorityContentCards = [
   },
   {
     type: "Marketplace",
-    title: "Upcoming Fruit Lots",
-    url: "/fruit-lots",
-    description: "Explore upcoming fruit lots and newly listed grower produce on eFruitMandi.",
+    title: "No Upcoming Fruit Lots Available",
+    url: "/auctions",
+    description: "No upcoming fruit lots are available right now. You can still check live fruit lots, buyer quotes, grower listings and related marketplace information below.",
     keywords: [
       "upcoming lots",
       "upcoming fruit lots",
@@ -436,5 +436,8 @@ function getImageUrl(product) {
 
   return resolveImageUrl(image);
 }
+
+
+
 
 
