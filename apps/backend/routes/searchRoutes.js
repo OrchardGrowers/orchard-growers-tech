@@ -40,6 +40,11 @@ router.get("/", async (req, res) => {
 
     const regex = new RegExp(escapeRegex(q), "i");
 
+    const marketplaceIntentRegex =
+      /\b(fruit lots?|live fruit lots?|available lots?|upcoming lots?|upcoming fruit lots?|deals?|live deals?|fruit deals?|auction|auctions|quote|quotes|quotation|marketplace)\b/i;
+
+    const isMarketplaceIntent = marketplaceIntentRegex.test(q);
+
     const [profiles, lots] = await Promise.all([
       User.find({
         $or: [
@@ -63,20 +68,24 @@ router.get("/", async (req, res) => {
         .limit(limit)
         .lean(),
 
-      Product.find({
-        createdSource: "grower",
-        $or: [
-          { title: regex },
-          { fruitName: regex },
-          { variety: regex },
-          { description: regex },
-          { location: regex },
-          { lotNo: regex },
-          { packingType: regex },
-          { status: regex },
-          { "gradeLots.grade": regex },
-        ],
-      })
+      Product.find(
+        isMarketplaceIntent
+          ? { createdSource: "grower" }
+          : {
+              createdSource: "grower",
+              $or: [
+                { title: regex },
+                { fruitName: regex },
+                { variety: regex },
+                { description: regex },
+                { location: regex },
+                { lotNo: regex },
+                { packingType: regex },
+                { status: regex },
+                { "gradeLots.grade": regex },
+              ],
+            }
+      )
         .select(
           "title fruitName variety description location lotNo quantity status images imageObjects gradeLots createdBy createdAt"
         )
@@ -110,4 +119,5 @@ router.get("/", async (req, res) => {
 });
 
 export default router;
+
 
