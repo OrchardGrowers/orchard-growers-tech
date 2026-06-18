@@ -27,6 +27,73 @@ const blogCards = [
     description: "Fruit transport, logistics, dispatch planning, delivery support and road movement information.",
   },
 ];
+const priorityContentCards = [
+  {
+    type: "Marketplace",
+    title: "Live Fruit Lots",
+    url: "/fruit-lots",
+    description: "View live fruit lots, available fruit listings, grower lots and marketplace fruit supply.",
+    keywords: [
+      "live fruit lots",
+      "fruit lots",
+      "fruit lot",
+      "available lots",
+      "available fruit lots",
+      "live lots",
+      "marketplace lots",
+      "grower lots",
+      "fresh fruit lots",
+      "fruit listings",
+    ],
+  },
+  {
+    type: "Marketplace",
+    title: "Upcoming Fruit Lots",
+    url: "/fruit-lots",
+    description: "Explore upcoming fruit lots and newly listed grower produce on eFruitMandi.",
+    keywords: [
+      "upcoming lots",
+      "upcoming fruit lots",
+      "new lots",
+      "coming lots",
+      "future lots",
+      "next fruit lots",
+    ],
+  },
+  {
+    type: "Marketplace",
+    title: "Fruit Lots for Quote",
+    url: "/auctions",
+    description: "Check fruit lots open for buyer quotation, rate discovery and deal negotiation.",
+    keywords: [
+      "fruit lots for auctions",
+      "fruit auctions",
+      "upcoming auctions",
+      "auction lots",
+      "live auctions",
+      "quote lots",
+      "quotation lots",
+      "buyer quote",
+      "rate discovery",
+    ],
+  },
+  {
+    type: "Profiles",
+    title: "Marketplace Profiles",
+    url: "/search",
+    description: "Search grower, buyer and driver profiles on eFruitMandi.",
+    keywords: [
+      "profile",
+      "profiles",
+      "grower profile",
+      "buyer profile",
+      "driver profile",
+      "seller profile",
+      "farmer profile",
+      "transporter profile",
+    ],
+  },
+];
 
 export default function SearchResults() {
   const navigate = useNavigate();
@@ -115,6 +182,20 @@ export default function SearchResults() {
       url: card.url,
       content: flattenText(card),
     }));
+
+    const priorityItems = priorityContentCards
+      .filter((card) => {
+        const q = query.toLowerCase().trim();
+        return card.keywords.some((keyword) => q.includes(keyword));
+      })
+      .map((card) => ({
+        type: card.type,
+        title: card.title,
+        description: card.description,
+        url: card.url === "/search" ? `/search?q=${encodeURIComponent(query)}` : card.url,
+        content: flattenText(card),
+        priority: true,
+      }));
 
     const mediaItems = [
       {
@@ -355,3 +436,5 @@ function getImageUrl(product) {
 
   return resolveImageUrl(image);
 }
+
+
