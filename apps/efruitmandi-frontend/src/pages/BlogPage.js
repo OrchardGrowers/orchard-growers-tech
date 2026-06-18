@@ -8,7 +8,7 @@ const horticultureCards = [
       "Find apple buyers, traders, wholesalers and procurement opportunities for apple growers across India.",
     image:
       "https://res.cloudinary.com/doprdp6bi/image/upload/f_auto,q_auto,w_1200/v1781716974/noname_13-apple-2788616_lihydh.jpg",
-    link: "/blog/fruit-buyers/apple",
+    link: "/fruit-buyers/apple",
     buttonText: "Explore Apple Buyers",
   },
   {
@@ -17,7 +17,7 @@ const horticultureCards = [
       "Explore apple farming, orchard management, grading, packing and marketing information for apple growers.",
     image:
       "https://res.cloudinary.com/doprdp6bi/image/upload/f_auto,q_auto,w_1200/v1781717271/alandsmann-harvest-7458975_g3knnc.jpg",
-    link: "/blog/fruit-growers/apple",
+    link: "/fruit-growers/apple",
     buttonText: "Explore Grower Guide",
   },
   {
@@ -26,7 +26,7 @@ const horticultureCards = [
       "Understand apple mandi trends, seasonal demand, market prices and price discovery for fruit trading.",
     image:
       "https://res.cloudinary.com/doprdp6bi/image/upload/f_auto,q_auto,w_1200/v1781717350/couleur-apple-1589869_qjsdfe.jpg",
-    link: "/blog/apple-market-price",
+    link: "/apple-market-price",
     buttonText: "View Market Trends",
   },
   {
@@ -35,7 +35,7 @@ const horticultureCards = [
       "Learn about fruit transport, logistics planning, loading, dispatch and delivery support for fruit trade.",
     image:
       "https://res.cloudinary.com/doprdp6bi/image/upload/f_auto,q_auto,w_1200/v1781717511/mploscar-apple-1122537_nkygzs.jpg",
-    link: "/blog/fruit-transport",
+    link: "/fruit-transport",
     buttonText: "Explore Logistics",
   },
 ];

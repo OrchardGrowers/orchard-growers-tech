@@ -8,22 +8,22 @@ import { fruitSeoPages } from "../data/fruitSeoPages";
 const blogCards = [
   {
     title: "Apple Fruit Buyers",
-    url: "/blog/fruit-buyers/apple",
+    url: "/fruit-buyers/apple",
     description: "Find apple buyers, traders, commission agents, wholesalers and direct fruit market connections.",
   },
   {
     title: "Apple Growers Guide",
-    url: "/blog/fruit-growers/apple",
+    url: "/fruit-growers/apple",
     description: "Guide for apple growers to list fruit lots, connect with buyers and improve market reach.",
   },
   {
     title: "Apple Market Price & Trends",
-    url: "/blog/apple-market-price",
+    url: "/apple-market-price",
     description: "Apple market price, mandi bhav, rate discovery, buyer quotations and fruit trade trends.",
   },
   {
     title: "Fruit Transport & Logistics",
-    url: "/blog/fruit-transport",
+    url: "/fruit-transport",
     description: "Fruit transport, logistics, dispatch planning, delivery support and road movement information.",
   },
 ];
@@ -158,12 +158,12 @@ export default function SearchResults() {
       Object.entries(fruits || {}).forEach(([fruitSlug, page]) => {
         const url =
           type === "buyers"
-            ? `/blog/fruit-buyers/${fruitSlug}`
+            ? `/fruit-buyers/${fruitSlug}`
             : type === "growers"
-              ? `/blog/fruit-growers/${fruitSlug}`
+              ? `/fruit-growers/${fruitSlug}`
               : type === "marketPrice"
-                ? `/blog/${fruitSlug}-market-price`
-                : "/blog/fruit-transport";
+                ? `/${fruitSlug}-market-price`
+                : "/fruit-transport";
 
         fruitItems.push({
           type: "SEO Resource",
