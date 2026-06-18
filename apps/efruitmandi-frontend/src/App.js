@@ -169,7 +169,7 @@ function App() {
             <Route path="/fruit-lots/:fruitSlug" element={<FruitLotsPage />} />
             <Route path="/blog/fruit-buyers/:fruitSlug" element={<FruitSeoPage type="buyers" />} />
             <Route path="/blog/fruit-growers/:fruitSlug" element={<FruitSeoPage type="growers" />} />
-            <Route path="/blog/:fruitSlug-market-price" element={<FruitSeoPage type="marketPrice" />} />
+            <Route path="/blog/market-price/:fruitSlug" element={<FruitSeoPage type="marketPrice" />} />
             <Route path="/blog/fruit-transport" element={<FruitSeoPage type="transport" />} />
             <Route path="/media" element={<MediaPage />} />
             <Route path="/press-release" element={<PressReleasePage />} />

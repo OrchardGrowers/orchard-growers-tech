@@ -26,7 +26,7 @@ const horticultureCards = [
       "Understand apple mandi trends, seasonal demand, market prices and price discovery for fruit trading.",
     image:
       "https://res.cloudinary.com/doprdp6bi/image/upload/f_auto,q_auto,w_1200/v1781717350/couleur-apple-1589869_qjsdfe.jpg",
-    link: "/apple-market-price",
+    link: "/blog/market-price/apple",
     buttonText: "View Market Trends",
   },
   {

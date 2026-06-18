@@ -18,7 +18,7 @@ const blogCards = [
   },
   {
     title: "Apple Market Price & Trends",
-    url: "/apple-market-price",
+    url: "/blog/market-price/apple",
     description: "Apple market price, mandi bhav, rate discovery, buyer quotations and fruit trade trends.",
   },
   {
@@ -162,7 +162,7 @@ export default function SearchResults() {
             : type === "growers"
               ? `/fruit-growers/${fruitSlug}`
               : type === "marketPrice"
-                ? `/${fruitSlug}-market-price`
+                ? `/blog/market-price/${fruitSlug}`
                 : "/fruit-transport";
 
         fruitItems.push({
