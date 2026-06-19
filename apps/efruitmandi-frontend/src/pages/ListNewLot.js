@@ -28,6 +28,31 @@ const loadFruitRecognition = () => {
   return fruitRecognitionModulePromise;
 };
 
+const withTimeout = (promise, ms = 15000) => {
+  let timeoutId;
+
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error("recognition-timeout")), ms);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
+};
+
+const isLowMemoryRecognitionError = (error) => {
+  const message = String(error?.message || error || "").toLowerCase();
+
+  return (
+    message.includes("memory") ||
+    message.includes("not enough") ||
+    message.includes("allocation") ||
+    message.includes("canvas") ||
+    message.includes("timeout") ||
+    message.includes("recognition-timeout") ||
+    message.includes("webgl") ||
+    message.includes("context lost")
+  );
+};
+
 const DEFAULT_FRUITS = [
   "Almond",
   "Amla",
@@ -491,16 +516,26 @@ export default function ListNewLot() {
         return;
       }
 
-      const { recognizeFruitImage } = await loadFruitRecognition();
-      const recognition = await recognizeFruitImage(file).catch(() => ({
-        accepted: false,
-        label: "unrecognized image",
-      }));
+      let recognition;
 
-      if (!recognition.accepted) {
-        setMessage(
-          `Image rejected. Fruit was not recognized. Detected: ${recognition.label}.`
+      try {
+        recognition = await withTimeout(
+          loadFruitRecognition().then(({ recognizeFruitImage }) =>
+            recognizeFruitImage(file)
+          ),
+          15000
         );
+      } catch (error) {
+        setMessage(
+          isLowMemoryRecognitionError(error)
+            ? "Low phone memory. Clean up some space and try again."
+            : "Image not recognized. Take image again."
+        );
+        return;
+      }
+
+      if (!recognition?.accepted) {
+        setMessage("Image not recognized. Take image again.");
         return;
       }
 
@@ -693,7 +728,7 @@ export default function ListNewLot() {
         )}
         {recognizing && (
           <div className="mb-4 rounded-md bg-green-50 px-3 py-2 text-xs font-semibold text-green-800">
-            Checking media for fruit recognition...
+            {uploadingImageSlot ? "Recognizing image..." : "Checking media for fruit recognition..."}
           </div>
         )}
         {loading && (
@@ -923,7 +958,7 @@ export default function ListNewLot() {
                             {isUploading ? <FaSpinner className="animate-spin" /> : <FaImage />}
                             <span className="text-xs font-semibold">
                               {isUploading
-                                ? "Uploading..."
+                                ? "Recognizing image..."
                                 : image
                                 ? `Sample ${grade.label} pic ${index + 1} selected`
                                 : `Take live sample pic ${grade.label} ${index + 1}`}
@@ -979,7 +1014,13 @@ export default function ListNewLot() {
           disabled={loading || recognizing}
           className="mt-6 w-full rounded-md bg-green-700 py-3 text-sm font-bold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-300"
         >
-          {loading ? "Listing..." : recognizing ? "Checking media..." : "List Lot"}
+          {loading
+            ? "Listing..."
+            : recognizing && uploadingImageSlot
+            ? "Recognizing image..."
+            : recognizing
+            ? "Checking media..."
+            : "List Lot"}
         </button>
       </form>
     </div>
