@@ -39,6 +39,14 @@ const isLowMemoryRecognitionError = (error) => {
   );
 };
 
+const hiddenNativeInputStyle = {
+  position: "absolute",
+  left: "-9999px",
+  width: "1px",
+  height: "1px",
+  opacity: 0,
+};
+
 export default function MobileCapture() {
   const { sessionId } = useParams();
   const isMobile = useMemo(() => isMobileDevice(), []);
@@ -69,7 +77,10 @@ export default function MobileCapture() {
     };
   }, [sessionId]);
 
-  const handleCapture = async (file) => {
+  const handleCapture = async (eventOrFile) => {
+    const file = eventOrFile?.target?.files?.[0] || eventOrFile;
+    if (eventOrFile?.target) eventOrFile.target.value = "";
+    if (uploading) return;
     if (!file || !session) return;
 
     if (!isMobile) {
@@ -136,7 +147,8 @@ export default function MobileCapture() {
   };
 
   const isImage = session?.mediaType === "image";
-  const captureInputId = `captureInput-${sessionId || "new"}`;
+  const captureInputId = "mobileCaptureInput";
+  const fallbackCaptureInputId = "mobileCaptureFallbackInput";
   const isStatusMessage =
     message === "Recognizing image..." || message === "Uploading captured media...";
 
@@ -180,15 +192,6 @@ export default function MobileCapture() {
 
       {!loading && isMobile && session && !uploaded && (
         <div className="mt-4">
-          <input
-            id={captureInputId}
-            type="file"
-            accept={isImage ? "image/*" : "video/*"}
-            capture="environment"
-            disabled={uploading}
-            onChange={(event) => handleCapture(event.target.files?.[0] || null)}
-            className="sr-only"
-          />
           <label
             htmlFor={captureInputId}
             className="flex cursor-pointer items-center justify-center gap-3 rounded-md border border-dashed border-green-400 bg-green-50 px-4 py-5 text-sm font-extrabold text-green-800"
@@ -204,6 +207,28 @@ export default function MobileCapture() {
                 : "Record Live Lot Video"}
             </span>
           </label>
+          <input
+            id={captureInputId}
+            type="file"
+            accept={isImage ? "image/*" : "video/*"}
+            capture="environment"
+            onChange={handleCapture}
+            style={hiddenNativeInputStyle}
+          />
+          <label
+            htmlFor={fallbackCaptureInputId}
+            className="mt-3 block cursor-pointer text-center text-xs font-bold text-green-800 underline"
+          >
+            If the camera does not open, tap here.
+          </label>
+          <input
+            id={fallbackCaptureInputId}
+            type="file"
+            accept={isImage ? "image/*" : "video/*"}
+            capture="environment"
+            onChange={handleCapture}
+            className="mt-2 w-full rounded-md border border-green-200 bg-white px-2 py-1 text-xs font-semibold text-gray-700"
+          />
         </div>
       )}
 
