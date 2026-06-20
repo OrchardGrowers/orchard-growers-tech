@@ -516,41 +516,23 @@ export default function ListNewLot() {
         return;
       }
 
-      let recognition;
-
-      try {
-        recognition = await withTimeout(
-          loadFruitRecognition().then(({ recognizeFruitImage }) =>
-            recognizeFruitImage(file)
-          ),
-          15000
-        );
-      } catch (error) {
-        setMessage(
-          isLowMemoryRecognitionError(error)
-            ? "Low phone memory. Clean up some space and try again."
-            : "Image not recognized. Take image again."
-        );
-        return;
-      }
-
-      if (!recognition?.accepted) {
-        setMessage("Image not recognized. Take image again.");
-        return;
-      }
-
+      // TEMP TEST: fruit recognition disabled to debug mobile image selection.
       const platformFile = await cropImageToPlatformFrame(file);
-      const images = [...(gradeLots[gradeKey].images || Array(5).fill(null))];
-      while (images.length < 5) images.push(null);
-      images[index] = platformFile || null;
 
-      setGradeLots({
-        ...gradeLots,
-        [gradeKey]: {
-          ...gradeLots[gradeKey],
-          images,
-        },
+      setGradeLots((current) => {
+        const images = [...(current[gradeKey]?.images || Array(5).fill(null))];
+        while (images.length < 5) images.push(null);
+        images[index] = platformFile || file;
+
+        return {
+          ...current,
+          [gradeKey]: {
+            ...current[gradeKey],
+            images,
+          },
+        };
       });
+      setMessage("");
     } finally {
       setRecognizing(false);
       setUploadingImageSlot(null);
@@ -728,7 +710,7 @@ export default function ListNewLot() {
         )}
         {recognizing && (
           <div className="mb-4 rounded-md bg-green-50 px-3 py-2 text-xs font-semibold text-green-800">
-            {uploadingImageSlot ? "Recognizing image..." : "Checking media for fruit recognition..."}
+            {uploadingImageSlot ? "Processing image..." : "Checking media for fruit recognition..."}
           </div>
         )}
         {loading && (
@@ -958,7 +940,7 @@ export default function ListNewLot() {
                             {isUploading ? <FaSpinner className="animate-spin" /> : <FaImage />}
                             <span className="text-xs font-semibold">
                               {isUploading
-                                ? "Recognizing image..."
+                                ? "Processing image..."
                                 : image
                                 ? `Sample ${grade.label} pic ${index + 1} selected`
                                 : `Take live sample pic ${grade.label} ${index + 1}`}
@@ -1017,7 +999,7 @@ export default function ListNewLot() {
           {loading
             ? "Listing..."
             : recognizing && uploadingImageSlot
-            ? "Recognizing image..."
+            ? "Processing image..."
             : recognizing
             ? "Checking media..."
             : "List Lot"}
