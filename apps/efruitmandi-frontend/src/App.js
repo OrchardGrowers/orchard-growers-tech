@@ -38,6 +38,7 @@ const ProfileDashboard = lazy(() => import("./pages/ProfileDashboard"));
 const LotDetails = lazy(() => import("./pages/LotDetails"));
 const SearchResults = lazy(() => import("./pages/SearchResults"));
 const FruitSeoPage = lazy(() => import("./pages/FruitSeoPage"));
+const MobileCapture = lazy(() => import("./pages/MobileCapture"));
 
 const scheduleDeferred = (callback, timeout = 1600) => {
   if (typeof window === "undefined") return () => {};
@@ -136,6 +137,7 @@ function App() {
             <Route path="/register-buyer" element={<RegisterBuyer />} />
             <Route path="/register-driver" element={<RegisterDriver />} />
             <Route path="/list-new-lot" element={<ListNewLot />} />
+            <Route path="/mobile-capture/:sessionId" element={<MobileCapture />} />
             <Route path="/get-verified" element={<GetVerified />} />
             <Route path="/kyc" element={<Kyc />} />
             <Route path="/kyc/status" element={<Kyc />} />

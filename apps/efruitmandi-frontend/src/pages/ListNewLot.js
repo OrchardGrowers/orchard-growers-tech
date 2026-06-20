@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import QRCode from "qrcode";
 import {
   FaTimes,
   FaCertificate,
@@ -12,10 +13,10 @@ import {
   FaWarehouse,
   FaWeightHanging,
 } from "react-icons/fa";
-import API from "../services/api";
+import API, { getApiErrorMessage } from "../services/api";
 import { trackLotCreated } from "../services/analytics";
 import { getCurrentUser } from "../utils/auth";
-import { prepareUploadFile } from "../utils/mobileMedia";
+import { isMobileDevice, prepareUploadFile } from "../utils/mobileMedia";
 import { requestMediaPermission } from "../utils/mobilePermissions";
 
 let fruitRecognitionModulePromise;
@@ -356,6 +357,28 @@ const SAMPLE_IMAGE_SLOTS = [0, 1, 2, 3, 4];
 const SAMPLE_IMAGE_WIDTH = 720;
 const SAMPLE_IMAGE_HEIGHT = 540;
 const SAMPLE_IMAGE_QUALITY = 0.65;
+const CAPTURE_POLL_MS = 2500;
+
+const getCaptureTargetKey = ({ mediaType, gradeKey = "", slotIndex = "" }) =>
+  mediaType === "image" ? `image-${gradeKey}-${slotIndex}` : "video-sample";
+
+const isFileUpload = (value) => typeof File !== "undefined" && value instanceof File;
+
+const isRemoteCaptureMedia = (value) =>
+  Boolean(value?.source === "mobile-capture" && value?.captureSessionId);
+
+const createRemoteCaptureMedia = (payload = {}) => ({
+  source: "mobile-capture",
+  captureSessionId: payload.sessionId,
+  mediaType: payload.mediaType,
+  gradeKey: payload.gradeKey || "",
+  slotIndex: payload.slotIndex,
+  url: payload.media?.url || payload.media?.secure_url || "",
+  publicId: payload.media?.publicId || "",
+  name:
+    payload.media?.originalName ||
+    (payload.mediaType === "video" ? "Mobile captured video" : "Mobile captured photo"),
+});
 
 const makeFirmPrefix = (user) => {
   const source =
@@ -425,6 +448,9 @@ export default function ListNewLot() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [recognizing, setRecognizing] = useState(false);
   const [uploadingImageSlot, setUploadingImageSlot] = useState(null);
+  const [isMobileLotDevice, setIsMobileLotDevice] = useState(() => isMobileDevice());
+  const [captureModal, setCaptureModal] = useState(null);
+  const [captureStartingKey, setCaptureStartingKey] = useState(null);
   const [message, setMessage] = useState("");
   const localLotNoPreview = useMemo(() => getLotNoPreview(), []);
   const [lotNoPreview, setLotNoPreview] = useState(localLotNoPreview);
@@ -455,6 +481,11 @@ export default function ListNewLot() {
     };
   }, [gradeLots, selectedPacking, visibleGrades]);
   const needsOrganicCertificate = ORGANIC_CERTIFIED_QUALITIES.has(form.quality);
+  const isDesktopLotDevice = !isMobileLotDevice;
+
+  useEffect(() => {
+    setIsMobileLotDevice(isMobileDevice());
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -473,6 +504,59 @@ export default function ListNewLot() {
       active = false;
     };
   }, [localLotNoPreview]);
+
+  useEffect(() => {
+    if (!captureModal?.sessionId) return undefined;
+
+    let active = true;
+
+    const pollCaptureMedia = async () => {
+      try {
+        const res = await API.get(`/capture-sessions/${captureModal.sessionId}/media`);
+        if (!active || !res.data?.media) return;
+
+        const capturedMedia = createRemoteCaptureMedia(res.data);
+
+        if (res.data.mediaType === "image") {
+          setGradeLots((current) => {
+            const gradeKey = res.data.gradeKey;
+            const images = [...(current[gradeKey]?.images || Array(5).fill(null))];
+            while (images.length < 5) images.push(null);
+            images[Number(res.data.slotIndex)] = capturedMedia;
+
+            return {
+              ...current,
+              [gradeKey]: {
+                ...current[gradeKey],
+                images,
+              },
+            };
+          });
+        }
+
+        if (res.data.mediaType === "video") {
+          setSampleVideo(capturedMedia);
+        }
+
+        setMessage("");
+        setCaptureModal(null);
+      } catch (error) {
+        if (!active) return;
+        if (error.response?.status === 410) {
+          setMessage("Mobile camera link expired. Create a new link and try again.");
+          setCaptureModal(null);
+        }
+      }
+    };
+
+    pollCaptureMedia();
+    const intervalId = window.setInterval(pollCaptureMedia, CAPTURE_POLL_MS);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [captureModal?.sessionId]);
 
   const updateForm = (field, value) => {
     setForm((current) => {
@@ -501,8 +585,43 @@ export default function ListNewLot() {
     });
   };
 
+  const startMobileCapture = async ({ mediaType, gradeKey = "", slotIndex = null }) => {
+    const targetKey = getCaptureTargetKey({ mediaType, gradeKey, slotIndex });
+
+    try {
+      setMessage("");
+      setCaptureStartingKey(targetKey);
+
+      const res = await API.post("/capture-sessions", {
+        mediaType,
+        gradeKey,
+        slotIndex,
+      });
+      const captureUrl = `${window.location.origin}/mobile-capture/${res.data.sessionId}`;
+      const qrDataUrl = await QRCode.toDataURL(captureUrl, {
+        width: 220,
+        margin: 1,
+      });
+
+      setCaptureModal({
+        ...res.data,
+        captureUrl,
+        qrDataUrl,
+      });
+    } catch (error) {
+      setMessage(getApiErrorMessage(error, "Could not create mobile camera link."));
+    } finally {
+      setCaptureStartingKey(null);
+    }
+  };
+
   const updateGradeImage = async (gradeKey, index, file) => {
     if (!file) return;
+
+    if (isDesktopLotDevice) {
+      setMessage("Lot photos and video must be captured live from a mobile camera.");
+      return;
+    }
 
     const slotKey = `${gradeKey}-${index}`;
     setMessage("");
@@ -516,7 +635,29 @@ export default function ListNewLot() {
         return;
       }
 
-      // TEMP TEST: fruit recognition disabled to debug mobile image selection.
+      let recognition;
+
+      try {
+        recognition = await withTimeout(
+          loadFruitRecognition().then(({ recognizeFruitImage }) =>
+            recognizeFruitImage(file)
+          ),
+          15000
+        );
+      } catch (error) {
+        setMessage(
+          isLowMemoryRecognitionError(error)
+            ? "Low phone memory. Clean up some space and try again."
+            : "Image not recognized. Take image again."
+        );
+        return;
+      }
+
+      if (!recognition?.accepted) {
+        setMessage("Image not recognized. Take image again.");
+        return;
+      }
+
       const platformFile = await cropImageToPlatformFrame(file);
 
       setGradeLots((current) => {
@@ -542,6 +683,11 @@ export default function ListNewLot() {
   const updateSampleVideo = async (file) => {
     if (!file) {
       setSampleVideo(null);
+      return;
+    }
+
+    if (isDesktopLotDevice) {
+      setMessage("Lot photos and video must be captured live from a mobile camera.");
       return;
     }
 
@@ -606,10 +752,12 @@ export default function ListNewLot() {
 
     const preparedGradeLots = visibleGrades.map((grade) => ({
       grade: grade.label,
+      gradeKey: grade.key,
       fieldName: `gradeImages_${grade.key}`,
       boxes: Number(gradeLots[grade.key].boxes || 0),
       weightKg: Number(gradeLots[grade.key].boxes || 0) * selectedPacking.kg,
     }));
+    const captureMediaRefs = [];
 
     if (!form.fruitName || !form.variety || !form.quality || !form.basePrice) {
       setMessage("Fruit, variety, quality, and base price are required.");
@@ -652,12 +800,32 @@ export default function ListNewLot() {
       data.append("gradeLots", JSON.stringify(preparedGradeLots));
 
       visibleGrades.forEach((grade) => {
-        gradeLots[grade.key].images.forEach((image) => {
-          if (image) data.append(`gradeImages_${grade.key}`, image);
+        gradeLots[grade.key].images.forEach((image, slotIndex) => {
+          if (isFileUpload(image)) {
+            data.append(`gradeImages_${grade.key}`, image);
+          }
+
+          if (isRemoteCaptureMedia(image)) {
+            captureMediaRefs.push({
+              sessionId: image.captureSessionId,
+              mediaType: "image",
+              gradeKey: grade.key,
+              slotIndex,
+            });
+          }
         });
       });
 
-      if (sampleVideo) data.append("sampleVideo", sampleVideo);
+      if (isFileUpload(sampleVideo)) {
+        data.append("sampleVideo", sampleVideo);
+      }
+      if (isRemoteCaptureMedia(sampleVideo)) {
+        captureMediaRefs.push({
+          sessionId: sampleVideo.captureSessionId,
+          mediaType: "video",
+        });
+      }
+      data.append("captureMediaRefs", JSON.stringify(captureMediaRefs));
       if (organicCertificate) data.append("organicCertificate", organicCertificate);
 
       const res = await API.post("/products", data, {
@@ -908,6 +1076,11 @@ export default function ListNewLot() {
               <FaImage className="text-gray-400" />
               Grade-wise sample pictures
             </div>
+            {isDesktopLotDevice && (
+              <div className="mb-2 rounded-md bg-green-50 px-3 py-2 text-xs font-bold text-green-800">
+                Lot photos and video must be captured live from a mobile camera.
+              </div>
+            )}
             <div className="space-y-2">
               {visibleGrades.map((grade) => {
                 const boxes = Number(gradeLots[grade.key].boxes || 0);
@@ -929,39 +1102,76 @@ export default function ListNewLot() {
                         const image = gradeLots[grade.key].images?.[index];
                         const slotKey = `${grade.key}-${index}`;
                         const isUploading = uploadingImageSlot === slotKey;
+                        const captureTargetKey = getCaptureTargetKey({
+                          mediaType: "image",
+                          gradeKey: grade.key,
+                          slotIndex: index,
+                        });
+                        const isCreatingCapture = captureStartingKey === captureTargetKey;
+
+                        if (isDesktopLotDevice) {
+                          return (
+                            <button
+                              key={`${grade.key}-${index}`}
+                              type="button"
+                              disabled={isCreatingCapture}
+                              onClick={() =>
+                                startMobileCapture({
+                                  mediaType: "image",
+                                  gradeKey: grade.key,
+                                  slotIndex: index,
+                                })
+                              }
+                              className={`flex min-h-[44px] w-full items-center gap-3 rounded-md border border-dashed px-3 py-3 text-left ${
+                                isCreatingCapture
+                                  ? "cursor-wait border-orange-300 bg-orange-50 text-orange-700"
+                                  : "border-green-300 bg-green-50 text-green-700"
+                              }`}
+                            >
+                              {isCreatingCapture ? <FaSpinner className="animate-spin" /> : <FaImage />}
+                              <span className="text-xs font-semibold">
+                                {isCreatingCapture
+                                  ? "Creating camera link..."
+                                  : image
+                                  ? `Sample ${grade.label} pic ${index + 1} selected`
+                                  : "Connect Mobile Camera"}
+                              </span>
+                            </button>
+                          );
+                        }
 
                         return (
-                        <label key={`${grade.key}-${index}`} className="block">
-                          <span className={`flex min-h-[44px] items-center gap-3 rounded-md border border-dashed px-3 py-3 ${
-                            isUploading
-                              ? "cursor-wait border-orange-300 bg-orange-50 text-orange-700"
-                              : "border-green-300 bg-green-50 text-green-700"
-                          }`}>
-                            {isUploading ? <FaSpinner className="animate-spin" /> : <FaImage />}
-                            <span className="text-xs font-semibold">
-                              {isUploading
-                                ? "Processing image..."
-                                : image
-                                ? `Sample ${grade.label} pic ${index + 1} selected`
-                                : `Take live sample pic ${grade.label} ${index + 1}`}
+                          <label key={`${grade.key}-${index}`} className="block">
+                            <span className={`flex min-h-[44px] items-center gap-3 rounded-md border border-dashed px-3 py-3 ${
+                              isUploading
+                                ? "cursor-wait border-orange-300 bg-orange-50 text-orange-700"
+                                : "border-green-300 bg-green-50 text-green-700"
+                            }`}>
+                              {isUploading ? <FaSpinner className="animate-spin" /> : <FaImage />}
+                              <span className="text-xs font-semibold">
+                                {isUploading
+                                  ? "Processing image..."
+                                  : image
+                                  ? `Sample ${grade.label} pic ${index + 1} selected`
+                                  : `Take live sample pic ${grade.label} ${index + 1}`}
+                              </span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                multiple={false}
+                                disabled={isUploading}
+                                onChange={(e) =>
+                                  updateGradeImage(
+                                    grade.key,
+                                    index,
+                                    e.target.files?.[0]
+                                  )
+                                }
+                                className="hidden"
+                              />
                             </span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              capture="environment"
-                              multiple={false}
-                              disabled={isUploading}
-                              onChange={(e) =>
-                                updateGradeImage(
-                                  grade.key,
-                                  index,
-                                  e.target.files?.[0]
-                                )
-                              }
-                              className="hidden"
-                            />
-                          </span>
-                        </label>
+                          </label>
                         );
                       })}
                     </div>
@@ -971,24 +1181,47 @@ export default function ListNewLot() {
             </div>
           </div>
 
-          <label className="block">
+          <div className="block">
             <span className="mb-1.5 block text-sm font-bold text-gray-700">
               Sample lot video
             </span>
-            <span className="flex items-center gap-3 rounded-md border border-dashed border-green-300 bg-green-50 px-3 py-4 text-green-700">
-              <FaVideo />
-              <span className="text-xs font-semibold">
-                {sampleVideo ? sampleVideo.name : "Upload one sample video"}
-              </span>
-              <input
-                type="file"
-                accept="video/*"
-                multiple={false}
-                onChange={(e) => updateSampleVideo(e.target.files?.[0] || null)}
-                className="hidden"
-              />
-            </span>
-          </label>
+            {isDesktopLotDevice ? (
+              <button
+                type="button"
+                disabled={captureStartingKey === getCaptureTargetKey({ mediaType: "video" })}
+                onClick={() => startMobileCapture({ mediaType: "video" })}
+                className="flex w-full items-center gap-3 rounded-md border border-dashed border-green-300 bg-green-50 px-3 py-4 text-left text-green-700 disabled:cursor-wait disabled:border-orange-300 disabled:bg-orange-50 disabled:text-orange-700"
+              >
+                {captureStartingKey === getCaptureTargetKey({ mediaType: "video" }) ? (
+                  <FaSpinner className="animate-spin" />
+                ) : (
+                  <FaVideo />
+                )}
+                <span className="text-xs font-semibold">
+                  {captureStartingKey === getCaptureTargetKey({ mediaType: "video" })
+                    ? "Creating camera link..."
+                    : sampleVideo
+                    ? sampleVideo.name
+                    : "Connect Mobile Camera"}
+                </span>
+              </button>
+            ) : (
+              <label className="flex cursor-pointer items-center gap-3 rounded-md border border-dashed border-green-300 bg-green-50 px-3 py-4 text-green-700">
+                <FaVideo />
+                <span className="text-xs font-semibold">
+                  {sampleVideo ? sampleVideo.name : "Capture one sample video"}
+                </span>
+                <input
+                  type="file"
+                  accept="video/*"
+                  capture="environment"
+                  multiple={false}
+                  onChange={(e) => updateSampleVideo(e.target.files?.[0] || null)}
+                  className="hidden"
+                />
+              </label>
+            )}
+          </div>
         </div>
 
         <button
@@ -1005,6 +1238,48 @@ export default function ListNewLot() {
             : "List Lot"}
         </button>
       </form>
+      {captureModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-sm rounded-md bg-white p-4 shadow-xl">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-extrabold text-black">Connect Mobile Camera</h2>
+                <p className="mt-1 text-xs font-semibold text-gray-600">
+                  Scan this QR code with your mobile to capture live lot media.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCaptureModal(null)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-700"
+                aria-label="Close mobile camera link"
+              >
+                <FaTimes />
+              </button>
+            </div>
+
+            {captureModal.qrDataUrl && (
+              <img
+                src={captureModal.qrDataUrl}
+                alt="Mobile camera capture QR code"
+                className="mx-auto h-52 w-52 rounded-md border border-gray-200"
+              />
+            )}
+
+            <a
+              href={captureModal.captureUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 block break-all rounded-md bg-green-50 px-3 py-2 text-center text-xs font-bold text-green-800"
+            >
+              {captureModal.captureUrl}
+            </a>
+            <p className="mt-3 text-center text-[11px] font-semibold text-gray-500">
+              Waiting for mobile capture. This link expires in 15 minutes.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

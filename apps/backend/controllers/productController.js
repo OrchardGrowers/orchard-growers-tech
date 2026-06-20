@@ -2,6 +2,7 @@ import Product from "../models/Product.js";
 import Auction from "../models/Auction.js";
 import Quotation from "../models/Quotation.js";
 import User from "../models/User.js";
+import CaptureSession from "../models/CaptureSession.js";
 import {
   getResourceType,
   uploadBufferToCloudinary,
@@ -10,6 +11,12 @@ import {
 
 const AUCTION_DELAY_MS = 5 * 60 * 1000;
 const AUCTION_DURATION_MS = 24 * 60 * 60 * 1000;
+
+const createRequestError = (statusCode, message) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+};
 
 const emitEfruitMandiMarketUpdate = (req, action, payload = {}) => {
   const io = req.app?.get("io");
@@ -141,6 +148,100 @@ const getUploadedFiles = (req, fieldName) => {
   }
 
   return req.files?.[fieldName] || [];
+};
+
+const parseCaptureMediaRefs = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") return JSON.parse(value || "[]");
+  return [];
+};
+
+const getGradeKeyFromLot = (lot = {}) => {
+  if (lot.gradeKey) return String(lot.gradeKey);
+  const fieldName = String(lot.fieldName || "");
+  return fieldName.startsWith("gradeImages_")
+    ? fieldName.replace("gradeImages_", "")
+    : "";
+};
+
+const isCaptureSessionExpired = (session) =>
+  !session?.expiresAt || new Date(session.expiresAt).getTime() <= Date.now();
+
+const toCapturedMedia = (session, slotIndex = null) => ({
+  url: session.media.url,
+  secure_url: session.media.secure_url || session.media.url,
+  publicId: session.media.publicId,
+  folder: session.media.folder,
+  resourceType: session.media.resourceType,
+  slotIndex,
+});
+
+const resolveCaptureMediaRefs = async (refs = [], userId) => {
+  const normalizedRefs = refs
+    .map((ref) => ({
+      sessionId: String(ref?.sessionId || ref?.captureSessionId || "").trim(),
+      mediaType: String(ref?.mediaType || "").trim().toLowerCase(),
+    }))
+    .filter((ref) => ref.sessionId);
+
+  const result = {
+    imagesByGradeKey: new Map(),
+    sampleVideo: null,
+    sessionIds: [],
+  };
+
+  if (!normalizedRefs.length) {
+    return result;
+  }
+
+  const sessionIds = Array.from(new Set(normalizedRefs.map((ref) => ref.sessionId)));
+  const sessions = await CaptureSession.find({
+    sessionId: { $in: sessionIds },
+    userId,
+  });
+  const sessionById = new Map(sessions.map((session) => [session.sessionId, session]));
+
+  for (const ref of normalizedRefs) {
+    const session = sessionById.get(ref.sessionId);
+
+    if (!session) {
+      throw createRequestError(400, "Invalid mobile capture session");
+    }
+
+    if (isCaptureSessionExpired(session)) {
+      throw createRequestError(410, "Mobile capture session expired");
+    }
+
+    if (!session.media?.url) {
+      throw createRequestError(400, "Mobile capture media is not uploaded yet");
+    }
+
+    if (ref.mediaType && ref.mediaType !== session.mediaType) {
+      throw createRequestError(400, "Mobile capture media type mismatch");
+    }
+
+    result.sessionIds.push(session.sessionId);
+
+    if (session.mediaType === "video") {
+      result.sampleVideo = toCapturedMedia(session);
+      continue;
+    }
+
+    const gradeKey = String(session.gradeKey || "").trim();
+    const slotIndex = Number(session.slotIndex);
+    if (!gradeKey || !Number.isInteger(slotIndex)) {
+      throw createRequestError(400, "Mobile capture image slot is invalid");
+    }
+
+    const capturedImages = result.imagesByGradeKey.get(gradeKey) || [];
+    capturedImages.push(toCapturedMedia(session, slotIndex));
+    capturedImages.sort((a, b) => Number(a.slotIndex || 0) - Number(b.slotIndex || 0));
+    result.imagesByGradeKey.set(gradeKey, capturedImages);
+  }
+
+  result.sessionIds = Array.from(new Set(result.sessionIds));
+  return result;
 };
 
 const SKU_CATEGORY_CODES = {
@@ -286,16 +387,35 @@ export const createProduct = async (req, res) => {
       return res.status(400).json({ msg: "Invalid grade lot details" });
     }
 
+    let captureMediaRefs = [];
+    try {
+      captureMediaRefs = parseCaptureMediaRefs(req.body.captureMediaRefs);
+    } catch {
+      return res.status(400).json({ msg: "Invalid mobile capture media details" });
+    }
+
+    if (!Array.isArray(captureMediaRefs)) {
+      return res.status(400).json({ msg: "Invalid mobile capture media details" });
+    }
+
+    const resolvedCaptureMedia = await resolveCaptureMediaRefs(captureMediaRefs, req.user.id);
+
     const gradeLotFiles = requestedGradeLots.map((lot) => ({
       lot,
+      gradeKey: getGradeKeyFromLot(lot),
       files: getUploadedFiles(req, lot.fieldName).slice(0, 5),
     }));
 
     const uploadedGradeLots = await Promise.all(
-      gradeLotFiles.map(async ({ lot, files }) => ({
-        lot,
-        uploadedFiles: await uploadLotFiles(files, "image"),
-      }))
+      gradeLotFiles.map(async ({ lot, gradeKey, files }) => {
+        const uploadedFiles = await uploadLotFiles(files, "image");
+        const capturedImages = resolvedCaptureMedia.imagesByGradeKey.get(gradeKey) || [];
+
+        return {
+          lot,
+          uploadedFiles: [...capturedImages, ...uploadedFiles].slice(0, 5),
+        };
+      })
     );
 
     const uploadedPublicIds = [];
@@ -342,7 +462,7 @@ export const createProduct = async (req, res) => {
     const sampleVideoFile = getUploadedFiles(req, "sampleVideo")[0];
     const uploadedSampleVideo = sampleVideoFile
       ? await uploadLotFile(sampleVideoFile, "video")
-      : null;
+      : resolvedCaptureMedia.sampleVideo;
     const sampleVideo = uploadedSampleVideo?.url || "";
     if (uploadedSampleVideo?.publicId) uploadedPublicIds.push(uploadedSampleVideo.publicId);
     const auctionStartAt = new Date(Date.now() + AUCTION_DELAY_MS);
@@ -385,6 +505,13 @@ export const createProduct = async (req, res) => {
       endTime: auctionEndAt,
     });
 
+    if (resolvedCaptureMedia.sessionIds.length) {
+      await CaptureSession.updateMany(
+        { sessionId: { $in: resolvedCaptureMedia.sessionIds }, userId: req.user.id },
+        { $set: { status: "attached", attachedProduct: product._id } }
+      );
+    }
+
     emitEfruitMandiMarketUpdate(req, "lot-created", {
       productId: product._id,
       auctionId: auction._id,
@@ -397,7 +524,7 @@ export const createProduct = async (req, res) => {
     });
   } catch (err) {
     console.error("Product creation failed:", err.message || err);
-    res.status(500).json({ msg: err.message });
+    res.status(err.statusCode || 500).json({ msg: err.message });
   }
 };
 
