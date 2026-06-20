@@ -367,6 +367,19 @@ const isFileUpload = (value) => typeof File !== "undefined" && value instanceof 
 const isRemoteCaptureMedia = (value) =>
   Boolean(value?.source === "mobile-capture" && value?.captureSessionId);
 
+const isLotMobileCaptureDevice = () => {
+  if (typeof navigator === "undefined") return false;
+
+  const userAgent = navigator.userAgent || "";
+  const platform = navigator.platform || "";
+
+  return (
+    /android|iphone|ipad|ipod/i.test(userAgent) ||
+    (platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1) ||
+    (isMobileDevice() && !/windows|macintosh|cros|x11/i.test(userAgent))
+  );
+};
+
 const createRemoteCaptureMedia = (payload = {}) => ({
   source: "mobile-capture",
   captureSessionId: payload.sessionId,
@@ -448,7 +461,7 @@ export default function ListNewLot() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [recognizing, setRecognizing] = useState(false);
   const [uploadingImageSlot, setUploadingImageSlot] = useState(null);
-  const [isMobileLotDevice, setIsMobileLotDevice] = useState(() => isMobileDevice());
+  const [isMobileLotDevice, setIsMobileLotDevice] = useState(() => isLotMobileCaptureDevice());
   const [captureModal, setCaptureModal] = useState(null);
   const [captureStartingKey, setCaptureStartingKey] = useState(null);
   const [message, setMessage] = useState("");
@@ -484,7 +497,7 @@ export default function ListNewLot() {
   const isDesktopLotDevice = !isMobileLotDevice;
 
   useEffect(() => {
-    setIsMobileLotDevice(isMobileDevice());
+    setIsMobileLotDevice(isLotMobileCaptureDevice());
   }, []);
 
   useEffect(() => {
@@ -585,7 +598,7 @@ export default function ListNewLot() {
     });
   };
 
-  const startMobileCapture = async ({ mediaType, gradeKey = "", slotIndex = null }) => {
+  const openMobileCaptureSession = async ({ mediaType, gradeKey = "", slotIndex = null }) => {
     const targetKey = getCaptureTargetKey({ mediaType, gradeKey, slotIndex });
 
     try {
@@ -609,7 +622,12 @@ export default function ListNewLot() {
         qrDataUrl,
       });
     } catch (error) {
-      setMessage(getApiErrorMessage(error, "Could not create mobile camera link."));
+      setMessage(
+        getApiErrorMessage(
+          error,
+          "Mobile camera connection is not active yet. Please use mobile device to list lot media."
+        )
+      );
     } finally {
       setCaptureStartingKey(null);
     }
@@ -1116,7 +1134,7 @@ export default function ListNewLot() {
                               type="button"
                               disabled={isCreatingCapture}
                               onClick={() =>
-                                startMobileCapture({
+                                openMobileCaptureSession({
                                   mediaType: "image",
                                   gradeKey: grade.key,
                                   slotIndex: index,
@@ -1134,7 +1152,7 @@ export default function ListNewLot() {
                                   ? "Creating camera link..."
                                   : image
                                   ? `Sample ${grade.label} pic ${index + 1} selected`
-                                  : "Connect Mobile Camera"}
+                                  : `Connect mobile camera for pic ${grade.label} ${index + 1}`}
                               </span>
                             </button>
                           );
@@ -1189,7 +1207,7 @@ export default function ListNewLot() {
               <button
                 type="button"
                 disabled={captureStartingKey === getCaptureTargetKey({ mediaType: "video" })}
-                onClick={() => startMobileCapture({ mediaType: "video" })}
+                onClick={() => openMobileCaptureSession({ mediaType: "video" })}
                 className="flex w-full items-center gap-3 rounded-md border border-dashed border-green-300 bg-green-50 px-3 py-4 text-left text-green-700 disabled:cursor-wait disabled:border-orange-300 disabled:bg-orange-50 disabled:text-orange-700"
               >
                 {captureStartingKey === getCaptureTargetKey({ mediaType: "video" }) ? (
@@ -1202,7 +1220,7 @@ export default function ListNewLot() {
                     ? "Creating camera link..."
                     : sampleVideo
                     ? sampleVideo.name
-                    : "Connect Mobile Camera"}
+                    : "Connect mobile camera for sample video"}
                 </span>
               </button>
             ) : (
