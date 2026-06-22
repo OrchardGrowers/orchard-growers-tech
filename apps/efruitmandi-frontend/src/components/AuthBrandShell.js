@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+﻿import { useNavigate } from "react-router-dom";
 import BackHomeButton from "./BackHomeButton";
 
 const logoUrl = `${process.env.PUBLIC_URL || ""}/logo.png`;
@@ -11,11 +11,10 @@ const trustBadges = [
     markClass: "text-[#01426a]",
   },
   {
-    title: "BillDesk",
-    detail: "Payment Gateway",
-    logo: "https://www.billdesk.com/web/billdesk-1.png",
-    logoClass: "h-9 w-9 rounded-md bg-white object-contain p-1",
-    mobileLogoClass: "h-5 w-5 rounded-sm bg-white object-contain p-0.5 lg:h-9 lg:w-9 lg:rounded-md lg:p-1",
+    title: "eFruitMandi Escrow Protected",
+    detail: "Secure - Trusted - Transparent",
+    mark: "✓",
+    markClass: "text-[#18a64b]",
   },
   {
     title: "Orchard Growers",
@@ -50,7 +49,7 @@ export default function AuthBrandShell({ children, compact = false }) {
               Innovative, Trusted, and Authentic Fruit Trading Platform
             </h1>
             <p className="mt-2 max-w-xl text-[10px] font-medium leading-4 sm:text-xs lg:mt-5 lg:text-sm lg:leading-6 xl:text-base">
-              Sell, Buy, Manage Horticulture Produce Payments and Logestics All at One place.
+              Sell, Buy, Manage Horticulture Produce Payments and Logistics All at One place.
             </p>
             <div className="mt-3 grid max-w-xl grid-cols-3 gap-1.5 lg:mt-8 lg:gap-3">
               {trustBadges.map((item) => (

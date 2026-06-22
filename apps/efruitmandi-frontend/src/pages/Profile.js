@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   FaCheck,
@@ -119,9 +119,9 @@ const trustBadges = [
     markClass: "text-[#01426a]",
   },
   {
-    title: "BillDesk",
-    detail: "Payment Gateway",
-    logo: "https://www.billdesk.com/web/billdesk-1.png",
+    title: "eFruitMandi Escrow Protected",
+    detail: "Secure - Trusted - Transparent",
+    mark: "✓",
     logoClass: "h-9 w-9 rounded-md bg-white object-contain p-1",
     mobileLogoClass:
       "h-5 w-5 rounded-sm bg-white object-contain p-0.5 lg:h-9 lg:w-9 lg:rounded-md lg:p-1",
@@ -1408,3 +1408,4 @@ function SubmitButton({ loading, disabled, label, loadingLabel }) {
     </button>
   );
 }
+
