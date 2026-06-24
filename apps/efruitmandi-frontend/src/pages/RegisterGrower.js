@@ -316,7 +316,7 @@ export default function RegisterGrower() {
               <button
                 type="button"
                 onClick={captureMapPoint}
-                className="rounded-md bg-green-50 px-3 py-2 text-sm font-bold text-green-700 transition hover:bg-green-100"
+                className="min-h-11 w-full rounded-md bg-green-50 px-3 py-2 text-sm font-bold text-green-700 transition hover:bg-green-100 sm:w-auto"
               >
                 Use map point
               </button>
@@ -354,7 +354,7 @@ export default function RegisterGrower() {
         <button
           type="submit"
           disabled={loading}
-          className="mt-6 w-full rounded-md bg-green-700 py-3 text-sm font-bold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-300"
+          className="mt-6 min-h-12 w-full rounded-md bg-green-700 py-3 text-sm font-bold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-300"
         >
           {loading ? "Saving..." : isUpdate ? "Update Grower Profile" : "Register as Grower"}
         </button>
@@ -374,26 +374,26 @@ function PhoneOtpControl({ otp, verified, cooldown, onOtpChange, onSend, onVerif
           </span>
         )}
       </div>
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
         <input
           value={otp}
           inputMode="numeric"
           placeholder="Enter OTP"
           onChange={(event) => onOtpChange(event.target.value)}
-          className="min-w-0 rounded-md border border-gray-200 px-3 py-3 text-sm outline-none transition placeholder:text-gray-400 focus:border-green-600 focus:ring-2 focus:ring-green-100"
+          className="min-h-11 min-w-0 rounded-md border border-gray-200 px-3 py-3 text-sm outline-none transition placeholder:text-gray-400 focus:border-green-600 focus:ring-2 focus:ring-green-100"
         />
         <button
           type="button"
           disabled={cooldown > 0}
           onClick={onSend}
-          className="inline-flex items-center justify-center gap-1 rounded-md bg-green-50 px-3 py-3 text-sm font-bold text-green-700 transition hover:bg-green-100 disabled:opacity-50"
+          className="inline-flex min-h-11 items-center justify-center gap-1 rounded-md bg-green-50 px-3 py-3 text-sm font-bold text-green-700 transition hover:bg-green-100 disabled:opacity-50"
         >
           <FaPaperPlane /> {cooldown > 0 ? `${cooldown}s` : "Request OTP"}
         </button>
         <button
           type="button"
           onClick={onVerify}
-          className="rounded-md bg-green-700 px-3 py-3 text-sm font-bold text-white transition hover:bg-green-800"
+          className="min-h-11 rounded-md bg-green-700 px-3 py-3 text-sm font-bold text-white transition hover:bg-green-800"
         >
           Verify
         </button>
@@ -408,14 +408,14 @@ function Field({ icon, label, value, placeholder, onChange, inputMode }) {
       <span className="mb-1.5 block text-sm font-semibold text-gray-700">
         {label}
       </span>
-      <span className="flex items-center gap-3 rounded-md border border-gray-200 bg-white px-3 py-3 text-gray-400 transition focus-within:border-green-600 focus-within:ring-2 focus-within:ring-green-100">
+      <span className="flex min-h-11 items-center gap-3 rounded-md border border-gray-200 bg-white px-3 py-3 text-gray-400 transition focus-within:border-green-600 focus-within:ring-2 focus-within:ring-green-100">
         {icon}
         <input
           value={value}
           inputMode={inputMode}
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full bg-transparent text-sm text-gray-950 outline-none placeholder:text-gray-400"
+          className="min-w-0 w-full bg-transparent text-sm text-gray-950 outline-none placeholder:text-gray-400"
         />
       </span>
     </label>

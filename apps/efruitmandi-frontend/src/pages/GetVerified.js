@@ -208,14 +208,14 @@ export default function GetVerified() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl pb-20">
+    <div className="mx-auto w-full max-w-4xl overflow-x-hidden px-4 pb-20 md:px-0">
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <BackHomeButton />
       </div>
 
       <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-        <div className="bg-green-800 px-5 py-6 text-white md:px-8">
-          <div className="flex items-start gap-4">
+        <div className="bg-green-800 px-4 py-6 text-white md:px-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
             <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-white text-2xl text-green-800">
               <FaCertificate />
             </span>
@@ -223,7 +223,7 @@ export default function GetVerified() {
               <p className="text-xs font-extrabold uppercase tracking-wide text-yellow-300">
                 Trusted Badge
               </p>
-              <h1 className="mt-1 text-2xl font-extrabold">
+              <h1 className="mt-1 text-2xl font-extrabold leading-tight">
                 Get Verified
               </h1>
               <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-white/85">
@@ -303,12 +303,12 @@ export default function GetVerified() {
               title="Phone verification"
               text={phoneStepText}
             >
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-3 grid gap-2 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
                 <button
                   type="button"
                   disabled={!orchardDetailComplete || otpLoading || otpCooldown > 0}
                   onClick={sendOtp}
-                  className="rounded-full bg-green-800 px-4 py-2 text-xs font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  className="min-h-11 rounded-full bg-green-800 px-4 py-2 text-xs font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {otpLoading ? "Sending..." : otpCooldown > 0 ? `Resend in ${otpCooldown}s` : otpSent ? "Resend OTP" : "Send OTP"}
                 </button>
@@ -318,13 +318,13 @@ export default function GetVerified() {
                   onChange={(event) => updateForm("otp", event.target.value)}
                   placeholder="Enter OTP"
                   inputMode="numeric"
-                  className="min-w-0 flex-1 rounded-md border border-gray-200 px-3 py-2 text-xs font-semibold outline-none disabled:bg-gray-100"
+                  className="min-h-11 min-w-0 rounded-md border border-gray-200 px-3 py-2 text-xs font-semibold outline-none disabled:bg-gray-100"
                 />
                 <button
                   type="button"
                   disabled={!orchardDetailComplete || !otpSent || !form.otp || phoneVerified || otpLoading}
                   onClick={verifyOtp}
-                  className="rounded-full bg-green-800 px-4 py-2 text-xs font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  className="min-h-11 rounded-full bg-green-800 px-4 py-2 text-xs font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {phoneVerified ? "Verified" : otpLoading ? "Verifying..." : "Verify"}
                 </button>
@@ -362,7 +362,7 @@ export default function GetVerified() {
                 type="button"
                 onClick={markFeePaid}
                 disabled={feePaid || submittingPayment}
-                className="mt-3 inline-flex items-center gap-2 rounded-full bg-green-800 px-4 py-2 text-xs font-extrabold text-white disabled:cursor-not-allowed disabled:bg-green-700"
+                className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-green-800 px-4 py-2 text-xs font-extrabold text-white disabled:cursor-not-allowed disabled:bg-green-700 sm:w-auto"
               >
                 {feePaid && <FaCheckCircle />}
                 {feePaid ? "Fee paid" : submittingPayment ? "Sending..." : "Pay Rs. 5250"}
@@ -412,7 +412,7 @@ function FormInput({ label, value, placeholder, inputMode, onChange }) {
         placeholder={placeholder}
         inputMode={inputMode}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-md border border-gray-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
+        className="min-h-11 w-full rounded-md border border-gray-200 bg-white px-3 py-3 text-sm font-semibold outline-none focus:border-green-700 focus:ring-2 focus:ring-green-100"
       />
     </label>
   );
@@ -422,7 +422,7 @@ function FileInput({ label, fileName, accept, icon, onChange }) {
   return (
     <label className="block">
       <span className="mb-1.5 block text-xs font-extrabold text-gray-700">{label}</span>
-      <span className="flex min-h-[42px] cursor-pointer items-center gap-3 rounded-md border border-dashed border-green-300 bg-white px-3 py-2 text-sm font-semibold text-green-800">
+      <span className="flex min-h-11 cursor-pointer items-center gap-3 rounded-md border border-dashed border-green-300 bg-white px-3 py-3 text-sm font-semibold text-green-800">
         {icon}
         <span className="min-w-0 flex-1 truncate">{fileName || "Choose file"}</span>
       </span>

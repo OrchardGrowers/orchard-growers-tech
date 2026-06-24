@@ -1308,7 +1308,7 @@ function MobileSubmitBar({
           type="button"
           onClick={onSubmit}
           disabled={loading || !canEdit || !canSubmit}
-          className="w-full rounded-full bg-green-700 py-2.5 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:bg-gray-300"
+          className="min-h-12 w-full rounded-full bg-green-700 py-3 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:bg-gray-300"
         >
           {label}
         </button>
@@ -1342,7 +1342,7 @@ function FileField({
     <label className="block w-full min-w-0 max-w-full">
       <span className="text-sm font-bold text-gray-800">{label}</span>
       <span
-        className={`mt-1 block w-full max-w-full rounded-md border border-dashed bg-white p-2 text-sm font-semibold text-gray-600 ${error || upload?.status === "failed" ? "border-red-300" : "border-green-300"}`}
+        className={`mt-1 block min-h-11 w-full max-w-full rounded-md border border-dashed bg-white p-3 text-sm font-semibold text-gray-600 ${error || upload?.status === "failed" ? "border-red-300" : "border-green-300"}`}
       >
         <span className="flex min-w-0 items-center gap-2">
           <FaFileUpload className="shrink-0 text-green-700" />
@@ -1397,7 +1397,7 @@ function FileField({
                   event.stopPropagation();
                   onRetry?.();
                 }}
-                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-extrabold text-red-700 ring-1 ring-red-100"
+                className="inline-flex min-h-8 shrink-0 items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-[10px] font-extrabold text-red-700 ring-1 ring-red-100"
               >
                 <FaRedo />
                 Retry
@@ -1410,7 +1410,7 @@ function FileField({
               target="_blank"
               rel="noreferrer"
               onClick={(event) => event.stopPropagation()}
-              className="shrink-0 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-extrabold text-green-700 ring-1 ring-green-100"
+              className="inline-flex min-h-8 shrink-0 items-center rounded-full bg-green-50 px-2 py-1 text-[10px] font-extrabold text-green-700 ring-1 ring-green-100"
             >
               Preview
             </a>
@@ -1455,7 +1455,7 @@ function KycInput({
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         onChange={(event) => onChange(event.target.value)}
-        className={`mt-1 w-full min-w-0 max-w-full rounded-md border bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-green-700 disabled:bg-gray-100 ${error ? "border-red-300" : "border-green-100"}`}
+        className={`mt-1 min-h-11 w-full min-w-0 max-w-full rounded-md border bg-white px-3 py-3 text-sm font-semibold outline-none focus:border-green-700 disabled:bg-gray-100 ${error ? "border-red-300" : "border-green-100"}`}
       />
       {error && (
         <span className="mt-1 block text-xs font-bold text-red-700">

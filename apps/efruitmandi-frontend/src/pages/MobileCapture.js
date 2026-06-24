@@ -190,24 +190,24 @@ export default function MobileCapture() {
     try {
       setUploading(true);
       try {
-        setMessage("Recognizing image...");
+      setMessage("Checking fruit image...");
         const { recognizeFruitImage } = await loadFruitRecognition();
         const recognition = await withTimeout(recognizeFruitImage(file), 15000);
 
         if (!recognition?.accepted) {
-          setMessage("Image not recognized. Take image again.");
+          setMessage("Fruit not recognized - take again.");
           return;
         }
       } catch (error) {
         setMessage(
           isLowMemoryRecognitionError(error)
-            ? "Low phone memory. Clean up some space and try again."
-            : "Image not recognized. Take image again."
+            ? "Low phone memory - clean space and try again."
+            : "Fruit not recognized - take again."
         );
         return;
       }
 
-      setMessage("Uploading captured media...");
+      setMessage("Uploading live fruit image...");
       const data = new FormData();
       data.append("media", file);
 
@@ -216,7 +216,7 @@ export default function MobileCapture() {
       });
 
       setUploaded(true);
-      setMessage("Media captured successfully. You can return to your laptop.");
+      setMessage(`${getUploadProgressLabel(session)} You can return to your laptop.`);
       stopCamera();
     } catch (error) {
       setMessage(getApiErrorMessage(error, "Could not upload captured media. Please try again."));
@@ -234,7 +234,7 @@ export default function MobileCapture() {
     } catch (error) {
       setMessage(
         isLowMemoryRecognitionError(error)
-          ? "Low phone memory. Clean up some space and try again."
+          ? "Low phone memory - clean space and try again."
           : "Unable to open camera. Close other camera apps and try again."
       );
     }
@@ -242,21 +242,27 @@ export default function MobileCapture() {
 
   const isImage = session?.mediaType === "image";
   const isStatusMessage =
-    message === "Recognizing image..." || message === "Uploading captured media...";
+    message === "Checking fruit image..." || message === "Uploading live fruit image...";
+  const uploadProgressLabel = getUploadProgressLabel(session);
 
   return (
-    <div className="mx-auto max-w-md bg-white px-4 py-6">
+    <div className="mx-auto min-h-screen max-w-md bg-white px-4 py-6">
       <div className="mb-5 text-center">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border-2 border-green-700 text-xl text-green-700">
           {isImage ? <FaImage /> : <FaVideo />}
         </div>
-        <h1 className="mt-3 text-lg font-extrabold text-black">Live lot capture</h1>
+        <h1 className="mt-3 text-xl font-extrabold text-black">Take Live Fruit Images</h1>
         <p className="mt-1 text-xs font-semibold text-gray-500">
           Lot photos and video must be captured live from a mobile camera.
         </p>
         {!loading && isMobile && session && !uploaded && (
           <p className="mt-2 text-xs font-bold text-green-800">
-            Tap the button below to open your mobile camera.
+            Allow Camera Access to capture this fruit image.
+          </p>
+        )}
+        {!loading && isMobile && session && isImage && (
+          <p className="mt-2 rounded-full bg-green-50 px-3 py-1 text-xs font-extrabold text-green-800">
+            {uploaded ? uploadProgressLabel : `Slot ${getUploadSlotNumber(session) || 1}/5`}
           </p>
         )}
       </div>
@@ -279,6 +285,11 @@ export default function MobileCapture() {
           uploaded || isStatusMessage ? "bg-green-50 text-green-800" : "bg-red-50 text-red-700"
         }`}>
           {message}
+          {uploading && (
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/70">
+              <div className="h-full w-2/3 animate-pulse rounded-full bg-green-700" />
+            </div>
+          )}
         </div>
       )}
 
@@ -295,10 +306,10 @@ export default function MobileCapture() {
               type="button"
               onClick={openCamera}
               disabled={cameraStarting || uploading}
-              className="flex w-full items-center justify-center gap-3 rounded-md border border-dashed border-green-400 bg-green-50 px-4 py-5 text-sm font-extrabold text-green-800 disabled:cursor-wait disabled:border-orange-300 disabled:bg-orange-50 disabled:text-orange-700"
+              className="flex min-h-14 w-full items-center justify-center gap-3 rounded-md border border-dashed border-green-400 bg-green-50 px-4 py-5 text-sm font-extrabold text-green-800 disabled:cursor-wait disabled:border-orange-300 disabled:bg-orange-50 disabled:text-orange-700"
             >
               {cameraStarting ? <FaSpinner className="animate-spin" /> : <FaCamera />}
-              <span>{cameraStarting ? "Opening camera..." : "Open Camera"}</span>
+              <span>{cameraStarting ? "Opening camera..." : "Allow Camera Access"}</span>
             </button>
           ) : (
             <div className="space-y-3">
@@ -313,15 +324,15 @@ export default function MobileCapture() {
                 type="button"
                 onClick={captureFruitPhoto}
                 disabled={uploading}
-                className="flex w-full items-center justify-center gap-3 rounded-md bg-green-700 px-4 py-4 text-sm font-extrabold text-white disabled:cursor-wait disabled:bg-gray-300"
+                className="flex min-h-14 w-full items-center justify-center gap-3 rounded-md bg-green-700 px-4 py-4 text-sm font-extrabold text-white disabled:cursor-wait disabled:bg-gray-300"
               >
                 {uploading ? <FaSpinner className="animate-spin" /> : <FaCamera />}
                 <span>
                   {uploading
-                    ? message === "Recognizing image..."
-                      ? "Recognizing image..."
+                    ? message === "Checking fruit image..."
+                      ? "Checking fruit image..."
                       : "Uploading..."
-                    : "Capture Fruit Photo"}
+                    : "Take Live Fruit Image"}
                 </span>
               </button>
             </div>
@@ -330,11 +341,21 @@ export default function MobileCapture() {
       )}
 
       {uploaded && (
-        <div className="mt-4 flex items-center gap-2 rounded-md bg-green-700 px-4 py-3 text-sm font-extrabold text-white">
+        <div className="mt-4 flex min-h-12 items-center gap-2 rounded-md bg-green-700 px-4 py-3 text-sm font-extrabold text-white">
           <FaCheckCircle />
-          <span>Upload complete</span>
+          <span>{uploadProgressLabel}</span>
         </div>
       )}
     </div>
   );
+}
+
+function getUploadSlotNumber(session = {}) {
+  const slot = Number(session?.slotIndex);
+  return Number.isInteger(slot) && slot >= 0 ? slot + 1 : null;
+}
+
+function getUploadProgressLabel(session = {}) {
+  const slotNumber = getUploadSlotNumber(session);
+  return slotNumber ? `${slotNumber}/5 Uploaded` : "Upload complete";
 }

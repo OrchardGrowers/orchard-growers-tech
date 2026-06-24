@@ -116,7 +116,7 @@ const buildCommissionDocumentHtml = (order = {}, type = "invoice") => {
     </div>
     <div>
       <p><strong>Buyer:</strong> ${order.customer?.name || order.buyer?.businessName || order.buyer?.name || "-"}</p>
-      <p><strong>BillDesk Ref:</strong> ${order.paymentReference || "-"}</p>
+      <p><strong>Payment Ref:</strong> ${order.paymentReference || "-"}</p>
       <p><strong>Status:</strong> ${order.paymentStatus || "-"}</p>
     </div>
   </div>

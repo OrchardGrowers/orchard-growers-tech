@@ -17,28 +17,28 @@ export default function PressReleasePage() {
               Official Press Release
             </p>
 
-            <h1 className="max-w-4xl text-4xl font-extrabold leading-tight sm:text-5xl">
+            <h1 className="max-w-4xl text-3xl font-extrabold leading-tight sm:text-5xl">
               eFruitMandi Launches as India’s Digital Fruit Marketplace to
               Connect Growers, Buyers, Traders and Logistics Partners
             </h1>
 
-            <p className="mt-6 max-w-3xl text-lg text-green-50">
+            <p className="mt-5 max-w-3xl text-base leading-7 text-green-50 sm:mt-6 sm:text-lg">
               Orchard Growers Private Limited introduces eFruitMandi, a
               technology-driven platform created to make fruit trading more
               transparent, accessible and organized for India’s fruit economy.
             </p>
 
-            <div className="mt-8 flex flex-wrap gap-4">
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4">
               <Link
                 to="/register-grower"
-                className="rounded-full bg-white px-6 py-3 font-semibold text-green-900 shadow-lg transition hover:bg-green-50"
+                className="inline-flex min-h-11 items-center justify-center rounded-full bg-white px-6 py-3 font-semibold text-green-900 shadow-lg transition hover:bg-green-50"
               >
                 Register as Grower
               </Link>
 
               <Link
                 to="/register-buyer"
-                className="rounded-full border border-white/70 px-6 py-3 font-semibold text-white transition hover:bg-white/10"
+                className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/70 px-6 py-3 font-semibold text-white transition hover:bg-white/10"
               >
                 Register as Buyer
               </Link>
@@ -47,12 +47,12 @@ export default function PressReleasePage() {
         </section>
 
         <main className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
-          <article className="rounded-3xl bg-white p-6 shadow-sm sm:p-10">
+          <article className="rounded-2xl bg-white p-4 shadow-sm sm:rounded-3xl sm:p-10">
             <p className="text-sm font-semibold uppercase tracking-wide text-green-700">
               For Immediate Release
             </p>
 
-            <h2 className="mt-4 text-3xl font-bold text-gray-900">
+            <h2 className="mt-4 text-2xl font-bold text-gray-900 sm:text-3xl">
               Orchard Growers Private Limited Announces eFruitMandi, a Digital
               Platform for India’s Fruit Trade
             </h2>
@@ -165,7 +165,7 @@ export default function PressReleasePage() {
             </div>
           </section>
 
-          <section className="mt-10 rounded-3xl bg-green-950 p-8 text-white shadow-sm">
+          <section className="mt-10 rounded-2xl bg-green-950 p-5 text-white shadow-sm sm:rounded-3xl sm:p-8">
             <h2 className="text-2xl font-bold">About eFruitMandi</h2>
             <p className="mt-4 text-green-50">
               eFruitMandi is a digital fruit marketplace by Orchard Growers
@@ -176,7 +176,7 @@ export default function PressReleasePage() {
             </p>
           </section>
 
-          <section className="mt-10 rounded-3xl bg-white p-8 shadow-sm">
+          <section className="mt-10 rounded-2xl bg-white p-5 shadow-sm sm:rounded-3xl sm:p-8">
             <h2 className="text-2xl font-bold text-gray-900">
               About Orchard Growers Private Limited
             </h2>
@@ -189,7 +189,7 @@ export default function PressReleasePage() {
             </p>
           </section>
 
-          <section className="mt-10 rounded-3xl bg-white p-8 shadow-sm">
+          <section className="mt-10 rounded-2xl bg-white p-5 shadow-sm sm:rounded-3xl sm:p-8">
             <h2 className="text-2xl font-bold text-gray-900">
               Media Contact
             </h2>
@@ -239,8 +239,8 @@ export default function PressReleasePage() {
             </div>
           </section>
 
-          <section className="mt-10 rounded-3xl bg-gradient-to-br from-lime-100 to-green-100 p-8 text-center shadow-sm">
-            <h2 className="text-3xl font-extrabold text-green-950">
+          <section className="mt-10 rounded-2xl bg-gradient-to-br from-lime-100 to-green-100 p-5 text-center shadow-sm sm:rounded-3xl sm:p-8">
+            <h2 className="text-2xl font-extrabold text-green-950 sm:text-3xl">
               Join India’s Digital Fruit Marketplace
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-gray-700">
@@ -249,17 +249,17 @@ export default function PressReleasePage() {
               trade ecosystem.
             </p>
 
-            <div className="mt-6 flex flex-wrap justify-center gap-4">
+            <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row sm:flex-wrap sm:gap-4">
               <Link
                 to="/register-grower"
-                className="rounded-full bg-green-800 px-6 py-3 font-semibold text-white transition hover:bg-green-900"
+                className="inline-flex min-h-11 items-center justify-center rounded-full bg-green-800 px-6 py-3 font-semibold text-white transition hover:bg-green-900"
               >
                 Start as Grower
               </Link>
 
               <Link
                 to="/register-buyer"
-                className="rounded-full bg-white px-6 py-3 font-semibold text-green-900 shadow-sm transition hover:bg-green-50"
+                className="inline-flex min-h-11 items-center justify-center rounded-full bg-white px-6 py-3 font-semibold text-green-900 shadow-sm transition hover:bg-green-50"
               >
                 Start as Buyer
               </Link>

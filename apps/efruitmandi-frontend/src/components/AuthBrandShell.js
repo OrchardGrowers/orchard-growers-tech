@@ -5,10 +5,10 @@ const logoUrl = `${process.env.PUBLIC_URL || ""}/logo.png`;
 
 const trustBadges = [
   {
-    title: "Escrow Enabled",
-    detail: "Secure Payments",
-    mark: "Escrow.com",
-    markClass: "text-[#01426a]",
+    title: "Secure Buyer Payments",
+    detail: "eFruitMandi Escrow Protected",
+    mark: "SAFE",
+    markClass: "text-[#18a64b]",
   },
   {
     title: "eFruitMandi Escrow Protected",

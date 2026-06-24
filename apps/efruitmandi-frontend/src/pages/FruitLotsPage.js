@@ -27,17 +27,17 @@ export default function FruitLotsPage() {
               fruit lots or list a new fruit lot on eFruitMandi.
             </p>
 
-            <div className="mt-4 flex flex-wrap gap-3">
+            <div className="mt-4 grid gap-3 sm:flex sm:flex-wrap">
               <Link
                 to="/auctions"
-                className="rounded-full bg-green-700 px-4 py-2 text-sm font-extrabold text-white"
+                className="inline-flex min-h-11 items-center justify-center rounded-full bg-green-700 px-4 py-2 text-sm font-extrabold text-white"
               >
                 View Live Fruit Lots
               </Link>
 
               <Link
                 to="/list-new-lot"
-                className="rounded-full bg-green-50 px-4 py-2 text-sm font-extrabold text-green-800 ring-1 ring-green-200"
+                className="inline-flex min-h-11 items-center justify-center rounded-full bg-green-50 px-4 py-2 text-sm font-extrabold text-green-800 ring-1 ring-green-200"
               >
                 List a Fruit Lot
               </Link>
@@ -112,17 +112,17 @@ export default function FruitLotsPage() {
             harvest date and fruit images or videos.
           </p>
 
-          <div className="mt-4 flex flex-wrap gap-3">
+          <div className="mt-4 grid gap-3 sm:flex sm:flex-wrap">
             <Link
               to="/auctions"
-              className="rounded-full bg-green-700 px-4 py-2 text-sm font-extrabold text-white"
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-green-700 px-4 py-2 text-sm font-extrabold text-white"
             >
               View Live Fruit Lots
             </Link>
 
             <Link
               to="/list-new-lot"
-              className="rounded-full bg-green-50 px-4 py-2 text-sm font-extrabold text-green-800 ring-1 ring-green-200"
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-green-50 px-4 py-2 text-sm font-extrabold text-green-800 ring-1 ring-green-200"
             >
               List a Fruit Lot
             </Link>

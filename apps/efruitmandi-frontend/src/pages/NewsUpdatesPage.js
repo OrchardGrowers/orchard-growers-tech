@@ -17,11 +17,11 @@ export default function NewsUpdatesPage() {
               News & Updates
             </p>
 
-            <h1 className="max-w-5xl text-4xl font-extrabold leading-tight sm:text-5xl">
+            <h1 className="max-w-5xl text-3xl font-extrabold leading-tight sm:text-5xl">
               Latest Updates from eFruitMandi and Orchard Growers
             </h1>
 
-            <p className="mt-6 max-w-4xl text-lg text-green-50">
+            <p className="mt-5 max-w-4xl text-base leading-7 text-green-50 sm:mt-6 sm:text-lg">
               Follow important announcements, platform improvements, fruit trade
               updates, grower guidance and buyer-focused news from India’s
               digital fruit marketplace.
@@ -31,7 +31,7 @@ export default function NewsUpdatesPage() {
 
         <main className="mx-auto max-w-6xl px-4 py-12">
           <div className="grid gap-6 md:grid-cols-3">
-            <article className="rounded-3xl bg-white p-6 shadow-sm">
+            <article className="rounded-2xl bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
               <p className="text-xs font-bold uppercase text-green-700">
                 Platform Update
               </p>
@@ -45,7 +45,7 @@ export default function NewsUpdatesPage() {
               </p>
             </article>
 
-            <article className="rounded-3xl bg-white p-6 shadow-sm">
+            <article className="rounded-2xl bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
               <p className="text-xs font-bold uppercase text-green-700">
                 Grower Update
               </p>
@@ -59,7 +59,7 @@ export default function NewsUpdatesPage() {
               </p>
             </article>
 
-            <article className="rounded-3xl bg-white p-6 shadow-sm">
+            <article className="rounded-2xl bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
               <p className="text-xs font-bold uppercase text-green-700">
                 Trust Update
               </p>
@@ -74,8 +74,8 @@ export default function NewsUpdatesPage() {
             </article>
           </div>
 
-          <section className="mt-10 rounded-3xl bg-white p-8 shadow-sm">
-            <h2 className="text-3xl font-bold text-gray-900">
+          <section className="mt-10 rounded-2xl bg-white p-5 shadow-sm sm:rounded-3xl sm:p-8">
+            <h2 className="text-2xl font-bold text-gray-900 sm:text-3xl">
               eFruitMandi News Desk
             </h2>
 
@@ -101,7 +101,7 @@ export default function NewsUpdatesPage() {
             </p>
           </section>
 
-          <section className="mt-10 rounded-3xl bg-white p-8 shadow-sm">
+          <section className="mt-10 rounded-2xl bg-white p-5 shadow-sm sm:rounded-3xl sm:p-8">
             <h2 className="text-2xl font-bold text-gray-900">
               What We Share in News & Updates
             </h2>
@@ -140,7 +140,7 @@ export default function NewsUpdatesPage() {
               </div>
             </div>
           </section>
-          <section className="mt-10 rounded-3xl bg-green-950 p-8 text-white shadow-sm">
+          <section className="mt-10 rounded-2xl bg-green-950 p-5 text-white shadow-sm sm:rounded-3xl sm:p-8">
             <h2 className="text-2xl font-bold">
               Stay Connected with eFruitMandi
             </h2>
@@ -150,24 +150,24 @@ export default function NewsUpdatesPage() {
               fruit marketplace.
             </p>
 
-            <div className="mt-6 flex flex-wrap gap-4">
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4">
               <Link
                 to="/register-grower"
-                className="rounded-full bg-white px-6 py-3 font-semibold text-green-900"
+                className="inline-flex min-h-11 items-center justify-center rounded-full bg-white px-6 py-3 font-semibold text-green-900"
               >
                 Register as Grower
               </Link>
 
               <Link
                 to="/register-buyer"
-                className="rounded-full border border-white px-6 py-3 font-semibold text-white"
+                className="inline-flex min-h-11 items-center justify-center rounded-full border border-white px-6 py-3 font-semibold text-white"
               >
                 Register as Buyer
               </Link>
 
               <Link
                 to="/blog"
-                className="rounded-full bg-lime-100 px-6 py-3 font-semibold text-green-950"
+                className="inline-flex min-h-11 items-center justify-center rounded-full bg-lime-100 px-6 py-3 font-semibold text-green-950"
               >
                 Read Blog
               </Link>

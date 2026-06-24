@@ -55,11 +55,11 @@ export default function BlogPage() {
               Horticulture Blog
             </p>
 
-            <h1 className="max-w-5xl text-4xl font-extrabold leading-tight sm:text-5xl">
+            <h1 className="max-w-5xl text-3xl font-extrabold leading-tight sm:text-5xl">
               Fruit Farming, Market Trends, Buyers & Trading Guides
             </h1>
 
-            <p className="mt-6 max-w-4xl text-lg text-green-50">
+            <p className="mt-5 max-w-4xl text-base leading-7 text-green-50 sm:mt-6 sm:text-lg">
               Expert insights on fruit farming, fruit buyers, market prices, grading, packing, logistics and digital fruit trading across India.
             </p>
           </div>
@@ -70,7 +70,7 @@ export default function BlogPage() {
             {horticultureCards.map((card) => (
               <article
                 key={card.title}
-                className="overflow-hidden rounded-3xl bg-white shadow-sm"
+                className="overflow-hidden rounded-2xl bg-white shadow-sm sm:rounded-3xl"
               >
                 <img
                   src={card.image}
@@ -79,8 +79,8 @@ export default function BlogPage() {
                   loading="lazy"
                 />
 
-                <div className="p-6">
-                  <h2 className="text-2xl font-bold text-gray-900">
+                <div className="p-4 sm:p-6">
+                  <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">
                     {card.title}
                   </h2>
 
@@ -88,7 +88,7 @@ export default function BlogPage() {
 
                   <Link
                     to={card.link}
-                    className="mt-5 inline-flex rounded-full bg-green-700 px-5 py-3 font-semibold text-white hover:bg-green-800"
+                    className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-green-700 px-5 py-3 font-semibold text-white hover:bg-green-800 sm:w-auto"
                   >
                     {card.buttonText}
                   </Link>
@@ -97,8 +97,8 @@ export default function BlogPage() {
             ))}
           </section>
 
-          <article className="rounded-3xl bg-white p-6 shadow-sm sm:p-10">
-            <h2 className="text-3xl font-bold text-gray-900">
+          <article className="rounded-2xl bg-white p-4 shadow-sm sm:rounded-3xl sm:p-10">
+            <h2 className="text-2xl font-bold text-gray-900 sm:text-3xl">
               Why India Needs a Digital Fruit Marketplace Like eFruitMandi
             </h2>
 
@@ -370,24 +370,24 @@ export default function BlogPage() {
               fruit-producing regions and demand markets.
             </p>
 
-            <div className="mt-8 flex flex-wrap gap-4">
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4">
               <Link
                 to="/register-grower"
-                className="rounded-full bg-green-800 px-6 py-3 font-semibold text-white hover:bg-green-900"
+                className="inline-flex min-h-11 items-center justify-center rounded-full bg-green-800 px-6 py-3 font-semibold text-white hover:bg-green-900"
               >
                 Register as Grower
               </Link>
 
               <Link
                 to="/register-buyer"
-                className="rounded-full bg-lime-100 px-6 py-3 font-semibold text-green-900 hover:bg-lime-200"
+                className="inline-flex min-h-11 items-center justify-center rounded-full bg-lime-100 px-6 py-3 font-semibold text-green-900 hover:bg-lime-200"
               >
                 Register as Buyer
               </Link>
 
               <Link
                 to="/media"
-                className="rounded-full bg-gray-100 px-6 py-3 font-semibold text-gray-900 hover:bg-gray-200"
+                className="inline-flex min-h-11 items-center justify-center rounded-full bg-gray-100 px-6 py-3 font-semibold text-gray-900 hover:bg-gray-200"
               >
                 Visit Media Center
               </Link>

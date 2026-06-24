@@ -127,8 +127,8 @@ export default function MandiRates() {
         canonical={selectedCommodity ? `/mandi-rates/${slugify(selectedCommodity)}` : "/mandi-rates"}
       />
 
-      <main className="mx-auto max-w-6xl pb-20">
-        <header className="-mx-3 bg-green-800 px-4 pb-5 pt-4 text-white md:-mx-4 md:px-6">
+      <main className="mx-auto w-full max-w-6xl overflow-x-hidden px-4 pb-20 md:px-0">
+        <header className="-mx-4 bg-green-800 px-4 pb-5 pt-4 text-white md:-mx-4 md:px-6">
           <div className="mx-auto max-w-6xl">
             <p className="flex items-center gap-2 text-xs font-extrabold uppercase text-green-100">
               <FaChartLine />
@@ -143,7 +143,7 @@ export default function MandiRates() {
                   Stored Government of India mandi prices for fruit markets across India.
                 </p>
               </div>
-              <div className="inline-flex items-center gap-2 rounded-md bg-white px-3 py-2 text-xs font-extrabold text-green-800">
+              <div className="inline-flex min-h-11 items-center gap-2 rounded-md bg-white px-3 py-2 text-xs font-extrabold text-green-800">
                 <FaCalendarAlt />
                 {rates.length} records
               </div>
@@ -197,7 +197,7 @@ export default function MandiRates() {
                 setState("");
                 setDistrict("");
               }}
-              className="rounded-full bg-white px-3 py-1.5 text-green-800 ring-1 ring-green-100"
+              className="inline-flex min-h-10 items-center rounded-full bg-white px-3 py-1.5 text-green-800 ring-1 ring-green-100"
             >
               All fruits
             </Link>
@@ -205,7 +205,7 @@ export default function MandiRates() {
               <Link
                 key={slug}
                 to={`/mandi-rates/${slug}`}
-                className="rounded-full bg-green-50 px-3 py-1.5 text-green-800 ring-1 ring-green-100"
+                className="inline-flex min-h-10 items-center rounded-full bg-green-50 px-3 py-1.5 text-green-800 ring-1 ring-green-100"
               >
                 {fromSlug(slug)}
               </Link>
@@ -219,7 +219,45 @@ export default function MandiRates() {
           </p>
         )}
 
-        <section className="mt-4 overflow-hidden rounded-md border border-gray-200 bg-white">
+        <section className="mt-4 space-y-3 md:hidden">
+          {loading ? (
+            <div className="rounded-md border border-green-100 bg-white px-3 py-8 text-center text-sm font-bold text-green-700">
+              Loading mandi rates...
+            </div>
+          ) : rates.length ? (
+            rates.map((rate) => (
+              <article key={rate._id || rate.id} className="rounded-md border border-gray-200 bg-white p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="line-clamp-1 text-sm font-extrabold text-gray-950">
+                      {rate.commodity || "-"}
+                    </h2>
+                    <p className="mt-1 truncate text-xs font-bold text-gray-600">
+                      {rate.variety || "Variety not available"}
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded bg-green-50 px-2 py-1 text-[10px] font-extrabold text-green-800">
+                    {formatDate(rate.arrivalDate)}
+                  </span>
+                </div>
+                <p className="mt-3 text-xs font-bold text-gray-700">
+                  {rate.market || "-"}, {rate.district || "-"}, {rate.state || "-"}
+                </p>
+                <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
+                  <RateStat label="Min" value={formatPrice(rate.minPriceKg)} />
+                  <RateStat label="Modal" value={formatPrice(rate.modalPriceKg)} strong />
+                  <RateStat label="Max" value={formatPrice(rate.maxPriceKg)} />
+                </div>
+              </article>
+            ))
+          ) : (
+            <div className="rounded-md border border-gray-200 bg-white px-3 py-8 text-center text-sm font-bold text-gray-600">
+              No mandi rates found.
+            </div>
+          )}
+        </section>
+
+        <section className="mt-4 hidden overflow-hidden rounded-md border border-gray-200 bg-white md:block">
           <div className="overflow-x-auto">
             <table className="min-w-[920px] w-full text-left text-xs">
               <thead className="bg-green-50 text-[11px] uppercase text-green-900">
@@ -302,5 +340,16 @@ function Td({ children, strong = false }) {
     <td className={`whitespace-nowrap px-3 py-3 ${strong ? "font-extrabold text-gray-950" : "font-semibold text-gray-700"}`}>
       {children}
     </td>
+  );
+}
+
+function RateStat({ label, value, strong = false }) {
+  return (
+    <div className="rounded-md bg-green-50 px-2 py-2">
+      <p className="font-bold text-green-800">{label}</p>
+      <p className={`mt-1 ${strong ? "font-extrabold text-gray-950" : "font-bold text-gray-700"}`}>
+        {value}
+      </p>
+    </div>
   );
 }

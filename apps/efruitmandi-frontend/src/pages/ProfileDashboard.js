@@ -1796,9 +1796,9 @@ export default function ProfileDashboard() {
                     setContactOtpCooldown(0);
                   }}
                   placeholder="Enter contact number"
-                  className="w-full rounded-md border border-green-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-green-700"
+                  className="min-h-11 w-full rounded-md border border-green-200 bg-white px-3 py-3 text-sm font-semibold outline-none focus:border-green-700"
                 />
-                <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
                   <input
                     value={contactDraft.otp}
                     inputMode="numeric"
@@ -1806,13 +1806,13 @@ export default function ProfileDashboard() {
                       setContactDraft((current) => ({ ...current, otp: event.target.value }))
                     }
                     placeholder="OTP"
-                    className="min-w-0 rounded-md border border-green-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-700"
+                    className="min-h-11 min-w-0 rounded-md border border-green-200 bg-white px-3 py-3 text-sm outline-none focus:border-green-700"
                   />
                   <button
                     type="button"
                     onClick={sendContactOtp}
                     disabled={contactDraft.loading || contactOtpCooldown > 0}
-                    className="rounded-md bg-white px-3 py-2 text-xs font-extrabold text-green-800 disabled:opacity-60"
+                    className="min-h-11 rounded-md bg-white px-3 py-2 text-xs font-extrabold text-green-800 disabled:opacity-60"
                   >
                     {contactOtpCooldown > 0 ? `${contactOtpCooldown}s` : "Request OTP"}
                   </button>
@@ -1820,7 +1820,7 @@ export default function ProfileDashboard() {
                     type="button"
                     onClick={verifyContactOtp}
                     disabled={contactDraft.loading}
-                    className="rounded-md bg-green-700 px-3 py-2 text-xs font-extrabold text-white disabled:opacity-60"
+                    className="min-h-11 rounded-md bg-green-700 px-3 py-2 text-xs font-extrabold text-white disabled:opacity-60"
                   >
                     Verify
                   </button>
@@ -1855,9 +1855,9 @@ export default function ProfileDashboard() {
                     setEmailOtpCooldown(0);
                   }}
                   placeholder="Enter email address"
-                  className="w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-blue-700"
+                  className="min-h-11 w-full rounded-md border border-blue-200 bg-white px-3 py-3 text-sm font-semibold outline-none focus:border-blue-700"
                 />
-                <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
                   <input
                     value={emailDraft.otp}
                     inputMode="numeric"
@@ -1865,13 +1865,13 @@ export default function ProfileDashboard() {
                       setEmailDraft((current) => ({ ...current, otp: event.target.value }))
                     }
                     placeholder="OTP"
-                    className="min-w-0 rounded-md border border-blue-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-700"
+                    className="min-h-11 min-w-0 rounded-md border border-blue-200 bg-white px-3 py-3 text-sm outline-none focus:border-blue-700"
                   />
                   <button
                     type="button"
                     onClick={sendEmailOtp}
                     disabled={emailDraft.loading || emailOtpCooldown > 0}
-                    className="rounded-md bg-white px-3 py-2 text-xs font-extrabold text-blue-800 disabled:opacity-60"
+                    className="min-h-11 rounded-md bg-white px-3 py-2 text-xs font-extrabold text-blue-800 disabled:opacity-60"
                   >
                     {emailOtpCooldown > 0 ? `${emailOtpCooldown}s` : "Request OTP"}
                   </button>
@@ -1879,7 +1879,7 @@ export default function ProfileDashboard() {
                     type="button"
                     onClick={verifyEmailOtp}
                     disabled={emailDraft.loading}
-                    className="rounded-md bg-blue-700 px-3 py-2 text-xs font-extrabold text-white disabled:opacity-60"
+                    className="min-h-11 rounded-md bg-blue-700 px-3 py-2 text-xs font-extrabold text-white disabled:opacity-60"
                   >
                     Verify
                   </button>
@@ -2688,7 +2688,7 @@ function GrowerLogisticsAssignments({ orders = [], onSubmit }) {
       <div className="mb-3">
         <h2 className="text-sm font-extrabold text-gray-950">Assign Logistics / Driver Details</h2>
         <p className="text-xs font-bold text-gray-500">
-          Required after BillDesk escrow payment. Dispatch remains blocked until logistics accepts.
+          Required after eFruitMandi escrow payment. Dispatch remains blocked until logistics accepts.
         </p>
       </div>
       {!eligibleOrders.length ? (

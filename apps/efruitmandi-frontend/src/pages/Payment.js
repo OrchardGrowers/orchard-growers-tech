@@ -59,7 +59,7 @@ export default function Payment() {
 
   if (!canUseBuyerPayment) {
     return (
-      <div className="mx-auto max-w-md rounded bg-white p-6 shadow">
+      <div className="mx-auto max-w-md rounded bg-white p-4 shadow sm:p-6">
         <h2 className="mb-3 text-xl font-bold">Payment unavailable</h2>
         <p className="text-sm font-semibold text-gray-600">
           Register or switch to your buyer profile to pay for consignments.
@@ -67,7 +67,7 @@ export default function Payment() {
         <button
           type="button"
           onClick={() => navigate("/profile-dashboard")}
-          className="mt-4 w-full rounded bg-green-700 py-2 text-white"
+          className="mt-4 min-h-11 w-full rounded bg-green-700 px-3 py-2 text-white"
         >
           Go to Profile Dashboard
         </button>
@@ -116,16 +116,16 @@ export default function Payment() {
   const paymentDueText = formatPaymentCountdown(order?.paymentDueAt, now);
 
   return (
-    <div className="mx-auto w-full max-w-4xl pb-10">
+    <div className="mx-auto w-full max-w-4xl overflow-x-hidden px-4 pb-10 md:px-0">
       <Helmet>
         <meta name="robots" content="noindex,nofollow" />
       </Helmet>
       <div className="mb-4 rounded bg-white p-5 shadow">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 className="text-xl font-bold">Secure Payment</h2>
+            <h2 className="text-xl font-bold">Secure Buyer Payments</h2>
             <p className="mt-1 text-sm font-semibold text-gray-600">
-              Lot Chalan and platform payable amount for this consignment.
+              eFruitMandi escrow protected payable amount for this consignment.
             </p>
           </div>
           {paymentDueText && (
@@ -178,13 +178,13 @@ export default function Payment() {
           <button
             onClick={handlePayment}
             disabled={loading || !orderReady}
-            className="mt-4 w-full rounded bg-blue-600 py-2 text-white disabled:bg-gray-300"
+            className="mt-4 min-h-12 w-full rounded bg-green-700 px-4 py-3 text-sm font-bold text-white disabled:bg-gray-300"
           >
             {loading ? "Processing..." : "Pay to Confirm Consignment"}
           </button>
 
-          <p className="mt-3 text-xs text-gray-500">
-            Secured via BillDesk (Test Mode)
+          <p className="mt-3 rounded-md bg-green-50 px-3 py-2 text-xs font-bold text-green-800">
+            eFruitMandi Escrow Protected
           </p>
         </section>
 
@@ -237,7 +237,7 @@ export default function Payment() {
 
 function PaymentUnavailablePanel({ navigate }) {
   return (
-    <div className="mx-auto max-w-md rounded bg-white p-6 shadow">
+    <div className="mx-auto max-w-md rounded bg-white p-4 shadow sm:p-6">
       <Helmet>
         <meta name="robots" content="noindex,nofollow" />
       </Helmet>
@@ -248,7 +248,7 @@ function PaymentUnavailablePanel({ navigate }) {
       <button
         type="button"
         onClick={() => navigate("/profile-dashboard")}
-        className="mt-4 w-full rounded bg-green-700 py-2 text-white"
+        className="mt-4 min-h-11 w-full rounded bg-green-700 px-3 py-2 text-white"
       >
         Go to Profile Dashboard
       </button>

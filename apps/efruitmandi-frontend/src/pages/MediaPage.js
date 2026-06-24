@@ -11,21 +11,21 @@ export default function MediaPage() {
       />
 
       <div className="min-h-screen bg-[#eef3ef]">
-        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-green-900 via-green-700 to-lime-600 px-5 py-14 text-white shadow-lg md:px-10 md:py-20">
-          <div className="absolute inset-0 opacity-20">
+        <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-900 via-green-700 to-lime-600 px-4 py-12 text-white shadow-lg sm:px-5 md:rounded-3xl md:px-10 md:py-20">
+          <div className="absolute inset-0 hidden opacity-20 md:block">
             <div className="absolute left-10 top-10 h-40 w-40 rounded-full bg-yellow-300 blur-3xl" />
             <div className="absolute bottom-10 right-10 h-52 w-52 rounded-full bg-white blur-3xl" />
             <div className="absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-300 blur-3xl" />
           </div>
 
           <div className="relative z-10 max-w-5xl">
-            <p className="mb-3 text-sm font-semibold uppercase tracking-[0.25em] text-lime-100">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-lime-100 sm:text-sm sm:tracking-[0.25em]">
               Media • Blogs • Fruit Market Technology
             </p>
-            <h1 className="mb-5 text-4xl font-extrabold leading-tight md:text-6xl">
+            <h1 className="mb-5 text-3xl font-extrabold leading-tight md:text-6xl">
               Media and eFruitMandi Updates
             </h1>
-            <p className="max-w-3xl text-lg leading-8 text-green-50 md:text-xl">
+            <p className="max-w-3xl text-base leading-7 text-green-50 md:text-xl md:leading-8">
               Stories, blogs, market insights, press notes and knowledge content
               from eFruitMandi — India’s digital fruit marketplace connecting
               growers, buyers, traders, commission agents and logistics partners.
@@ -34,11 +34,11 @@ export default function MediaPage() {
         </section>
 
         <main className="mx-auto max-w-6xl px-4 py-10">
-          <section className="mb-8 rounded-2xl bg-white p-6 shadow-sm md:p-8">
-            <h2 className="mb-4 text-3xl font-bold text-green-800">
+          <section className="mb-8 rounded-2xl bg-white p-4 shadow-sm sm:p-6 md:p-8">
+            <h2 className="mb-4 text-2xl font-bold text-green-800 sm:text-3xl">
               About eFruitMandi Media
             </h2>
-            <p className="mb-4 leading-8 text-gray-700">
+            <p className="mb-4 leading-7 text-gray-700 md:leading-8">
               eFruitMandi Media is the official information and knowledge section
               of eFruitMandi, a digital fruit marketplace initiative by Orchard
               Growers Private Limited. This section has been created to share
@@ -46,7 +46,7 @@ export default function MediaPage() {
               grower guides, mandi-related information, press releases, platform
               announcements and practical knowledge for India’s fruit industry.
             </p>
-            <p className="mb-4 leading-8 text-gray-700">
+            <p className="mb-4 leading-7 text-gray-700 md:leading-8">
               India’s fruit market is large, seasonal, fragmented and highly
               dependent on trust, timing, logistics, grading, communication and
               market access. Fruit growers often search for reliable buyers,
@@ -56,7 +56,7 @@ export default function MediaPage() {
               closer through technology, verified profiles, fruit listings,
               quotations, logistics coordination and useful market information.
             </p>
-            <p className="leading-8 text-gray-700">
+            <p className="leading-7 text-gray-700 md:leading-8">
               Through this media section, eFruitMandi will publish content related
               to fruit buyers, fruit commission agents, mandi bhav, fruit trading,
               APMC markets, fruit logistics, grading, packing, payment trust,
@@ -310,8 +310,8 @@ export default function MediaPage() {
             </div>
           </section>
 
-          <section className="rounded-2xl bg-green-800 p-6 text-white shadow-sm md:p-8">
-            <h2 className="mb-3 text-3xl font-bold">
+          <section className="rounded-2xl bg-green-800 p-4 text-white shadow-sm sm:p-6 md:p-8">
+            <h2 className="mb-3 text-2xl font-bold sm:text-3xl">
               Explore eFruitMandi Resources
             </h2>
             <p className="mb-5 max-w-3xl leading-8 text-green-50">
@@ -319,17 +319,17 @@ export default function MediaPage() {
               verification, policies and fruit market education.
             </p>
 
-            <div className="flex flex-wrap gap-3">
-              <Link to="/about" className="rounded-lg bg-white px-4 py-2 text-green-800">
+            <div className="grid gap-3 sm:flex sm:flex-wrap">
+              <Link to="/about" className="inline-flex min-h-11 items-center justify-center rounded-lg bg-white px-4 py-2 text-green-800">
                 About eFruitMandi
               </Link>
-              <Link to="/buyer-guide" className="rounded-lg bg-white px-4 py-2 text-green-800">
+              <Link to="/buyer-guide" className="inline-flex min-h-11 items-center justify-center rounded-lg bg-white px-4 py-2 text-green-800">
                 Buyer Guide
               </Link>
-              <Link to="/grower-guide" className="rounded-lg bg-white px-4 py-2 text-green-800">
+              <Link to="/grower-guide" className="inline-flex min-h-11 items-center justify-center rounded-lg bg-white px-4 py-2 text-green-800">
                 Grower Guide
               </Link>
-              <Link to="/contact" className="rounded-lg bg-white px-4 py-2 text-green-800">
+              <Link to="/contact" className="inline-flex min-h-11 items-center justify-center rounded-lg bg-white px-4 py-2 text-green-800">
                 Contact
               </Link>
             </div>

@@ -243,15 +243,15 @@ export default function SearchResults() {
   const totalResults = profiles.length + lots.length + mandiRates.length + contentResults.length;
 
   return (
-    <div className="pb-20">
-      <div className="mb-3 flex items-center justify-between">
-        <div>
+    <div className="w-full max-w-full overflow-x-hidden px-4 pb-20 md:px-0">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="min-w-0">
           <h2 className="text-sm font-extrabold text-black">Search Results</h2>
-          <p className="text-[10px] font-bold text-gray-500">
+          <p className="break-words text-[10px] font-bold text-gray-500">
             {query ? `For "${query}"` : "Search profiles, fruit lots, pages, guides, blogs and mandi information"}
           </p>
         </div>
-        <span className="rounded-full bg-green-100 px-3 py-1 text-[10px] font-extrabold text-green-800">
+        <span className="shrink-0 rounded-full bg-green-100 px-3 py-1 text-[10px] font-extrabold text-green-800">
           {totalResults} found
         </span>
       </div>
@@ -312,11 +312,11 @@ export default function SearchResults() {
       {!loading && lots.length > 0 && (
         <div className="mb-5">
           <h3 className="mb-2 text-xs font-extrabold text-black">Fruit Lots</h3>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
             {lots.map((product) => (
               <article
                 key={product._id}
-                className="rounded-md border border-gray-200 bg-white p-2"
+                className="rounded-md border border-gray-200 bg-white p-3 sm:p-2"
               >
                 <div className="mb-2 aspect-[4/3] w-full overflow-hidden rounded-md bg-green-100">
                   {getImageUrl(product) ? (
@@ -347,7 +347,7 @@ export default function SearchResults() {
                 <button
                   type="button"
                   onClick={() => navigate(`/lots/${product._id}`)}
-                  className="mt-2 inline-flex items-center gap-1 rounded-full bg-gray-200 px-3 py-1 text-[9px] font-bold text-gray-700"
+                  className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-full bg-gray-200 px-3 py-2 text-xs font-bold text-gray-700 sm:mt-2 sm:min-h-0 sm:w-auto sm:py-1 sm:text-[9px]"
                 >
                   <FaEye />
                   View Listing
@@ -388,7 +388,7 @@ export default function SearchResults() {
                 <button
                   type="button"
                   onClick={() => navigate(`/mandi-rates/${slugify(rate.commodity || query)}`)}
-                  className="mt-2 inline-flex items-center gap-1 rounded-full bg-green-700 px-3 py-1 text-[9px] font-bold text-white"
+                  className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-full bg-green-700 px-3 py-2 text-xs font-bold text-white sm:mt-2 sm:min-h-0 sm:w-auto sm:py-1 sm:text-[9px]"
                 >
                   <FaEye />
                   View Rates
@@ -421,7 +421,7 @@ export default function SearchResults() {
                 <button
                   type="button"
                   onClick={() => navigate(item.url)}
-                  className="mt-2 inline-flex items-center gap-1 rounded-full bg-green-700 px-3 py-1 text-[9px] font-bold text-white"
+                  className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-full bg-green-700 px-3 py-2 text-xs font-bold text-white sm:mt-2 sm:min-h-0 sm:w-auto sm:py-1 sm:text-[9px]"
                 >
                   <FaEye />
                   Open Page

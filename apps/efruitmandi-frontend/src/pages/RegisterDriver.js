@@ -89,7 +89,7 @@ export default function RegisterDriver() {
       <div className="flex min-h-screen items-center justify-center px-4 py-8">
         <form
           onSubmit={handleSubmit}
-          className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl shadow-green-900/10"
+          className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl shadow-green-900/10 sm:p-6"
         >
           <div className="mb-6">
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-orange-100 text-orange-600">
@@ -137,7 +137,7 @@ export default function RegisterDriver() {
               inputMode="tel"
               onChange={(value) => updateForm("logisticsOwnerContact", value)}
             />
-            <label className="flex items-center gap-2 rounded-md bg-orange-50 px-3 py-2 text-sm font-semibold text-orange-700">
+            <label className="flex min-h-11 items-center gap-2 rounded-md bg-orange-50 px-3 py-2 text-sm font-semibold text-orange-700">
               <input
                 type="checkbox"
                 checked={form.ownerIsDriver}
@@ -198,7 +198,7 @@ export default function RegisterDriver() {
           <button
             type="submit"
             disabled={loading || hasBlockedBuyerProfile}
-            className="mt-6 w-full rounded-md bg-orange-500 py-3 text-sm font-bold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-gray-300"
+            className="mt-6 min-h-12 w-full rounded-md bg-orange-500 py-3 text-sm font-bold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-gray-300"
           >
             {loading ? "Saving..." : isUpdate ? "Update Logistic Partner Profile" : "Register as Logistic Partner"}
           </button>
@@ -214,14 +214,14 @@ function Field({ icon, label, value, placeholder, onChange, inputMode }) {
       <span className="mb-1.5 block text-sm font-semibold text-gray-700">
         {label}
       </span>
-      <span className="flex items-center gap-3 rounded-md border border-gray-200 bg-white px-3 py-3 text-gray-400 transition focus-within:border-orange-500 focus-within:ring-2 focus-within:ring-orange-100">
+      <span className="flex min-h-11 items-center gap-3 rounded-md border border-gray-200 bg-white px-3 py-3 text-gray-400 transition focus-within:border-orange-500 focus-within:ring-2 focus-within:ring-orange-100">
         {icon}
         <input
           value={value}
           placeholder={placeholder}
           inputMode={inputMode}
           onChange={(event) => onChange(event.target.value)}
-          className="w-full bg-transparent text-sm text-gray-950 outline-none placeholder:text-gray-400"
+          className="min-w-0 w-full bg-transparent text-sm text-gray-950 outline-none placeholder:text-gray-400"
         />
       </span>
     </label>

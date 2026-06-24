@@ -33,7 +33,7 @@ export default function EscrowWorkflow() {
 
   if (!PAYMENT_PARTNER_ENABLED) {
     return (
-      <div className="mx-auto max-w-md rounded bg-white p-6 shadow">
+      <div className="mx-auto max-w-md rounded bg-white p-4 shadow sm:p-6">
         <Helmet>
           <meta name="robots" content="noindex,nofollow" />
         </Helmet>
@@ -49,14 +49,14 @@ export default function EscrowWorkflow() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4 rounded bg-white p-4 shadow">
+    <div className="mx-auto w-full max-w-2xl space-y-4 rounded bg-white p-4 shadow sm:p-5">
       <Helmet>
         <meta name="robots" content="noindex,nofollow" />
       </Helmet>
-      <h2 className="text-xl font-bold">Escrow Deal Workflow</h2>
+      <h2 className="text-xl font-bold">eFruitMandi Escrow Protected</h2>
       {paymentSuccess && (
         <p className="rounded border border-green-200 bg-green-50 px-3 py-2 text-sm font-bold text-green-800">
-          BillDesk demo payment completed. Logistics details are now open for this consignment.
+          Secure buyer payment completed. Logistics details are now open for this consignment.
         </p>
       )}
       {message && <p className="rounded bg-green-50 px-3 py-2 text-sm font-semibold text-green-800">{message}</p>}
@@ -65,7 +65,7 @@ export default function EscrowWorkflow() {
         <>
           <div className="rounded border border-gray-200 p-4 text-sm">
             <p className="font-semibold">Order ID</p>
-            <p className="font-mono text-xs">{order._id}</p>
+            <p className="break-all font-mono text-xs">{order._id}</p>
             {isGrower ? (
               <p className="mt-3">You Will Receive: Rs. {order.sellerReceivable || order.growerPayout || order.auctionPrice || 0}</p>
             ) : (
@@ -82,7 +82,7 @@ export default function EscrowWorkflow() {
 
           <div className="space-y-2">
             {(workflow.steps || []).map((step) => (
-              <div key={step.key} className="flex items-center justify-between rounded border border-gray-200 px-3 py-2 text-sm">
+              <div key={step.key} className="flex flex-col gap-1 rounded border border-gray-200 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
                 <span className="font-semibold">{step.label}</span>
                 <span className={step.complete ? "font-bold text-green-700" : "font-bold text-gray-400"}>
                   {step.complete ? "Done" : "Pending"}
@@ -94,13 +94,13 @@ export default function EscrowWorkflow() {
           <LogisticsDetailsPanel order={order} />
 
           <div className="grid gap-2 sm:grid-cols-3">
-            <button onClick={() => navigate(`/payment/${order._id}`)} className="rounded bg-blue-600 py-2 text-sm font-bold text-white">
-              BillDesk Payment
+            <button onClick={() => navigate(`/payment/${order._id}`)} className="min-h-11 rounded bg-green-700 px-3 py-2 text-sm font-bold text-white">
+              Secure Buyer Payments
             </button>
-            <button onClick={() => navigate("/delivery")} className="rounded bg-green-700 py-2 text-sm font-bold text-white">
+            <button onClick={() => navigate("/delivery")} className="min-h-11 rounded bg-green-700 px-3 py-2 text-sm font-bold text-white">
               Delivery Actions
             </button>
-            <button onClick={() => navigate(`/tracking/${order._id}`)} className="rounded bg-orange-500 py-2 text-sm font-bold text-white">
+            <button onClick={() => navigate(`/tracking/${order._id}`)} className="min-h-11 rounded bg-orange-500 px-3 py-2 text-sm font-bold text-white">
               Track Consignment
             </button>
           </div>
@@ -125,7 +125,7 @@ function LogisticsDetailsPanel({ order }) {
         <div>
           <h3 className="font-bold text-orange-950">Logistics Details</h3>
           <p className="text-xs font-semibold text-orange-800">
-            Required after BillDesk escrow payment before dispatch can proceed.
+            Required after eFruitMandi escrow payment before dispatch can proceed.
           </p>
         </div>
         <span className="w-fit rounded-full bg-white px-3 py-1 text-xs font-bold text-orange-800">
