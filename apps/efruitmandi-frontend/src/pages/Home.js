@@ -591,7 +591,7 @@ export default function Home() {
           onSelect={(name) => navigate(`/search?q=${encodeURIComponent(name)}`)}
         />
         <PublicHomeFeed
-          className="px-3 pt-2"
+          className="pt-2"
           liveLots={liveLots}
           upcomingLots={upcomingLots}
           closedLots={closedLots}
@@ -674,7 +674,7 @@ export default function Home() {
 
 function HeroCard({ onList }) {
   return (
-    <section className="mx-3 -mt-3 rounded-[28px] bg-white shadow-sm ring-1 ring-green-100">
+    <section className="-mx-0 -mt-3 rounded-[18px] bg-white shadow-sm ring-1 ring-green-100">
       <div className="relative overflow-hidden rounded-[28px]">
         <img
           src={orchardCover}
@@ -2523,6 +2523,8 @@ function getLotDetails(product = {}) {
     { label: "Description", value: product.description },
   ].filter((detail) => detail.value !== undefined && detail.value !== null && String(detail.value).trim());
 }
+
+
 
 
 
