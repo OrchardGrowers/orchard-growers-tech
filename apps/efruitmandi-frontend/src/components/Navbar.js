@@ -201,13 +201,13 @@ export default function Navbar() {
   return (
     <>
       <div className="fixed inset-x-0 top-0 z-50 w-full max-w-full overflow-x-hidden bg-green-700 px-1.5 pb-2 pt-2 shadow-sm md:hidden">
-        <div className="grid w-full max-w-full grid-cols-[38px_minmax(0,1fr)_auto] items-center gap-1.5">
+        <div className="grid w-full max-w-full grid-cols-[60px_minmax(0,1fr)_auto] items-center gap-1">
           <Link
             to="/"
             aria-label="Go to home"
-            className="flex h-8 min-w-0 items-center justify-start overflow-hidden"
+            className="flex h-10 min-w-0 items-center justify-start overflow-hidden"
           >
-            <img src={logoUrl} width="36" height="28" className="max-h-7 max-w-[36px] object-contain" alt="Orchard Growers" />
+            <img src={logoUrl} width="60" height="40" className="max-h-10 w-[60px] object-contain" alt="Orchard Growers" />
           </Link>
 
           <SearchForm

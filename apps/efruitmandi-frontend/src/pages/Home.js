@@ -17,7 +17,6 @@ import {
   FaTimes,
 } from "react-icons/fa";
 import BannerSlider from "../components/BannerSlider";
-import TopFilters from "../components/TopFilters";
 import API, { FILE_BASE_URL } from "../services/api";
 import {
   getCurrentUser,
@@ -30,7 +29,6 @@ import {
 import { getEfruitMandiProducts } from "../utils/marketProducts";
 import { saveUserToStorage } from "../utils/userStorage";
 import {
-  getDealDisplayGroup,
   getSafePublicProfile,
   isClosedDeal,
   isLiveDeal,
@@ -279,7 +277,6 @@ export default function Home() {
   const [ratesLoading, setRatesLoading] = useState(true);
   const [profilesError, setProfilesError] = useState("");
   const [ratesError, setRatesError] = useState("");
-  const [desktopSection, setDesktopSection] = useState("liveLots");
   const [marketClock, setMarketClock] = useState(() => Date.now());
   const [marketSocket, setMarketSocket] = useState(null);
   const isGrower = isGrowerAccount(user);
@@ -466,11 +463,6 @@ export default function Home() {
     });
   }, [auctions, marketSocket]);
 
-  const feedItems = useMemo(
-    () => buildFeed(products, auctions),
-    [products, auctions]
-  );
-  const [activeMobileTab, setActiveMobileTab] = useState("liveLots");
   const lotTiming = useMemo(() => getDailyLotTiming(new Date(marketClock)), [marketClock]);
   const timedProducts = useMemo(
     () => products.map((product) => attachLotTiming(product, lotTiming)),
@@ -487,23 +479,21 @@ export default function Home() {
     () => mergeUniqueLots([...auctionDealLots, ...timedProducts]),
     [auctionDealLots, timedProducts]
   );
-  const dealDisplayGroup = useMemo(() => {
-    const group = getDealDisplayGroup(allDealListings);
-    return {
-      ...group,
-      deals: sortDealsNewestFirst(group.deals || []),
-    };
-  }, [allDealListings]);
-  const visibleListings = useMemo(() => dealDisplayGroup.deals.slice(0, 6), [dealDisplayGroup.deals]);
-  const mobileLiveLots = useMemo(() => dealDisplayGroup.deals.slice(0, 12), [dealDisplayGroup.deals]);
-  const upcomingLots = useMemo(
-    () => sortDealsNewestFirst(allDealListings.filter((deal) => isUpcomingDeal(deal))).slice(0, 6),
+  const liveLots = useMemo(
+    () => sortDealsNewestFirst(allDealListings.filter((deal) => isLiveDeal(deal))),
     [allDealListings]
   );
-  const highestDeals = useMemo(() => getHighestDealsByCategory(auctions), [auctions]);
-  const selectedInfoSection = previousSections.find(
-    (section) => section.title === desktopSection
+  const upcomingLots = useMemo(
+    () => sortDealsNewestFirst(allDealListings.filter((deal) => isUpcomingDeal(deal))),
+    [allDealListings]
   );
+  const closedLots = useMemo(
+    () => sortDealsNewestFirst(allDealListings.filter((deal) => isClosedDeal(deal))),
+    [allDealListings]
+  );
+  const canQuoteFromFeed = isPublicVisitor || hasBuyerProfile(user);
+  const canRateFromFeed = hasBuyerProfile(user);
+  const currentUserId = user?._id || user?.id || "";
   const openLotDetails = useCallback((lotIdValue) => {
     if (!lotIdValue) return;
     navigate(`/lots/${lotIdValue}`);
@@ -596,68 +586,33 @@ export default function Home() {
       <div className="pb-32 md:hidden">
         <BannerSlider />
 
-        {isPublicVisitor ? (
-          <>
-            <FruitIconRail
-              className="-mx-3 pt-1"
-              onSelect={(name) => navigate(`/search?q=${encodeURIComponent(name)}`)}
-            />
-            <PublicHomeFeed
-              className="px-3 pt-2"
-              dealDisplayGroup={dealDisplayGroup}
-              deals={mobileLiveLots}
-              dealLoading={loading}
-              growers={publicGrowers}
-              buyers={publicBuyers}
-              profilesLoading={profilesLoading}
-              profilesError={profilesError}
-              rates={offlineMandiRates}
-              ratesLoading={ratesLoading}
-              ratesError={ratesError}
-              showRates
-              onOpenLotById={openLotDetails}
-              onQuoteLot={openQuoteFlow}
-              onRateLot={openRateGrowerFlow}
-              onOpenProfile={openPublicProfileFlow}
-              onRateProfile={openRateProfileFlow}
-            />
-          </>
-        ) : (
-          <>
-            <div className="-mx-3 pt-1">
-              <TopFilters
-                tabs={mobileTabs}
-                active={activeMobileTab}
-                onChange={setActiveMobileTab}
-              />
-            </div>
-
-            <FruitIconRail
-              className="-mx-3 pt-1"
-              onSelect={(name) => navigate(`/search?q=${encodeURIComponent(name)}`)}
-            />
-
-            {loading && (
-              <p className="px-3 py-3 text-sm font-semibold text-green-700">
-                Loading market data...
-              </p>
-            )}
-
-            <MobileSectionContent
-              activeTab={activeMobileTab}
-              visibleListings={mobileLiveLots}
-              upcomingLots={upcomingLots}
-              highestDeals={highestDeals}
-              dealDisplayGroup={dealDisplayGroup}
-              selectedInfoSection={previousSections.find((section) => section.title === activeMobileTab)}
-              onOpenLotById={openLotDetails}
-              onQuoteLot={openQuoteFlow}
-              onRateLot={openRateGrowerFlow}
-              onOpenProfile={openPublicProfileFlow}
-              onRateProfile={openRateProfileFlow}
-            />
-          </>
-        )}
+        <FruitIconRail
+          className="-mx-3 pt-1"
+          onSelect={(name) => navigate(`/search?q=${encodeURIComponent(name)}`)}
+        />
+        <PublicHomeFeed
+          className="px-3 pt-2"
+          liveLots={liveLots}
+          upcomingLots={upcomingLots}
+          closedLots={closedLots}
+          dealLoading={loading}
+          growers={publicGrowers}
+          buyers={publicBuyers}
+          profilesLoading={profilesLoading}
+          profilesError={profilesError}
+          rates={offlineMandiRates}
+          ratesLoading={ratesLoading}
+          ratesError={ratesError}
+          showRates
+          onOpenLotById={openLotDetails}
+          onQuoteLot={openQuoteFlow}
+          onRateLot={openRateGrowerFlow}
+          onOpenProfile={openPublicProfileFlow}
+          onRateProfile={openRateProfileFlow}
+          canQuoteLot={canQuoteFromFeed}
+          canRateLot={canRateFromFeed}
+          currentUserId={currentUserId}
+        />
       </div>
 
     <div className="hidden md:block">
@@ -681,90 +636,27 @@ export default function Home() {
       <section className="auto-hide-column-scroll min-h-0 min-w-0 space-y-3 overflow-y-auto pr-1 overscroll-contain">
         <BannerSlider />
 
-        {isPublicVisitor ? (
-          <PublicHomeFeed
-            dealDisplayGroup={dealDisplayGroup}
-            deals={visibleListings}
-            dealLoading={loading}
-            growers={publicGrowers}
-            buyers={publicBuyers}
-            profilesLoading={profilesLoading}
-            profilesError={profilesError}
-            rates={offlineMandiRates}
-            ratesLoading={ratesLoading}
-            ratesError={ratesError}
-            onOpenLotById={openLotDetails}
-            onQuoteLot={openQuoteFlow}
-            onRateLot={openRateGrowerFlow}
-              onOpenProfile={openPublicProfileFlow}
-              onRateProfile={openRateProfileFlow}
-          />
-        ) : (
-          <>
-            <div className="flex items-center gap-3">
-              <div className="h-px flex-1 bg-gray-300" />
-              <label className="inline-flex items-center gap-1 text-xs text-gray-600">
-                Sort by:
-                <select
-                  aria-label="Sort home feed"
-                  value={desktopSection}
-                  onChange={(event) => setDesktopSection(event.target.value)}
-                  className="bg-transparent text-xs font-semibold text-gray-800 outline-none"
-                >
-                  {desktopSections.map((section) => (
-                    <option key={section.key} value={section.key}>
-                      {section.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            {loading ? (
-              <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm font-semibold text-gray-600">
-                Loading market feed...
-              </div>
-            ) : (
-              <>
-                <DesktopSection
-                  section={desktopSection}
-                  feedItems={feedItems}
-                  visibleListings={visibleListings}
-                  upcomingLots={upcomingLots}
-                  highestDeals={highestDeals}
-                  dealDisplayGroup={dealDisplayGroup}
-                  selectedInfoSection={selectedInfoSection}
-                  onAdd={openListLotFlow}
-                  onOpenLot={openLotDetails}
-                  onQuoteLot={openQuoteFlow}
-                  onRateLot={openRateGrowerFlow}
-                />
-
-                <PublicProfilesSection
-                  title="Latest Registered Growers"
-                  role="grower"
-                  profiles={publicGrowers}
-                  loading={profilesLoading}
-                  error={profilesError}
-                  emptyText="Latest grower profiles will appear soon."
-                  onOpenProfile={openPublicProfileFlow}
-                  onRateProfile={openRateProfileFlow}
-                />
-
-                <PublicProfilesSection
-                  title="Latest Registered Buyers"
-                  role="buyer"
-                  profiles={publicBuyers}
-                  loading={profilesLoading}
-                  error={profilesError}
-                  emptyText="Latest buyer profiles will appear soon."
-                  onOpenProfile={openPublicProfileFlow}
-                  onRateProfile={openRateProfileFlow}
-                />
-              </>
-            )}
-          </>
-        )}
+        <PublicHomeFeed
+          liveLots={liveLots}
+          upcomingLots={upcomingLots}
+          closedLots={closedLots}
+          dealLoading={loading}
+          growers={publicGrowers}
+          buyers={publicBuyers}
+          profilesLoading={profilesLoading}
+          profilesError={profilesError}
+          rates={offlineMandiRates}
+          ratesLoading={ratesLoading}
+          ratesError={ratesError}
+          onOpenLotById={openLotDetails}
+          onQuoteLot={openQuoteFlow}
+          onRateLot={openRateGrowerFlow}
+          onOpenProfile={openPublicProfileFlow}
+          onRateProfile={openRateProfileFlow}
+          canQuoteLot={canQuoteFromFeed}
+          canRateLot={canRateFromFeed}
+          currentUserId={currentUserId}
+        />
       </section>
 
       <aside className="auto-hide-column-scroll hidden h-full min-h-0 space-y-2.5 overflow-y-auto pr-1 overscroll-contain lg:block">
@@ -905,8 +797,9 @@ function FloatingLotActions({ onList, onBuy }) {
 
 function PublicHomeFeed({
   className = "",
-  dealDisplayGroup,
-  deals = [],
+  liveLots = [],
+  upcomingLots = [],
+  closedLots = [],
   dealLoading,
   growers = [],
   buyers = [],
@@ -921,28 +814,49 @@ function PublicHomeFeed({
   onRateLot,
   onOpenProfile,
   onRateProfile,
+  canQuoteLot,
+  canRateLot,
+  currentUserId,
 }) {
   return (
     <div className={`space-y-4 ${className}`}>
       <PublicDealList
-        title={dealDisplayGroup?.title || "Live Fruit Deals"}
-        emptyText={dealDisplayGroup?.emptyText || "No live fruit deal yet. New mandi deals will appear here."}
-        deals={deals}
+        title="Live Fruit Deals"
+        emptyText="No live fruit deals right now. Fresh mandi deals will appear here."
+        deals={liveLots}
         loading={dealLoading}
         onOpenLotById={onOpenLotById}
         onQuoteLot={onQuoteLot}
         onRateLot={onRateLot}
+        canQuoteLot={canQuoteLot}
+        canRateLot={canRateLot}
+        currentUserId={currentUserId}
       />
 
-      <PublicProfilesSection
-        title="Latest Registered Growers"
-        role="grower"
-        profiles={growers}
-        loading={profilesLoading}
-        error={profilesError}
-        emptyText="Latest grower profiles will appear soon."
-        onOpenProfile={onOpenProfile}
-        onRateProfile={onRateProfile}
+      <PublicDealList
+        title="Upcoming Fruit Deals"
+        emptyText="No upcoming fruit deals yet. Scheduled lots will appear here."
+        deals={upcomingLots}
+        loading={dealLoading}
+        onOpenLotById={onOpenLotById}
+        onQuoteLot={onQuoteLot}
+        onRateLot={onRateLot}
+        canQuoteLot={canQuoteLot}
+        canRateLot={canRateLot}
+        currentUserId={currentUserId}
+      />
+
+      <PublicDealList
+        title="Recently Closed Deals"
+        emptyText="No recently closed deals yet. Closed deals will appear here."
+        deals={closedLots}
+        loading={dealLoading}
+        onOpenLotById={onOpenLotById}
+        onQuoteLot={onQuoteLot}
+        onRateLot={onRateLot}
+        canQuoteLot={canQuoteLot}
+        canRateLot={canRateLot}
+        currentUserId={currentUserId}
       />
 
       <PublicProfilesSection
@@ -952,6 +866,17 @@ function PublicHomeFeed({
         loading={profilesLoading}
         error={profilesError}
         emptyText="Latest buyer profiles will appear soon."
+        onOpenProfile={onOpenProfile}
+        onRateProfile={onRateProfile}
+      />
+
+      <PublicProfilesSection
+        title="Latest Registered Growers"
+        role="grower"
+        profiles={growers}
+        loading={profilesLoading}
+        error={profilesError}
+        emptyText="Latest grower profiles will appear soon."
         onOpenProfile={onOpenProfile}
         onRateProfile={onRateProfile}
       />
@@ -975,8 +900,9 @@ function PublicDealList({
   onOpenLotById,
   onQuoteLot,
   onRateLot,
-  onOpenProfile,
-  onRateProfile,
+  canQuoteLot,
+  canRateLot,
+  currentUserId,
 }) {
   return (
     <section className="space-y-3">
@@ -999,6 +925,9 @@ function PublicDealList({
               onOpenLot={onOpenLotById}
               onQuoteLot={onQuoteLot}
               onRateLot={onRateLot}
+              canQuoteLot={canQuoteLot}
+              canRateLot={canRateLot}
+              currentUserId={currentUserId}
             />
           ))}
         </div>
@@ -1107,12 +1036,12 @@ function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile }) {
         </div>
       </div>
 
-      <div className="flex h-64 items-center justify-center bg-gradient-to-br from-green-50 via-white to-amber-50 md:h-80">
+      <div className="flex h-64 items-center justify-center bg-gradient-to-br from-green-50 via-white to-amber-50 p-4 md:h-80">
         {imageUrl ? (
           <img
             src={imageUrl}
             alt={displayName}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-contain"
           />
         ) : (
           <Avatar
@@ -1543,7 +1472,16 @@ function WebSectionPost({ title, text, children }) {
   );
 }
 
-function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) {
+function DesktopLotPost({
+  items,
+  emptyText,
+  onOpenLot,
+  onQuoteLot,
+  onRateLot,
+  canQuoteLot = true,
+  canRateLot = true,
+  currentUserId = "",
+}) {
   const [showAllDetails, setShowAllDetails] = useState(false);
   if (!items.length) return <DesktopEmptyState text={emptyText} />;
 
@@ -1563,6 +1501,9 @@ function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) 
   const growerRatingCount = Number(product.createdBy?.growerRatingCount || 0);
   const closedDeal = isClosedDeal(product);
   const liveDeal = isLiveDeal(product);
+  const isOwnLot = currentUserId && getLotOwnerId(product) === String(currentUserId);
+  const showQuoteAction = liveDeal && canQuoteLot && !isOwnLot;
+  const showRateAction = liveDeal && canRateLot && !isOwnLot;
 
   return (
     <article className="overflow-hidden border border-gray-200 bg-white md:rounded-md">
@@ -1632,15 +1573,17 @@ function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) 
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-            <button
-              type="button"
-              onClick={() => onRateLot(productId)}
-              disabled={!productId}
-              className="min-w-0 rounded-full bg-white px-2 py-2 text-[10px] font-extrabold leading-tight text-green-800 ring-1 ring-green-200 hover:bg-green-100 sm:px-3 sm:text-[11px]"
-            >
-              Rate Grower
-            </button>
-            {liveDeal ? (
+            {showRateAction && (
+              <button
+                type="button"
+                onClick={() => onRateLot(productId)}
+                disabled={!productId}
+                className="min-w-0 rounded-full bg-white px-2 py-2 text-[10px] font-extrabold leading-tight text-green-800 ring-1 ring-green-200 hover:bg-green-100 sm:px-3 sm:text-[11px]"
+              >
+                Rate Grower
+              </button>
+            )}
+            {showQuoteAction ? (
               <button
                 type="button"
                 onClick={() => onQuoteLot(productId)}
@@ -2156,7 +2099,7 @@ function Avatar({ name, imageUrl, className = "" }) {
         height="80"
         loading="lazy"
         decoding="async"
-        className={`shrink-0 rounded-full bg-gray-900 object-cover ${className}`}
+        className={`shrink-0 rounded-full bg-white object-contain p-1 ${className}`}
       />
     );
   }
@@ -2400,6 +2343,14 @@ function getLotProductId(lot = {}) {
 
 function getLotDetailId(lot = {}) {
   return getLotProductId(lot) || lot.auctionId || lot._id || lot.id || "";
+}
+
+function getLotOwnerId(lot = {}) {
+  const createdBy = lot.createdBy || lot.product?.createdBy || {};
+  const ownerId = typeof createdBy === "object" && createdBy !== null
+    ? createdBy._id || createdBy.id
+    : createdBy;
+  return ownerId ? String(ownerId) : "";
 }
 
 function mergeUniqueLots(lots = []) {

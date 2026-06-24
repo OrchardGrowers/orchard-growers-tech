@@ -38,7 +38,7 @@ export default function LimitedPublicProfileCard({
             alt={`${displayName} logo`}
             width="48"
             height="48"
-            className="h-12 w-12 shrink-0 rounded-md bg-white object-cover ring-1 ring-green-100"
+            className="h-12 w-12 shrink-0 rounded-md bg-white object-contain p-1 ring-1 ring-green-100"
             loading="lazy"
             decoding="async"
           />

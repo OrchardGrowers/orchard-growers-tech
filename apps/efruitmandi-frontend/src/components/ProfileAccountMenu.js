@@ -303,7 +303,7 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
     },
   ];
   const containerClass = mobile
-    ? "fixed bottom-[calc(3.6rem+env(safe-area-inset-bottom))] left-0 right-0 top-12 z-[60] flex flex-col overflow-hidden bg-green-700 text-white shadow-2xl"
+    ? "fixed bottom-[calc(3.6rem+env(safe-area-inset-bottom))] left-0 right-0 top-14 z-[60] flex flex-col overflow-hidden bg-green-700 text-white shadow-2xl"
     : "fixed right-4 top-14 bottom-0 z-50 flex w-80 flex-col overflow-hidden rounded-b-lg border border-t-0 border-green-600 bg-green-700 text-white shadow-2xl";
   const openGrowerMenuItem = (item) => {
     setActiveGrowerMenuItem(item.label);
@@ -318,7 +318,7 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
           <img
   src={avatarUrl}
   alt={`${displayName} profile photo`}
-  className="h-11 w-11 rounded-full border-2 border-white bg-gray-900 object-cover"
+  className="h-11 w-11 rounded-full border-2 border-white bg-white object-contain p-1"
 />
         ) : (
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 border-white bg-gray-900 text-lg font-semibold text-white">
