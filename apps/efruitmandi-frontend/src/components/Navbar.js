@@ -425,7 +425,7 @@ function SearchForm({
       className={
         mobile
           ? "flex min-w-0 w-full items-center rounded-full bg-white px-2 py-1"
-          : "flex h-9 w-full max-w-[360px] items-center gap-2 rounded-full border border-green-300 bg-green-50 px-4 text-green-800"
+          : "flex h-9 w-full max-w-[760px] flex-1 items-center gap-2 rounded-full border border-green-300 bg-green-50 px-4 text-green-800"
       }
     >
       {!mobile && <FaSearch className="text-sm" />}
@@ -433,7 +433,7 @@ function SearchForm({
         id={mobile ? "searchInput" : undefined}
         value={searchQuery}
         onChange={(event) => setSearchQuery(event.target.value)}
-        placeholder={isListening ? "Listening..." : "Search lots, fruit, mandi..."}
+        placeholder={isListening ? "Listening..." : "Search Live Fruit Lots, APMC Price, and Anything on Web"}
         className={`min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none ${
           mobile ? "text-xs placeholder:text-gray-400" : "placeholder:text-green-700/70"
         }`}

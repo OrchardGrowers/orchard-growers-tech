@@ -2020,7 +2020,7 @@ function OfflineMandiRatesCard({ rates = [], loading = false, error = "" }) {
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-5">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-black">Offline Mandi Rates</h2>
+        <h2 className="text-xl font-semibold text-black">APMC, Govt. Mandi Auction and Rates</h2>
         <FaInfoCircle className="text-xs text-gray-600" />
       </div>
 
@@ -2048,10 +2048,10 @@ function OfflineMandiRatesCard({ rates = [], loading = false, error = "" }) {
             <article key={rate.id || rate._id || `${rate.commodity}-${rate.market}-${rate.arrivalDate}`} className="rounded-md border border-gray-100 p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="line-clamp-1 text-sm font-extrabold text-gray-950">
-                    Commodity: {rate.commodity || "Fruit"}
+                  <h3 className="text-sm font-extrabold text-gray-950 whitespace-normal break-words">
+                    Commodity: {rate.commodity || rate.Commodity || rate.commodityName || rate.fruitName || rate.FruitName || "Fruit"}
                   </h3>
-                  <p className="mt-1 truncate text-xs font-semibold text-gray-600">
+                  <p className="mt-1 text-xs font-semibold text-gray-600 whitespace-normal break-words">
                     Market/Mandi: {rate.market || rate.mandi || "-"}
                   </p>
                 </div>
@@ -2537,6 +2537,7 @@ function getLotDetails(product = {}) {
     { label: "Description", value: product.description },
   ].filter((detail) => detail.value !== undefined && detail.value !== null && String(detail.value).trim());
 }
+
 
 
 
