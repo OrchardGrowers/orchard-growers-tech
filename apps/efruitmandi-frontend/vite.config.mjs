@@ -1,6 +1,5 @@
 import { defineConfig, loadEnv, transformWithEsbuild } from "vite";
 import react from "@vitejs/plugin-react";
-import { visualizer } from "rollup-plugin-visualizer";
 
 const PUBLIC_COMPAT_ENV = new Set([
   "REACT_APP_MSG91_EFRUITMANDI_WIDGET_ID",
@@ -10,6 +9,7 @@ const PUBLIC_COMPAT_ENV = new Set([
   "REACT_APP_FACEBOOK_AUTH_URL",
   "REACT_APP_PAYMENT_PARTNER_ENABLED",
 ]);
+
 const PUBLIC_VITE_ENV = new Set([
   "VITE_API_BASE_URL",
   "VITE_API_URL",
@@ -55,17 +55,32 @@ export default defineConfig(({ mode }) => ({
       },
     },
     react(),
-    visualizer({
-      filename: "build/stats.html",
-      gzipSize: true,
-      brotliSize: true,
-      open: false,
-    }),
   ],
   publicDir: "public",
   build: {
     outDir: "build",
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          const normalizedId = id.replace(/\\/g, "/");
+          if (!normalizedId.includes("node_modules")) return undefined;
+          if (
+            normalizedId.includes("/react/") ||
+            normalizedId.includes("/react-dom/") ||
+            normalizedId.includes("/react-router/") ||
+            normalizedId.includes("/react-router-dom/") ||
+            normalizedId.includes("/@remix-run/")
+          ) {
+            return "react-vendor";
+          }
+          if (normalizedId.includes("/react-helmet-async/")) {
+            return "seo-vendor";
+          }
+          return undefined;
+        },
+      },
+    },
   },
   define: {
     "process.env": JSON.stringify(createClientEnv(mode)),

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   FaBell,
@@ -11,13 +11,11 @@ import {
   FaUser,
   FaYoutube,
 } from "react-icons/fa";
-import { getCountries } from "../services/countryService";
 import { getCurrentUser, logoutUser } from "../utils/auth";
-import ProfileAccountMenu from "./ProfileAccountMenu";
 import API from "../services/api";
-import { getEfruitMandiProducts } from "../utils/marketProducts";
 
 const logoUrl = `${process.env.PUBLIC_URL || ""}/logo.png`;
+const ProfileAccountMenu = lazy(() => import("./ProfileAccountMenu"));
 const READ_NOTIFICATIONS_KEY = "efruitmandiReadNotifications";
 const NOTIFICATION_STATE_EVENT = "efruitmandi-notifications-updated";
 
@@ -46,18 +44,28 @@ export default function Navbar() {
   });
 
   useEffect(() => {
-    getCountries().then((list) => {
-      setCountries(list);
+    let active = true;
 
-      const saved = localStorage.getItem("selectedCountry");
-      if (saved) {
-        setSelected(JSON.parse(saved));
-        return;
-      }
+    import("../services/countryService")
+      .then(({ getCountries }) => getCountries())
+      .then((list) => {
+        if (!active) return;
+        setCountries(list);
 
-      const india = list.find((country) => country.code === "IN");
-      if (india) setSelected(india);
-    });
+        const saved = localStorage.getItem("selectedCountry");
+        if (saved) {
+          setSelected(JSON.parse(saved));
+          return;
+        }
+
+        const india = list.find((country) => country.code === "IN");
+        if (india) setSelected(india);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -80,6 +88,8 @@ export default function Navbar() {
           API.get("/products?platform=efruitmandi"),
           API.get("/quotes/buyer").catch(() => ({ data: { quotes: [] } })),
         ]);
+        if (cancelled) return;
+        const { getEfruitMandiProducts } = await import("../utils/marketProducts");
         if (cancelled) return;
         const latestLotIds = getEfruitMandiProducts(lotRes.data)
           .slice()
@@ -359,11 +369,13 @@ export default function Navbar() {
                       </button>
 
                       {profileMenuOpen && (
-                        <ProfileAccountMenu
-                          user={currentUser}
-                          onAction={openProfileAction}
-                          onLogout={logoutUser}
-                        />
+                        <Suspense fallback={null}>
+                          <ProfileAccountMenu
+                            user={currentUser}
+                            onAction={openProfileAction}
+                            onLogout={logoutUser}
+                          />
+                        </Suspense>
                       )}
                     </div>
                   );

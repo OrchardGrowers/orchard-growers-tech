@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { FaChartLine, FaHandshake, FaHome, FaTruck, FaUser } from "react-icons/fa";
 import { getCurrentUser, logoutUser } from "../utils/auth";
-import ProfileAccountMenu from "./ProfileAccountMenu";
+
+const ProfileAccountMenu = lazy(() => import("./ProfileAccountMenu"));
 
 export default function BottomNav() {
   const location = useLocation();
@@ -78,12 +79,14 @@ export default function BottomNav() {
                 </button>
 
                 {profileMenuOpen && (
-                  <ProfileAccountMenu
-                    user={currentUser}
-                    onAction={openProfileAction}
-                    onLogout={logoutUser}
-                    mobile
-                  />
+                  <Suspense fallback={null}>
+                    <ProfileAccountMenu
+                      user={currentUser}
+                      onAction={openProfileAction}
+                      onLogout={logoutUser}
+                      mobile
+                    />
+                  </Suspense>
                 )}
               </div>
             );

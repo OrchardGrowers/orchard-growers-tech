@@ -20,7 +20,7 @@ import {
   FaTruck,
   FaUserCircle,
 } from "react-icons/fa";
-import { openEFruitInstallPrompt } from "./InstallAppPrompt";
+import { openEFruitInstallPrompt } from "../utils/installPrompt";
 import {
   hasBuyerProfile,
   hasDriverProfile,

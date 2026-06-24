@@ -279,45 +279,52 @@ export default function Home() {
   const [ratesError, setRatesError] = useState("");
   const [marketClock, setMarketClock] = useState(() => Date.now());
   const [marketSocket, setMarketSocket] = useState(null);
+  const [deferredSectionsReady, setDeferredSectionsReady] = useState(false);
   const isGrower = isGrowerAccount(user);
   const isPublicVisitor = !localStorage.getItem("accessToken");
-  const loadHome = useCallback(async ({ showLoading = false } = {}) => {
+  const loadMarketData = useCallback(async ({ showLoading = false } = {}) => {
     if (showLoading) {
       setLoading(true);
-      setProfilesLoading(true);
-      setRatesLoading(true);
-      setProfilesError("");
-      setRatesError("");
     }
 
     try {
-      const [productRes, auctionRes, growerRes, buyerRes, ratesRes] = await Promise.all([
+      const [productRes, auctionRes] = await Promise.all([
         API.get("/products?platform=efruitmandi").catch(() => ({ data: [] })),
         API.get("/auctions").catch(() => ({ data: [] })),
-        API.get("/user/public-profiles?role=grower&limit=8").catch(() => {
-          setProfilesError("Unable to load latest public profiles.");
-          return { data: { profiles: [] } };
-        }),
-        API.get("/user/public-profiles?role=buyer&limit=8").catch(() => {
-          setProfilesError("Unable to load latest public profiles.");
-          return { data: { profiles: [] } };
-        }),
-        API.get("/mandi-rates/latest?limit=10").catch(() => {
-          setRatesError("Unable to load offline mandi rates.");
-          return { data: { records: [] } };
-        }),
       ]);
 
       setProducts(getEfruitMandiProducts(productRes.data));
       setAuctions(auctionRes.data || []);
-      setPublicGrowers(Array.isArray(growerRes.data?.profiles) ? growerRes.data.profiles : []);
-      setPublicBuyers(Array.isArray(buyerRes.data?.profiles) ? buyerRes.data.profiles : []);
-      setOfflineMandiRates(Array.isArray(ratesRes.data?.records) ? ratesRes.data.records : []);
     } finally {
       setLoading(false);
-      setProfilesLoading(false);
-      setRatesLoading(false);
     }
+  }, []);
+  const loadSupplementalHomeData = useCallback(async () => {
+    setProfilesLoading(true);
+    setRatesLoading(true);
+    setProfilesError("");
+    setRatesError("");
+
+    const [growerRes, buyerRes, ratesRes] = await Promise.all([
+      API.get("/user/public-profiles?role=grower&limit=8").catch(() => {
+        setProfilesError("Unable to load latest public profiles.");
+        return { data: { profiles: [] } };
+      }),
+      API.get("/user/public-profiles?role=buyer&limit=8").catch(() => {
+        setProfilesError("Unable to load latest public profiles.");
+        return { data: { profiles: [] } };
+      }),
+      API.get("/mandi-rates/latest?limit=10").catch(() => {
+        setRatesError("Unable to load offline mandi rates.");
+        return { data: { records: [] } };
+      }),
+    ]);
+
+    setPublicGrowers(Array.isArray(growerRes.data?.profiles) ? growerRes.data.profiles : []);
+    setPublicBuyers(Array.isArray(buyerRes.data?.profiles) ? buyerRes.data.profiles : []);
+    setOfflineMandiRates(Array.isArray(ratesRes.data?.records) ? ratesRes.data.records : []);
+    setProfilesLoading(false);
+    setRatesLoading(false);
   }, []);
 
   const openProfileEntry = () => {
@@ -350,8 +357,15 @@ export default function Home() {
   };
 
   useEffect(() => {
-    return scheduleAfterPaint(() => loadHome({ showLoading: true }));
-  }, [loadHome]);
+    return scheduleAfterPaint(() => loadMarketData({ showLoading: true }));
+  }, [loadMarketData]);
+
+  useEffect(() => scheduleAfterPaint(() => setDeferredSectionsReady(true), 1800), []);
+
+  useEffect(() => {
+    if (!deferredSectionsReady) return undefined;
+    return scheduleAfterPaint(() => loadSupplementalHomeData(), 900);
+  }, [deferredSectionsReady, loadSupplementalHomeData]);
 
   useEffect(() => {
     let active = true;
@@ -362,7 +376,7 @@ export default function Home() {
         if (!socket.connected) socket.connect();
         setMarketSocket(socket);
       });
-    }, 1200);
+    }, 5000);
 
     return () => {
       active = false;
@@ -373,7 +387,7 @@ export default function Home() {
   useEffect(() => {
     if (!marketSocket) return undefined;
     const refreshMarket = () => {
-      loadHome();
+      loadMarketData();
     };
     const handleDealUpdate = ({ dealAmount, auctionId, highestGradeRate, dealBreakdown }) => {
       setAuctions((current) =>
@@ -405,7 +419,7 @@ export default function Home() {
       marketSocket.off("dealEnded", refreshMarket);
       marketSocket.off("dealUpdate", handleDealUpdate);
     };
-  }, [loadHome, marketSocket]);
+  }, [loadMarketData, marketSocket]);
 
   useEffect(() => {
     const syncLocalUser = () => {
@@ -603,7 +617,8 @@ export default function Home() {
           rates={offlineMandiRates}
           ratesLoading={ratesLoading}
           ratesError={ratesError}
-          showRates
+          showProfiles={deferredSectionsReady}
+          showRates={deferredSectionsReady}
           onOpenLotById={openLotDetails}
           onQuoteLot={openQuoteFlow}
           onRateLot={openRateGrowerFlow}
@@ -628,9 +643,13 @@ export default function Home() {
           user={user}
           onOpen={openProfileEntry}
         />
-        <StatsCard onOpen={openProfileEntry} />
-        <CompanyCard onOpen={openProfileEntry} />
-        <PolicyMiniLinks />
+        {deferredSectionsReady && (
+          <>
+            <StatsCard onOpen={openProfileEntry} />
+            <CompanyCard onOpen={openProfileEntry} />
+            <PolicyMiniLinks />
+          </>
+        )}
       </aside>
 
       <section className="auto-hide-column-scroll min-h-0 min-w-0 space-y-3 overflow-y-auto pr-1 overscroll-contain">
@@ -648,6 +667,7 @@ export default function Home() {
           rates={offlineMandiRates}
           ratesLoading={ratesLoading}
           ratesError={ratesError}
+          showProfiles={deferredSectionsReady}
           onOpenLotById={openLotDetails}
           onQuoteLot={openQuoteFlow}
           onRateLot={openRateGrowerFlow}
@@ -660,12 +680,16 @@ export default function Home() {
       </section>
 
       <aside className="auto-hide-column-scroll hidden h-full min-h-0 space-y-2.5 overflow-y-auto pr-1 overscroll-contain lg:block">
-        <OfflineMandiRatesCard
-          rates={offlineMandiRates}
-          loading={ratesLoading}
-          error={ratesError}
-        />
+        {deferredSectionsReady && (
+          <>
+            <OfflineMandiRatesCard
+              rates={offlineMandiRates}
+              loading={ratesLoading}
+              error={ratesError}
+            />
             <AdCard user={user} onListLot={openListLotFlow} />
+          </>
+        )}
       </aside>
     </div>
     </>
@@ -808,6 +832,7 @@ function PublicHomeFeed({
   rates = [],
   ratesLoading,
   ratesError,
+  showProfiles = true,
   showRates = false,
   onOpenLotById,
   onQuoteLot,
@@ -859,27 +884,31 @@ function PublicHomeFeed({
         currentUserId={currentUserId}
       />
 
-      <PublicProfilesSection
-        title="Latest Registered Buyers"
-        role="buyer"
-        profiles={buyers}
-        loading={profilesLoading}
-        error={profilesError}
-        emptyText="Latest buyer profiles will appear soon."
-        onOpenProfile={onOpenProfile}
-        onRateProfile={onRateProfile}
-      />
+      {showProfiles && (
+        <>
+          <PublicProfilesSection
+            title="Latest Registered Buyers"
+            role="buyer"
+            profiles={buyers}
+            loading={profilesLoading}
+            error={profilesError}
+            emptyText="Latest buyer profiles will appear soon."
+            onOpenProfile={onOpenProfile}
+            onRateProfile={onRateProfile}
+          />
 
-      <PublicProfilesSection
-        title="Latest Registered Growers"
-        role="grower"
-        profiles={growers}
-        loading={profilesLoading}
-        error={profilesError}
-        emptyText="Latest grower profiles will appear soon."
-        onOpenProfile={onOpenProfile}
-        onRateProfile={onRateProfile}
-      />
+          <PublicProfilesSection
+            title="Latest Registered Growers"
+            role="grower"
+            profiles={growers}
+            loading={profilesLoading}
+            error={profilesError}
+            emptyText="Latest grower profiles will appear soon."
+            onOpenProfile={onOpenProfile}
+            onRateProfile={onRateProfile}
+          />
+        </>
+      )}
 
       {showRates && (
         <OfflineMandiRatesCard

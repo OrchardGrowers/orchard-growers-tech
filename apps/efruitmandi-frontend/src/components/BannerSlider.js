@@ -55,7 +55,7 @@ export default function BannerSlider() {
       return () => window.cancelIdleCallback(idleId);
     }
 
-    const timer = window.setTimeout(showRest, 700);
+    const timer = window.setTimeout(showRest, 1800);
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -101,7 +101,7 @@ export default function BannerSlider() {
             alt={banner.alt}
             loading={i === 0 ? "eager" : "lazy"}
             fetchPriority={i === 0 ? "high" : "low"}
-            decoding={i === 0 ? "sync" : "async"}
+            decoding="async"
             onError={() => hideMissingBanner(banner.src)}
             className="h-full w-full flex-shrink-0 object-fill"
           />

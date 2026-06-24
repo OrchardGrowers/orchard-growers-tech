@@ -1,15 +1,15 @@
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-import { lazy, Suspense, useEffect, useRef } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 
 import StartupSplash from "./components/StartupSplash";
-import AppFeedback from "./components/AppFeedback";
-import InstallAppPrompt from "./components/InstallAppPrompt";
 
 // 🔹 Layout
-import MainLayout from "./layouts/MainLayout";
+const MainLayout = lazy(() => import("./layouts/MainLayout"));
+const AppFeedback = lazy(() => import("./components/AppFeedback"));
+const InstallAppPrompt = lazy(() => import("./components/InstallAppPrompt"));
 
 // 🔹 Pages
-import Home from "./pages/Home";
+const Home = lazy(() => import("./pages/Home"));
 const FruitLotsPage = lazy(() => import("./pages/FruitLotsPage"));
 const NewsUpdatesPage = lazy(() => import("./pages/NewsUpdatesPage"));
 const BlogPage = lazy(() => import("./pages/BlogPage"));
@@ -84,10 +84,25 @@ function RouteFallback() {
   return <StartupSplash autoHide={false} />;
 }
 
+function DeferredEnhancements() {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => scheduleDeferred(() => setReady(true), 3500), []);
+
+  if (!ready) return null;
+
+  return (
+    <Suspense fallback={null}>
+      <AppFeedback />
+      <InstallAppPrompt />
+    </Suspense>
+  );
+}
+
 function App() {
   return (
     <>
-      <AppFeedback />
+      <DeferredEnhancements />
       <StartupSplash />
       <BrowserRouter
           future={{
@@ -96,7 +111,6 @@ function App() {
           }}
         >
           <AnalyticsTracker />
-          <InstallAppPrompt />
           <Suspense fallback={<RouteFallback />}>
             <Routes>
 

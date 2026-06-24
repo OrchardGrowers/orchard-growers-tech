@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { FaBell, FaMapMarkerAlt, FaMicrophone, FaMobileAlt, FaVideo } from "react-icons/fa";
 import { trackInstallEvent } from "../utils/installAnalytics";
+import { consumePendingInstallPrompt, INSTALL_PROMPT_EVENT } from "../utils/installPrompt";
 import { isStandalonePwa } from "../utils/mobilePermissions";
 
-const INSTALL_PROMPT_EVENT = "efruitmandi-install-app";
 const INSTALL_DISMISSED_KEY = "efruitmandiInstallPromptDismissed";
 
 const installChannels = {
@@ -23,10 +23,6 @@ const rememberDismissal = () => {
   } catch {
     // Ignore private browsing storage failures.
   }
-};
-
-export const openEFruitInstallPrompt = () => {
-  window.dispatchEvent(new Event(INSTALL_PROMPT_EVENT));
 };
 
 export default function InstallAppPrompt() {
@@ -97,6 +93,9 @@ export default function InstallAppPrompt() {
     window.addEventListener(INSTALL_PROMPT_EVENT, openPrompt);
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
     window.addEventListener("appinstalled", handleInstalled);
+    if (consumePendingInstallPrompt()) {
+      window.setTimeout(openPrompt, 0);
+    }
 
     return () => {
       window.removeEventListener(INSTALL_PROMPT_EVENT, openPrompt);
