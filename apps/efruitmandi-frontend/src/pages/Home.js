@@ -2599,3 +2599,4 @@ function getLotDetails(product = {}) {
 
 
 
+
