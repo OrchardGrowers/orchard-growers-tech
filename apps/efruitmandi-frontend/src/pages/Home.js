@@ -494,17 +494,22 @@ export default function Home() {
       deals: sortDealsNewestFirst(group.deals || []),
     };
   }, [allDealListings]);
-  const visibleListings = dealDisplayGroup.deals.slice(0, 6);
-  const mobileLiveLots = dealDisplayGroup.deals.slice(0, 12);
+  const visibleListings = useMemo(() => dealDisplayGroup.deals.slice(0, 6), [dealDisplayGroup.deals]);
+  const mobileLiveLots = useMemo(() => dealDisplayGroup.deals.slice(0, 12), [dealDisplayGroup.deals]);
   const upcomingLots = useMemo(
     () => sortDealsNewestFirst(allDealListings.filter((deal) => isUpcomingDeal(deal))).slice(0, 6),
     [allDealListings]
   );
-  const highestDeals = getHighestDealsByCategory(auctions);
+  const highestDeals = useMemo(() => getHighestDealsByCategory(auctions), [auctions]);
   const selectedInfoSection = previousSections.find(
     (section) => section.title === desktopSection
   );
-  const openQuoteFlow = (productId) => {
+  const openLotDetails = useCallback((lotIdValue) => {
+    if (!lotIdValue) return;
+    navigate(`/lots/${lotIdValue}`);
+  }, [navigate]);
+  const openQuoteFlow = useCallback((productId) => {
+    if (!productId) return;
     const quotePath = `/lots/${productId}/quote`;
     if (!localStorage.getItem("accessToken")) {
       navigate("/profile", { state: buildLoginState(quotePath, "buyer") });
@@ -530,8 +535,9 @@ export default function Home() {
     }
 
     navigate(quotePath);
-  };
-  const openRateGrowerFlow = (productId) => {
+  }, [navigate, user]);
+  const openRateGrowerFlow = useCallback((productId) => {
+    if (!productId) return;
     const ratingPath = `/lots/${productId}/rating`;
     if (!localStorage.getItem("accessToken")) {
       navigate("/profile", { state: buildLoginState(ratingPath, "buyer") });
@@ -544,7 +550,7 @@ export default function Home() {
     }
 
     navigate(ratingPath);
-  };
+  }, [navigate, user]);
 
   const openPublicProfileFlow = (profile, role) => {
     const profileId = profile?._id || profile?.id || profile?.userId;
@@ -609,7 +615,7 @@ export default function Home() {
               ratesLoading={ratesLoading}
               ratesError={ratesError}
               showRates
-              onOpenLotById={(productId) => navigate(`/lots/${productId}`)}
+              onOpenLotById={openLotDetails}
               onQuoteLot={openQuoteFlow}
               onRateLot={openRateGrowerFlow}
               onOpenProfile={openPublicProfileFlow}
@@ -644,7 +650,7 @@ export default function Home() {
               highestDeals={highestDeals}
               dealDisplayGroup={dealDisplayGroup}
               selectedInfoSection={previousSections.find((section) => section.title === activeMobileTab)}
-              onOpenLotById={(productId) => navigate(`/lots/${productId}`)}
+              onOpenLotById={openLotDetails}
               onQuoteLot={openQuoteFlow}
               onRateLot={openRateGrowerFlow}
               onOpenProfile={openPublicProfileFlow}
@@ -687,7 +693,7 @@ export default function Home() {
             rates={offlineMandiRates}
             ratesLoading={ratesLoading}
             ratesError={ratesError}
-            onOpenLotById={(productId) => navigate(`/lots/${productId}`)}
+            onOpenLotById={openLotDetails}
             onQuoteLot={openQuoteFlow}
             onRateLot={openRateGrowerFlow}
               onOpenProfile={openPublicProfileFlow}
@@ -729,7 +735,7 @@ export default function Home() {
                   dealDisplayGroup={dealDisplayGroup}
                   selectedInfoSection={selectedInfoSection}
                   onAdd={openListLotFlow}
-                  onOpenLot={(productId) => navigate(`/lots/${productId}`)}
+                  onOpenLot={openLotDetails}
                   onQuoteLot={openQuoteFlow}
                   onRateLot={openRateGrowerFlow}
                 />
@@ -987,7 +993,7 @@ function PublicDealList({
         <div className="space-y-3">
           {deals.map((deal) => (
             <DesktopLotPost
-              key={deal._id || deal.id || deal.lotNo || deal.title}
+              key={getLotDetailId(deal) || deal.id || deal.lotNo || deal.title}
               items={[deal]}
               emptyText={emptyText}
               onOpenLot={onOpenLotById}
@@ -1542,6 +1548,8 @@ function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) 
   if (!items.length) return <DesktopEmptyState text={emptyText} />;
 
   const product = items[0];
+  const detailId = getLotDetailId(product);
+  const productId = getLotProductId(product);
   const images = getProductImages(product);
   const lotDetails = getLotDetails(product);
   const visibleDetails = showAllDetails ? lotDetails : [];
@@ -1562,7 +1570,8 @@ function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) 
         <div className="flex items-start justify-between gap-3">
           <button
             type="button"
-            onClick={() => onOpenLot(product._id)}
+            onClick={() => onOpenLot(detailId)}
+            disabled={!detailId}
             className="min-w-0 flex-1 text-left"
           >
             <h3 className="line-clamp-1 text-base font-extrabold text-black">
@@ -1608,7 +1617,7 @@ function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) 
         images={images}
         product={product}
         title={product.title || "Fruit Lot"}
-        onOpen={() => onOpenLot(product._id)}
+        onOpen={() => onOpenLot(detailId)}
       />
       <div className="border-t border-gray-100 p-3">
         <div className="grid gap-2 rounded-md bg-green-50 px-3 py-3 text-xs sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
@@ -1625,7 +1634,8 @@ function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) 
           <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             <button
               type="button"
-              onClick={() => onRateLot(product._id)}
+              onClick={() => onRateLot(productId)}
+              disabled={!productId}
               className="min-w-0 rounded-full bg-white px-2 py-2 text-[10px] font-extrabold leading-tight text-green-800 ring-1 ring-green-200 hover:bg-green-100 sm:px-3 sm:text-[11px]"
             >
               Rate Grower
@@ -1633,7 +1643,8 @@ function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) 
             {liveDeal ? (
               <button
                 type="button"
-                onClick={() => onQuoteLot(product._id)}
+                onClick={() => onQuoteLot(productId)}
+                disabled={!productId}
                 className="min-w-0 rounded-full bg-green-700 px-2 py-2 text-[10px] font-extrabold leading-tight text-white hover:bg-green-800 sm:px-3 sm:text-[11px]"
               >
                 Quote Your Price
@@ -1641,7 +1652,8 @@ function DesktopLotPost({ items, emptyText, onOpenLot, onQuoteLot, onRateLot }) 
             ) : (
               <button
                 type="button"
-                onClick={() => onOpenLot(product._id)}
+                onClick={() => onOpenLot(detailId)}
+                disabled={!detailId}
                 className="min-w-0 rounded-full bg-white px-2 py-2 text-[10px] font-extrabold leading-tight text-green-800 ring-1 ring-green-200 hover:bg-green-100 sm:px-3 sm:text-[11px]"
               >
                 {closedDeal ? "View Closed Deal" : "View Details"}
@@ -2191,11 +2203,13 @@ function buildFeed(products, auctions) {
   const auctionPosts = auctions
     .filter((auction) => auction.product)
     .map((auction) => {
-      const product = auction.product || {};
+      const rawProduct = auction.product || {};
+      const product = typeof rawProduct === "object" && rawProduct !== null ? rawProduct : { _id: rawProduct };
+      const productId = product._id || product.id || (typeof rawProduct === "string" ? rawProduct : "") || auction._id;
       const image = getProductImage(product);
       return {
         id: `auction-${auction._id}`,
-        productId: product._id,
+        productId,
         brand: "Orchard Growers Market",
         title: product.title || "Live Fruit Deal",
         text: `Deal is open for ${product.title || "this orchard lot"}. Current deal price is Rs. ${auction.currentBid || auction.startingPrice || 0}.`,
@@ -2320,7 +2334,10 @@ function attachLotTiming(product = {}, timing) {
 }
 
 function normalizeAuctionLot(auction = {}, timing) {
-  const product = auction.product || {};
+  const rawProduct = auction.product || {};
+  const product = typeof rawProduct === "object" && rawProduct !== null ? rawProduct : { _id: rawProduct };
+  const productId = product._id || product.id || auction.productId || (typeof rawProduct === "string" ? rawProduct : "");
+  const auctionId = auction._id || auction.id || "";
   const dealStatus = normalizeDealStatus({
     status: auction.status,
     product,
@@ -2351,7 +2368,9 @@ function normalizeAuctionLot(auction = {}, timing) {
 
   return {
     ...product,
-    _id: product._id,
+    _id: productId || auctionId,
+    productId,
+    auctionId,
     status:
       dealStatus === "closed"
         ? "CLOSED"
@@ -2367,10 +2386,26 @@ function normalizeAuctionLot(auction = {}, timing) {
   };
 }
 
+function getLotProductId(lot = {}) {
+  const product = typeof lot.product === "object" && lot.product !== null ? lot.product : null;
+  return (
+    lot.productId ||
+    product?._id ||
+    product?.id ||
+    (typeof lot.product === "string" ? lot.product : "") ||
+    lot.product_id ||
+    ""
+  );
+}
+
+function getLotDetailId(lot = {}) {
+  return getLotProductId(lot) || lot.auctionId || lot._id || lot.id || "";
+}
+
 function mergeUniqueLots(lots = []) {
   const seen = new Set();
   return lots.filter((lot) => {
-    const key = lot?._id || lot?.id || lot?.lotNo || lot?.title;
+    const key = getLotProductId(lot) || lot?.auctionId || lot?._id || lot?.id || lot?.lotNo || lot?.title;
     if (!key) return false;
     const normalizedKey = String(key);
     if (seen.has(normalizedKey)) return false;

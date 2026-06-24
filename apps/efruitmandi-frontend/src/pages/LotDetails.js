@@ -22,12 +22,23 @@ import { getSafePublicProfile } from "../utils/marketplaceVisibility";
 
 const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
 const isDevelopment = process.env.NODE_ENV !== "production";
+const LOT_DETAILS_CACHE_LIMIT = 20;
+const lotDetailsCache = new Map();
+
+function rememberLotDetails(key, value) {
+  if (!key || !value?.product) return;
+  lotDetailsCache.set(key, value);
+  if (lotDetailsCache.size > LOT_DETAILS_CACHE_LIMIT) {
+    lotDetailsCache.delete(lotDetailsCache.keys().next().value);
+  }
+}
 
 export default function LotDetails() {
   const { lotId } = useParams();
   const navigate = useNavigate();
   const [product, setProduct] = useState(null);
   const [auction, setAuction] = useState(null);
+  const [closedDeal, setClosedDeal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState("");
   const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
@@ -42,11 +53,20 @@ export default function LotDetails() {
         setLoading(true);
         if (!lotId || !/^[a-f0-9]{24}$/i.test(String(lotId))) {
           setProduct(null);
+          setAuction(null);
+          setClosedDeal(null);
           setErrorMessage("Lot not found");
           return;
         }
+        const cacheUser = localStorage.getItem("accessToken")
+          ? getCurrentUser()?._id || getCurrentUser()?.id || "auth"
+          : "public";
+        const cacheKey = `${lotId}:${cacheUser}`;
+        const cachedLot = lotDetailsCache.get(cacheKey);
         const [res, profileRes] = await Promise.all([
-          API.get(`/products/${lotId}?platform=efruitmandi`),
+          cachedLot
+            ? Promise.resolve({ data: cachedLot })
+            : API.get(`/products/${lotId}?platform=efruitmandi`),
           localStorage.getItem("accessToken")
             ? API.get("/user/profile").catch(() => ({ data: getCurrentUser() }))
             : Promise.resolve({ data: getCurrentUser() }),
@@ -56,13 +76,17 @@ export default function LotDetails() {
         saveUserToStorage(freshUser);
         const lot = res.data?.product || null;
         const linkedAuction = res.data?.auction || null;
+        const linkedClosedDeal = res.data?.closedDeal || null;
 
         if (!lot) {
           setErrorMessage("Lot not found");
+        } else if (!cachedLot) {
+          rememberLotDetails(cacheKey, res.data);
         }
 
         setProduct(lot);
         setAuction(linkedAuction);
+        setClosedDeal(linkedClosedDeal);
         setActiveImage(getAllImages(lot)[0] || "");
       } catch (err) {
         if (isDevelopment) {
@@ -70,6 +94,8 @@ export default function LotDetails() {
         }
         setErrorMessage("Failed to load lot");
         setProduct(null);
+        setAuction(null);
+        setClosedDeal(null);
       } finally {
         setLoading(false);
       }
@@ -86,7 +112,7 @@ export default function LotDetails() {
   const canSeeBasePrice = ownerId && currentUserId && ownerId === currentUserId;
   const isOrganicCertified = isOrganicCertifiedProduct(product);
   const growerName = createdBy.orchardName || createdBy.businessName || createdBy.name || "Grower's Orchard";
-  const growerRating = Number(createdBy.growerRatingAverage || createdBy.rating || product.growerRating || 0);
+  const growerRating = Number(createdBy.growerRatingAverage || createdBy.rating || product?.growerRating || 0);
   const growerRatingCount = Number(createdBy.growerRatingCount || 0);
   const activeGradeLabel = getImageGradeLabel(product, activeImage);
   const growerPublicProfile = useMemo(
@@ -97,6 +123,10 @@ export default function LotDetails() {
       }),
     [createdBy, growerName]
   );
+  const isClosedLot = isClosedLotStatus(product, auction, closedDeal);
+  const detailProductId = product?._id || product?.id || lotId;
+  const closedBuyer = closedDeal?.purchasedBy || product?.acceptedBuyerId || auction?.highestBidder || null;
+  const closedSeller = closedDeal?.soldBy || product?.createdBy || null;
   const buildLoginState = (from, requiredProfile) => ({
     mode: "login",
     from,
@@ -104,8 +134,9 @@ export default function LotDetails() {
     message: LOGIN_REQUIRED_MESSAGE,
   });
   const openQuoteFlow = () => {
+    if (!detailProductId || isClosedLot) return;
     trackLotContact(product || {});
-    const quotePath = `/lots/${product._id}/quote`;
+    const quotePath = `/lots/${detailProductId}/quote`;
     if (!localStorage.getItem("accessToken")) {
       navigate("/profile", { state: buildLoginState(quotePath, "buyer") });
       return;
@@ -132,7 +163,8 @@ export default function LotDetails() {
     navigate(quotePath);
   };
   const openRateGrowerFlow = () => {
-    const ratingPath = `/lots/${product._id}/rating`;
+    if (!detailProductId) return;
+    const ratingPath = `/lots/${detailProductId}/rating`;
     if (!localStorage.getItem("accessToken")) {
       navigate("/profile", { state: buildLoginState(ratingPath, "buyer") });
       return;
@@ -344,13 +376,19 @@ export default function LotDetails() {
             >
               Rate Grower
             </button>
-            <button
-              type="button"
-              onClick={openQuoteFlow}
-              className="rounded-full bg-green-700 px-3 py-2 text-[11px] font-extrabold text-white"
-            >
-              Quote Your Price
-            </button>
+            {isClosedLot ? (
+              <span className="inline-flex items-center rounded-full bg-gray-900 px-3 py-2 text-[11px] font-extrabold text-white">
+                Deal Closed
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={openQuoteFlow}
+                className="rounded-full bg-green-700 px-3 py-2 text-[11px] font-extrabold text-white"
+              >
+                Quote Your Price
+              </button>
+            )}
           </div>
         </div>
       </section>
@@ -366,8 +404,8 @@ export default function LotDetails() {
               {product.location || "Fruit Mandi"}
             </p>
           </div>
-          <span className="shrink-0 rounded bg-green-100 px-2 py-1 text-[9px] font-extrabold text-green-800">
-            {formatDealStatus(product.status)}
+          <span className={`shrink-0 rounded px-2 py-1 text-[9px] font-extrabold ${getStatusBadgeClass(isClosedLot)}`}>
+            {isClosedLot ? "Deal Closed" : formatDealStatus(product.status)}
           </span>
         </div>
         {isOrganicCertified && (
@@ -394,6 +432,17 @@ export default function LotDetails() {
           </div>
         )}
 
+        {isClosedLot && (
+          <ClosedDealSummary
+            product={product}
+            auction={auction}
+            closedDeal={closedDeal}
+            seller={closedSeller}
+            buyer={closedBuyer}
+            resolveImageUrl={(url) => getOptimizedAssetUrl(url, 160)}
+          />
+        )}
+
         <div className="mt-3 grid w-full max-w-full grid-cols-2 gap-2">
           <InfoTile label="Fruit" value={product.fruitName || product.title} />
           <InfoTile label="Variety" value={product.variety || "Not set"} />
@@ -402,13 +451,13 @@ export default function LotDetails() {
           <InfoTile label="Total boxes" value={product.quantity || 0} />
           <InfoTile label="Packing" value={product.packingType || "Not set"} />
           <InfoTile label="Total weight" value={formatWeight(product.totalWeightKg)} />
-          <InfoTile label="Deal status" value={formatDealStatus(auction?.status || "Not started")} />
+          <InfoTile label="Deal status" value={isClosedLot ? "Deal Closed" : formatDealStatus(auction?.status || "Not started")} />
           {canSeeBasePrice && (
             <InfoTile label="Base price" value={`Rs. ${product.basePrice || 0}`} />
           )}
           <InfoTile
-            label="Live at"
-            value={formatDate(product.auctionStartTime || auction?.startTime)}
+            label={isClosedLot ? "Closed at" : "Live at"}
+            value={formatDate(isClosedLot ? getClosedDate(product, auction, closedDeal) : product.auctionStartTime || auction?.startTime)}
           />
         </div>
 
@@ -419,7 +468,7 @@ export default function LotDetails() {
         )}
       </section>
 
-      <AuctionPanel auction={auction} />
+      <AuctionPanel auction={auction} product={product} closedDeal={closedDeal} isClosed={isClosedLot} />
       <GradeLots lots={product.gradeLots || []} />
       <SampleVideo video={product.sampleVideo} />
 
@@ -446,6 +495,92 @@ export default function LotDetails() {
     </div>
   </>
 );
+}
+
+function ClosedDealSummary({ product, auction, closedDeal, seller, buyer, resolveImageUrl }) {
+  const closedRate = getClosedRate(product, auction, closedDeal);
+  const finalValue = getFinalDealValue(product, auction, closedDeal);
+  const closedAt = getClosedDate(product, auction, closedDeal);
+  const grade = getClosedGrade(product, auction, closedDeal);
+
+  return (
+    <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 p-3">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+        <span className="rounded bg-gray-900 px-2.5 py-1 text-[10px] font-extrabold uppercase text-white">
+          Deal Closed
+        </span>
+        <span className="text-[10px] font-bold text-gray-600">
+          {formatDate(closedAt)}
+        </span>
+      </div>
+
+      <div className="mt-3 grid w-full max-w-full grid-cols-2 gap-2">
+        <InfoTile label="Closed Rate" value={formatMoney(closedRate)} />
+        <InfoTile label="Final Value" value={formatMoney(finalValue)} />
+        <InfoTile label="Fruit" value={product?.fruitName || product?.title || "Fruit Lot"} />
+        <InfoTile label="Grade" value={grade || product?.quality || "Not set"} />
+        <InfoTile label="Quantity" value={`${product?.quantity || 0} boxes`} />
+        <InfoTile label="Location" value={product?.location || "Fruit Mandi"} />
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <ClosedPartyCard
+          label="Sold by"
+          profile={seller}
+          fallbackName="Grower"
+          businessType="grower"
+          resolveImageUrl={resolveImageUrl}
+        />
+        <ClosedPartyCard
+          label="Purchased by"
+          profile={buyer}
+          fallbackName="Buyer"
+          businessType="buyer"
+          resolveImageUrl={resolveImageUrl}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ClosedPartyCard({ label, profile, fallbackName, businessType, resolveImageUrl }) {
+  const safeProfile = getSafePublicProfile(profile, {
+    businessType,
+    companyName: fallbackName,
+  });
+  const displayName = safeProfile.companyName || safeProfile.name || fallbackName;
+  const logoUrl = safeProfile.logoUrl && resolveImageUrl
+    ? resolveImageUrl(safeProfile.logoUrl)
+    : safeProfile.logoUrl;
+
+  return (
+    <div className="min-w-0 rounded-md bg-white p-3 ring-1 ring-gray-200">
+      <p className="text-[9px] font-extrabold uppercase text-gray-500">{label}</p>
+      <div className="mt-2 flex min-w-0 items-center gap-2">
+        {logoUrl ? (
+          <img
+            src={logoUrl}
+            alt={`${displayName} logo`}
+            width="40"
+            height="40"
+            className="h-10 w-10 shrink-0 rounded-md object-cover ring-1 ring-green-100"
+            loading="lazy"
+            decoding="async"
+          />
+        ) : (
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-green-50 text-sm font-black text-green-800 ring-1 ring-green-100">
+            {displayName.slice(0, 1).toUpperCase()}
+          </div>
+        )}
+        <div className="min-w-0">
+          <p className="truncate text-xs font-extrabold text-gray-950">{displayName}</p>
+          <p className="truncate text-[10px] font-bold text-gray-600">
+            {safeProfile.mainLocation || "City not available"}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ImageZoomModal({ imageUrl, title, zoom, onZoomIn, onZoomOut, onReset, onClose }) {
@@ -491,7 +626,7 @@ function FruitGradeBadge({ label }) {
   );
 }
 
-function AuctionPanel({ auction }) {
+function AuctionPanel({ auction, product, closedDeal, isClosed }) {
   if (!auction) {
     return (
     <section className="section mt-3 w-full max-w-full rounded-md border border-green-100 bg-green-50 p-3">
@@ -507,13 +642,16 @@ function AuctionPanel({ auction }) {
     <section className="section mt-3 w-full max-w-full rounded-md border border-gray-200 bg-white p-3">
       <div className="flex min-w-0 items-center justify-between gap-2">
         <h2 className="text-xs font-extrabold text-black">Deal Details</h2>
-        <span className="rounded bg-green-100 px-2 py-1 text-[9px] font-extrabold text-green-800">
-          {formatDealStatus(auction.status)}
+        <span className={`rounded px-2 py-1 text-[9px] font-extrabold ${getStatusBadgeClass(isClosed)}`}>
+          {isClosed ? "Deal Closed" : formatDealStatus(auction.status)}
         </span>
       </div>
 
       <div className="mt-2 grid w-full max-w-full grid-cols-2 gap-2">
-        <InfoTile label="Current deal price" value={`Rs. ${auction.currentBid || 0}`} />
+        <InfoTile
+          label={isClosed ? "Closed Rate" : "Current deal price"}
+          value={formatMoney(isClosed ? getClosedRate(product, auction, closedDeal) : auction.currentBid)}
+        />
         {auction.startingPrice !== undefined && (
           <InfoTile label="Starting price" value={`Rs. ${auction.startingPrice || 0}`} />
         )}
@@ -521,7 +659,7 @@ function AuctionPanel({ auction }) {
         <InfoTile label="End time" value={formatDate(auction.endTime)} />
       </div>
 
-      {auction.status === "ACTIVE" && auction.endTime && (
+      {!isClosed && auction.status === "ACTIVE" && auction.endTime && (
         <div className="mt-2 rounded-md bg-red-50 px-3 py-2 text-xs font-extrabold text-red-700">
           <CountdownTimer endTime={auction.endTime} />
         </div>
@@ -688,6 +826,7 @@ function getImageGradeLabel(product = {}, imageUrl = "") {
 }
 
 function isOrganicCertifiedProduct(product = {}) {
+  product = product || {};
   const quality = String(product.quality || "").toLowerCase();
   return (
     quality.includes("certified organic") ||
@@ -695,12 +834,90 @@ function isOrganicCertifiedProduct(product = {}) {
   );
 }
 
+function isClosedLotStatus(product = {}, auction = {}, closedDeal = null) {
+  if (closedDeal) return true;
+  const statuses = [product?.status, auction?.status]
+    .map((status) => String(status || "").trim().replace(/[_-]+/g, " ").toLowerCase())
+    .filter(Boolean);
+  return statuses.some((status) =>
+    ["sold", "ended", "closed", "completed", "quote accepted", "deal confirmed", "expired"].includes(status)
+  );
+}
+
+function getStatusBadgeClass(isClosed) {
+  return isClosed ? "bg-gray-900 text-white" : "bg-green-100 text-green-800";
+}
+
+function firstNumber(...values) {
+  for (const value of values) {
+    if (value === undefined || value === null || value === "") continue;
+    const number = Number(value);
+    if (Number.isFinite(number)) return number;
+  }
+  return undefined;
+}
+
+function getClosedRate(product = {}, auction = {}, closedDeal = {}) {
+  return firstNumber(
+    closedDeal?.closedRate,
+    auction?.highestGradeRate,
+    closedDeal?.finalDealValue,
+    product?.finalPrice,
+    product?.finalDealValue,
+    auction?.currentBid
+  );
+}
+
+function getFinalDealValue(product = {}, auction = {}, closedDeal = {}) {
+  return firstNumber(
+    closedDeal?.finalDealValue,
+    product?.finalDealValue,
+    product?.finalPrice,
+    auction?.dealBreakdown?.dealAmount,
+    auction?.currentBid,
+    closedDeal?.closedRate
+  );
+}
+
+function getClosedDate(product = {}, auction = {}, closedDeal = {}) {
+  return (
+    closedDeal?.closedAt ||
+    auction?.updatedAt ||
+    auction?.endTime ||
+    product?.updatedAt ||
+    product?.createdAt ||
+    ""
+  );
+}
+
+function getClosedGrade(product = {}, auction = {}, closedDeal = {}) {
+  return (
+    closedDeal?.grade ||
+    auction?.highestGrade ||
+    product?.grade ||
+    product?.gradeLots?.find((lot) => lot?.grade)?.grade ||
+    ""
+  );
+}
+
+function formatMoney(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "Not set";
+  return `Rs. ${number.toLocaleString("en-IN", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: number % 1 ? 2 : 0,
+  })}`;
+}
+
 function formatDate(value) {
   if (!value) return "Not set";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
 
-  return new Date(value).toLocaleString([], {
+  return date.toLocaleString("en-IN", {
     day: "2-digit",
     month: "short",
+    year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -723,6 +940,10 @@ function formatDealStatus(status = "") {
     UPCOMING: "Upcoming Deal",
     SOLD: "Deal Closed",
     ENDED: "Deal Closed",
+    CLOSED: "Deal Closed",
+    COMPLETED: "Deal Closed",
+    QUOTE_ACCEPTED: "Deal Closed",
+    DEAL_CONFIRMED: "Deal Closed",
     "NOT STARTED": "Not started",
   };
   return labels[normalized] || String(status || "Available").replace(/_/g, " ");

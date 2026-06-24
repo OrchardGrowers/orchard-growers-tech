@@ -1,6 +1,7 @@
 import Product from "../models/Product.js";
 import Auction from "../models/Auction.js";
 import Quotation from "../models/Quotation.js";
+import Order from "../models/Order.js";
 import User from "../models/User.js";
 import CaptureSession from "../models/CaptureSession.js";
 import {
@@ -11,6 +12,11 @@ import {
 
 const AUCTION_DELAY_MS = 5 * 60 * 1000;
 const AUCTION_DURATION_MS = 24 * 60 * 60 * 1000;
+const PUBLIC_PROFILE_SELECT =
+  "name orchardName businessName buyerContactPerson companyLogoUrl avatarUrl bannerUrl buyerAvatarUrl buyerCompanyLogoUrl role profileTypes growerVerified buyerVerified growerOgVerified buyerOgVerified driverOgVerified ogVerificationByRole growerRatingAverage growerRatingCount createdAt";
+const CLOSED_PRODUCT_STATUSES = new Set(["SOLD", "QUOTE_ACCEPTED", "DEAL_CONFIRMED", "quote_accepted", "deal_confirmed"]);
+const CLOSED_AUCTION_STATUSES = new Set(["ENDED", "CLOSED", "COMPLETED"]);
+const ACCEPTED_QUOTE_STATUSES = ["accepted", "ACCEPTED"];
 
 const createRequestError = (statusCode, message) => {
   const error = new Error(message);
@@ -44,6 +50,84 @@ const serializeProduct = (product, user) => {
   }
 
   return data;
+};
+
+const firstFiniteNumber = (...values) => {
+  for (const value of values) {
+    if (value === undefined || value === null || value === "") continue;
+    const number = Number(value);
+    if (Number.isFinite(number)) return number;
+  }
+  return undefined;
+};
+
+const isClosedProductStatus = (status = "") =>
+  CLOSED_PRODUCT_STATUSES.has(String(status || "").trim().toUpperCase()) ||
+  CLOSED_PRODUCT_STATUSES.has(String(status || "").trim());
+
+const isClosedAuctionStatus = (status = "") =>
+  CLOSED_AUCTION_STATUSES.has(String(status || "").trim().toUpperCase());
+
+const isWrongProductPlatform = (product, platform = "") => {
+  const isOrchardPlatform = ["orchard", "orchardgrowers", "orchard-growers"].includes(platform);
+  const isEfruitPlatform = ["efruitmandi", "efruit", "mandi"].includes(platform);
+  const hasGradeLots = Array.isArray(product?.gradeLots) && product.gradeLots.length > 0;
+
+  return (
+    (isOrchardPlatform && product?.createdSource !== "admin-panel" && hasGradeLots) ||
+    (isEfruitPlatform && product?.createdSource === "admin-panel")
+  );
+};
+
+const buildClosedDealSummary = ({ product, auction, acceptedQuote, order }) => {
+  const closed =
+    isClosedProductStatus(product?.status) ||
+    isClosedAuctionStatus(auction?.status) ||
+    Boolean(acceptedQuote || order);
+
+  if (!closed) return null;
+
+  const buyer = order?.buyer || acceptedQuote?.buyer || product?.acceptedBuyerId || auction?.highestBidder || null;
+  const grower = order?.grower || acceptedQuote?.grower || product?.createdBy || null;
+  const primaryQuoteGrade = Array.isArray(acceptedQuote?.grades) ? acceptedQuote.grades[0] : null;
+  const finalValue = firstFiniteNumber(
+    product?.finalDealValue,
+    product?.finalPrice,
+    order?.finalPrice,
+    order?.totalAmount,
+    order?.auctionPrice,
+    acceptedQuote?.dealAmount,
+    acceptedQuote?.buyerPayableThroughPlatform,
+    acceptedQuote?.buyerPayable,
+    acceptedQuote?.quotedTotalValue,
+    auction?.dealBreakdown?.dealAmount,
+    auction?.currentBid
+  );
+  const closedRate = firstFiniteNumber(
+    auction?.highestGradeRate,
+    order?.highestGradeRate,
+    acceptedQuote?.quotedPrice,
+    primaryQuoteGrade?.price,
+    primaryQuoteGrade?.quotedRatePerUnit,
+    finalValue
+  );
+
+  return {
+    status: "Deal Closed",
+    closedRate,
+    finalDealValue: finalValue,
+    soldBy: grower,
+    purchasedBy: buyer,
+    grade: auction?.highestGrade || order?.highestGrade || primaryQuoteGrade?.grade || "",
+    closedAt:
+      acceptedQuote?.acceptedAt ||
+      order?.updatedAt ||
+      auction?.updatedAt ||
+      auction?.endTime ||
+      product?.updatedAt ||
+      null,
+    source: acceptedQuote ? "quote" : auction ? "deal" : "lot",
+  };
 };
 
 const makeFirmPrefix = (user) => {
@@ -564,34 +648,72 @@ export const getProducts = async (req, res) => {
 export const getProductById = async (req, res) => {
   try {
     const platform = String(req.query.platform || "").trim().toLowerCase();
-    const product = await Product.findById(req.params.id).populate(
-      "createdBy",
-      "name orchardName businessName phone companyLogoUrl avatarUrl bannerUrl role location mapLatitude mapLongitude googleMapUrl growerRatingAverage growerRatingCount"
-    );
+    let product = await Product.findById(req.params.id)
+      .populate("createdBy", PUBLIC_PROFILE_SELECT)
+      .populate("acceptedBuyerId", PUBLIC_PROFILE_SELECT);
+    let auction = null;
 
-    const isOrchardPlatform = ["orchard", "orchardgrowers", "orchard-growers"].includes(platform);
-    const isEfruitPlatform = ["efruitmandi", "efruit", "mandi"].includes(platform);
-    const hasGradeLots = Array.isArray(product?.gradeLots) && product.gradeLots.length > 0;
-    const isWrongPlatform =
-      (isOrchardPlatform && product?.createdSource !== "admin-panel" && hasGradeLots) ||
-      (isEfruitPlatform && product?.createdSource === "admin-panel");
+    if (!product) {
+      auction = await Auction.findById(req.params.id)
+        .populate({
+          path: "product",
+          populate: [
+            { path: "createdBy", select: PUBLIC_PROFILE_SELECT },
+            { path: "acceptedBuyerId", select: PUBLIC_PROFILE_SELECT },
+          ],
+        })
+        .populate("highestBidder", PUBLIC_PROFILE_SELECT);
+      product = auction?.product || null;
+    }
 
-    if (!product || product.inventoryType === "raw_material" || isWrongPlatform) {
+    if (!product || product.inventoryType === "raw_material" || isWrongProductPlatform(product, platform)) {
       return res.status(404).json({ msg: "Product not found" });
     }
 
-    const auction = await Auction.findOne({ product: product._id })
-      .sort({ createdAt: -1 })
-      .populate("highestBidder", "name businessName role");
+    if (!auction) {
+      auction = await Auction.findOne({ product: product._id })
+        .sort({ createdAt: -1 })
+        .populate("highestBidder", PUBLIC_PROFILE_SELECT);
+    }
+
+    const acceptedQuoteId = product.acceptedQuoteId?._id || product.acceptedQuoteId;
+    const acceptedQuoteFilters = [{ lot: product._id, status: { $in: ACCEPTED_QUOTE_STATUSES } }];
+    if (acceptedQuoteId) acceptedQuoteFilters.unshift({ _id: acceptedQuoteId });
+    const acceptedQuote = await Quotation.findOne({ $or: acceptedQuoteFilters })
+      .select(
+        "_id lot buyer grower grades quotedPrice quotedTotalValue dealAmount buyerPayable buyerPayableThroughPlatform status acceptedAt createdAt updatedAt"
+      )
+      .populate("buyer", PUBLIC_PROFILE_SELECT)
+      .populate("grower", PUBLIC_PROFILE_SELECT)
+      .sort({ acceptedAt: -1, updatedAt: -1 })
+      .lean();
+
+    const orderFilters = [{ product: product._id }];
+    if (auction?._id) orderFilters.unshift({ auction: auction._id });
+    if (acceptedQuote?._id) orderFilters.unshift({ quote: acceptedQuote._id });
+    const order = await Order.findOne({ $or: orderFilters })
+      .select(
+        "_id auction quote product buyer grower auctionPrice finalPrice totalAmount highestGrade highestGradeRate dealBreakdown createdAt updatedAt"
+      )
+      .populate("buyer", PUBLIC_PROFILE_SELECT)
+      .populate("grower", PUBLIC_PROFILE_SELECT)
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .lean();
 
     const serializedProduct = serializeProduct(product, req.user);
     const serializedAuction = auction?.toObject ? auction.toObject() : auction;
+    const closedDeal = buildClosedDealSummary({
+      product: serializedProduct,
+      auction: serializedAuction,
+      acceptedQuote,
+      order,
+    });
 
     if (serializedAuction && !canSeeBasePrice(serializedProduct, req.user)) {
       delete serializedAuction.startingPrice;
     }
 
-    res.json({ product: serializedProduct, auction: serializedAuction });
+    res.json({ product: serializedProduct, auction: serializedAuction, closedDeal });
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }
