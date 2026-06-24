@@ -52,6 +52,12 @@ router.get("/sitemap.xml", async (req, res) => {
       { loc: "/fruit-lots/persimmon", changefreq: "weekly", priority: "0.8" },
       { loc: "/fruit-lots/plum", changefreq: "weekly", priority: "0.8" },
       { loc: "/fruit-lots/mango", changefreq: "weekly", priority: "0.8" },
+
+      // Mandi rate SEO pages
+      { loc: "/mandi-rates", changefreq: "daily", priority: "0.8" },
+      { loc: "/mandi-rates/apple", changefreq: "daily", priority: "0.8" },
+      { loc: "/mandi-rates/mango", changefreq: "daily", priority: "0.8" },
+      { loc: "/mandi-rates/pear", changefreq: "daily", priority: "0.8" },
     ];
 
     const products = await Product.find({

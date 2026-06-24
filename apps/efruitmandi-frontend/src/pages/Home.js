@@ -4,7 +4,6 @@ import SEO from "../components/SEO";
 import {
   FaChevronLeft,
   FaChevronRight,
-  FaChevronDown,
   FaEllipsisH,
   FaEye,
   FaGavel,
@@ -32,6 +31,7 @@ import { getEfruitMandiProducts } from "../utils/marketProducts";
 import { saveUserToStorage } from "../utils/userStorage";
 import {
   getDealDisplayGroup,
+  getSafePublicProfile,
   isClosedDeal,
   isLiveDeal,
   isUpcomingDeal,
@@ -200,14 +200,6 @@ const optimizeImageUrl = (url = "", width = 640) => {
   return url.replace("/image/upload/", `/image/upload/f_auto,q_auto,c_limit,w_${width}/`);
 };
 
-const newsItems = [
-  "Fresh apple lots opening in Himachal mandis",
-  "Verified growers can list new lots in minutes",
-  "Live price quoting stays open for 24 hours",
-  "Organic fruit demand rises across buyer network",
-  "Delivery partners available for orchard dispatch",
-];
-
 const policyLinkGroups = [
   {
     title: "Who is eFruitMandi?",
@@ -279,24 +271,55 @@ export default function Home() {
   const [user, setUser] = useState(() => getCurrentUser());
   const [products, setProducts] = useState([]);
   const [auctions, setAuctions] = useState([]);
+  const [publicGrowers, setPublicGrowers] = useState([]);
+  const [publicBuyers, setPublicBuyers] = useState([]);
+  const [offlineMandiRates, setOfflineMandiRates] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [profilesLoading, setProfilesLoading] = useState(true);
+  const [ratesLoading, setRatesLoading] = useState(true);
+  const [profilesError, setProfilesError] = useState("");
+  const [ratesError, setRatesError] = useState("");
   const [desktopSection, setDesktopSection] = useState("liveLots");
   const [marketClock, setMarketClock] = useState(() => Date.now());
   const [marketSocket, setMarketSocket] = useState(null);
   const isGrower = isGrowerAccount(user);
+  const isPublicVisitor = !localStorage.getItem("accessToken");
   const loadHome = useCallback(async ({ showLoading = false } = {}) => {
-    if (showLoading) setLoading(true);
+    if (showLoading) {
+      setLoading(true);
+      setProfilesLoading(true);
+      setRatesLoading(true);
+      setProfilesError("");
+      setRatesError("");
+    }
 
     try {
-      const [productRes, auctionRes] = await Promise.all([
+      const [productRes, auctionRes, growerRes, buyerRes, ratesRes] = await Promise.all([
         API.get("/products?platform=efruitmandi").catch(() => ({ data: [] })),
         API.get("/auctions").catch(() => ({ data: [] })),
+        API.get("/user/public-profiles?role=grower&limit=8").catch(() => {
+          setProfilesError("Unable to load latest public profiles.");
+          return { data: { profiles: [] } };
+        }),
+        API.get("/user/public-profiles?role=buyer&limit=8").catch(() => {
+          setProfilesError("Unable to load latest public profiles.");
+          return { data: { profiles: [] } };
+        }),
+        API.get("/mandi-rates/latest?limit=10").catch(() => {
+          setRatesError("Unable to load offline mandi rates.");
+          return { data: { records: [] } };
+        }),
       ]);
 
       setProducts(getEfruitMandiProducts(productRes.data));
       setAuctions(auctionRes.data || []);
+      setPublicGrowers(Array.isArray(growerRes.data?.profiles) ? growerRes.data.profiles : []);
+      setPublicBuyers(Array.isArray(buyerRes.data?.profiles) ? buyerRes.data.profiles : []);
+      setOfflineMandiRates(Array.isArray(ratesRes.data?.records) ? ratesRes.data.records : []);
     } finally {
       setLoading(false);
+      setProfilesLoading(false);
+      setRatesLoading(false);
     }
   }, []);
 
@@ -464,13 +487,19 @@ export default function Home() {
     () => mergeUniqueLots([...auctionDealLots, ...timedProducts]),
     [auctionDealLots, timedProducts]
   );
-  const dealDisplayGroup = useMemo(
-    () => getDealDisplayGroup(allDealListings),
-    [allDealListings]
-  );
+  const dealDisplayGroup = useMemo(() => {
+    const group = getDealDisplayGroup(allDealListings);
+    return {
+      ...group,
+      deals: sortDealsNewestFirst(group.deals || []),
+    };
+  }, [allDealListings]);
   const visibleListings = dealDisplayGroup.deals.slice(0, 6);
   const mobileLiveLots = dealDisplayGroup.deals.slice(0, 12);
-  const upcomingLots = allDealListings.filter((deal) => isUpcomingDeal(deal)).slice(0, 6);
+  const upcomingLots = useMemo(
+    () => sortDealsNewestFirst(allDealListings.filter((deal) => isUpcomingDeal(deal))).slice(0, 6),
+    [allDealListings]
+  );
   const highestDeals = getHighestDealsByCategory(auctions);
   const selectedInfoSection = previousSections.find(
     (section) => section.title === desktopSection
@@ -517,6 +546,30 @@ export default function Home() {
     navigate(ratingPath);
   };
 
+  const openPublicProfileFlow = (profile, role) => {
+    const profileId = profile?._id || profile?.id || profile?.userId;
+    const profilePath = profileId ? `/profile/${profileId}` : "/profile-dashboard";
+
+    if (!localStorage.getItem("accessToken")) {
+      navigate("/profile", { state: buildLoginState(profilePath, role) });
+      return;
+    }
+
+    navigate(profilePath);
+  };
+
+  const openRateProfileFlow = (profile, role) => {
+    const profileId = profile?._id || profile?.id || profile?.userId;
+    const ratingPath = profileId ? `/profile/${profileId}/rating` : "/profile-dashboard";
+
+    if (!localStorage.getItem("accessToken")) {
+      navigate("/profile", { state: buildLoginState(ratingPath, role) });
+      return;
+    }
+
+    navigate(ratingPath);
+  };
+
   return (
   <>
     <SEO
@@ -537,36 +590,68 @@ export default function Home() {
       <div className="pb-32 md:hidden">
         <BannerSlider />
 
-        <div className="-mx-3 pt-1">
-          <TopFilters
-            tabs={mobileTabs}
-            active={activeMobileTab}
-            onChange={setActiveMobileTab}
-          />
-        </div>
+        {isPublicVisitor ? (
+          <>
+            <FruitIconRail
+              className="-mx-3 pt-1"
+              onSelect={(name) => navigate(`/search?q=${encodeURIComponent(name)}`)}
+            />
+            <PublicHomeFeed
+              className="px-3 pt-2"
+              dealDisplayGroup={dealDisplayGroup}
+              deals={mobileLiveLots}
+              dealLoading={loading}
+              growers={publicGrowers}
+              buyers={publicBuyers}
+              profilesLoading={profilesLoading}
+              profilesError={profilesError}
+              rates={offlineMandiRates}
+              ratesLoading={ratesLoading}
+              ratesError={ratesError}
+              showRates
+              onOpenLotById={(productId) => navigate(`/lots/${productId}`)}
+              onQuoteLot={openQuoteFlow}
+              onRateLot={openRateGrowerFlow}
+              onOpenProfile={openPublicProfileFlow}
+              onRateProfile={openRateProfileFlow}
+            />
+          </>
+        ) : (
+          <>
+            <div className="-mx-3 pt-1">
+              <TopFilters
+                tabs={mobileTabs}
+                active={activeMobileTab}
+                onChange={setActiveMobileTab}
+              />
+            </div>
 
-        <FruitIconRail
-          className="-mx-3 pt-1"
-          onSelect={(name) => navigate(`/search?q=${encodeURIComponent(name)}`)}
-        />
+            <FruitIconRail
+              className="-mx-3 pt-1"
+              onSelect={(name) => navigate(`/search?q=${encodeURIComponent(name)}`)}
+            />
 
-        {loading && (
-          <p className="px-3 py-3 text-sm font-semibold text-green-700">
-            Loading market data...
-          </p>
+            {loading && (
+              <p className="px-3 py-3 text-sm font-semibold text-green-700">
+                Loading market data...
+              </p>
+            )}
+
+            <MobileSectionContent
+              activeTab={activeMobileTab}
+              visibleListings={mobileLiveLots}
+              upcomingLots={upcomingLots}
+              highestDeals={highestDeals}
+              dealDisplayGroup={dealDisplayGroup}
+              selectedInfoSection={previousSections.find((section) => section.title === activeMobileTab)}
+              onOpenLotById={(productId) => navigate(`/lots/${productId}`)}
+              onQuoteLot={openQuoteFlow}
+              onRateLot={openRateGrowerFlow}
+              onOpenProfile={openPublicProfileFlow}
+              onRateProfile={openRateProfileFlow}
+            />
+          </>
         )}
-
-        <MobileSectionContent
-          activeTab={activeMobileTab}
-          visibleListings={mobileLiveLots}
-          upcomingLots={upcomingLots}
-          highestDeals={highestDeals}
-          dealDisplayGroup={dealDisplayGroup}
-          selectedInfoSection={previousSections.find((section) => section.title === activeMobileTab)}
-          onOpenLotById={(productId) => navigate(`/lots/${productId}`)}
-          onQuoteLot={openQuoteFlow}
-          onRateLot={openRateGrowerFlow}
-        />
       </div>
 
     <div className="hidden md:block">
@@ -590,48 +675,76 @@ export default function Home() {
       <section className="auto-hide-column-scroll min-h-0 min-w-0 space-y-3 overflow-y-auto pr-1 overscroll-contain">
         <BannerSlider />
 
-        <div className="flex items-center gap-3">
-          <div className="h-px flex-1 bg-gray-300" />
-          <label className="inline-flex items-center gap-1 text-xs text-gray-600">
-            Sort by:
-            <select
-              aria-label="Sort home feed"
-              value={desktopSection}
-              onChange={(event) => setDesktopSection(event.target.value)}
-              className="bg-transparent text-xs font-semibold text-gray-800 outline-none"
-            >
-              {desktopSections.map((section) => (
-                <option key={section.key} value={section.key}>
-                  {section.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        {loading ? (
-          <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm font-semibold text-gray-600">
-            Loading market feed...
-          </div>
-        ) : (
-          <DesktopSection
-            section={desktopSection}
-            feedItems={feedItems}
-            visibleListings={visibleListings}
-            upcomingLots={upcomingLots}
-            highestDeals={highestDeals}
+        {isPublicVisitor ? (
+          <PublicHomeFeed
             dealDisplayGroup={dealDisplayGroup}
-            selectedInfoSection={selectedInfoSection}
-            onAdd={openListLotFlow}
-            onOpenLot={(productId) => navigate(`/lots/${productId}`)}
+            deals={visibleListings}
+            dealLoading={loading}
+            growers={publicGrowers}
+            buyers={publicBuyers}
+            profilesLoading={profilesLoading}
+            profilesError={profilesError}
+            rates={offlineMandiRates}
+            ratesLoading={ratesLoading}
+            ratesError={ratesError}
+            onOpenLotById={(productId) => navigate(`/lots/${productId}`)}
             onQuoteLot={openQuoteFlow}
             onRateLot={openRateGrowerFlow}
+              onOpenProfile={openPublicProfileFlow}
+              onRateProfile={openRateProfileFlow}
           />
+        ) : (
+          <>
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-gray-300" />
+              <label className="inline-flex items-center gap-1 text-xs text-gray-600">
+                Sort by:
+                <select
+                  aria-label="Sort home feed"
+                  value={desktopSection}
+                  onChange={(event) => setDesktopSection(event.target.value)}
+                  className="bg-transparent text-xs font-semibold text-gray-800 outline-none"
+                >
+                  {desktopSections.map((section) => (
+                    <option key={section.key} value={section.key}>
+                      {section.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {loading ? (
+              <div className="rounded-lg border border-gray-200 bg-white p-5 text-sm font-semibold text-gray-600">
+                Loading market feed...
+              </div>
+            ) : (
+              <DesktopSection
+                section={desktopSection}
+                feedItems={feedItems}
+                visibleListings={visibleListings}
+                upcomingLots={upcomingLots}
+                highestDeals={highestDeals}
+                dealDisplayGroup={dealDisplayGroup}
+                selectedInfoSection={selectedInfoSection}
+                onAdd={openListLotFlow}
+                onOpenLot={(productId) => navigate(`/lots/${productId}`)}
+                onQuoteLot={openQuoteFlow}
+                onRateLot={openRateGrowerFlow}
+              onOpenProfile={openPublicProfileFlow}
+              onRateProfile={openRateProfileFlow}
+              />
+            )}
+          </>
         )}
       </section>
 
       <aside className="auto-hide-column-scroll hidden h-full min-h-0 space-y-2.5 overflow-y-auto pr-1 overscroll-contain lg:block">
-        <NewsCard />
+        <OfflineMandiRatesCard
+          rates={offlineMandiRates}
+          loading={ratesLoading}
+          error={ratesError}
+        />
             <AdCard user={user} onListLot={openListLotFlow} />
       </aside>
     </div>
@@ -762,6 +875,258 @@ function FloatingLotActions({ onList, onBuy }) {
   );
 }
 
+function PublicHomeFeed({
+  className = "",
+  dealDisplayGroup,
+  deals = [],
+  dealLoading,
+  growers = [],
+  buyers = [],
+  profilesLoading,
+  profilesError,
+  rates = [],
+  ratesLoading,
+  ratesError,
+  showRates = false,
+  onOpenLotById,
+  onQuoteLot,
+  onRateLot,
+  onOpenProfile,
+  onRateProfile,
+}) {
+  return (
+    <div className={`space-y-4 ${className}`}>
+      <PublicDealList
+        title={dealDisplayGroup?.title || "Live Fruit Deals"}
+        emptyText={dealDisplayGroup?.emptyText || "No live fruit deal yet. New mandi deals will appear here."}
+        deals={deals}
+        loading={dealLoading}
+        onOpenLotById={onOpenLotById}
+        onQuoteLot={onQuoteLot}
+        onRateLot={onRateLot}
+      />
+
+      <PublicProfilesSection
+        title="Latest Registered Growers"
+        role="grower"
+        profiles={growers}
+        loading={profilesLoading}
+        error={profilesError}
+        emptyText="Latest grower profiles will appear soon."
+        onOpenProfile={onOpenProfile}
+        onRateProfile={onRateProfile}
+      />
+
+      <PublicProfilesSection
+        title="Latest Registered Buyers"
+        role="buyer"
+        profiles={buyers}
+        loading={profilesLoading}
+        error={profilesError}
+        emptyText="Latest buyer profiles will appear soon."
+        onOpenProfile={onOpenProfile}
+        onRateProfile={onRateProfile}
+      />
+
+      {showRates && (
+        <OfflineMandiRatesCard
+          rates={rates}
+          loading={ratesLoading}
+          error={ratesError}
+        />
+      )}
+    </div>
+  );
+}
+
+function PublicDealList({
+  title,
+  deals = [],
+  loading,
+  emptyText,
+  onOpenLotById,
+  onQuoteLot,
+  onRateLot,
+  onOpenProfile,
+  onRateProfile,
+}) {
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-extrabold text-black md:text-base">{title}</h2>
+        <span className="shrink-0 rounded-full bg-green-50 px-2.5 py-1 text-[10px] font-extrabold uppercase text-green-800">
+          Latest First
+        </span>
+      </div>
+
+      {loading ? (
+        <PublicFeedSkeleton />
+      ) : deals.length ? (
+        <div className="space-y-3">
+          {deals.map((deal) => (
+            <DesktopLotPost
+              key={deal._id || deal.id || deal.lotNo || deal.title}
+              items={[deal]}
+              emptyText={emptyText}
+              onOpenLot={onOpenLotById}
+              onQuoteLot={onQuoteLot}
+              onRateLot={onRateLot}
+            />
+          ))}
+        </div>
+      ) : (
+        <DesktopEmptyState text={emptyText} />
+      )}
+    </section>
+  );
+}
+
+function PublicFeedSkeleton() {
+  return (
+    <div className="space-y-3">
+      {[0, 1].map((item) => (
+        <div key={item} className="animate-pulse rounded-lg border border-gray-200 bg-white p-4">
+          <div className="h-4 w-2/3 rounded bg-gray-200" />
+          <div className="mt-3 h-3 w-1/2 rounded bg-gray-100" />
+          <div className="mt-4 h-48 rounded-md bg-green-50 md:h-72" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PublicProfilesSection({ title, role, profiles = [], loading, error, emptyText, onOpenProfile, onRateProfile }) {
+  return (
+    <section className="space-y-3">
+      <h2 className="text-sm font-extrabold text-black md:text-base">{title}</h2>
+      {loading ? (
+        <div className="space-y-3">
+          {[0, 1].map((item) => (
+            <div key={item} className="animate-pulse rounded-lg border border-gray-200 bg-white p-4">
+              <div className="flex items-center gap-3">
+                <div className="h-14 w-14 rounded-full bg-gray-200" />
+                <div className="min-w-0 flex-1">
+                  <div className="h-3 w-3/4 rounded bg-gray-200" />
+                  <div className="mt-2 h-3 w-1/2 rounded bg-gray-100" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : error ? (
+        <DesktopEmptyState text={error} />
+      ) : profiles.length ? (
+        <div className="space-y-3">
+          {profiles.map((profile) => (
+            <PublicProfileCard
+              key={profile._id || `${role}-${profile.companyName || profile.name}`}
+              profile={profile}
+              role={role}
+              onOpenProfile={onOpenProfile}
+              onRateProfile={onRateProfile}
+            />
+          ))}
+        </div>
+      ) : (
+        <DesktopEmptyState text={emptyText} />
+      )}
+    </section>
+  );
+}
+
+function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile }) {
+  const safeProfile = getSafePublicProfile({ ...profile, businessType: role });
+  const displayName =
+    safeProfile.companyName ||
+    safeProfile.orchardName ||
+    safeProfile.businessName ||
+    safeProfile.name ||
+    (role === "grower" ? "Grower Profile" : "Buyer Profile");
+  const location = safeProfile.mainLocation || safeProfile.city || safeProfile.state || "India";
+  const imageUrl = resolveProfileMediaUrl(
+    safeProfile.logoUrl || safeProfile.profileImage || safeProfile.avatar
+  );
+  const badgeText = role === "grower" ? "Registered Grower" : "Registered Buyer";
+  const roleTitle = role === "grower" ? "Fruit Grower Profile" : "Fruit Buyer Profile";
+
+  return (
+    <article className="overflow-hidden border border-gray-200 bg-white md:rounded-md">
+      <div className="p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h3 className="line-clamp-1 text-base font-extrabold text-black">
+              {displayName}
+            </h3>
+            <p className="mt-1 truncate text-sm font-semibold text-gray-600">
+              {location}
+            </p>
+            <p className="mt-2 text-sm font-bold text-black">
+              {roleTitle}
+            </p>
+          </div>
+
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <span className="rounded bg-green-100 px-2 py-1 text-[10px] font-extrabold uppercase text-green-800">
+              {badgeText}
+            </span>
+            {safeProfile.isOgVerified && (
+              <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-1 text-[10px] font-extrabold text-amber-700">
+                <FaShieldAlt />
+                OG Verified
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex h-64 items-center justify-center bg-gradient-to-br from-green-50 via-white to-amber-50 md:h-80">
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={displayName}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <Avatar
+            name={displayName}
+            imageUrl={imageUrl}
+            className="h-24 w-24 border-4 border-white text-3xl shadow-lg"
+          />
+        )}
+      </div>
+
+      <div className="border-t border-gray-100 p-3">
+        <div className="grid gap-2 rounded-md bg-green-50 px-3 py-3 text-xs sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+          <div className="min-w-0">
+            <p className="font-extrabold text-gray-950">{displayName}</p>
+            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-bold text-gray-600">
+              <span>{location}</span>
+              <span>{role === "grower" ? "Latest registered grower" : "Latest registered buyer"}</span>
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+            <button
+              type="button"
+              onClick={() => onOpenProfile?.(safeProfile, role)}
+              className="min-w-0 rounded-full bg-white px-2 py-2 text-[10px] font-extrabold leading-tight text-green-800 ring-1 ring-green-200 hover:bg-green-100 sm:px-3 sm:text-[11px]"
+            >
+              View Profile
+            </button>
+            <button
+              type="button"
+              onClick={() => onRateProfile?.(safeProfile, role)}
+              className="min-w-0 rounded-full bg-green-700 px-2 py-2 text-[10px] font-extrabold leading-tight text-white hover:bg-green-800 sm:px-3 sm:text-[11px]"
+            >
+              {role === "grower" ? "Rate Grower" : "Rate Buyer"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 function MobileSectionContent({
   activeTab,
   visibleListings,
@@ -772,6 +1137,8 @@ function MobileSectionContent({
   onOpenLotById,
   onQuoteLot,
   onRateLot,
+  onOpenProfile,
+  onRateProfile,
 }) {
   if (activeTab === "highestDeals") {
     return (
@@ -1026,6 +1393,8 @@ function DesktopSection({
   onOpenLot,
   onQuoteLot,
   onRateLot,
+  onOpenProfile,
+  onRateProfile,
 }) {
   if (section === "liveLots") {
     const sectionTextByGroup = {
@@ -1625,28 +1994,79 @@ function FeedPost({ item, onOpen }) {
   );
 }
 
-function NewsCard() {
+function OfflineMandiRatesCard({ rates = [], loading = false, error = "" }) {
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-5">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-black">Mandi News</h2>
+        <h2 className="text-xl font-semibold text-black">Offline Mandi Rates</h2>
         <FaInfoCircle className="text-xs text-gray-600" />
       </div>
-      <p className="mb-3 text-base font-semibold text-gray-600">Top updates</p>
-      <div className="space-y-3">
-        {newsItems.map((title, index) => (
-          <div key={title}>
-            <h3 className="line-clamp-1 text-sm font-semibold text-gray-900">{title}</h3>
-            <p className="mt-1 text-xs text-gray-500">
-              {index + 1 + 13}h ago - {index ? `${index * 125} growers` : "1,909 growers"}
-            </p>
-          </div>
-        ))}
-      </div>
-      <button className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-gray-600">
-        Show more updates <FaChevronDown />
-      </button>
+
+      {loading ? (
+        <div className="space-y-3">
+          {[0, 1, 2].map((item) => (
+            <div key={item} className="animate-pulse rounded-md border border-gray-100 p-3">
+              <div className="h-3 w-2/3 rounded bg-gray-200" />
+              <div className="mt-2 h-3 w-1/2 rounded bg-gray-100" />
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="h-3 rounded bg-green-50" />
+                <div className="h-3 rounded bg-green-50" />
+                <div className="h-3 rounded bg-green-50" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : error ? (
+        <p className="rounded-md border border-red-100 bg-red-50 px-3 py-3 text-sm font-semibold text-red-700">
+          {error}
+        </p>
+      ) : rates.length ? (
+        <div className="space-y-3">
+          {rates.map((rate) => (
+            <article key={rate.id || rate._id || `${rate.commodity}-${rate.market}-${rate.arrivalDate}`} className="rounded-md border border-gray-100 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="line-clamp-1 text-sm font-extrabold text-gray-950">
+                    Commodity: {rate.commodity || "Fruit"}
+                  </h3>
+                  <p className="mt-1 truncate text-xs font-semibold text-gray-600">
+                    Market/Mandi: {rate.market || rate.mandi || "-"}
+                  </p>
+                </div>
+                <span className="shrink-0 rounded bg-green-50 px-2 py-1 text-[10px] font-extrabold text-green-800">
+                  Date: {formatMandiRateDate(rate.arrivalDate)}
+                </span>
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
+                <RateMiniStat label="Min Rate" value={formatKgRate(getRateKg(rate, "minPrice"))} />
+                <RateMiniStat label="Modal Rate" value={formatKgRate(getRateKg(rate, "modalPrice"))} />
+                <RateMiniStat label="Max Rate" value={formatKgRate(getRateKg(rate, "maxPrice"))} />
+              </div>
+              <p className="mt-2 truncate text-xs font-semibold text-gray-600">
+                State: {rate.state || "-"}
+              </p>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p className="rounded-md border border-dashed border-green-200 bg-green-50 px-3 py-4 text-sm font-semibold text-green-800">
+          Offline mandi rates will appear soon.
+        </p>
+      )}
+      <Link to="/mandi-rates" className="mt-4 inline-flex text-sm font-semibold text-green-700 hover:text-green-800">
+        View all mandi rates
+      </Link>
     </section>
+  );
+}
+
+function RateMiniStat({ label, value }) {
+  return (
+    <div className="rounded-md bg-gray-50 px-2 py-2">
+      <p className="font-bold text-gray-500">{label}</p>
+      <p className="mt-1 font-extrabold text-gray-950">{value}</p>
+    </div>
   );
 }
 
@@ -1918,6 +2338,9 @@ function normalizeAuctionLot(auction = {}, timing) {
           : "ACTIVE",
     auctionStatus: auction.status,
     currentBid: auction.currentBid || auction.startingPrice || product.currentBid,
+    dealCreatedAt: auction.createdAt || product.createdAt,
+    dealUpdatedAt: auction.updatedAt || product.updatedAt,
+    dealStartAt: auction.startTime || product.auctionStartTime || product.startTime,
     dealTiming: auctionTiming,
   };
 }
@@ -1931,6 +2354,68 @@ function mergeUniqueLots(lots = []) {
     if (seen.has(normalizedKey)) return false;
     seen.add(normalizedKey);
     return true;
+  });
+}
+
+function getDealSortTime(deal = {}) {
+  const candidates = [
+    deal.dealCreatedAt,
+    deal.createdAt,
+    deal.dealUpdatedAt,
+    deal.updatedAt,
+    deal.listedAt,
+    deal.dealStartAt,
+    deal.auctionStartTime,
+    deal.startTime,
+    deal.product?.createdAt,
+  ];
+
+  for (const value of candidates) {
+    if (!value) continue;
+    const time = new Date(value).getTime();
+    if (Number.isFinite(time)) return time;
+  }
+
+  return 0;
+}
+
+function sortDealsNewestFirst(deals = []) {
+  return [...deals].sort((a, b) => getDealSortTime(b) - getDealSortTime(a));
+}
+
+function getRateKg(rate = {}, field = "") {
+  const kgField = `${field}Kg`;
+  const kgValue = rate[kgField];
+  if (kgValue !== undefined && kgValue !== null && kgValue !== "") {
+    const number = Number(kgValue);
+    if (Number.isFinite(number)) return number;
+  }
+
+  const quintalValue = rate[field];
+  if (quintalValue !== undefined && quintalValue !== null && quintalValue !== "") {
+    const number = Number(quintalValue);
+    if (Number.isFinite(number)) return number / 100;
+  }
+
+  return null;
+}
+
+function formatKgRate(value) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
+  return `₹${Number(value).toLocaleString("en-IN", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: Number(value) % 1 ? 2 : 0,
+  })}/kg`;
+}
+
+function formatMandiRateDate(value) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
   });
 }
 
@@ -2030,6 +2515,22 @@ function getLotDetails(product = {}) {
     { label: "Description", value: product.description },
   ].filter((detail) => detail.value !== undefined && detail.value !== null && String(detail.value).trim());
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -369,7 +369,10 @@ export default function ProfileDashboard() {
         setOrders(orderRes.data || []);
         setBuyerQuotes(buyerQuoteRes.data?.quotes || []);
         setGrowerQuotes(growerQuoteRes.data?.quotes || []);
-        setMandiRateData(mandiRateRes.data?.records || mandiRates);
+        const liveMandiRates = Array.isArray(mandiRateRes.data?.records)
+          ? mandiRateRes.data.records
+          : [];
+        setMandiRateData(liveMandiRates.length ? liveMandiRates : mandiRates);
         setMandiRateSource(mandiRateRes.data?.source || "fallback");
       } catch (err) {
         console.error(err);
@@ -1453,7 +1456,7 @@ export default function ProfileDashboard() {
               quoteActionId={quoteActionId}
               onSeeListings={() => navigate("/profile-dashboard?mode=grower")}
               onSeeClosed={() => navigate("/orders")}
-              onSeeRates={() => navigate("/auctions")}
+              onSeeRates={() => navigate("/mandi-rates")}
               onUpdateLot={updateLot}
               onDeleteLot={deleteLot}
               onViewQuoteDetails={(quoteId) => navigate(`/quotes/${quoteId}?view=grower`)}

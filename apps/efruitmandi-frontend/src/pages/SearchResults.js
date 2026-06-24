@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { FaEye, FaFileAlt, FaSearch, FaSeedling, FaUserCircle } from "react-icons/fa";
+import { FaChartLine, FaEye, FaFileAlt, FaSearch, FaSeedling, FaUserCircle } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
 import { staticPages } from "../data/staticPages";
 import { fruitSeoPages } from "../data/fruitSeoPages";
@@ -101,6 +101,7 @@ export default function SearchResults() {
   const query = searchParams.get("q") || "";
   const [profiles, setProfiles] = useState([]);
   const [lots, setLots] = useState([]);
+  const [mandiRates, setMandiRates] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -110,6 +111,7 @@ export default function SearchResults() {
       if (!cleanQuery) {
         setProfiles([]);
         setLots([]);
+        setMandiRates([]);
         setLoading(false);
         return;
       }
@@ -120,10 +122,12 @@ export default function SearchResults() {
         const res = await API.get(`/search?q=${encodeURIComponent(cleanQuery)}`);
         setProfiles(Array.isArray(res.data?.profiles) ? res.data.profiles : []);
         setLots(Array.isArray(res.data?.lots) ? res.data.lots : []);
+        setMandiRates(Array.isArray(res.data?.mandiRates) ? res.data.mandiRates : []);
       } catch (err) {
         console.error(err);
         setProfiles([]);
         setLots([]);
+        setMandiRates([]);
       } finally {
         setLoading(false);
       }
@@ -236,7 +240,7 @@ export default function SearchResults() {
     return [...priorityItems, ...normalItems];
   }, [words]);
 
-  const totalResults = profiles.length + lots.length + contentResults.length;
+  const totalResults = profiles.length + lots.length + mandiRates.length + contentResults.length;
 
   return (
     <div className="pb-20">
@@ -354,6 +358,47 @@ export default function SearchResults() {
         </div>
       )}
 
+      {!loading && mandiRates.length > 0 && (
+        <div className="mb-5">
+          <h3 className="mb-2 text-xs font-extrabold text-black">Mandi Rates</h3>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {mandiRates.map((rate) => (
+              <article
+                key={rate._id}
+                className="rounded-md border border-green-100 bg-white p-3 shadow-sm"
+              >
+                <div className="mb-1 flex items-center gap-2 text-[10px] font-extrabold uppercase text-green-700">
+                  <FaChartLine />
+                  {rate.category || "mandi-rate"}
+                </div>
+                <h3 className="line-clamp-2 text-sm font-extrabold text-black">
+                  {rate.title}
+                </h3>
+                <p className="mt-1 text-[11px] font-semibold text-gray-600">
+                  {rate.subtitle || "India"}
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-extrabold">
+                  <span className="rounded bg-green-50 px-2 py-1 text-green-800">
+                    {rate.price}
+                  </span>
+                  <span className="rounded bg-gray-100 px-2 py-1 text-gray-700">
+                    {formatDate(rate.date)}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/mandi-rates/${slugify(rate.commodity || query)}`)}
+                  className="mt-2 inline-flex items-center gap-1 rounded-full bg-green-700 px-3 py-1 text-[9px] font-bold text-white"
+                >
+                  <FaEye />
+                  View Rates
+                </button>
+              </article>
+            ))}
+          </div>
+        </div>
+      )}
+
       {contentResults.length > 0 && (
         <div className="mb-5">
           <h3 className="mb-2 text-xs font-extrabold text-black">Website Content</h3>
@@ -406,6 +451,26 @@ function flattenText(value) {
   if (Array.isArray(value)) return value.map(flattenText).join(" ");
   if (typeof value === "object") return Object.values(value).map(flattenText).join(" ");
   return "";
+}
+
+function slugify(value = "") {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function formatDate(value) {
+  if (!value) return "Date not available";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Date not available";
+  return date.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function EmptySearch({ query }) {

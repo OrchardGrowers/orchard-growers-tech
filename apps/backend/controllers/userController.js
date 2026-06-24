@@ -47,6 +47,152 @@ const getUserProfileTypes = (user) => {
   return profiles;
 };
 
+const PUBLIC_PROFILE_SELECT = [
+  "name",
+  "role",
+  "activeRole",
+  "profileTypes",
+  "orchardName",
+  "businessName",
+  "buyerContactPerson",
+  "buyerLocation",
+  "location",
+  "avatarUrl",
+  "buyerAvatarUrl",
+  "companyLogoUrl",
+  "buyerCompanyLogoUrl",
+  "buyerVerified",
+  "growerVerified",
+  "buyerOgVerified",
+  "growerOgVerified",
+  "kycByRole",
+  "ogVerificationByRole",
+  "accountStatus",
+  "createdAt",
+].join(" ");
+
+const PUBLIC_PROFILE_ROLES = new Set(["grower", "buyer"]);
+const SENSITIVE_PUBLIC_LOCATION_PATTERN =
+  /\b(address|house|street|road|near|plot|flat|building|village|ward|pin|pincode|post office|orchard location|exact)\b/i;
+
+const cleanPublicText = (value = "") => String(value || "").trim();
+
+const isApprovedStatus = (status = "") =>
+  cleanPublicText(status).toUpperCase() === "APPROVED";
+
+const getRoleRecord = (records = {}, role = "") => {
+  const normalizedRole = cleanPublicText(role).toLowerCase();
+  return normalizedRole ? records?.[normalizedRole] || {} : {};
+};
+
+const getPublicLocationFromText = (value = "") => {
+  const text = cleanPublicText(value).replace(/\b\d{6}\b/g, "").replace(/\s+/g, " ");
+  if (!text) return "";
+
+  const parts = text
+    .split(",")
+    .map(cleanPublicText)
+    .filter(Boolean)
+    .filter((part) => !/\d/.test(part))
+    .filter((part) => !SENSITIVE_PUBLIC_LOCATION_PATTERN.test(part));
+
+  if (parts.length) return parts.slice(-3).join(", ");
+  if (!/\d/.test(text) && !SENSITIVE_PUBLIC_LOCATION_PATTERN.test(text) && text.length <= 42) {
+    return text;
+  }
+  return "";
+};
+
+const getPublicLocationFromParts = (...parts) =>
+  parts
+    .map(cleanPublicText)
+    .filter(Boolean)
+    .filter((part) => !/\d/.test(part))
+    .filter((part) => !SENSITIVE_PUBLIC_LOCATION_PATTERN.test(part))
+    .slice(0, 3)
+    .join(", ");
+
+const buildPublicProfileQuery = (role) => {
+  const roleClauses = [
+    { role },
+    { activeRole: role },
+    { profileTypes: role },
+  ];
+
+  if (role === "grower") {
+    roleClauses.push({ orchardName: { $exists: true, $ne: "" } });
+  }
+
+  if (role === "buyer") {
+    roleClauses.push(
+      { businessName: { $exists: true, $ne: "" } },
+      { buyerContactPerson: { $exists: true, $ne: "" } }
+    );
+  }
+
+  return {
+    $and: [
+      { $or: [{ accountStatus: "ACTIVE" }, { accountStatus: { $exists: false } }] },
+      { $or: roleClauses },
+    ],
+  };
+};
+
+const toPublicProfile = (user = {}, role = "") => {
+  const roleKyc = getRoleRecord(user.kycByRole, role);
+  const roleOg = getRoleRecord(user.ogVerificationByRole, role);
+  const district = cleanPublicText(roleKyc.district);
+  const state = cleanPublicText(roleKyc.state);
+  const mainLocation =
+    getPublicLocationFromParts(district, state) ||
+    getPublicLocationFromText(role === "buyer" ? user.buyerLocation || user.location : user.location);
+
+  const roleLogo =
+    role === "buyer"
+      ? cleanPublicText(user.buyerCompanyLogoUrl) ||
+        cleanPublicText(user.buyerAvatarUrl) ||
+        cleanPublicText(user.companyLogoUrl) ||
+        cleanPublicText(user.avatarUrl)
+      : cleanPublicText(user.companyLogoUrl) ||
+        cleanPublicText(user.avatarUrl) ||
+        cleanPublicText(user.buyerCompanyLogoUrl) ||
+        cleanPublicText(user.buyerAvatarUrl);
+
+  const isKycVerified = Boolean(
+    (role === "buyer" && user.buyerVerified) ||
+      (role === "grower" && user.growerVerified) ||
+      isApprovedStatus(roleKyc.status)
+  );
+  const isOgVerified = Boolean(
+    (role === "buyer" && user.buyerOgVerified) ||
+      (role === "grower" && user.growerOgVerified) ||
+      (roleOg.requestId && isApprovedStatus(roleOg.status))
+  );
+
+  return {
+    _id: user._id,
+    role,
+    activeRole: role,
+    profileTypes: [role],
+    businessType: role,
+    name: user.name || "",
+    companyName: role === "grower" ? user.orchardName || "" : user.businessName || "",
+    orchardName: role === "grower" ? user.orchardName || "" : "",
+    businessName: role === "buyer" ? user.businessName || "" : "",
+    buyerContactPerson: role === "buyer" ? user.buyerContactPerson || "" : "",
+    logoUrl: roleLogo,
+    avatarUrl: roleLogo,
+    mainLocation,
+    district,
+    state,
+    location: mainLocation,
+    isKycVerified,
+    isOgVerified,
+    isTrusted: isOgVerified,
+    createdAt: user.createdAt,
+  };
+};
+
 const hasGrowerKycPayload = (body = {}, files = {}) =>
   Boolean(
     String(body.roleType || "").trim().toLowerCase() === "grower" ||
@@ -197,6 +343,41 @@ const getRoleKycSummary = (user = {}, roleType = "") => {
     verificationRequestId: kyc.submittedAt ? `${user._id}:${roleType}` : "",
     status: user.accountStatus || "ACTIVE",
   };
+};
+
+export const getPublicProfiles = async (req, res) => {
+  try {
+    const role = cleanPublicText(req.query.role).toLowerCase();
+    const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 30);
+    const roles = PUBLIC_PROFILE_ROLES.has(role) ? [role] : Array.from(PUBLIC_PROFILE_ROLES);
+
+    const profilesByRole = await Promise.all(
+      roles.map(async (profileRole) => {
+        const users = await User.find(buildPublicProfileQuery(profileRole))
+          .select(PUBLIC_PROFILE_SELECT)
+          .sort({ createdAt: -1, _id: -1 })
+          .limit(limit)
+          .lean();
+
+        return users.map((user) => toPublicProfile(user, profileRole));
+      })
+    );
+
+    const profiles = profilesByRole.flat().sort((a, b) => {
+      const bTime = new Date(b.createdAt || 0).getTime();
+      const aTime = new Date(a.createdAt || 0).getTime();
+      return bTime - aTime;
+    });
+
+    res.json({
+      role: role || "all",
+      count: profiles.length,
+      profiles: profiles.slice(0, roles.length === 1 ? limit : limit * roles.length),
+    });
+  } catch (err) {
+    console.error("Get public profiles error:", err);
+    res.status(500).json({ msg: "Unable to load public profiles" });
+  }
 };
 
 export const getMyRoles = async (req, res) => {

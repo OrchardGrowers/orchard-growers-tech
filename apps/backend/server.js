@@ -4,6 +4,7 @@ import dns from "dns";
 import cors from "cors";
 import jwt from "jsonwebtoken";
 import multer from "multer";
+import cron from "node-cron";
 import connectDB from "./config/db.js";
 import sitemapRoutes from "./routes/sitemapRoutes.js";
 
@@ -17,7 +18,7 @@ import orderRoutes from "./routes/orderRoutes.js";
 import deliveryRoutes from "./routes/deliveryRoutes.js";
 import billdeskRoutes from "./routes/billdeskRoutes.js";
 import cashfreeRoutes from "./routes/cashfreeRoutes.js";
-import mandiRatesRoutes from "./routes/mandiRatesRoutes.js";
+import mandiRatesRoutes from "./routes/mandiRates.js";
 import verificationRoutes from "./routes/verificationRoutes.js";
 import kycRoutes from "./routes/kycRoutes.js";
 import cloudinaryRoutes from "./routes/cloudinaryRoutes.js";
@@ -35,6 +36,7 @@ import User from "./models/User.js";
 import DealSettings from "./models/DealSettings.js";
 import { seedHsnMaster } from "./models/HsnMaster.js";
 import { seedAdminFromEnv } from "./services/adminSeedService.js";
+import { syncMandiRates } from "./services/mandiRateService.js";
 import {
   buildGradeQuantitiesFromProduct,
   calculateDealBreakdown,
@@ -85,6 +87,22 @@ app.set("trust proxy", 1);
     console.error("Unexpected error during DB initialization:", err);
   }
 })();
+
+cron.schedule("0 6 * * *", async () => {
+  if (!dbConnected) {
+    console.warn("Mandi rates cron skipped: database is offline.");
+    return;
+  }
+
+  try {
+    const summary = await syncMandiRates();
+    console.log(
+      `Mandi rates cron synced ${summary.imported} records from ${summary.pages} page(s).`
+    );
+  } catch (err) {
+    console.error("Mandi rates cron failed:", err?.message || err);
+  }
+});
 
 // ================= TIME LOGIC =================
 const AUCTION_DURATION_MS = 24 * 60 * 60 * 1000;

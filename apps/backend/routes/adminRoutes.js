@@ -2,6 +2,7 @@ import express from "express";
 import multer from "multer";
 import Admin from "../models/Admin.js";
 import DealSettings from "../models/DealSettings.js";
+import FruitCategory, { normalizeCommodityName } from "../models/FruitCategory.js";
 import Quotation from "../models/Quotation.js";
 import {
   createAdmin,
@@ -52,6 +53,7 @@ import {
   DEFAULT_DRIVER_CHARGE_SLABS,
   mergeDealSettings,
 } from "../services/dealCalculationService.js";
+import { syncCommodityMaster } from "../services/mandiRateService.js";
 
 const router = express.Router();
 const wrapAsync = (handler) => (req, res, next) =>
@@ -140,6 +142,22 @@ const adminProductImageUpload = multer({
     fileSize: 8 * 1024 * 1024,
   },
 });
+
+const cleanText = (value = "") => String(value || "").replace(/\s+/g, " ").trim();
+const cleanAliases = (value) => {
+  if (Array.isArray(value)) return value.map(cleanText).filter(Boolean);
+  return String(value || "")
+    .split(",")
+    .map(cleanText)
+    .filter(Boolean);
+};
+
+const normalizeMandiCategory = (value, isFruit) => {
+  const category = cleanText(value).toLowerCase();
+  if (category === "fruit" || isFruit === true) return "fruit";
+  if (category === "non-fruit" || category === "non_fruit" || isFruit === false) return "non-fruit";
+  return "uncategorized";
+};
 
 router.post("/login", wrapAsync(loginAdmin));
 router.post("/signup", wrapAsync(signupAdmin));
@@ -280,6 +298,130 @@ router.patch("/deal-settings", ...adminOnly, requireRoles(...SETTINGS_WRITE_ROLE
     key: "default",
     ...mergeDealSettings(settings),
     updatedAt: settings?.updatedAt,
+  });
+}));
+
+router.get("/mandi-commodities", ...adminOnly, requireRoles(...ORDER_READ_ROLES), wrapAsync(async (req, res) => {
+  const q = cleanText(req.query.q);
+  const category = cleanText(req.query.category).toLowerCase();
+  const limit = Math.min(Number(req.query.limit) || 1000, 5000);
+  const filter = {};
+
+  if (q) {
+    const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    filter.$or = [
+      { commodity: regex },
+      { displayName: regex },
+      { aliases: regex },
+      { category: regex },
+    ];
+  }
+
+  if (category && ["fruit", "non-fruit", "uncategorized"].includes(category)) {
+    filter.category = category;
+  }
+
+  if (req.query.isFruit !== undefined) {
+    filter.isFruit = String(req.query.isFruit).toLowerCase() === "true";
+  }
+
+  const commodities = await FruitCategory.find(filter)
+    .sort({ isFruit: -1, displayName: 1, commodity: 1 })
+    .limit(limit)
+    .lean();
+
+  res.json({
+    success: true,
+    count: commodities.length,
+    commodities,
+  });
+}));
+
+router.post("/mandi-commodities/sync", ...adminOnly, requireRoles(...SETTINGS_WRITE_ROLES), wrapAsync(async (req, res) => {
+  const summary = await syncCommodityMaster({
+    limit: req.body?.limit || req.query.limit,
+    offset: req.body?.offset || req.query.offset,
+    maxPages: req.body?.maxPages || req.query.maxPages,
+  });
+
+  res.json({
+    success: true,
+    ...summary,
+  });
+}));
+
+router.post("/mandi-commodities", ...adminOnly, requireRoles(...SETTINGS_WRITE_ROLES), wrapAsync(async (req, res) => {
+  const commodity = cleanText(req.body.commodity);
+  if (!commodity) {
+    return res.status(400).json({ msg: "Commodity name is required" });
+  }
+
+  const category = normalizeMandiCategory(req.body.category, req.body.isFruit);
+  const isFruit = category === "fruit";
+  const now = new Date();
+
+  const commodityCategory = await FruitCategory.findOneAndUpdate(
+    { normalizedCommodity: normalizeCommodityName(commodity) },
+    {
+      $set: {
+        commodity,
+        normalizedCommodity: normalizeCommodityName(commodity),
+        displayName: cleanText(req.body.displayName) || commodity,
+        aliases: cleanAliases(req.body.aliases),
+        category,
+        isFruit,
+        adminNotes: cleanText(req.body.adminNotes),
+        mappedBy: req.user.id,
+        mappedAt: now,
+      },
+      $setOnInsert: {
+        source: "admin",
+        firstSeenAt: now,
+        lastSeenAt: now,
+        seenCount: 0,
+      },
+    },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  ).lean();
+
+  res.json({
+    success: true,
+    commodity: commodityCategory,
+  });
+}));
+
+router.patch("/mandi-commodities/:id", ...adminOnly, requireRoles(...SETTINGS_WRITE_ROLES), wrapAsync(async (req, res) => {
+  const update = {
+    mappedBy: req.user.id,
+    mappedAt: new Date(),
+  };
+
+  if (req.body.commodity !== undefined) {
+    update.commodity = cleanText(req.body.commodity);
+    update.normalizedCommodity = normalizeCommodityName(update.commodity);
+  }
+
+  if (req.body.displayName !== undefined) update.displayName = cleanText(req.body.displayName);
+  if (req.body.aliases !== undefined) update.aliases = cleanAliases(req.body.aliases);
+  if (req.body.adminNotes !== undefined) update.adminNotes = cleanText(req.body.adminNotes);
+  if (req.body.category !== undefined || req.body.isFruit !== undefined) {
+    update.category = normalizeMandiCategory(req.body.category, req.body.isFruit);
+    update.isFruit = update.category === "fruit";
+  }
+
+  const commodityCategory = await FruitCategory.findByIdAndUpdate(
+    req.params.id,
+    { $set: update },
+    { new: true, runValidators: true }
+  ).lean();
+
+  if (!commodityCategory) {
+    return res.status(404).json({ msg: "Mandi commodity not found" });
+  }
+
+  res.json({
+    success: true,
+    commodity: commodityCategory,
   });
 }));
 

@@ -39,6 +39,7 @@ const LotDetails = lazy(() => import("./pages/LotDetails"));
 const SearchResults = lazy(() => import("./pages/SearchResults"));
 const FruitSeoPage = lazy(() => import("./pages/FruitSeoPage"));
 const MobileCapture = lazy(() => import("./pages/MobileCapture"));
+const MandiRates = lazy(() => import("./pages/MandiRates"));
 
 const scheduleDeferred = (callback, timeout = 1600) => {
   if (typeof window === "undefined") return () => {};
@@ -168,6 +169,8 @@ function App() {
             <Route path="/quotes/:quoteId" element={<QuoteDetails />} />
             <Route path="/lots/:lotId/rating" element={<RateGrower />} />
             <Route path="/search" element={<SearchResults />} />
+            <Route path="/mandi-rates" element={<MandiRates />} />
+            <Route path="/mandi-rates/:commoditySlug" element={<MandiRates />} />
             <Route path="/fruit-lots/:fruitSlug" element={<FruitLotsPage />} />
             <Route path="/blog/fruit-buyers/:fruitSlug" element={<FruitSeoPage type="buyers" />} />
             <Route path="/blog/fruit-growers/:fruitSlug" element={<FruitSeoPage type="growers" />} />

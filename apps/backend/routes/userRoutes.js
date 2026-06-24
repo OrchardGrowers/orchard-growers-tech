@@ -1,5 +1,6 @@
 import express from "express";
 import {
+  getPublicProfiles,
   setUserRole,
   createRoleProfile,
   getMyRoles,
@@ -15,6 +16,8 @@ import profileMediaUpload from "../middleware/profileMediaUpload.js";
 import kycUpload from "../middleware/kycUpload.js";
 
 const router = express.Router();
+
+router.get("/public-profiles", getPublicProfiles);
 
 // ================= SET ROLE =================
 // 🔐 Protected (requires login)

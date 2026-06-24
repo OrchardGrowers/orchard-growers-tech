@@ -316,6 +316,7 @@ type AdminTab =
   | 'kyc'
   | 'ogVerified'
   | 'produceLots'
+  | 'mandiCommodities'
   | 'quotes'
   | 'deals'
   | 'efruitInvoices'
@@ -422,6 +423,20 @@ type AdminQuote = {
   updatedAt?: string;
   lotStatus?: string;
   settlementStatus?: string;
+};
+type MandiCommodity = {
+  _id: string;
+  commodity: string;
+  displayName?: string;
+  aliases?: string[];
+  category?: 'fruit' | 'non-fruit' | 'uncategorized';
+  isFruit?: boolean;
+  source?: string;
+  seenCount?: number;
+  firstSeenAt?: string;
+  lastSeenAt?: string;
+  mappedAt?: string;
+  adminNotes?: string;
 };
 type AdminUser = {
   _id: string;
@@ -715,6 +730,7 @@ const adminRoutePaths: Record<AdminTab, string> = {
   kyc: '/efruitmandi/kyc-verification',
   ogVerified: '/efruitmandi/og-verified',
   produceLots: '/efruitmandi/produce-lots',
+  mandiCommodities: '/efruitmandi/mandi-commodities',
   quotes: '/efruitmandi/quotes',
   deals: '/efruitmandi/deals',
   efruitInvoices: '/efruitmandi/invoices-chalan',
@@ -753,6 +769,7 @@ const adminTabPlatforms: Record<AdminTab, AdminPlatform> = {
   kyc: 'efruitmandi',
   ogVerified: 'efruitmandi',
   produceLots: 'efruitmandi',
+  mandiCommodities: 'efruitmandi',
   quotes: 'efruitmandi',
   deals: 'efruitmandi',
   efruitInvoices: 'efruitmandi',
@@ -788,6 +805,7 @@ const platformTabs: Record<AdminPlatform, AdminTabButton[]> = {
     { id: 'kyc', label: 'KYC Verification' },
     { id: 'ogVerified', label: 'OG Verified' },
     { id: 'produceLots', label: 'Produce Lots' },
+    { id: 'mandiCommodities', label: 'Mandi Commodities' },
     { id: 'quotes', label: 'Quotes' },
     { id: 'deals', label: 'Deals' },
     { id: 'efruitInvoices', label: 'Invoices / Chalan' },
@@ -1006,6 +1024,12 @@ const modulePlans: Partial<Record<AdminTab, ModulePlan>> = {
     pages: ['View Listed Lots', 'Edit Lot if Required', 'Pause / Hide Lot', 'Approve / Reject Problematic Lot', 'Lot Issue History'],
     rules: ['Do not create manual produce lots from admin by default.', 'Use edit only for support, correction, or suspicious listing cases.'],
   },
+  mandiCommodities: {
+    title: 'Mandi Commodity Mapping',
+    text: 'Map discovered AGMARKNET commodities as fruit or non-fruit. Public mandi rates show only commodities marked as fruit.',
+    pages: ['Sync Commodity Master', 'Mark Fruit', 'Mark Non-Fruit', 'Add Missing Commodity'],
+    rules: ['Commodity discovery comes from AGMARKNET data.', 'Admins can add or recategorize fruit commodities without code changes.'],
+  },
   quotes: {
     title: 'Quote Management',
     text: 'Review quote requests, quoted prices, accepted deals, rejected quotes, and deal conversion without manual marketplace billing.',
@@ -1110,6 +1134,7 @@ function App() {
   const [adminUsers, setAdminUsers] = useState<AdminAccount[]>([]);
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [quotes, setQuotes] = useState<AdminQuote[]>([]);
+  const [mandiCommodities, setMandiCommodities] = useState<MandiCommodity[]>([]);
   const [loading, setLoading] = useState(false);
   const [viewingFile, setViewingFile] = useState<UploadedFile | null>(null);
   const [adminSearch, setAdminSearch] = useState('');
@@ -1515,7 +1540,7 @@ function App() {
     setLoading(true);
     setMessage('');
     try {
-      const [kycRes, verificationRes, ordersRes, usersRes, productsRes, adminsRes, quotesRes] = await Promise.all([
+      const [kycRes, verificationRes, ordersRes, usersRes, productsRes, adminsRes, quotesRes, mandiCommodityRes] = await Promise.all([
         fetch(`${API_BASE}/admin/kyc-requests`, { headers: authHeaders }),
         fetch(`${API_BASE}/admin/verification-requests`, { headers: authHeaders }),
         fetch(`${API_BASE}/admin/orders`, { headers: authHeaders }),
@@ -1523,14 +1548,15 @@ function App() {
         fetch(`${API_BASE}/admin/products`, { headers: authHeaders }),
         fetch(`${API_BASE}/admin/admins`, { headers: authHeaders }),
         fetch(`${API_BASE}/admin/quotes`, { headers: authHeaders }),
+        fetch(`${API_BASE}/admin/mandi-commodities`, { headers: authHeaders }),
       ]);
 
-      if ([kycRes, verificationRes, ordersRes, usersRes, productsRes, adminsRes, quotesRes].some((res) => [401, 403].includes(res.status))) {
+      if ([kycRes, verificationRes, ordersRes, usersRes, productsRes, adminsRes, quotesRes, mandiCommodityRes].some((res) => [401, 403].includes(res.status))) {
         clearAdminSession('Admin session expired or access was revoked. Please log in again.');
         return;
       }
 
-      const [kycData, verificationData, ordersData, usersData, productsData, adminsData, quotesData] = await Promise.all([
+      const [kycData, verificationData, ordersData, usersData, productsData, adminsData, quotesData, mandiCommodityData] = await Promise.all([
         readResponseJson(kycRes),
         readResponseJson(verificationRes),
         readResponseJson(ordersRes),
@@ -1538,6 +1564,7 @@ function App() {
         readResponseJson(productsRes),
         readResponseJson(adminsRes),
         readResponseJson(quotesRes),
+        readResponseJson(mandiCommodityRes),
       ]);
       if (!kycRes.ok) throw new Error(kycData.msg || 'Could not load KYC requests');
       if (!verificationRes.ok) {
@@ -1548,6 +1575,7 @@ function App() {
       if (!productsRes.ok) throw new Error(productsData.msg || 'Could not load products');
       if (!adminsRes.ok) throw new Error(adminsData.msg || 'Could not load admin users');
       if (!quotesRes.ok) throw new Error(quotesData.msg || 'Could not load quotes');
+      if (!mandiCommodityRes.ok) throw new Error(mandiCommodityData.msg || 'Could not load mandi commodities');
       setKycRequests(kycData || []);
       setVerificationRequests(verificationData || []);
       setOrders(ordersData || []);
@@ -1555,6 +1583,7 @@ function App() {
       setProducts(productsData || []);
       setAdminUsers(adminsData || []);
       setQuotes(quotesData.quotes || []);
+      setMandiCommodities(mandiCommodityData.commodities || []);
     } catch (err) {
       setMessage(getNetworkErrorMessage(err));
     } finally {
@@ -1957,6 +1986,56 @@ function App() {
     ].join('\n'));
   };
 
+  const syncMandiCommodities = async () => {
+    if (!confirmTwice('sync AGMARKNET commodity master data')) return;
+
+    const res = await fetch(`${API_BASE}/admin/mandi-commodities/sync`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({ limit: 1000, maxPages: 200 }),
+    });
+    const data = await readResponseJson(res);
+    if (!res.ok) {
+      setMessage(data.msg || 'Could not sync mandi commodities');
+      return;
+    }
+    setMessage(`Commodity master synced. ${data.commoditiesSeen || 0} unique commodities seen.`);
+    loadRequests();
+  };
+
+  const createMandiCommodity = async (payload: { commodity: string; displayName?: string; aliases?: string; isFruit: boolean; adminNotes?: string }) => {
+    const res = await fetch(`${API_BASE}/admin/mandi-commodities`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        ...payload,
+        category: payload.isFruit ? 'fruit' : 'non-fruit',
+      }),
+    });
+    const data = await readResponseJson(res);
+    if (!res.ok) {
+      setMessage(data.msg || 'Could not save mandi commodity');
+      return;
+    }
+    setMessage(`${payload.commodity} saved.`);
+    loadRequests();
+  };
+
+  const updateMandiCommodity = async (id: string, payload: Partial<MandiCommodity>) => {
+    const res = await fetch(`${API_BASE}/admin/mandi-commodities/${id}`, {
+      method: 'PATCH',
+      headers: authHeaders,
+      body: JSON.stringify(payload),
+    });
+    const data = await readResponseJson(res);
+    if (!res.ok) {
+      setMessage(data.msg || 'Could not update mandi commodity');
+      return;
+    }
+    setMessage('Mandi commodity mapping updated.');
+    loadRequests();
+  };
+
   if (!token || !admin) {
     const authFormTitle: Record<AdminAuthMode, string> = {
       login: 'Admin Panels',
@@ -2130,6 +2209,7 @@ function App() {
     users: users.length,
     kyc: kycRequests.length,
     ogVerified: verificationRequests.length,
+    mandiCommodities: mandiCommodities.length,
     sellers: users.filter((user) => user.role === 'grower').length,
     buyers: users.filter((user) => user.role === 'buyer').length,
     suspendedUsers: users.filter((user) => ['HOLD', 'SUSPENDED', 'TERMINATED'].includes(user.accountStatus || '')).length,
@@ -2153,6 +2233,7 @@ function App() {
   const activeTitle = getAdminTabTitle(activeTab, activePlatform);
   const searchedProducts = filterProducts(products, adminSearch);
   const searchedUsers = filterUsers(users, adminSearch);
+  const searchedMandiCommodities = filterMandiCommodities(mandiCommodities, adminSearch);
   const sidebarGroups = getSidebarGroups(countByTab, logout, adminRole);
   const getOrchardModulePage = (moduleTab: AdminTab) =>
     orchardModulePages[moduleTab] || defaultOrchardModulePages[moduleTab] || '';
@@ -2356,6 +2437,19 @@ function App() {
         <section className="space-y-4">
           <ModulePlanPanel plan={modulePlans.produceLots} />
           <EfruitMandiLotsPanel products={searchedProducts} onViewFile={setViewingFile} />
+        </section>
+      );
+    }
+    if (tab === 'mandiCommodities') {
+      return (
+        <section className="space-y-4">
+          <ModulePlanPanel plan={modulePlans.mandiCommodities} />
+          <MandiCommodityPanel
+            commodities={searchedMandiCommodities}
+            onSync={syncMandiCommodities}
+            onCreate={createMandiCommodity}
+            onUpdate={updateMandiCommodity}
+          />
         </section>
       );
     }
@@ -6280,6 +6374,135 @@ function EfruitMandiLotsPanel({
   );
 }
 
+function MandiCommodityPanel({
+  commodities,
+  onSync,
+  onCreate,
+  onUpdate,
+}: {
+  commodities: MandiCommodity[];
+  onSync: () => void;
+  onCreate: (payload: { commodity: string; displayName?: string; aliases?: string; isFruit: boolean; adminNotes?: string }) => void;
+  onUpdate: (id: string, payload: Partial<MandiCommodity>) => void;
+}) {
+  const [draft, setDraft] = useState({
+    commodity: '',
+    displayName: '',
+    aliases: '',
+    isFruit: true,
+    adminNotes: '',
+  });
+  const fruitCount = commodities.filter((item) => item.isFruit).length;
+  const uncategorizedCount = commodities.filter((item) => item.category === 'uncategorized').length;
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (!draft.commodity.trim()) return;
+    onCreate(draft);
+    setDraft({ commodity: '', displayName: '', aliases: '', isFruit: true, adminNotes: '' });
+  };
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
+      <div className="flex flex-col gap-3 border-b border-slate-800 p-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-white">AGMARKNET Commodity Mapping</h2>
+          <p className="mt-1 text-sm font-semibold text-slate-400">
+            {commodities.length} commodities, {fruitCount} marked fruit, {uncategorizedCount} uncategorized
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onSync}
+          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-black text-white hover:bg-emerald-500"
+        >
+          Sync Commodity Master
+        </button>
+      </div>
+
+      <form onSubmit={submit} className="grid gap-3 border-b border-slate-800 p-4 lg:grid-cols-[1fr_1fr_1fr_120px_120px]">
+        <AdminInput label="Commodity" value={draft.commodity} onChange={(value) => setDraft((current) => ({ ...current, commodity: value }))} placeholder="Dragon Fruit" />
+        <AdminInput label="Display Name" value={draft.displayName} onChange={(value) => setDraft((current) => ({ ...current, displayName: value }))} placeholder="Dragon Fruit" />
+        <AdminInput label="Aliases" value={draft.aliases} onChange={(value) => setDraft((current) => ({ ...current, aliases: value }))} placeholder="Pitaya, Kamalam" />
+        <label className="block text-sm font-bold text-slate-300">
+          Category
+          <select
+            value={draft.isFruit ? 'fruit' : 'non-fruit'}
+            onChange={(event) => setDraft((current) => ({ ...current, isFruit: event.target.value === 'fruit' }))}
+            className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400"
+          >
+            <option value="fruit">Fruit</option>
+            <option value="non-fruit">Non-fruit</option>
+          </select>
+        </label>
+        <button type="submit" className="mt-7 h-11 rounded-lg bg-white px-3 text-sm font-black text-slate-950 hover:bg-emerald-100">
+          Add
+        </button>
+      </form>
+
+      <div className="overflow-x-auto">
+        <table className="min-w-[980px] w-full text-left text-sm">
+          <thead className="bg-slate-950 text-xs uppercase text-slate-400">
+            <tr>
+              <th className="px-4 py-3">Commodity</th>
+              <th className="px-4 py-3">Aliases</th>
+              <th className="px-4 py-3">Category</th>
+              <th className="px-4 py-3">Seen</th>
+              <th className="px-4 py-3">Last Seen</th>
+              <th className="px-4 py-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800">
+            {commodities.map((item) => (
+              <tr key={item._id} className="text-slate-200">
+                <td className="px-4 py-3">
+                  <p className="font-black text-white">{item.displayName || item.commodity}</p>
+                  <p className="text-xs font-bold text-slate-500">{item.commodity}</p>
+                </td>
+                <td className="px-4 py-3 text-slate-300">{item.aliases?.join(', ') || '-'}</td>
+                <td className="px-4 py-3">
+                  <span className={`rounded-full px-2 py-1 text-xs font-black ${
+                    item.isFruit
+                      ? 'bg-emerald-950 text-emerald-300'
+                      : item.category === 'non-fruit'
+                        ? 'bg-slate-800 text-slate-300'
+                        : 'bg-amber-950 text-amber-200'
+                  }`}>
+                    {item.isFruit ? 'fruit' : item.category || 'uncategorized'}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-slate-300">{item.seenCount || 0}</td>
+                <td className="px-4 py-3 text-slate-300">{formatDate(item.lastSeenAt)}</td>
+                <td className="px-4 py-3">
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={item.isFruit}
+                      onClick={() => onUpdate(item._id, { category: 'fruit', isFruit: true })}
+                      className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-black text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500"
+                    >
+                      Mark Fruit
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!item.isFruit && item.category === 'non-fruit'}
+                      onClick={() => onUpdate(item._id, { category: 'non-fruit', isFruit: false })}
+                      className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-black text-slate-100 hover:bg-slate-700 disabled:cursor-not-allowed disabled:text-slate-500"
+                    >
+                      Non-fruit
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!commodities.length && <EmptyState label="No mandi commodities found. Sync the commodity master to discover AGMARKNET commodities." />}
+      </div>
+    </section>
+  );
+}
+
 function makeLogisticsDraft(platform: string) {
   const today = new Date().toISOString().slice(0, 10);
   return {
@@ -7326,6 +7549,19 @@ function filterUsers(users: AdminUser[], search: string) {
 
   return users.filter((user) =>
     [user.name, user.email, user.phone, user.role || '', user.businessName, user.orchardName, user.location, user.accountStatus]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+      .includes(query)
+  );
+}
+
+function filterMandiCommodities(commodities: MandiCommodity[], search: string) {
+  const query = search.trim().toLowerCase();
+  if (!query) return commodities;
+
+  return commodities.filter((item) =>
+    [item.commodity, item.displayName, item.category, item.aliases?.join(' '), item.adminNotes]
       .filter(Boolean)
       .join(' ')
       .toLowerCase()

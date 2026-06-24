@@ -1,6 +1,8 @@
 import express from "express";
 import User from "../models/User.js";
 import Product from "../models/Product.js";
+import MandiRate from "../models/MandiRate.js";
+import { getFruitCommodityNames } from "../services/mandiRateService.js";
 
 const router = express.Router();
 
@@ -26,6 +28,14 @@ const getProfileRole = (user = {}) => {
   return user.role || user.activeRole || "Profile";
 };
 
+const formatPrice = (value) => {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "Modal rate not available";
+  return `Modal ₹${number.toLocaleString("en-IN", {
+    maximumFractionDigits: 2,
+  })}/kg`;
+};
+
 router.get("/", async (req, res) => {
   try {
     const q = normalizeText(req.query.q);
@@ -35,6 +45,7 @@ router.get("/", async (req, res) => {
       return res.json({
         profiles: [],
         lots: [],
+        mandiRates: [],
       });
     }
 
@@ -45,7 +56,9 @@ router.get("/", async (req, res) => {
 
     const isMarketplaceIntent = marketplaceIntentRegex.test(q);
 
-    const [profiles, lots] = await Promise.all([
+    const fruitCommodityNames = await getFruitCommodityNames();
+
+    const [profiles, lots, mandiRates] = await Promise.all([
       User.find({
         $or: [
           { name: regex },
@@ -92,6 +105,23 @@ router.get("/", async (req, res) => {
         .populate("createdBy", "name orchardName businessName")
         .limit(limit)
         .lean(),
+
+      fruitCommodityNames.length
+        ? MandiRate.find({
+            commodity: { $in: fruitCommodityNames },
+            $or: [
+              { commodity: regex },
+              { variety: regex },
+              { market: regex },
+              { district: regex },
+              { state: regex },
+            ],
+          })
+            .select("commodity variety market district state modalPriceKg arrivalDate")
+            .sort({ arrivalDate: -1 })
+            .limit(limit)
+            .lean()
+        : Promise.resolve([]),
     ]);
 
     return res.json({
@@ -111,6 +141,19 @@ router.get("/", async (req, res) => {
         createdAt: user.createdAt,
       })),
       lots,
+      mandiRates: mandiRates.map((rate) => ({
+        _id: rate._id,
+        category: "mandi-rate",
+        title: `${rate.commodity || "Fruit"} Mandi Rate - ${rate.market || "Market"}`,
+        subtitle: [rate.district, rate.state].filter(Boolean).join(", "),
+        price: formatPrice(rate.modalPriceKg),
+        date: rate.arrivalDate,
+        commodity: rate.commodity,
+        variety: rate.variety,
+        market: rate.market,
+        district: rate.district,
+        state: rate.state,
+      })),
     });
   } catch (err) {
     console.error("Universal search error:", err);
