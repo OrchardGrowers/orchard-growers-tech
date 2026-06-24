@@ -719,21 +719,43 @@ export default function Home() {
                 Loading market feed...
               </div>
             ) : (
-              <DesktopSection
-                section={desktopSection}
-                feedItems={feedItems}
-                visibleListings={visibleListings}
-                upcomingLots={upcomingLots}
-                highestDeals={highestDeals}
-                dealDisplayGroup={dealDisplayGroup}
-                selectedInfoSection={selectedInfoSection}
-                onAdd={openListLotFlow}
-                onOpenLot={(productId) => navigate(`/lots/${productId}`)}
-                onQuoteLot={openQuoteFlow}
-                onRateLot={openRateGrowerFlow}
-              onOpenProfile={openPublicProfileFlow}
-              onRateProfile={openRateProfileFlow}
-              />
+              <>
+                <DesktopSection
+                  section={desktopSection}
+                  feedItems={feedItems}
+                  visibleListings={visibleListings}
+                  upcomingLots={upcomingLots}
+                  highestDeals={highestDeals}
+                  dealDisplayGroup={dealDisplayGroup}
+                  selectedInfoSection={selectedInfoSection}
+                  onAdd={openListLotFlow}
+                  onOpenLot={(productId) => navigate(`/lots/${productId}`)}
+                  onQuoteLot={openQuoteFlow}
+                  onRateLot={openRateGrowerFlow}
+                />
+
+                <PublicProfilesSection
+                  title="Latest Registered Growers"
+                  role="grower"
+                  profiles={publicGrowers}
+                  loading={profilesLoading}
+                  error={profilesError}
+                  emptyText="Latest grower profiles will appear soon."
+                  onOpenProfile={openPublicProfileFlow}
+                  onRateProfile={openRateProfileFlow}
+                />
+
+                <PublicProfilesSection
+                  title="Latest Registered Buyers"
+                  role="buyer"
+                  profiles={publicBuyers}
+                  loading={profilesLoading}
+                  error={profilesError}
+                  emptyText="Latest buyer profiles will appear soon."
+                  onOpenProfile={openPublicProfileFlow}
+                  onRateProfile={openRateProfileFlow}
+                />
+              </>
             )}
           </>
         )}
@@ -2515,6 +2537,9 @@ function getLotDetails(product = {}) {
     { label: "Description", value: product.description },
   ].filter((detail) => detail.value !== undefined && detail.value !== null && String(detail.value).trim());
 }
+
+
+
 
 
 
