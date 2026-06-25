@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import SEO from "../components/SEO";
 import {
   FaChevronLeft,
   FaChevronRight,
@@ -34,6 +33,8 @@ import {
   isUpcomingDeal,
   normalizeDealStatus,
 } from "../utils/marketplaceVisibility";
+
+const SEO = lazy(() => import("../components/SEO"));
 
 const categories = [
   { name: "Apple", icon: "🍎" },
@@ -353,6 +354,36 @@ const fetchHomeMarketData = ({ force = false } = {}) => {
 
 if (typeof window !== "undefined" && window.location.pathname === "/") {
   fetchHomeMarketData();
+}
+
+function DeferredHomeSEO(props) {
+  const [ready, setReady] = useState(() => !isMobileViewport());
+
+  useEffect(() => {
+    if (ready) return undefined;
+
+    let idleId;
+    const timerId = window.setTimeout(() => {
+      if ("requestIdleCallback" in window) {
+        idleId = window.requestIdleCallback(() => setReady(true), { timeout: 3000 });
+      } else {
+        setReady(true);
+      }
+    }, 10000);
+
+    return () => {
+      window.clearTimeout(timerId);
+      if (idleId) window.cancelIdleCallback(idleId);
+    };
+  }, [ready]);
+
+  if (!ready) return null;
+
+  return (
+    <Suspense fallback={null}>
+      <SEO {...props} />
+    </Suspense>
+  );
 }
 
 export default function Home() {
@@ -733,7 +764,7 @@ export default function Home() {
 
   return (
   <>
-    <SEO
+    <DeferredHomeSEO
   title="eFruitMandi - Fruit Buyers & Growers Marketplace in India"
   description="Connect directly with verified fruit growers, buyers, commission agents, wholesalers, exporters and logistics partners across India."
   canonical="/"
