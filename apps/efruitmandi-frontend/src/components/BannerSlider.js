@@ -97,7 +97,7 @@ export default function BannerSlider() {
             height={BANNER_ASPECT_HEIGHT}
             alt={banner.alt}
             loading={i === 0 ? "eager" : "lazy"}
-            fetchPriority={i === 0 ? "high" : "low"}
+            fetchPriority={i === 0 ? "auto" : "low"}
             decoding="async"
             onError={() => hideMissingBanner(banner.src)}
             className="h-full w-full flex-shrink-0 object-fill"

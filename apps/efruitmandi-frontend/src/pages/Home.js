@@ -188,15 +188,48 @@ const resolveProfileMediaUrl = (value = "") => {
   return url.startsWith("/") ? url : `/${url}`;
 };
 
-const optimizeImageUrl = (url = "", width = 640) => {
-  if (!url || !url.includes("res.cloudinary.com") || !url.includes("/image/upload/")) {
-    return url;
-  }
-  if (/\/image\/upload\/[^/]*(?:f_auto|q_auto|w_)/.test(url)) {
-    return url;
-  }
-  return url.replace("/image/upload/", `/image/upload/f_auto,q_auto,c_limit,w_${width}/`);
+const CLOUDINARY_UPLOAD_SEGMENT = "/image/upload/";
+const CLOUDINARY_TRANSFORM_PATTERN =
+  /(^|,)(?:a_|ar_|b_|bo_|c_|co_|d_|dl_|dn_|e_|eo_|f_|fl_|fn_|g_|h_|ki_|l_|o_|q_|r_|so_|t_|u_|vc_|vs_|w_|x_|y_|z_)/;
+const LOT_IMAGE_WIDTHS = [360, 420, 640];
+const LOT_IMAGE_ASPECT_RATIO = 10 / 14;
+
+const isCloudinaryImageUrl = (url = "") =>
+  url.includes("res.cloudinary.com") && url.includes(CLOUDINARY_UPLOAD_SEGMENT);
+
+const hasCloudinaryTransform = (segment = "") =>
+  CLOUDINARY_TRANSFORM_PATTERN.test(segment);
+
+const transformCloudinaryImage = (url = "", transform = "") => {
+  if (!url || !isCloudinaryImageUrl(url)) return url;
+
+  const suffixMatch = url.match(/[?#].*$/);
+  const suffix = suffixMatch ? suffixMatch[0] : "";
+  const cleanUrl = suffix ? url.slice(0, -suffix.length) : url;
+  const [prefix, uploadPath = ""] = cleanUrl.split(CLOUDINARY_UPLOAD_SEGMENT);
+  const parts = uploadPath.split("/");
+  const pathWithoutTransform = hasCloudinaryTransform(parts[0])
+    ? parts.slice(1).join("/")
+    : uploadPath;
+
+  return `${prefix}${CLOUDINARY_UPLOAD_SEGMENT}${transform}/${pathWithoutTransform}${suffix}`;
 };
+
+const optimizeImageUrl = (url = "", width = 640) =>
+  transformCloudinaryImage(url, `f_auto,q_auto:eco,c_limit,w_${width}`);
+
+const optimizeLotImageUrl = (url = "", width = 420) => {
+  const height = Math.round(width * LOT_IMAGE_ASPECT_RATIO);
+  return transformCloudinaryImage(url, `f_auto,q_auto:eco,c_fill,w_${width},h_${height}`);
+};
+
+const buildLotImageSrcSet = (url = "") => {
+  if (!isCloudinaryImageUrl(url)) return "";
+  return LOT_IMAGE_WIDTHS.map((width) => `${optimizeLotImageUrl(url, width)} ${width}w`).join(", ");
+};
+
+const optimizeProfileLogoUrl = (url = "") =>
+  transformCloudinaryImage(url, "f_auto,q_auto:eco,c_fit,w_224,h_224");
 
 const policyLinkGroups = [
   {
@@ -1113,8 +1146,10 @@ function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile }) {
     safeProfile.name ||
     (role === "grower" ? "Grower Profile" : "Buyer Profile");
   const location = safeProfile.mainLocation || safeProfile.city || safeProfile.state || "India";
-  const imageUrl = resolveProfileMediaUrl(
-    safeProfile.logoUrl || safeProfile.profileImage || safeProfile.avatar
+  const imageUrl = optimizeProfileLogoUrl(
+    resolveProfileMediaUrl(
+      safeProfile.logoUrl || safeProfile.profileImage || safeProfile.avatar
+    )
   );
   const badgeText = role === "grower" ? "Registered Grower" : "Registered Buyer";
   const roleTitle = role === "grower" ? "Fruit Grower Profile" : "Fruit Buyer Profile";
@@ -1154,6 +1189,10 @@ function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile }) {
           <img
             src={imageUrl}
             alt={displayName}
+            width="224"
+            height="224"
+            loading="lazy"
+            decoding="async"
             className="h-full w-full object-contain"
           />
         ) : (
@@ -1724,7 +1763,7 @@ function DesktopLotPost({
   );
 }
 
-function DesktopLotImageCarousel({ images, product, title, onOpen }) {
+function DesktopLotImageCarousel({ images, product, title, onOpen, imagePriority = false }) {
   const [activeImage, setActiveImage] = useState(0);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -1754,7 +1793,9 @@ function DesktopLotImageCarousel({ images, product, title, onOpen }) {
     setZoom(1);
     setPreviewOpen(true);
   };
-  const gradeLabel = getImageGradeLabel(product, images[activeImage]);
+  const activeImageUrl = images[activeImage];
+  const gradeLabel = getImageGradeLabel(product, activeImageUrl);
+  const lotImageSrcSet = buildLotImageSrcSet(activeImageUrl);
 
   return (
     <div className="relative bg-white">
@@ -1766,13 +1807,16 @@ function DesktopLotImageCarousel({ images, product, title, onOpen }) {
       >
         <span className="relative inline-flex max-h-full max-w-full">
           <img
-            src={optimizeImageUrl(images[activeImage], 420)}
+            src={optimizeLotImageUrl(activeImageUrl, 420)}
+            srcSet={lotImageSrcSet || undefined}
+            sizes="(max-width: 767px) 420px, 640px"
             alt={`${title} ${activeImage + 1}`}
             width="420"
-            height="315"
+            height="300"
             className="h-full w-full object-cover md:max-h-full md:max-w-full md:object-contain"
-            loading="lazy"
-decoding="async"
+            loading={imagePriority ? "eager" : "lazy"}
+            fetchPriority={imagePriority ? "high" : "low"}
+            decoding={imagePriority ? "sync" : "async"}
           />
           {gradeLabel && <FruitGradeBadge label={gradeLabel} />}
         </span>
