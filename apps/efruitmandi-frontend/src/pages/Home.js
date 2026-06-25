@@ -597,7 +597,7 @@ export default function Home() {
         onBuy={() => navigate("/auctions")}
       />
 
-      <div className="pb-32 md:hidden">
+      <div className="pb-32 pt-2 md:hidden">
         <BannerSlider />
 
         <FruitIconRail
@@ -698,14 +698,15 @@ export default function Home() {
 
 function HeroCard({ onList }) {
   return (
-    <section className="-mx-0 -mt-3 rounded-[18px] bg-white shadow-sm ring-1 ring-green-100">
+    <section className="-mx-0 mt-2 rounded-[18px] bg-white shadow-sm ring-1 ring-green-100">
       <div className="relative overflow-hidden rounded-[28px]">
         <img
           src={orchardCover}
           alt="Fresh orchard fruits"
           width="1200"
           height="528"
-          loading="lazy"
+          loading="eager"
+          fetchPriority="high"
           decoding="async"
           className="h-44 w-full object-cover"
         />
@@ -1263,8 +1264,9 @@ function MarketCard({ item, amount, badge, buttonLabel, icon, onView, showPrice 
             width="165"
             height="124"
             className="h-full w-full object-contain"
-            loading="lazy"
-            decoding="async"
+            loading="eager"
+          fetchPriority="high"
+          decoding="async"
           />
         ) : (
           <div className="flex h-full items-center justify-center text-2xl text-green-700">
@@ -1685,8 +1687,9 @@ function DesktopLotImageCarousel({ images, product, title, onOpen }) {
             width="900"
             height="675"
             className="h-full w-full object-cover md:max-h-full md:max-w-full md:object-contain"
-            loading="lazy"
-            decoding="async"
+            loading="eager"
+          fetchPriority="high"
+          decoding="async"
           />
           {gradeLabel && <FruitGradeBadge label={gradeLabel} />}
         </span>
@@ -1991,7 +1994,8 @@ function FeedPost({ item, onOpen }) {
           alt={item.title}
           width="720"
           height="420"
-          loading="lazy"
+          loading="eager"
+          fetchPriority="high"
           decoding="async"
           className="h-auto max-h-[420px] w-full object-contain"
         />
@@ -2126,8 +2130,9 @@ function Avatar({ name, imageUrl, className = "" }) {
         alt={name}
         width="80"
         height="80"
-        loading="lazy"
-        decoding="async"
+        loading="eager"
+          fetchPriority="high"
+          decoding="async"
         className={`shrink-0 rounded-full bg-white object-contain p-1 ${className}`}
       />
     );
@@ -2552,6 +2557,11 @@ function getLotDetails(product = {}) {
     { label: "Description", value: product.description },
   ].filter((detail) => detail.value !== undefined && detail.value !== null && String(detail.value).trim());
 }
+
+
+
+
+
 
 
 
