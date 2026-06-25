@@ -12,12 +12,18 @@ import {
   FaYoutube,
 } from "react-icons/fa";
 import { getCurrentUser, logoutUser } from "../utils/auth";
-import API from "../services/api";
 
 const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-240.png`;
 const ProfileAccountMenu = lazy(() => import("./ProfileAccountMenu"));
 const READ_NOTIFICATIONS_KEY = "efruitmandiReadNotifications";
 const NOTIFICATION_STATE_EVENT = "efruitmandi-notifications-updated";
+let apiClientPromise = null;
+const getApiClient = () => {
+  if (!apiClientPromise) {
+    apiClientPromise = import("../services/api").then((module) => module.default);
+  }
+  return apiClientPromise;
+};
 
 const loadReadNotificationIds = () => {
   try {
@@ -84,6 +90,7 @@ export default function Navbar() {
       }
 
       try {
+        const API = await getApiClient();
         const [lotRes, quoteRes] = await Promise.all([
           API.get("/products?platform=efruitmandi"),
           API.get("/quotes/buyer").catch(() => ({ data: { quotes: [] } })),
