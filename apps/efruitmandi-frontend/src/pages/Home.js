@@ -1264,9 +1264,8 @@ function MarketCard({ item, amount, badge, buttonLabel, icon, onView, showPrice 
             width="165"
             height="124"
             className="h-full w-full object-contain"
-            loading="eager"
-          fetchPriority="high"
-          decoding="async"
+            loading="lazy"
+decoding="async"
           />
         ) : (
           <div className="flex h-full items-center justify-center text-2xl text-green-700">
@@ -1687,9 +1686,8 @@ function DesktopLotImageCarousel({ images, product, title, onOpen }) {
             width="900"
             height="675"
             className="h-full w-full object-cover md:max-h-full md:max-w-full md:object-contain"
-            loading="eager"
-          fetchPriority="high"
-          decoding="async"
+            loading="lazy"
+decoding="async"
           />
           {gradeLabel && <FruitGradeBadge label={gradeLabel} />}
         </span>
@@ -1994,9 +1992,8 @@ function FeedPost({ item, onOpen }) {
           alt={item.title}
           width="720"
           height="420"
-          loading="eager"
-          fetchPriority="high"
-          decoding="async"
+          loading="lazy"
+decoding="async"
           className="h-auto max-h-[420px] w-full object-contain"
         />
       </button>
@@ -2130,9 +2127,8 @@ function Avatar({ name, imageUrl, className = "" }) {
         alt={name}
         width="80"
         height="80"
-        loading="eager"
-          fetchPriority="high"
-          decoding="async"
+        loading="lazy"
+decoding="async"
         className={`shrink-0 rounded-full bg-white object-contain p-1 ${className}`}
       />
     );
@@ -2557,6 +2553,7 @@ function getLotDetails(product = {}) {
     { label: "Description", value: product.description },
   ].filter((detail) => detail.value !== undefined && detail.value !== null && String(detail.value).trim());
 }
+
 
 
 
