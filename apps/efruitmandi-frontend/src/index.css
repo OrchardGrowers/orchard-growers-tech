@@ -223,8 +223,8 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
   animation: startup-logo-shine 1.55s ease-in-out infinite;
   mix-blend-mode: screen;
   pointer-events: none;
-  -webkit-mask-image: url("/logo.png");
-  mask-image: url("/logo.png");
+  -webkit-mask-image: url("/logo-384.png");
+  mask-image: url("/logo-384.png");
   -webkit-mask-position: center;
   mask-position: center;
   -webkit-mask-repeat: no-repeat;

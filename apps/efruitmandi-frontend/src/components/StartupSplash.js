@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const logoUrl = `${process.env.PUBLIC_URL || ""}/logo.png`;
+const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-384.png`;
 const MIN_SPLASH_MS = 1200;
 const MAX_SPLASH_MS = 2400;
 
@@ -56,8 +56,8 @@ export default function StartupSplash({ autoHide = true }) {
         <img
           src={logoUrl}
           alt="eFruitMandi logo"
-          width="768"
-          height="512"
+          width="384"
+          height="256"
           className="startup-logo w-[250px] max-w-[72vw] object-contain md:w-[330px]"
         />
       </span>

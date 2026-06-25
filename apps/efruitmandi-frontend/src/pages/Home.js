@@ -132,7 +132,7 @@ const mobileTabs = [
 const orchardCover = `${process.env.PUBLIC_URL || ""}/profile-banners/efruitmandi-profile-cover.png`;
 const fallbackLotImage =
   "https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?auto=format&fit=crop&w=640&q=70";
-const logoUrl = `${process.env.PUBLIC_URL || ""}/logo.png`;
+const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-384.png`;
 const homePageSchemas = [
   {
     "@context": "https://schema.org",

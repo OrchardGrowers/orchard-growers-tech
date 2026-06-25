@@ -42,7 +42,7 @@ import {
 } from "../utils/msg91OtpWidget";
 
 const assetUrl = (path) => `${process.env.PUBLIC_URL || ""}${path}`;
-const logoUrl = assetUrl("/logo.png");
+const logoUrl = assetUrl("/logo-384.png");
 const orchardCover = assetUrl("/profile-banners/efruitmandi-profile-cover.png");
 const buyerLogoUrl = assetUrl("/profile-images/green-valley-fruit-traders-logo.svg");
 const youtubeUrl = "https://www.youtube.com/results?search_query=Efruit+Mandi";
