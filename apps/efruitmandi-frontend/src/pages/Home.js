@@ -394,7 +394,33 @@ export default function Home() {
     return scheduleAfterPaint(() => loadMarketData({ showLoading: true }));
   }, [loadMarketData]);
 
-  useEffect(() => scheduleAfterPaint(() => setDeferredSectionsReady(true), 1800), []);
+  useEffect(() => {
+    const revealDeferredSections = () => setDeferredSectionsReady(true);
+    const isMobileHome = window.matchMedia("(max-width: 767px)").matches;
+
+    if (!isMobileHome) {
+      return scheduleAfterPaint(revealDeferredSections, 1800);
+    }
+
+    let idleId;
+    const timerId = window.setTimeout(() => {
+      if ("requestIdleCallback" in window) {
+        idleId = window.requestIdleCallback(revealDeferredSections, { timeout: 3000 });
+      } else {
+        revealDeferredSections();
+      }
+    }, 10000);
+
+    window.addEventListener("scroll", revealDeferredSections, { passive: true, once: true });
+    window.addEventListener("touchstart", revealDeferredSections, { passive: true, once: true });
+
+    return () => {
+      window.clearTimeout(timerId);
+      if (idleId) window.cancelIdleCallback(idleId);
+      window.removeEventListener("scroll", revealDeferredSections);
+      window.removeEventListener("touchstart", revealDeferredSections);
+    };
+  }, []);
 
   useEffect(() => {
     if (!deferredSectionsReady) return undefined;
@@ -888,53 +914,61 @@ function PublicHomeFeed({
   canRateLot,
   currentUserId,
 }) {
+  const dealSections = [
+    {
+      key: "live",
+      title: "Live Fruit Deals",
+      emptyText: "No live fruit deals right now. Fresh mandi deals will appear here.",
+      deals: liveLots,
+    },
+    {
+      key: "upcoming",
+      title: "Upcoming Fruit Deals",
+      emptyText: "No upcoming fruit deals yet. Scheduled lots will appear here.",
+      deals: upcomingLots,
+    },
+    {
+      key: "closed",
+      title: "Recently Closed Deals",
+      emptyText: "No recently closed deals yet. Closed deals will appear here.",
+      deals: closedLots,
+    },
+  ];
+  const primaryDealSection = deferSecondarySections
+    ? dealSections.find((section) => section.deals.length) || dealSections[0]
+    : dealSections[0];
+  const deferredDealSections = deferSecondarySections
+    ? dealSections.filter((section) => section.key !== primaryDealSection.key)
+    : dealSections.slice(1);
+  const renderDealSection = (section, extraProps = {}) => (
+    <PublicDealList
+      key={section.key}
+      title={section.title}
+      emptyText={section.emptyText}
+      deals={section.deals}
+      loading={dealLoading}
+      onOpenLotById={onOpenLotById}
+      onQuoteLot={onQuoteLot}
+      onRateLot={onRateLot}
+      canQuoteLot={canQuoteLot}
+      canRateLot={canRateLot}
+      currentUserId={currentUserId}
+      {...extraProps}
+    />
+  );
   const secondaryDealSections = (
     <>
-      <PublicDealList
-        title="Upcoming Fruit Deals"
-        emptyText="No upcoming fruit deals yet. Scheduled lots will appear here."
-        deals={upcomingLots}
-        loading={dealLoading}
-        onOpenLotById={onOpenLotById}
-        onQuoteLot={onQuoteLot}
-        onRateLot={onRateLot}
-        canQuoteLot={canQuoteLot}
-        canRateLot={canRateLot}
-        currentUserId={currentUserId}
-      />
-
-      <PublicDealList
-        title="Recently Closed Deals"
-        emptyText="No recently closed deals yet. Closed deals will appear here."
-        deals={closedLots}
-        loading={dealLoading}
-        onOpenLotById={onOpenLotById}
-        onQuoteLot={onQuoteLot}
-        onRateLot={onRateLot}
-        canQuoteLot={canQuoteLot}
-        canRateLot={canRateLot}
-        currentUserId={currentUserId}
-      />
+      {deferredDealSections.map((section) => renderDealSection(section))}
     </>
   );
 
   return (
     <div className={`space-y-4 ${className}`}>
-      <PublicDealList
-        title="Live Fruit Deals"
-        emptyText="No live fruit deals right now. Fresh mandi deals will appear here."
-        deals={liveLots}
-        loading={dealLoading}
-        onOpenLotById={onOpenLotById}
-        onQuoteLot={onQuoteLot}
-        onRateLot={onRateLot}
-        canQuoteLot={canQuoteLot}
-        canRateLot={canRateLot}
-        currentUserId={currentUserId}
-        initialItemLimit={deferSecondarySections ? MOBILE_INITIAL_DEAL_COUNT : undefined}
-        deferRemaining={deferSecondarySections}
-        priorityFirstImage
-      />
+      {renderDealSection(primaryDealSection, {
+        initialItemLimit: deferSecondarySections ? MOBILE_INITIAL_DEAL_COUNT : undefined,
+        deferRemaining: deferSecondarySections,
+        priorityFirstImage: true,
+      })}
 
       {deferSecondarySections ? (
         <DeferredFeedMount enabled>{secondaryDealSections}</DeferredFeedMount>

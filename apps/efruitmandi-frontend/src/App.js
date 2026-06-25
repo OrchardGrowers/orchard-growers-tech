@@ -58,21 +58,36 @@ function AnalyticsTracker() {
 
   useEffect(() => {
     let active = true;
-    const cancel = scheduleDeferred(() => {
-      import("./services/analytics")
-        .then(({ initAnalytics, trackPageView }) => {
-          if (!active) return;
-          if (!initializedRef.current) {
-            initAnalytics();
-            initializedRef.current = true;
-          }
-          trackPageView(location.pathname + location.search);
-        })
-        .catch(() => undefined);
-    });
+    let cancel = () => {};
+    let delayTimer;
+    const loadAnalytics = () => {
+      cancel = scheduleDeferred(() => {
+        import("./services/analytics")
+          .then(({ initAnalytics, trackPageView }) => {
+            if (!active) return;
+            if (!initializedRef.current) {
+              initAnalytics();
+              initializedRef.current = true;
+            }
+            trackPageView(location.pathname + location.search);
+          })
+          .catch(() => undefined);
+      });
+    };
+    const isMobileHome =
+      location.pathname === "/" &&
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 767px)").matches;
+
+    if (isMobileHome) {
+      delayTimer = window.setTimeout(loadAnalytics, 12000);
+    } else {
+      loadAnalytics();
+    }
 
     return () => {
       active = false;
+      if (delayTimer) window.clearTimeout(delayTimer);
       cancel();
     };
   }, [location]);
