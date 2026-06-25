@@ -17,7 +17,6 @@ import {
   FaTimes,
 } from "react-icons/fa";
 import BannerSlider from "../components/BannerSlider";
-import API, { FILE_BASE_URL } from "../services/api";
 import {
   getCurrentUser,
   canQuote,
@@ -133,6 +132,46 @@ const orchardCover = `${process.env.PUBLIC_URL || ""}/profile-banners/efruitmand
 const fallbackLotImage =
   "https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?auto=format&fit=crop&w=640&q=70";
 const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-240.png`;
+const normalizeBaseUrl = (value = "") => value.trim().replace(/\/+$/, "");
+const stripApiSuffix = (value = "") => normalizeBaseUrl(value).replace(/\/api$/i, "");
+const normalizeApiUrl = (value = "") => {
+  const normalized = normalizeBaseUrl(value);
+  if (!normalized) return "";
+  return /\/api$/i.test(normalized) ? normalized : `${normalized}/api`;
+};
+const API_ORIGIN = normalizeBaseUrl(
+  process.env.VITE_API_BASE_URL ||
+    process.env.REACT_APP_API_BASE_URL ||
+    stripApiSuffix(process.env.VITE_API_URL || "") ||
+    stripApiSuffix(process.env.REACT_APP_API_URL || "") ||
+    "https://api.efruitmandi.live"
+);
+const API_BASE_URL = normalizeApiUrl(
+  process.env.VITE_API_BASE_URL ||
+    process.env.REACT_APP_API_BASE_URL ||
+    process.env.VITE_API_URL ||
+    process.env.REACT_APP_API_URL ||
+    API_ORIGIN
+);
+const FILE_BASE_URL = normalizeBaseUrl(
+  process.env.VITE_FILE_BASE_URL || process.env.REACT_APP_FILE_BASE_URL || API_ORIGIN
+);
+let apiClientPromise = null;
+const getApiClient = () => {
+  if (!apiClientPromise) {
+    apiClientPromise = import("../services/api").then((module) => module.default);
+  }
+  return apiClientPromise;
+};
+const getPublicJson = async (path) => {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: { Accept: "application/json" },
+    credentials: "omit",
+  });
+
+  if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+  return { data: await response.json() };
+};
 const homePageSchemas = [
   {
     "@context": "https://schema.org",
@@ -304,8 +343,8 @@ const scheduleAfterPaint = (callback, delay = 0) => {
 const fetchHomeMarketData = ({ force = false } = {}) => {
   if (force || !homeMarketDataPromise) {
     homeMarketDataPromise = Promise.all([
-      API.get("/products?platform=efruitmandi").catch(() => ({ data: [] })),
-      API.get("/auctions").catch(() => ({ data: [] })),
+      getPublicJson("/products?platform=efruitmandi").catch(() => ({ data: [] })),
+      getPublicJson("/auctions").catch(() => ({ data: [] })),
     ]);
   }
 
@@ -371,15 +410,15 @@ export default function Home() {
     setRatesError("");
 
     const [growerRes, buyerRes, ratesRes] = await Promise.all([
-      API.get("/user/public-profiles?role=grower&limit=8").catch(() => {
+      getPublicJson("/user/public-profiles?role=grower&limit=8").catch(() => {
         setProfilesError("Unable to load latest public profiles.");
         return { data: { profiles: [] } };
       }),
-      API.get("/user/public-profiles?role=buyer&limit=8").catch(() => {
+      getPublicJson("/user/public-profiles?role=buyer&limit=8").catch(() => {
         setProfilesError("Unable to load latest public profiles.");
         return { data: { profiles: [] } };
       }),
-      API.get("/mandi-rates/latest?limit=10").catch(() => {
+      getPublicJson("/mandi-rates/latest?limit=10").catch(() => {
         setRatesError("Unable to load offline mandi rates.");
         return { data: { records: [] } };
       }),
@@ -544,7 +583,8 @@ export default function Home() {
       }
 
       try {
-        const res = await API.get("/user/profile");
+        const api = await getApiClient();
+        const res = await api.get("/user/profile");
         const freshUser = res.data || getCurrentUser();
         setUser(freshUser);
         saveUserToStorage(freshUser);
