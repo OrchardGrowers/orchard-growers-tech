@@ -1,7 +1,7 @@
 ﻿import { useNavigate } from "react-router-dom";
 import BackHomeButton from "./BackHomeButton";
 
-const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-384.png`;
+const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-240.png`;
 
 const trustBadges = [
   {

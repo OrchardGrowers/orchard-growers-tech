@@ -14,7 +14,7 @@ import {
 import { getCurrentUser, logoutUser } from "../utils/auth";
 import API from "../services/api";
 
-const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-384.png`;
+const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-240.png`;
 const ProfileAccountMenu = lazy(() => import("./ProfileAccountMenu"));
 const READ_NOTIFICATIONS_KEY = "efruitmandiReadNotifications";
 const NOTIFICATION_STATE_EVENT = "efruitmandi-notifications-updated";

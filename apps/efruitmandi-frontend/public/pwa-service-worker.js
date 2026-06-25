@@ -1,4 +1,4 @@
-const CACHE_VERSION = "efruitmandi-v20260625-logo-384";
+const CACHE_VERSION = "efruitmandi-v20260625-logo-240";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const CACHE_PREFIXES = ["efruitmandi-v", "efruitmandi-pwa-"];
@@ -14,7 +14,7 @@ const APP_SHELL = [
   "/icon-512.png",
   "/maskable-icon-192.png",
   "/maskable-icon-512.png",
-  "/logo-384.png",
+  "/logo-240.png",
   "/apple-touch-icon.png",
   "/notification-icon-192.png",
   "/notification-icon-512.png",
@@ -25,7 +25,7 @@ const APP_SHELL = [
 ];
 
 const FRESH_STARTUP_ASSETS = new Set([
-  "/logo-384.png",
+  "/logo-240.png",
   "/icon-192.png",
   "/icon-512.png",
   "/maskable-icon-192.png",

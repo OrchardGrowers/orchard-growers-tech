@@ -22,7 +22,7 @@ import {
   verifyMsg91WidgetOtp,
 } from "../utils/msg91OtpWidget";
 
-const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-384.png`;
+const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-240.png`;
 const stripApiSuffix = (value = "") =>
   value
     .trim()
