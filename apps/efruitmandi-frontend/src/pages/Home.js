@@ -1689,10 +1689,10 @@ function DesktopLotImageCarousel({ images, product, title, onOpen }) {
       >
         <span className="relative inline-flex max-h-full max-w-full">
           <img
-            src={optimizeImageUrl(images[activeImage], 900)}
+            src={optimizeImageUrl(images[activeImage], 420)}
             alt={`${title} ${activeImage + 1}`}
-            width="900"
-            height="675"
+            width="420"
+            height="315"
             className="h-full w-full object-cover md:max-h-full md:max-w-full md:object-contain"
             loading="lazy"
 decoding="async"
