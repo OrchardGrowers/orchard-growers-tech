@@ -370,17 +370,25 @@ export default function Home() {
   useEffect(() => {
     let active = true;
 
-    const cancel = scheduleAfterPaint(() => {
+    const connectMarketSocket = () => {
       import("../services/socket").then(({ default: socket }) => {
         if (!active) return;
         if (!socket.connected) socket.connect();
         setMarketSocket(socket);
       });
-    }, 5000);
+    };
+
+    const timer = window.setTimeout(() => {
+      if ("requestIdleCallback" in window) {
+        window.requestIdleCallback(connectMarketSocket, { timeout: 8000 });
+      } else {
+        connectMarketSocket();
+      }
+    }, 12000);
 
     return () => {
       active = false;
-      cancel();
+      window.clearTimeout(timer);
     };
   }, []);
 
