@@ -81,7 +81,25 @@
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
 
-    <div id="root"></div>
+    <div id="root">
+      <div
+        class="startup-splash startup-shell"
+        style="position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; background: #0B6B2F; padding: 0 2rem;"
+        aria-label="Loading eFruitMandi"
+      >
+        <span class="startup-logo-shine">
+          <img
+            src="/logo-240.png"
+            alt="eFruitMandi logo"
+            width="240"
+            height="160"
+            fetchpriority="high"
+            decoding="sync"
+            style="display: block; width: min(250px, 72vw); height: auto; object-fit: contain;"
+          />
+        </span>
+      </div>
+    </div>
 
     <script type="module" src="/src/index.js"></script>
   </body>
