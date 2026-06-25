@@ -5,7 +5,7 @@ const BANNER_COUNT = 6;
 const SLIDE_INTERVAL_MS = 3500;
 const BANNER_ASPECT_WIDTH = 690;
 const BANNER_ASPECT_HEIGHT = 200;
-const RESPONSIVE_BANNER_WIDTHS = [360, 480, 690, 1035, 1230];
+const RESPONSIVE_BANNER_WIDTHS = [360, 480, 690];
 
 const CLOUDINARY_BANNERS = [
   "https://res.cloudinary.com/doprdp6bi/image/upload/v1781208076/efruitmandi/banners/home-carousel/banner-1.png",
@@ -23,7 +23,7 @@ const getBannerHeight = (width) =>
   Math.max(1, Math.round((width * BANNER_ASPECT_HEIGHT) / BANNER_ASPECT_WIDTH));
 
 const buildBannerTransform = (width) =>
-  `f_auto,q_auto,c_scale,w_${width},h_${getBannerHeight(width)}`;
+  `f_auto,q_auto:eco,c_fill,w_${width},h_${getBannerHeight(width)}`;
 
 const buildSrcSet = (url) =>
   RESPONSIVE_BANNER_WIDTHS
@@ -49,13 +49,10 @@ export default function BannerSlider() {
   const renderedBanners = renderAllSlides ? visibleBanners : visibleBanners.slice(0, 1);
 
   useEffect(() => {
-    const showRest = () => setRenderAllSlides(true);
-    if ("requestIdleCallback" in window) {
-      const idleId = window.requestIdleCallback(showRest, { timeout: 1200 });
-      return () => window.cancelIdleCallback(idleId);
-    }
+    const timer = window.setTimeout(() => {
+      setRenderAllSlides(true);
+    }, 10000);
 
-    const timer = window.setTimeout(showRest, 1800);
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -85,17 +82,17 @@ export default function BannerSlider() {
   }
 
   return (
-    <div className="relative overflow-hidden rounded-xl bg-black">
+    <div className="relative overflow-hidden rounded-xl bg-black" style={{ aspectRatio: "690 / 200" }}>
       <div
-        className="flex aspect-[3.45/1] transition-transform duration-700"
+        className="flex h-full w-full transition-transform duration-700"
         style={{ transform: `translateX(-${index * 100}%)` }}
       >
         {renderedBanners.map((banner, i) => (
           <img
             key={banner.src}
-            src={addCloudinaryTransform(banner.src, buildBannerTransform(480))}
+            src={addCloudinaryTransform(banner.src, buildBannerTransform(690))}
             srcSet={buildSrcSet(banner.src)}
-            sizes="(max-width: 767px) calc(100vw - 24px), (max-width: 1199px) 60vw, 790px"
+            sizes="(max-width: 767px) calc(100vw - 24px), 690px"
             width={BANNER_ASPECT_WIDTH}
             height={BANNER_ASPECT_HEIGHT}
             alt={banner.alt}
