@@ -252,6 +252,7 @@ const policyLinkGroups = [
 
 const LOT_OPEN_HOUR = 12;
 const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
+const MOBILE_INITIAL_DEAL_COUNT = 1;
 const scheduleAfterPaint = (callback, delay = 0) => {
   let timeoutId;
   const frameId = window.requestAnimationFrame(() => {
@@ -627,6 +628,7 @@ export default function Home() {
           ratesError={ratesError}
           showProfiles={deferredSectionsReady}
           showRates={deferredSectionsReady}
+          deferSecondarySections
           onOpenLotById={openLotDetails}
           onQuoteLot={openQuoteFlow}
           onRateLot={openRateGrowerFlow}
@@ -843,6 +845,7 @@ function PublicHomeFeed({
   ratesError,
   showProfiles = true,
   showRates = false,
+  deferSecondarySections = false,
   onOpenLotById,
   onQuoteLot,
   onRateLot,
@@ -852,21 +855,8 @@ function PublicHomeFeed({
   canRateLot,
   currentUserId,
 }) {
-  return (
-    <div className={`space-y-4 ${className}`}>
-      <PublicDealList
-        title="Live Fruit Deals"
-        emptyText="No live fruit deals right now. Fresh mandi deals will appear here."
-        deals={liveLots}
-        loading={dealLoading}
-        onOpenLotById={onOpenLotById}
-        onQuoteLot={onQuoteLot}
-        onRateLot={onRateLot}
-        canQuoteLot={canQuoteLot}
-        canRateLot={canRateLot}
-        currentUserId={currentUserId}
-      />
-
+  const secondaryDealSections = (
+    <>
       <PublicDealList
         title="Upcoming Fruit Deals"
         emptyText="No upcoming fruit deals yet. Scheduled lots will appear here."
@@ -892,6 +882,32 @@ function PublicHomeFeed({
         canRateLot={canRateLot}
         currentUserId={currentUserId}
       />
+    </>
+  );
+
+  return (
+    <div className={`space-y-4 ${className}`}>
+      <PublicDealList
+        title="Live Fruit Deals"
+        emptyText="No live fruit deals right now. Fresh mandi deals will appear here."
+        deals={liveLots}
+        loading={dealLoading}
+        onOpenLotById={onOpenLotById}
+        onQuoteLot={onQuoteLot}
+        onRateLot={onRateLot}
+        canQuoteLot={canQuoteLot}
+        canRateLot={canRateLot}
+        currentUserId={currentUserId}
+        initialItemLimit={deferSecondarySections ? MOBILE_INITIAL_DEAL_COUNT : undefined}
+        deferRemaining={deferSecondarySections}
+        priorityFirstImage
+      />
+
+      {deferSecondarySections ? (
+        <DeferredFeedMount enabled>{secondaryDealSections}</DeferredFeedMount>
+      ) : (
+        secondaryDealSections
+      )}
 
       {showProfiles && (
         <>
@@ -930,6 +946,47 @@ function PublicHomeFeed({
   );
 }
 
+function DeferredFeedMount({ enabled = false, children }) {
+  const [visible, setVisible] = useState(!enabled);
+  const markerRef = useRef(null);
+
+  useEffect(() => {
+    if (!enabled) {
+      setVisible(true);
+      return undefined;
+    }
+
+    if (visible) return undefined;
+
+    let observer;
+    const reveal = () => setVisible(true);
+    const marker = markerRef.current;
+
+    if ("IntersectionObserver" in window && marker) {
+      observer = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((entry) => entry.isIntersecting)) reveal();
+        },
+        { rootMargin: "0px 0px -20% 0px", threshold: 0 }
+      );
+      observer.observe(marker);
+    }
+
+    window.addEventListener("scroll", reveal, { passive: true, once: true });
+    window.addEventListener("touchstart", reveal, { passive: true, once: true });
+
+    return () => {
+      if (observer) observer.disconnect();
+      window.removeEventListener("scroll", reveal);
+      window.removeEventListener("touchstart", reveal);
+    };
+  }, [enabled, visible]);
+
+  if (visible) return children;
+
+  return <div ref={markerRef} className="h-px" aria-hidden="true" />;
+}
+
 function PublicDealList({
   title,
   deals = [],
@@ -941,7 +998,28 @@ function PublicDealList({
   canQuoteLot,
   canRateLot,
   currentUserId,
+  initialItemLimit,
+  deferRemaining = false,
+  priorityFirstImage = false,
 }) {
+  const hasItemLimit = Number.isFinite(initialItemLimit);
+  const visibleDeals = hasItemLimit ? deals.slice(0, initialItemLimit) : deals;
+  const remainingDeals = hasItemLimit ? deals.slice(initialItemLimit) : [];
+  const renderDeal = (deal, index, imagePriority = false) => (
+    <DesktopLotPost
+      key={getLotDetailId(deal) || deal.id || deal.lotNo || deal.title}
+      items={[deal]}
+      emptyText={emptyText}
+      onOpenLot={onOpenLotById}
+      onQuoteLot={onQuoteLot}
+      onRateLot={onRateLot}
+      canQuoteLot={canQuoteLot}
+      canRateLot={canRateLot}
+      currentUserId={currentUserId}
+      imagePriority={imagePriority && index === 0}
+    />
+  );
+
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
@@ -952,22 +1030,17 @@ function PublicDealList({
       </div>
 
       {loading ? (
-        <PublicFeedSkeleton />
-      ) : deals.length ? (
+        <PublicFeedSkeleton count={hasItemLimit ? initialItemLimit : 2} />
+      ) : visibleDeals.length ? (
         <div className="space-y-3">
-          {deals.map((deal) => (
-            <DesktopLotPost
-              key={getLotDetailId(deal) || deal.id || deal.lotNo || deal.title}
-              items={[deal]}
-              emptyText={emptyText}
-              onOpenLot={onOpenLotById}
-              onQuoteLot={onQuoteLot}
-              onRateLot={onRateLot}
-              canQuoteLot={canQuoteLot}
-              canRateLot={canRateLot}
-              currentUserId={currentUserId}
-            />
-          ))}
+          {visibleDeals.map((deal, index) => renderDeal(deal, index, priorityFirstImage))}
+          {remainingDeals.length > 0 && (
+            <DeferredFeedMount enabled={deferRemaining}>
+              <div className="space-y-3">
+                {remainingDeals.map((deal, index) => renderDeal(deal, index, false))}
+              </div>
+            </DeferredFeedMount>
+          )}
         </div>
       ) : (
         <DesktopEmptyState text={emptyText} />
@@ -976,14 +1049,16 @@ function PublicDealList({
   );
 }
 
-function PublicFeedSkeleton() {
+function PublicFeedSkeleton({ count = 2 }) {
   return (
     <div className="space-y-3">
-      {[0, 1].map((item) => (
-        <div key={item} className="animate-pulse rounded-lg border border-gray-200 bg-white p-4">
+      {Array.from({ length: count }, (_, item) => (
+        <div key={item} className="min-h-[480px] animate-pulse rounded-lg border border-gray-200 bg-white p-4 md:min-h-0">
           <div className="h-4 w-2/3 rounded bg-gray-200" />
           <div className="mt-3 h-3 w-1/2 rounded bg-gray-100" />
-          <div className="mt-4 h-48 rounded-md bg-green-50 md:h-72" />
+          <div className="mt-4 h-[300px] rounded-md bg-green-50 md:h-72" />
+          <div className="mt-4 h-3 w-3/4 rounded bg-gray-100" />
+          <div className="mt-3 h-9 rounded-md bg-green-50" />
         </div>
       ))}
     </div>
@@ -1519,6 +1594,7 @@ function DesktopLotPost({
   canQuoteLot = true,
   canRateLot = true,
   currentUserId = "",
+  imagePriority = false,
 }) {
   const [showAllDetails, setShowAllDetails] = useState(false);
   if (!items.length) return <DesktopEmptyState text={emptyText} />;
@@ -1544,7 +1620,7 @@ function DesktopLotPost({
   const showRateAction = liveDeal && canRateLot && !isOwnLot;
 
   return (
-    <article className="overflow-hidden border border-gray-200 bg-white md:rounded-md">
+    <article className="min-h-[480px] overflow-hidden border border-gray-200 bg-white md:min-h-0 md:rounded-md">
       <div className="p-3">
         <div className="flex items-start justify-between gap-3">
           <button
@@ -1597,6 +1673,7 @@ function DesktopLotPost({
         product={product}
         title={product.title || "Fruit Lot"}
         onOpen={() => onOpenLot(detailId)}
+        imagePriority={imagePriority}
       />
       <div className="border-t border-gray-100 p-3">
         <div className="grid gap-2 rounded-md bg-green-50 px-3 py-3 text-xs sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
