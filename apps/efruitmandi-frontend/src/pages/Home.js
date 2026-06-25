@@ -289,6 +289,7 @@ const policyLinkGroups = [
 const LOT_OPEN_HOUR = 12;
 const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
 const MOBILE_INITIAL_DEAL_COUNT = 1;
+let homeMarketDataPromise = null;
 const scheduleAfterPaint = (callback, delay = 0) => {
   let timeoutId;
   const frameId = window.requestAnimationFrame(() => {
@@ -300,6 +301,20 @@ const scheduleAfterPaint = (callback, delay = 0) => {
     if (timeoutId) window.clearTimeout(timeoutId);
   };
 };
+const fetchHomeMarketData = ({ force = false } = {}) => {
+  if (force || !homeMarketDataPromise) {
+    homeMarketDataPromise = Promise.all([
+      API.get("/products?platform=efruitmandi").catch(() => ({ data: [] })),
+      API.get("/auctions").catch(() => ({ data: [] })),
+    ]);
+  }
+
+  return homeMarketDataPromise;
+};
+
+if (typeof window !== "undefined" && window.location.pathname === "/") {
+  fetchHomeMarketData();
+}
 
 export default function Home() {
   const navigate = useNavigate();
@@ -327,10 +342,7 @@ export default function Home() {
     }
 
     try {
-      const [productRes, auctionRes] = await Promise.all([
-        API.get("/products?platform=efruitmandi").catch(() => ({ data: [] })),
-        API.get("/auctions").catch(() => ({ data: [] })),
-      ]);
+      const [productRes, auctionRes] = await fetchHomeMarketData({ force: !showLoading });
 
       const nextProducts = getEfruitMandiProducts(productRes.data);
       const nextAuctions = Array.isArray(auctionRes.data) ? auctionRes.data : [];
