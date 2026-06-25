@@ -102,7 +102,22 @@ function RouteFallback() {
 function DeferredEnhancements() {
   const [ready, setReady] = useState(false);
 
-  useEffect(() => scheduleDeferred(() => setReady(true), 3500), []);
+  useEffect(() => {
+    let cancel = () => {};
+    const isMobileHome =
+      typeof window !== "undefined" &&
+      window.location.pathname === "/" &&
+      window.matchMedia("(max-width: 767px)").matches;
+    const delay = isMobileHome ? 15000 : 3500;
+    const timerId = window.setTimeout(() => {
+      cancel = scheduleDeferred(() => setReady(true), 2500);
+    }, delay);
+
+    return () => {
+      window.clearTimeout(timerId);
+      cancel();
+    };
+  }, []);
 
   if (!ready) return null;
 

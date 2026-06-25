@@ -191,11 +191,14 @@ const resolveProfileMediaUrl = (value = "") => {
 const CLOUDINARY_UPLOAD_SEGMENT = "/image/upload/";
 const CLOUDINARY_TRANSFORM_PATTERN =
   /(^|,)(?:a_|ar_|b_|bo_|c_|co_|d_|dl_|dn_|e_|eo_|f_|fl_|fn_|g_|h_|ki_|l_|o_|q_|r_|so_|t_|u_|vc_|vs_|w_|x_|y_|z_)/;
-const LOT_IMAGE_WIDTHS = [360, 420, 640];
+const LOT_IMAGE_WIDTHS = [360, 420];
 const LOT_IMAGE_ASPECT_RATIO = 10 / 14;
 
 const isCloudinaryImageUrl = (url = "") =>
   url.includes("res.cloudinary.com") && url.includes(CLOUDINARY_UPLOAD_SEGMENT);
+
+const isMobileViewport = () =>
+  typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches;
 
 const hasCloudinaryTransform = (segment = "") =>
   CLOUDINARY_TRANSFORM_PATTERN.test(segment);
@@ -314,6 +317,8 @@ export default function Home() {
   const [marketClock, setMarketClock] = useState(() => Date.now());
   const [marketSocket, setMarketSocket] = useState(null);
   const [deferredSectionsReady, setDeferredSectionsReady] = useState(false);
+  const fullMarketDataRef = useRef({ products: [], auctions: [] });
+  const deferredSectionsReadyRef = useRef(false);
   const isGrower = isGrowerAccount(user);
   const isPublicVisitor = !localStorage.getItem("accessToken");
   const loadMarketData = useCallback(async ({ showLoading = false } = {}) => {
@@ -327,8 +332,22 @@ export default function Home() {
         API.get("/auctions").catch(() => ({ data: [] })),
       ]);
 
-      setProducts(getEfruitMandiProducts(productRes.data));
-      setAuctions(auctionRes.data || []);
+      const nextProducts = getEfruitMandiProducts(productRes.data);
+      const nextAuctions = Array.isArray(auctionRes.data) ? auctionRes.data : [];
+      fullMarketDataRef.current = {
+        products: nextProducts,
+        auctions: nextAuctions,
+      };
+
+      if (isMobileViewport() && !deferredSectionsReadyRef.current) {
+        const initialData = getInitialMobileMarketData(nextProducts, nextAuctions);
+        setProducts(initialData.products);
+        setAuctions(initialData.auctions);
+        return;
+      }
+
+      setProducts(nextProducts);
+      setAuctions(nextAuctions);
     } finally {
       setLoading(false);
     }
@@ -391,8 +410,20 @@ export default function Home() {
   };
 
   useEffect(() => {
-    return scheduleAfterPaint(() => loadMarketData({ showLoading: true }));
+    loadMarketData({ showLoading: true });
   }, [loadMarketData]);
+
+  useEffect(() => {
+    deferredSectionsReadyRef.current = deferredSectionsReady;
+
+    if (!deferredSectionsReady || !isMobileViewport()) return;
+
+    const cachedData = fullMarketDataRef.current;
+    if (cachedData.products.length || cachedData.auctions.length) {
+      setProducts(cachedData.products);
+      setAuctions(cachedData.auctions);
+    }
+  }, [deferredSectionsReady]);
 
   useEffect(() => {
     const revealDeferredSections = () => setDeferredSectionsReady(true);
@@ -2582,6 +2613,50 @@ function getDealSortTime(deal = {}) {
 
 function sortDealsNewestFirst(deals = []) {
   return [...deals].sort((a, b) => getDealSortTime(b) - getDealSortTime(a));
+}
+
+function getInitialMobileMarketData(products = [], auctions = []) {
+  const timing = getDailyLotTiming(new Date());
+  const auctionLots = auctions
+    .filter((auction) => auction.product)
+    .map((auction) => normalizeAuctionLot(auction, timing));
+  const productLots = products.map((product) => attachLotTiming(product, timing));
+  const allDeals = mergeUniqueLots([...auctionLots, ...productLots]);
+  const primaryDeal =
+    sortDealsNewestFirst(allDeals.filter((deal) => isLiveDeal(deal)))[0] ||
+    sortDealsNewestFirst(allDeals.filter((deal) => isUpcomingDeal(deal)))[0] ||
+    sortDealsNewestFirst(allDeals.filter((deal) => isClosedDeal(deal)))[0];
+
+  if (!primaryDeal) {
+    return { products: [], auctions: [] };
+  }
+
+  const primaryDetailId = getLotDetailId(primaryDeal);
+  const primaryProductId = getLotProductId(primaryDeal);
+  const isSameId = (left, right) =>
+    Boolean(left && right && String(left) === String(right));
+  const matchingAuction = auctions.find((auction) => {
+    if (!auction?.product) return false;
+    const auctionLot = normalizeAuctionLot(auction, timing);
+    return (
+      isSameId(getLotDetailId(auctionLot), primaryDetailId) ||
+      isSameId(getLotProductId(auctionLot), primaryProductId) ||
+      isSameId(auctionLot.auctionId, primaryDeal.auctionId)
+    );
+  });
+  const matchingProduct = products.find((product) => {
+    const productId = getLotProductId(product) || product._id || product.id;
+    return (
+      isSameId(productId, primaryProductId) ||
+      isSameId(productId, primaryDetailId) ||
+      isSameId(product._id || product.id, primaryDeal._id || primaryDeal.id)
+    );
+  });
+
+  return {
+    products: matchingProduct ? [matchingProduct] : [],
+    auctions: matchingAuction ? [matchingAuction] : [],
+  };
 }
 
 function getRateKg(rate = {}, field = "") {
