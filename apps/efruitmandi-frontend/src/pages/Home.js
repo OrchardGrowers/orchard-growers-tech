@@ -280,6 +280,9 @@ export default function Home() {
   const [marketClock, setMarketClock] = useState(() => Date.now());
   const [marketSocket, setMarketSocket] = useState(null);
   const [deferredSectionsReady, setDeferredSectionsReady] = useState(false);
+  const [isDesktopHome, setIsDesktopHome] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(min-width: 768px)").matches : false
+  );
   const isGrower = isGrowerAccount(user);
   const isPublicVisitor = !localStorage.getItem("accessToken");
   const loadMarketData = useCallback(async ({ showLoading = false } = {}) => {
@@ -355,6 +358,21 @@ export default function Home() {
 
     navigate(listPath);
   };
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(min-width: 768px)");
+    const updateViewport = () => setIsDesktopHome(mediaQuery.matches);
+
+    updateViewport();
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener("change", updateViewport);
+      return () => mediaQuery.removeEventListener("change", updateViewport);
+    }
+
+    mediaQuery.addListener(updateViewport);
+    return () => mediaQuery.removeListener(updateViewport);
+  }, []);
 
   useEffect(() => {
     return scheduleAfterPaint(() => loadMarketData({ showLoading: true }));
@@ -606,7 +624,7 @@ export default function Home() {
       />
 
       <div className="pb-32 pt-2 md:hidden">
-        <BannerSlider />
+        {!isDesktopHome && <BannerSlider />}
 
         <FruitIconRail
           className="-mx-3 pt-1"
@@ -661,7 +679,7 @@ export default function Home() {
       </aside>
 
       <section className="auto-hide-column-scroll min-h-0 min-w-0 space-y-3 overflow-y-auto pr-1 overscroll-contain">
-        <BannerSlider />
+        {isDesktopHome && <BannerSlider />}
 
         <PublicHomeFeed
           liveLots={liveLots}
