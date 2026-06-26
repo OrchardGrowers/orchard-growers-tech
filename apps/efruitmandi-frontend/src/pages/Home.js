@@ -19,6 +19,7 @@ import BannerSlider from "../components/BannerSlider";
 import {
   getCurrentUser,
   canQuote,
+  hasAccessToken,
   hasBuyerProfile,
   hasDriverProfile,
   hasGrowerProfile,
@@ -405,7 +406,7 @@ export default function Home() {
   const fullMarketDataRef = useRef({ products: [], auctions: [] });
   const deferredSectionsReadyRef = useRef(false);
   const isGrower = isGrowerAccount(user);
-  const isPublicVisitor = !localStorage.getItem("accessToken");
+  const isPublicVisitor = !hasAccessToken();
   const loadMarketData = useCallback(async ({ showLoading = false } = {}) => {
     if (showLoading) {
       setLoading(true);
@@ -463,7 +464,7 @@ export default function Home() {
   }, []);
 
   const openProfileEntry = () => {
-    if (localStorage.getItem("accessToken")) {
+    if (hasAccessToken()) {
       navigate("/profile-dashboard");
       return;
     }
@@ -478,7 +479,7 @@ export default function Home() {
   });
   const openListLotFlow = () => {
     const listPath = "/list-new-lot";
-    if (!localStorage.getItem("accessToken")) {
+    if (!hasAccessToken()) {
       navigate("/profile", { state: buildLoginState(listPath, "grower") });
       return;
     }
@@ -608,7 +609,7 @@ export default function Home() {
     };
 
     const loadProfile = async () => {
-      if (!localStorage.getItem("accessToken")) {
+      if (!hasAccessToken()) {
         syncLocalUser();
         return;
       }
@@ -697,7 +698,7 @@ export default function Home() {
   const openQuoteFlow = useCallback((productId) => {
     if (!productId) return;
     const quotePath = `/lots/${productId}/quote`;
-    if (!localStorage.getItem("accessToken")) {
+    if (!hasAccessToken()) {
       navigate("/profile", { state: buildLoginState(quotePath, "buyer") });
       return;
     }
@@ -725,7 +726,7 @@ export default function Home() {
   const openRateGrowerFlow = useCallback((productId) => {
     if (!productId) return;
     const ratingPath = `/lots/${productId}/rating`;
-    if (!localStorage.getItem("accessToken")) {
+    if (!hasAccessToken()) {
       navigate("/profile", { state: buildLoginState(ratingPath, "buyer") });
       return;
     }
@@ -742,7 +743,7 @@ export default function Home() {
     const profileId = profile?._id || profile?.id || profile?.userId;
     const profilePath = profileId ? `/profile/${profileId}` : "/profile-dashboard";
 
-    if (!localStorage.getItem("accessToken")) {
+    if (!hasAccessToken()) {
       navigate("/profile", { state: buildLoginState(profilePath, role) });
       return;
     }
@@ -754,7 +755,7 @@ export default function Home() {
     const profileId = profile?._id || profile?.id || profile?.userId;
     const ratingPath = profileId ? `/profile/${profileId}/rating` : "/profile-dashboard";
 
-    if (!localStorage.getItem("accessToken")) {
+    if (!hasAccessToken()) {
       navigate("/profile", { state: buildLoginState(ratingPath, role) });
       return;
     }
@@ -2049,7 +2050,7 @@ function DesktopEmptyState({ text }) {
 
 function ProfileCard({ user, onOpen }) {
   const hasProfileSession = Boolean(
-    localStorage.getItem("accessToken") &&
+    hasAccessToken() &&
       user &&
       (user._id || user.email || user.phone || user.name)
   );

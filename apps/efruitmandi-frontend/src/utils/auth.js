@@ -1,5 +1,16 @@
 import { sanitizeUserForStorage } from "./userStorage";
 
+export const getStoredItem = (key) => {
+  try {
+    if (typeof window === "undefined" || !window.localStorage) return null;
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+
+export const hasAccessToken = () => Boolean(getStoredItem("accessToken"));
+
 export const logoutUser = () => {
   localStorage.removeItem("accessToken");
   localStorage.removeItem("refreshToken");
@@ -10,7 +21,7 @@ export const logoutUser = () => {
 
 export const getCurrentUser = () => {
   try {
-    const user = JSON.parse(localStorage.getItem("user")) || {};
+    const user = JSON.parse(getStoredItem("user")) || {};
     return sanitizeUserForStorage(user);
   } catch {
     return {};

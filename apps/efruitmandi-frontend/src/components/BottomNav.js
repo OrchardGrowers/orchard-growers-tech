@@ -1,14 +1,14 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { FaChartLine, FaHandshake, FaHome, FaTruck, FaUser } from "react-icons/fa";
-import { getCurrentUser, logoutUser } from "../utils/auth";
+import { getCurrentUser, hasAccessToken, logoutUser } from "../utils/auth";
 
 const ProfileAccountMenu = lazy(() => import("./ProfileAccountMenu"));
 
 export default function BottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
-  const hasUser = Boolean(localStorage.getItem("accessToken"));
+  const hasUser = hasAccessToken();
   const profileMenuRef = useRef(null);
   const currentUser = getCurrentUser();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);

@@ -11,7 +11,7 @@ import {
   FaUser,
   FaYoutube,
 } from "react-icons/fa";
-import { getCurrentUser, logoutUser } from "../utils/auth";
+import { getCurrentUser, hasAccessToken, logoutUser } from "../utils/auth";
 
 const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-240.png`;
 const ProfileAccountMenu = lazy(() => import("./ProfileAccountMenu"));
@@ -36,7 +36,7 @@ const loadReadNotificationIds = () => {
 export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const hasUser = Boolean(localStorage.getItem("accessToken"));
+  const hasUser = hasAccessToken();
   const profileMenuRef = useRef(null);
   const currentUser = getCurrentUser();
   const [countries, setCountries] = useState([]);
@@ -84,7 +84,7 @@ export default function Navbar() {
     let timerId;
 
     const refreshUnreadNotifications = async () => {
-      if (!localStorage.getItem("accessToken")) {
+      if (!hasAccessToken()) {
         if (!cancelled) setHasUnreadNotifications(false);
         return;
       }
