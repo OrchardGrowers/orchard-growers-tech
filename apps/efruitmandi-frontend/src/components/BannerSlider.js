@@ -8,12 +8,12 @@ const BANNER_ASPECT_HEIGHT = 200;
 const RESPONSIVE_BANNER_WIDTHS = [360, 480, 690];
 
 const CLOUDINARY_BANNERS = [
-  "https://res.cloudinary.com/doprdp6bi/image/upload/v1781208076/efruitmandi/banners/home-carousel/banner-1.png",
-  "https://res.cloudinary.com/doprdp6bi/image/upload/v1781208078/efruitmandi/banners/home-carousel/banner-2.png",
-  "https://res.cloudinary.com/doprdp6bi/image/upload/v1781208079/efruitmandi/banners/home-carousel/banner-3.png",
-  "https://res.cloudinary.com/doprdp6bi/image/upload/v1781208081/efruitmandi/banners/home-carousel/banner-4.png",
-  "https://res.cloudinary.com/doprdp6bi/image/upload/v1781208084/efruitmandi/banners/home-carousel/banner-5.png",
-  "https://res.cloudinary.com/doprdp6bi/image/upload/v1781208086/efruitmandi/banners/home-carousel/banner-6.png",
+  "https://res.cloudinary.com/doprdp6bi/image/upload/v1782457312/Banner_efruitmandi1_rb7fw2.webp",
+  "https://res.cloudinary.com/doprdp6bi/image/upload/v1782457310/Banner_efruitmandi2_wbqxiq.webp",
+  "https://res.cloudinary.com/doprdp6bi/image/upload/v1782457310/Banner_efruitmandi_3_drl8yw.webp",
+  "https://res.cloudinary.com/doprdp6bi/image/upload/v1782457310/Banner_efruitmandi4_q25vlp.webp",
+  "https://res.cloudinary.com/doprdp6bi/image/upload/v1782457802/efruitmandi/banners/home-carousel/banner-5.webp",
+  "https://res.cloudinary.com/doprdp6bi/image/upload/v1782457850/Banner_efruitmandi6_rbztfn.webp",
 ];
 
 const addCloudinaryTransform = (url, transform) =>
