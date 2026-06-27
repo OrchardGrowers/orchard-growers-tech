@@ -1,4 +1,4 @@
-export const GA_ID = import.meta.env.VITE_GA_MEASUREMENT_ID;
+﻿export const GA_ID = import.meta.env.VITE_GA_MEASUREMENT_ID;
 
 const normalizeEventParams = (params = {}) => {
   const safeParams = {};
@@ -16,11 +16,20 @@ const normalizeEventParams = (params = {}) => {
 };
 
 const trackMarketplaceEvent = (eventName, params = {}) => {
-  if (typeof window === "undefined" || !GA_ID) return;
+  if (typeof window === "undefined") return;
+
+  const safeParams = normalizeEventParams(params);
 
   try {
-    if (typeof window.gtag === "function") {
-      window.gtag("event", eventName, normalizeEventParams(params));
+    if (GA_ID && typeof window.gtag === "function") {
+      window.gtag("event", eventName, safeParams);
+    }
+
+    if (typeof window.clarity === "function") {
+      window.clarity("event", eventName);
+      Object.entries(safeParams).forEach(([key, value]) => {
+        window.clarity("set", key, String(value));
+      });
     }
   } catch {
     // Ignore analytics failures so the app remains unaffected.
@@ -28,12 +37,18 @@ const trackMarketplaceEvent = (eventName, params = {}) => {
 };
 
 export const initAnalytics = () => {
-  if (!GA_ID) return;
+  if (typeof window === "undefined" || !GA_ID) return;
 
-  const script = document.createElement("script");
-  script.async = true;
-  script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`;
-  document.head.appendChild(script);
+  const existingScript = document.querySelector(
+    `script[src*="googletagmanager.com/gtag/js?id=${GA_ID}"]`
+  );
+
+  if (!existingScript) {
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`;
+    document.head.appendChild(script);
+  }
 
   window.dataLayer = window.dataLayer || [];
 
@@ -41,20 +56,30 @@ export const initAnalytics = () => {
     window.dataLayer.push(arguments);
   }
 
-  window.gtag = gtag;
+  window.gtag = window.gtag || gtag;
 
-  gtag("js", new Date());
-  gtag("config", GA_ID, {
+  window.gtag("js", new Date());
+  window.gtag("config", GA_ID, {
     send_page_view: true,
   });
 };
 
 export const trackPageView = (path) => {
-  if (!window.gtag || !GA_ID) return;
+  if (typeof window === "undefined") return;
 
-  window.gtag("config", GA_ID, {
-    page_path: path,
-  });
+  try {
+    if (GA_ID && typeof window.gtag === "function") {
+      window.gtag("config", GA_ID, {
+        page_path: path,
+      });
+    }
+
+    if (typeof window.clarity === "function") {
+      window.clarity("set", "page_path", path);
+    }
+  } catch {
+    // Ignore analytics failures so the app remains unaffected.
+  }
 };
 
 export const trackLotView = (lot = {}) => {
@@ -138,4 +163,29 @@ export const trackPaymentFailed = (payment = {}) => {
     value: payment.value || payment.amount || payment.totalAmount || "",
     currency: "INR",
   });
+};
+
+export const trackSearchPerformed = (query = "", source = "site_search") => {
+  trackMarketplaceEvent("search_performed", {
+    search_term: query,
+    source,
+  });
+};
+
+export const trackRegistrationStarted = (role = "unknown", source = "unknown") => {
+  trackMarketplaceEvent("registration_started", {
+    user_role: role,
+    source,
+  });
+};
+
+export const trackAuthStep = (step = "unknown", role = "unknown") => {
+  trackMarketplaceEvent("auth_step", {
+    step,
+    user_role: role,
+  });
+};
+
+export const trackUserAction = (actionName = "unknown", params = {}) => {
+  trackMarketplaceEvent(actionName, params);
 };
