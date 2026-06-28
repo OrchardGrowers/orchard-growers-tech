@@ -11,6 +11,10 @@ import {
   getAdminProductFolder,
   uploadBufferToCloudinary,
 } from "../services/cloudinaryService.js";
+import {
+  enqueueFeaturedProfile,
+  normalizeOperationalRole,
+} from "../services/profilePublicationService.js";
 
 const ADMIN_SELECT = "-password -__v";
 const USER_SELECT = "-password -__v";
@@ -2060,6 +2064,29 @@ export const getKycRequestByAdmin = async (req, res) => {
   }
 
   res.json(user);
+};
+
+export const featureUserProfileByAdmin = async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const userId = String(req.params.id || "").split(":")[0];
+  const role = normalizeOperationalRole(req.body.role || req.body.roleType);
+  if (!role) return res.status(400).json({ msg: "Invalid profile role" });
+
+  const result = await enqueueFeaturedProfile(userId, role);
+  if (!result.queued) {
+    const status = result.reason === "user_not_found" ? 404 : 409;
+    return res.status(status).json({
+      success: false,
+      msg: `Profile could not be featured: ${result.reason}`,
+    });
+  }
+
+  return res.status(201).json({
+    success: true,
+    message: "Featured profile publication queued",
+    publicationId: result.publication._id,
+  });
 };
 
 export const listOrders = async (req, res) => {

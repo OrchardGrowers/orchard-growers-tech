@@ -29,6 +29,7 @@ import logisticsRoutes from "./routes/logisticsRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 import searchRoutes from "./routes/searchRoutes.js";
 import captureSessionRoutes from "./routes/captureSessionRoutes.js";
+import profilePublicationRoutes from "./routes/profilePublicationRoutes.js";
 
 import Auction from "./models/Auction.js";
 import Order from "./models/Order.js";
@@ -38,6 +39,7 @@ import DealSettings from "./models/DealSettings.js";
 import { seedHsnMaster } from "./models/HsnMaster.js";
 import { seedAdminFromEnv } from "./services/adminSeedService.js";
 import { startOrchardAiCollectorWorker } from "./services/orchardAiCollectorWorker.js";
+import { startProfilePublicationWorker } from "./services/profilePublicationWorker.js";
 import { syncMandiRates } from "./services/mandiRateService.js";
 import {
   buildGradeQuantitiesFromProduct,
@@ -186,6 +188,7 @@ app.use("/uploads", express.static("uploads"));
 
 // ================= ROUTES =================
 app.use("/", sitemapRoutes);
+app.use("/", profilePublicationRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/me", userRoutes);
@@ -645,7 +648,10 @@ server.listen(PORT, "0.0.0.0", () => {
   const dbStatus = dbConnected ? "✅ DB Connected" : "⚠️  DB Offline";
   console.log(`Server running on port ${PORT} | ${dbStatus}`);
   void databaseInitialization.then((connected) => {
-    if (connected) startOrchardAiCollectorWorker();
+    if (connected) {
+      startOrchardAiCollectorWorker();
+      startProfilePublicationWorker();
+    }
   });
 });
 

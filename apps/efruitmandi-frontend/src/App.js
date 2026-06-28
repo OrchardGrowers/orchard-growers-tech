@@ -40,6 +40,7 @@ const SearchResults = lazy(() => import("./pages/SearchResults"));
 const FruitSeoPage = lazy(() => import("./pages/FruitSeoPage"));
 const MobileCapture = lazy(() => import("./pages/MobileCapture"));
 const MandiRates = lazy(() => import("./pages/MandiRates"));
+const PublicBusinessProfile = lazy(() => import("./pages/PublicBusinessProfile"));
 
 const scheduleDeferred = (callback, timeout = 1600) => {
   if (typeof window === "undefined") return () => {};
@@ -187,6 +188,7 @@ function App() {
             <Route path="/kyc" element={<Kyc />} />
             <Route path="/kyc/status" element={<Kyc />} />
             <Route path="/profile/kyc" element={<Kyc />} />
+            <Route path="/profiles/:businessType/:userId" element={<PublicBusinessProfile />} />
             <Route path="/about" element={<PolicyPage type="about" />} />
             <Route path="/our-story" element={<PolicyPage type="story" />} />
             <Route path="/vision-mission" element={<PolicyPage type="visionMission" />} />

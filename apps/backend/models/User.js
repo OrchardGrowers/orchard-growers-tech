@@ -87,6 +87,17 @@ const userSchema = new mongoose.Schema(
       enum: ["grower", "buyer", "driver", ""],
       default: "",
     },
+    publicProfileRoles: [
+      {
+        type: String,
+        enum: ["grower", "buyer", "driver"],
+      },
+    ],
+    profileRegisteredAtByRole: {
+      grower: { type: Date },
+      buyer: { type: Date },
+      driver: { type: Date },
+    },
 
     // Grower profile
     orchardName: {
@@ -100,6 +111,11 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: "",
+    },
+    buyerBusinessType: {
+      type: String,
+      enum: ["buyer", "exporter", "commission_agent", "cold_storage"],
+      default: "buyer",
     },
     buyerContactPerson: {
       type: String,
@@ -409,6 +425,7 @@ const userSchema = new mongoose.Schema(
 
 userSchema.index({ role: 1 });
 userSchema.index({ profileTypes: 1 });
+userSchema.index({ publicProfileRoles: 1, createdAt: -1 });
 userSchema.index({ createdAt: -1 });
 userSchema.index({ provider: 1, providerId: 1 });
 

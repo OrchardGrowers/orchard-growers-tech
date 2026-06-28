@@ -43,6 +43,9 @@ export default function RegisterGrower() {
     mapLongitude: currentUser.mapLongitude || "",
     googleMapUrl: currentUser.googleMapUrl || "",
     contact: savedContact,
+    publicProfile: isUpdate
+      ? (currentUser.publicProfileRoles || []).includes("grower")
+      : true,
   });
   const [loading, setLoading] = useState(false);
   const [otp, setOtp] = useState("");
@@ -214,6 +217,7 @@ export default function RegisterGrower() {
         otpVerificationToken,
         platform: "efruitmandi",
         allowUpdate: isUpdate,
+        publicProfile: form.publicProfile,
       });
 
       localStorage.setItem("user", JSON.stringify(res.data.user));
@@ -349,6 +353,18 @@ export default function RegisterGrower() {
             onSend={sendPhoneOtp}
             onVerify={verifyPhoneOtp}
           />
+          <label className="flex items-start gap-3 rounded-md border border-green-100 bg-green-50 p-3 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={form.publicProfile}
+              onChange={(event) => updateForm("publicProfile", event.target.checked)}
+              className="mt-1"
+            />
+            <span>
+              Make this firm profile public. Only the firm name, business type,
+              city/state, verification badges, and official company logo may be shown publicly.
+            </span>
+          </label>
         </div>
 
         <button

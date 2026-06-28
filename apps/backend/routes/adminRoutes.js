@@ -12,6 +12,7 @@ import {
   deleteAdmin,
   deleteProductByAdmin,
   deleteUserByAdmin,
+  featureUserProfileByAdmin,
   getAdminAnalytics,
   listAdmins,
   listProductsByAdmin,
@@ -182,6 +183,7 @@ router.delete("/admins/:id", ...adminOnly, requireRoles(...ADMIN_MANAGEMENT_ROLE
 
 router.get("/users", ...adminOnly, requireRoles(...USER_READ_ROLES), wrapAsync(listUsers));
 router.patch("/users/:id", ...adminOnly, requireRoles(...USER_WRITE_ROLES), wrapAsync(updateUserByAdmin));
+router.post("/users/:id/feature-profile", ...adminOnly, requireRoles(...USER_WRITE_ROLES), wrapAsync(featureUserProfileByAdmin));
 router.patch("/users/:id/status", ...adminOnly, requireRoles(...USER_WRITE_ROLES), wrapAsync(setUserStatusByAdmin));
 router.delete("/users/:id", ...adminOnly, requireRoles("SUPER_ADMIN", "ADMIN"), wrapAsync(deleteUserByAdmin));
 

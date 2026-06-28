@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   FaChevronLeft,
   FaChevronRight,
@@ -8,6 +8,7 @@ import {
   FaGavel,
   FaGlobeAmericas,
   FaInfoCircle,
+  FaSearch,
   FaSearchMinus,
   FaSearchPlus,
   FaSeedling,
@@ -109,6 +110,23 @@ const previousSections = [
 ];
 
 const categoryKeywords = categories.map((category) => category.name);
+const listingFilterOptions = [
+  { value: "live-fruit-lots", label: "Live Fruit Lots" },
+  { value: "og-verified-fruit-growers", label: "OG Verified Fruit Growers" },
+  { value: "og-verified-fruit-buyers", label: "OG Verified Fruit Buyers" },
+  { value: "registered-fruit-growers", label: "Registered Fruit Growers" },
+  { value: "registered-fruit-buyers", label: "Registered Fruit Buyers" },
+  {
+    value: "og-verified-organic-fruit-growers",
+    label: "OG Verified Organic Fruit Growers",
+  },
+  {
+    value: "og-verified-premium-organic-fruit-growers",
+    label: "OG Verified Premium Organic Fruit Growers",
+  },
+];
+const listingFilterValues = new Set(listingFilterOptions.map((option) => option.value));
+const DEFAULT_LISTING_FILTER = listingFilterOptions[0].value;
 
 const desktopSections = [
   { key: "liveLots", label: "Live Fruit Deals" },
@@ -389,6 +407,13 @@ function DeferredHomeSEO(props) {
 
 export default function Home() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const listingFilterParam = searchParams.get("listingFilter") || "";
+  const listingSearchParam = searchParams.get("listingSearch") || "";
+  const activeListingFilter = listingFilterValues.has(listingFilterParam)
+    ? listingFilterParam
+    : DEFAULT_LISTING_FILTER;
+  const [listingSearch, setListingSearch] = useState(listingSearchParam);
   const [user, setUser] = useState(() => getCurrentUser());
   const [products, setProducts] = useState([]);
   const [auctions, setAuctions] = useState([]);
@@ -407,6 +432,23 @@ export default function Home() {
   const deferredSectionsReadyRef = useRef(false);
   const isGrower = isGrowerAccount(user);
   const isPublicVisitor = !hasAccessToken();
+  const updateListingFilter = useCallback(
+    (nextFilter) => {
+      setSearchParams(
+        (currentParams) => {
+          const nextParams = new URLSearchParams(currentParams);
+          if (nextFilter === DEFAULT_LISTING_FILTER) {
+            nextParams.delete("listingFilter");
+          } else {
+            nextParams.set("listingFilter", nextFilter);
+          }
+          return nextParams;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
   const loadMarketData = useCallback(async ({ showLoading = false } = {}) => {
     if (showLoading) {
       setLoading(true);
@@ -495,6 +537,29 @@ export default function Home() {
   useEffect(() => {
     loadMarketData({ showLoading: true });
   }, [loadMarketData]);
+
+  useEffect(() => {
+    setListingSearch(listingSearchParam);
+  }, [listingSearchParam]);
+
+  useEffect(() => {
+    if (listingSearch === listingSearchParam) return undefined;
+
+    const timer = window.setTimeout(() => {
+      setSearchParams(
+        (currentParams) => {
+          const nextParams = new URLSearchParams(currentParams);
+          const nextSearch = listingSearch.trim();
+          if (nextSearch) nextParams.set("listingSearch", nextSearch);
+          else nextParams.delete("listingSearch");
+          return nextParams;
+        },
+        { replace: true }
+      );
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [listingSearch, listingSearchParam, setSearchParams]);
 
   useEffect(() => {
     deferredSectionsReadyRef.current = deferredSectionsReady;
@@ -688,6 +753,27 @@ export default function Home() {
     () => sortDealsNewestFirst(allDealListings.filter((deal) => isClosedDeal(deal))),
     [allDealListings]
   );
+  const filteredListingResult = useMemo(
+    () =>
+      getHomepageFilteredListings({
+        filter: activeListingFilter,
+        search: listingSearch,
+        liveLots,
+        allDealListings,
+        growers: publicGrowers,
+        buyers: publicBuyers,
+      }),
+    [
+      activeListingFilter,
+      listingSearch,
+      liveLots,
+      allDealListings,
+      publicGrowers,
+      publicBuyers,
+    ]
+  );
+  const showFilteredListingResult =
+    activeListingFilter !== DEFAULT_LISTING_FILTER || Boolean(listingSearch.trim());
   const canQuoteFromFeed = isPublicVisitor || hasBuyerProfile(user);
   const canRateFromFeed = hasBuyerProfile(user);
   const currentUserId = user?._id || user?.id || "";
@@ -741,13 +827,15 @@ export default function Home() {
 
   const openPublicProfileFlow = (profile, role) => {
     const profileId = profile?._id || profile?.id || profile?.userId;
-    const profilePath = profileId ? `/profile/${profileId}` : "/profile-dashboard";
-
-    if (!hasAccessToken()) {
-      navigate("/profile", { state: buildLoginState(profilePath, role) });
-      return;
-    }
-
+    const profileType = String(profile?.businessType || role || "")
+      .trim()
+      .toLowerCase()
+      .replace(/_/g, "-")
+      .replace(/^driver$/, "logistics");
+    const profilePath =
+      profileId && profileType
+        ? `/profiles/${profileType}/${profileId}`
+        : "/profile-dashboard";
     navigate(profilePath);
   };
 
@@ -782,11 +870,34 @@ export default function Home() {
 
       <div className="pb-32 pt-2 md:hidden">
         <BannerSlider />
+        <ListingFilterSearchRow
+          activeFilter={activeListingFilter}
+          search={listingSearch}
+          onFilterChange={updateListingFilter}
+          onSearchChange={setListingSearch}
+        />
 
         <FruitIconRail
           className="-mx-3 pt-1"
           onSelect={(name) => navigate(`/search?q=${encodeURIComponent(name)}`)}
         />
+        {showFilteredListingResult && (
+          <FilteredListingResults
+            className="pt-2"
+            result={filteredListingResult}
+            dealLoading={loading}
+            profilesLoading={profilesLoading}
+            profilesError={profilesError}
+            onOpenLotById={openLotDetails}
+            onQuoteLot={openQuoteFlow}
+            onRateLot={openRateGrowerFlow}
+            onOpenProfile={openPublicProfileFlow}
+            onRateProfile={openRateProfileFlow}
+            canQuoteLot={canQuoteFromFeed}
+            canRateLot={canRateFromFeed}
+            currentUserId={currentUserId}
+          />
+        )}
         <PublicHomeFeed
           className="pt-2"
           liveLots={liveLots}
@@ -838,6 +949,28 @@ export default function Home() {
 
       <section className="auto-hide-column-scroll min-h-0 min-w-0 space-y-3 overflow-y-auto pr-1 overscroll-contain">
         <BannerSlider />
+        <ListingFilterSearchRow
+          activeFilter={activeListingFilter}
+          search={listingSearch}
+          onFilterChange={updateListingFilter}
+          onSearchChange={setListingSearch}
+        />
+        {showFilteredListingResult && (
+          <FilteredListingResults
+            result={filteredListingResult}
+            dealLoading={loading}
+            profilesLoading={profilesLoading}
+            profilesError={profilesError}
+            onOpenLotById={openLotDetails}
+            onQuoteLot={openQuoteFlow}
+            onRateLot={openRateGrowerFlow}
+            onOpenProfile={openPublicProfileFlow}
+            onRateProfile={openRateProfileFlow}
+            canQuoteLot={canQuoteFromFeed}
+            canRateLot={canRateFromFeed}
+            currentUserId={currentUserId}
+          />
+        )}
 
         <PublicHomeFeed
           liveLots={liveLots}
@@ -1000,6 +1133,103 @@ function FloatingLotActions({ onList, onBuy }) {
       >
         Buy Bulk Fruit Lots
       </button>
+    </div>
+  );
+}
+
+function ListingFilterSearchRow({
+  activeFilter,
+  search,
+  onFilterChange,
+  onSearchChange,
+}) {
+  return (
+    <section
+      aria-label="Listing filters"
+      className="mt-2 grid grid-cols-[minmax(0,0.95fr)_minmax(0,1.25fr)] items-end gap-2 border border-gray-200 bg-white p-2 md:mt-0 md:rounded-md"
+    >
+      <label className="min-w-0">
+        <span className="mb-1 block text-[11px] font-extrabold text-gray-700">
+          Filter Listings
+        </span>
+        <select
+          value={activeFilter}
+          onChange={(event) => onFilterChange(event.target.value)}
+          className="h-11 w-full min-w-0 rounded-md border border-gray-200 bg-white px-2 text-[11px] font-bold text-gray-900 outline-none focus:border-green-600 focus:ring-2 focus:ring-green-100 sm:text-xs"
+        >
+          {listingFilterOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="min-w-0">
+        <span className="sr-only">Search listings</span>
+        <span className="flex h-11 min-w-0 items-center gap-2 rounded-md border border-gray-200 bg-white px-3 focus-within:border-green-600 focus-within:ring-2 focus-within:ring-green-100">
+          <FaSearch className="shrink-0 text-xs text-gray-500" />
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Search by Firm/company/Growers"
+            className="min-w-0 flex-1 bg-transparent text-[11px] text-gray-900 outline-none placeholder:text-gray-500 sm:text-xs"
+          />
+        </span>
+      </label>
+    </section>
+  );
+}
+
+function FilteredListingResults({
+  className = "",
+  result,
+  dealLoading,
+  profilesLoading,
+  profilesError,
+  onOpenLotById,
+  onQuoteLot,
+  onRateLot,
+  onOpenProfile,
+  onRateProfile,
+  canQuoteLot,
+  canRateLot,
+  currentUserId,
+}) {
+  if (!result) return null;
+
+  if (result.kind === "profiles") {
+    return (
+      <div className={className}>
+        <PublicProfilesSection
+          title={result.title}
+          role={result.role}
+          profiles={result.items}
+          loading={profilesLoading}
+          error={profilesError}
+          emptyText={result.emptyText}
+          onOpenProfile={onOpenProfile}
+          onRateProfile={onRateProfile}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className={className}>
+      <PublicDealList
+        title={result.title}
+        deals={result.items}
+        loading={dealLoading}
+        emptyText={result.emptyText}
+        onOpenLotById={onOpenLotById}
+        onQuoteLot={onQuoteLot}
+        onRateLot={onRateLot}
+        canQuoteLot={canQuoteLot}
+        canRateLot={canRateLot}
+        currentUserId={currentUserId}
+      />
     </div>
   );
 }
@@ -1288,6 +1518,10 @@ function PublicProfilesSection({ title, role, profiles = [], loading, error, emp
 
 function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile }) {
   const safeProfile = getSafePublicProfile({ ...profile, businessType: role });
+  const safeProfileReference = {
+    ...safeProfile,
+    _id: profile._id || profile.id || profile.userId || "",
+  };
   const displayName =
     safeProfile.companyName ||
     safeProfile.orchardName ||
@@ -1366,14 +1600,14 @@ function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile }) {
           <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             <button
               type="button"
-              onClick={() => onOpenProfile?.(safeProfile, role)}
+              onClick={() => onOpenProfile?.(safeProfileReference, role)}
               className="min-w-0 rounded-full bg-white px-2 py-2 text-[10px] font-extrabold leading-tight text-green-800 ring-1 ring-green-200 hover:bg-green-100 sm:px-3 sm:text-[11px]"
             >
               View Profile
             </button>
             <button
               type="button"
-              onClick={() => onRateProfile?.(safeProfile, role)}
+              onClick={() => onRateProfile?.(safeProfileReference, role)}
               className="min-w-0 rounded-full bg-green-700 px-2 py-2 text-[10px] font-extrabold leading-tight text-white hover:bg-green-800 sm:px-3 sm:text-[11px]"
             >
               {role === "grower" ? "Rate Grower" : "Rate Buyer"}
@@ -1461,12 +1695,142 @@ function getMobileFilterListings(activeTab, liveLots, upcomingLots) {
   return liveLots;
 }
 
+function normalizeListingSearch(value = "") {
+  return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function matchesListingSearch(values, search) {
+  const query = normalizeListingSearch(search);
+  if (!query) return true;
+  return values.some((value) => normalizeListingSearch(value).includes(query));
+}
+
+function lotMatchesListingSearch(lot = {}, search = "") {
+  const createdBy =
+    (typeof lot.createdBy === "object" && lot.createdBy) ||
+    (typeof lot.product?.createdBy === "object" && lot.product.createdBy) ||
+    {};
+  return matchesListingSearch(
+    [
+      lot.title,
+      lot.fruitName,
+      lot.variety,
+      lot.location,
+      createdBy.orchardName,
+      createdBy.businessName,
+      createdBy.name,
+      createdBy.location,
+    ],
+    search
+  );
+}
+
+function profileMatchesListingSearch(profile = {}, role = "", search = "") {
+  const safeProfile = getSafePublicProfile({ ...profile, businessType: role });
+  return matchesListingSearch(
+    [
+      safeProfile.companyName,
+      safeProfile.name,
+      safeProfile.mainLocation,
+      profile.orchardName,
+      profile.businessName,
+      profile.buyerContactPerson,
+      profile.location,
+      profile.district,
+      profile.state,
+    ],
+    search
+  );
+}
+
+function getProfileListingId(profile = {}) {
+  return String(profile._id || profile.id || profile.userId || "");
+}
+
+function isOgVerifiedProfile(profile = {}, role = "") {
+  return getSafePublicProfile({ ...profile, businessType: role }).isOgVerified;
+}
+
+function getHomepageFilteredListings({
+  filter,
+  search,
+  liveLots = [],
+  allDealListings = [],
+  growers = [],
+  buyers = [],
+}) {
+  const filterOption =
+    listingFilterOptions.find((option) => option.value === filter) ||
+    listingFilterOptions[0];
+
+  if (filter === "live-fruit-lots") {
+    return {
+      kind: "deals",
+      title: filterOption.label,
+      items: liveLots.filter((lot) => lotMatchesListingSearch(lot, search)),
+      emptyText: "No live fruit deals right now. Fresh mandi deals will appear here.",
+    };
+  }
+
+  const isBuyerFilter =
+    filter === "og-verified-fruit-buyers" || filter === "registered-fruit-buyers";
+  const role = isBuyerFilter ? "buyer" : "grower";
+  let profiles = isBuyerFilter ? buyers : growers;
+
+  if (
+    filter === "og-verified-fruit-growers" ||
+    filter === "og-verified-fruit-buyers"
+  ) {
+    profiles = profiles.filter((profile) => isOgVerifiedProfile(profile, role));
+  }
+
+  if (filter === "og-verified-organic-fruit-growers") {
+    const organicGrowerIds = new Set(
+      allDealListings.filter(isOrganicLot).map(getLotOwnerId).filter(Boolean)
+    );
+    profiles = profiles.filter(
+      (profile) =>
+        isOgVerifiedProfile(profile, "grower") &&
+        organicGrowerIds.has(getProfileListingId(profile))
+    );
+  }
+
+  if (filter === "og-verified-premium-organic-fruit-growers") {
+    const premiumOrganicGrowerIds = new Set(
+      allDealListings.filter(isPremiumOrganicLot).map(getLotOwnerId).filter(Boolean)
+    );
+    profiles = profiles.filter(
+      (profile) =>
+        isOgVerifiedProfile(profile, "grower") &&
+        premiumOrganicGrowerIds.has(getProfileListingId(profile))
+    );
+  }
+
+  return {
+    kind: "profiles",
+    role,
+    title: filterOption.label,
+    items: profiles.filter((profile) =>
+      profileMatchesListingSearch(profile, role, search)
+    ),
+    emptyText:
+      role === "grower"
+        ? "Latest grower profiles will appear soon."
+        : "Latest buyer profiles will appear soon.",
+  };
+}
+
 function isOrganicLot(lot = {}) {
   const quality = String(lot.quality || "").toLowerCase();
   return (
     quality.includes("organic") ||
     Boolean(lot.organicCertificationNo || lot.organicCertificateUrl)
   );
+}
+
+function isPremiumOrganicLot(lot = {}) {
+  const quality = String(lot.quality || "").toLowerCase();
+  return quality.includes("premium") && isOrganicLot(lot);
 }
 
 function getHighestDealsByCategory(auctions) {

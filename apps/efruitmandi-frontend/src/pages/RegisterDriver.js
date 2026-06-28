@@ -23,6 +23,9 @@ export default function RegisterDriver() {
     licenseNumber: currentUser.licenseNumber || "",
     location: currentUser.location || "",
     contact: currentUser.contact || currentUser.phone || "",
+    publicProfile: isUpdate
+      ? (currentUser.publicProfileRoles || []).includes("driver")
+      : true,
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -72,6 +75,7 @@ export default function RegisterDriver() {
         assignmentToken,
         platform: "efruitmandi",
         allowUpdate: isUpdate,
+        publicProfile: form.publicProfile,
       });
 
       localStorage.setItem("user", JSON.stringify(res.data.user));
@@ -193,6 +197,18 @@ export default function RegisterDriver() {
               inputMode="tel"
               onChange={(value) => updateForm("contact", value)}
             />
+            <label className="flex items-start gap-3 rounded-md border border-orange-100 bg-orange-50 p-3 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={form.publicProfile}
+                onChange={(event) => updateForm("publicProfile", event.target.checked)}
+                className="mt-1"
+              />
+              <span>
+                Make this firm profile public. Only the firm name, business type,
+                city/state, verification badges, and official company logo may be shown publicly.
+              </span>
+            </label>
           </div>
 
           <button

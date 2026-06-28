@@ -1,6 +1,7 @@
 import express from "express";
 import {
   getPublicProfiles,
+  getPublicProfileById,
   setUserRole,
   createRoleProfile,
   getMyRoles,
@@ -18,6 +19,7 @@ import kycUpload from "../middleware/kycUpload.js";
 const router = express.Router();
 
 router.get("/public-profiles", getPublicProfiles);
+router.get("/public-profiles/:businessType/:userId", getPublicProfileById);
 
 // ================= SET ROLE =================
 // 🔐 Protected (requires login)

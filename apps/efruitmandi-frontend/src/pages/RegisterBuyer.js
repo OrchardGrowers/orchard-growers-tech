@@ -37,6 +37,7 @@ export default function RegisterBuyer() {
   const savedContact = currentUser.contact || currentUser.phone || "";
   const [form, setForm] = useState({
     businessName: currentUser.businessName || "",
+    buyerBusinessType: currentUser.buyerBusinessType || "buyer",
     buyerContactPerson: currentUser.buyerContactPerson || currentUser.name || "",
     designation: currentUser.designation || "",
     location: currentUser.buyerLocation || currentUser.location || "",
@@ -47,6 +48,9 @@ export default function RegisterBuyer() {
     contact: savedContact,
     gstNumber: currentUser.gstNumber || "",
     tradeLicenseNumber: currentUser.tradeLicenseNumber || "",
+    publicProfile: isUpdate
+      ? (currentUser.publicProfileRoles || []).includes("buyer")
+      : true,
   });
   const [loading, setLoading] = useState(false);
   const [otp, setOtp] = useState("");
@@ -78,6 +82,7 @@ export default function RegisterBuyer() {
         localStorage.setItem("user", JSON.stringify(latestUser));
         setForm({
           businessName: latestUser.businessName || "",
+          buyerBusinessType: latestUser.buyerBusinessType || "buyer",
           buyerContactPerson: latestUser.buyerContactPerson || latestUser.name || "",
           designation: latestUser.designation || "",
           location: latestUser.buyerLocation || latestUser.location || "",
@@ -88,6 +93,9 @@ export default function RegisterBuyer() {
           contact: latestUser.contact || latestUser.phone || "",
           gstNumber: latestUser.gstNumber || "",
           tradeLicenseNumber: latestUser.tradeLicenseNumber || "",
+          publicProfile: hasBuyerProfile(latestUser)
+            ? (latestUser.publicProfileRoles || []).includes("buyer")
+            : true,
         });
         const latestContact = latestUser.contact || latestUser.phone || "";
         if (hasBuyerProfile(latestUser) && latestContact) {
@@ -238,6 +246,7 @@ export default function RegisterBuyer() {
       const res = await API.post("/user/set-role", {
         role: "buyer",
         businessName: form.businessName.trim(),
+        buyerBusinessType: form.buyerBusinessType,
         buyerContactPerson: form.buyerContactPerson.trim(),
         designation: form.designation.trim(),
         buyerLocation: form.location.trim(),
@@ -251,6 +260,7 @@ export default function RegisterBuyer() {
         otpVerificationToken,
         platform: "efruitmandi",
         allowUpdate: isUpdate,
+        publicProfile: form.publicProfile,
       });
 
       localStorage.setItem("user", JSON.stringify(res.data.user));
@@ -290,6 +300,21 @@ export default function RegisterBuyer() {
             required
             onChange={(value) => updateForm("businessName", value)}
           />
+          <label className="block">
+            <span className="text-sm font-semibold text-gray-900 sm:text-lg sm:font-medium">
+              Business Type <span className="text-green-600">*</span>
+            </span>
+            <select
+              value={form.buyerBusinessType}
+              onChange={(event) => updateForm("buyerBusinessType", event.target.value)}
+              className="mt-2 min-h-11 w-full rounded-md border border-gray-200 bg-white px-3 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-100"
+            >
+              <option value="buyer">Buyer</option>
+              <option value="exporter">Exporter</option>
+              <option value="commission_agent">Commission Agent</option>
+              <option value="cold_storage">Cold Storage</option>
+            </select>
+          </label>
           <BuyerField
             icon={<FaUserTie className="text-green-600" />}
             label="Contact Person"
@@ -381,6 +406,18 @@ export default function RegisterBuyer() {
             placeholder="Optional mandi/trade license"
             onChange={(value) => updateForm("tradeLicenseNumber", value)}
           />
+          <label className="flex items-start gap-3 rounded-md border border-green-100 bg-green-50 p-3 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={form.publicProfile}
+              onChange={(event) => updateForm("publicProfile", event.target.checked)}
+              className="mt-1"
+            />
+            <span>
+              Make this firm profile public. Only the firm name, business type,
+              city/state, verification badges, and official company logo may be shown publicly.
+            </span>
+          </label>
         </div>
 
         <button

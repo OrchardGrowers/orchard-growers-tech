@@ -11,6 +11,12 @@ import {
   parseIdentifier,
 } from "./authController.js";
 import { getRoleKycStatus, refreshSettlementEligibility } from "../services/logisticsAssignmentService.js";
+import {
+  getProfileBusinessType,
+  normalizeBuyerBusinessType,
+  normalizeOperationalRole,
+  syncRegistrationPublication,
+} from "../services/profilePublicationService.js";
 
 const getVerifiedPhone = (contact, user = null, otpVerificationToken = "", platform = "efruitmandi") => {
   const parsed = parseIdentifier(contact);
@@ -52,26 +58,34 @@ const PUBLIC_PROFILE_SELECT = [
   "role",
   "activeRole",
   "profileTypes",
+  "publicProfileRoles",
+  "profileRegisteredAtByRole",
   "orchardName",
   "businessName",
+  "buyerBusinessType",
   "buyerContactPerson",
   "buyerLocation",
+  "logisticsName",
   "location",
+  "addressLine3",
+  "businessAddressLine3",
   "avatarUrl",
   "buyerAvatarUrl",
   "companyLogoUrl",
   "buyerCompanyLogoUrl",
   "buyerVerified",
   "growerVerified",
+  "driverVerified",
   "buyerOgVerified",
   "growerOgVerified",
+  "driverOgVerified",
   "kycByRole",
   "ogVerificationByRole",
   "accountStatus",
   "createdAt",
 ].join(" ");
 
-const PUBLIC_PROFILE_ROLES = new Set(["grower", "buyer"]);
+const PUBLIC_PROFILE_ROLES = new Set(["grower", "buyer", "driver"]);
 const SENSITIVE_PUBLIC_LOCATION_PATTERN =
   /\b(address|house|street|road|near|plot|flat|building|village|ward|pin|pincode|post office|orchard location|exact)\b/i;
 
@@ -133,6 +147,7 @@ const buildPublicProfileQuery = (role) => {
   return {
     $and: [
       { $or: [{ accountStatus: "ACTIVE" }, { accountStatus: { $exists: false } }] },
+      { publicProfileRoles: role },
       { $or: roleClauses },
     ],
   };
@@ -145,28 +160,31 @@ const toPublicProfile = (user = {}, role = "") => {
   const state = cleanPublicText(roleKyc.state);
   const mainLocation =
     getPublicLocationFromParts(district, state) ||
-    getPublicLocationFromText(role === "buyer" ? user.buyerLocation || user.location : user.location);
+    getPublicLocationFromText(
+      role === "buyer"
+        ? user.buyerLocation || user.location
+        : role === "grower"
+          ? user.addressLine3 || user.location
+          : user.location
+    );
 
   const roleLogo =
     role === "buyer"
       ? cleanPublicText(user.buyerCompanyLogoUrl) ||
-        cleanPublicText(user.buyerAvatarUrl) ||
-        cleanPublicText(user.companyLogoUrl) ||
-        cleanPublicText(user.avatarUrl)
-      : cleanPublicText(user.companyLogoUrl) ||
-        cleanPublicText(user.avatarUrl) ||
-        cleanPublicText(user.buyerCompanyLogoUrl) ||
-        cleanPublicText(user.buyerAvatarUrl);
+        cleanPublicText(user.companyLogoUrl)
+      : cleanPublicText(user.companyLogoUrl);
 
   const isKycVerified = Boolean(
     (role === "buyer" && user.buyerVerified) ||
-      (role === "grower" && user.growerVerified) ||
-      isApprovedStatus(roleKyc.status)
+    (role === "grower" && user.growerVerified) ||
+    (role === "driver" && user.driverVerified) ||
+    isApprovedStatus(roleKyc.status)
   );
   const isOgVerified = Boolean(
     (role === "buyer" && user.buyerOgVerified) ||
-      (role === "grower" && user.growerOgVerified) ||
-      (roleOg.requestId && isApprovedStatus(roleOg.status))
+    (role === "grower" && user.growerOgVerified) ||
+    (role === "driver" && user.driverOgVerified) ||
+    (roleOg.requestId && isApprovedStatus(roleOg.status))
   );
 
   return {
@@ -174,11 +192,17 @@ const toPublicProfile = (user = {}, role = "") => {
     role,
     activeRole: role,
     profileTypes: [role],
-    businessType: role,
+    businessType: getProfileBusinessType(user, role),
     name: user.name || "",
-    companyName: role === "grower" ? user.orchardName || "" : user.businessName || "",
+    companyName:
+      role === "grower"
+        ? user.orchardName || ""
+        : role === "driver"
+          ? user.logisticsName || ""
+          : user.businessName || "",
     orchardName: role === "grower" ? user.orchardName || "" : "",
     businessName: role === "buyer" ? user.businessName || "" : "",
+    logisticsName: role === "driver" ? user.logisticsName || "" : "",
     buyerContactPerson: role === "buyer" ? user.buyerContactPerson || "" : "",
     logoUrl: roleLogo,
     avatarUrl: roleLogo,
@@ -347,7 +371,13 @@ const getRoleKycSummary = (user = {}, roleType = "") => {
 
 export const getPublicProfiles = async (req, res) => {
   try {
-    const role = cleanPublicText(req.query.role).toLowerCase();
+    const requestedRole = cleanPublicText(req.query.role).toLowerCase();
+    const role =
+      normalizeOperationalRole(requestedRole) ||
+      (["exporter", "commission_agent", "commission-agent", "cold_storage", "cold-storage"].includes(requestedRole)
+        ? "buyer"
+        : "");
+    const requestedBusinessType = requestedRole.replace(/-/g, "_");
     const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 30);
     const roles = PUBLIC_PROFILE_ROLES.has(role) ? [role] : Array.from(PUBLIC_PROFILE_ROLES);
 
@@ -359,7 +389,13 @@ export const getPublicProfiles = async (req, res) => {
           .limit(limit)
           .lean();
 
-        return users.map((user) => toPublicProfile(user, profileRole));
+        return users
+          .map((user) => toPublicProfile(user, profileRole))
+          .filter(
+            (profile) =>
+              !["exporter", "commission_agent", "cold_storage"].includes(requestedBusinessType) ||
+              profile.businessType === requestedBusinessType
+          );
       })
     );
 
@@ -377,6 +413,45 @@ export const getPublicProfiles = async (req, res) => {
   } catch (err) {
     console.error("Get public profiles error:", err);
     res.status(500).json({ msg: "Unable to load public profiles" });
+  }
+};
+
+export const getPublicProfileById = async (req, res) => {
+  try {
+    const requestedType = cleanPublicText(req.query.role || req.params.businessType)
+      .toLowerCase()
+      .replace(/-/g, "_");
+    const role =
+      normalizeOperationalRole(requestedType) ||
+      (["exporter", "commission_agent", "cold_storage"].includes(requestedType)
+        ? "buyer"
+        : "");
+    if (!role || !PUBLIC_PROFILE_ROLES.has(role)) {
+      return res.status(400).json({ msg: "Unsupported public profile type" });
+    }
+
+    const user = await User.findOne({
+      _id: req.params.userId,
+      ...buildPublicProfileQuery(role),
+    })
+      .select(PUBLIC_PROFILE_SELECT)
+      .lean();
+    if (!user) return res.status(404).json({ msg: "Public profile not found" });
+
+    const profile = toPublicProfile(user, role);
+    if (
+      ["exporter", "commission_agent", "cold_storage"].includes(requestedType) &&
+      profile.businessType !== requestedType
+    ) {
+      return res.status(404).json({ msg: "Public profile not found" });
+    }
+    return res.json({ profile });
+  } catch (err) {
+    if (err?.name === "CastError") {
+      return res.status(404).json({ msg: "Public profile not found" });
+    }
+    console.error("Get public profile error:", err);
+    return res.status(500).json({ msg: "Unable to load public profile" });
   }
 };
 
@@ -435,6 +510,7 @@ export const setUserRole = async (req, res) => {
       role,
       orchardName,
       businessName,
+      buyerBusinessType,
       buyerContactPerson,
       buyerLocation,
       buyerPinCode,
@@ -462,6 +538,7 @@ export const setUserRole = async (req, res) => {
       assignmentToken = "",
       platform = "efruitmandi",
       allowUpdate = false,
+      publicProfile = false,
     } = req.body;
 
     // ✅ Validate role
@@ -545,6 +622,7 @@ export const setUserRole = async (req, res) => {
 
       user.role = user.role || role;
       user.businessName = businessName.trim();
+      user.buyerBusinessType = normalizeBuyerBusinessType(buyerBusinessType);
       user.buyerContactPerson = buyerContactPerson.trim();
       user.buyerLocation = nextBuyerLocation.trim();
       if (nextBuyerPinCode) user.buyerPinCode = nextBuyerPinCode.trim();
@@ -593,8 +671,22 @@ export const setUserRole = async (req, res) => {
     profileTypes.add(role);
     user.profileTypes = Array.from(profileTypes);
     user.activeRole = role;
+    const publicProfileRoles = new Set(
+      Array.isArray(user.publicProfileRoles) ? user.publicProfileRoles : []
+    );
+    const isPublicProfile =
+      publicProfile === true || String(publicProfile).trim().toLowerCase() === "true";
+    if (isPublicProfile) publicProfileRoles.add(role);
+    else publicProfileRoles.delete(role);
+    user.publicProfileRoles = Array.from(publicProfileRoles);
+    if (!profileAlreadyExists && !user.profileRegisteredAtByRole?.[role]) {
+      user.set(`profileRegisteredAtByRole.${role}`, new Date());
+    }
 
     await user.save();
+    void syncRegistrationPublication(user.toObject(), role).catch((error) => {
+      console.error("Profile publication sync failed:", error?.message || error);
+    });
 
     if (role === "driver" && assignmentToken) {
       const order = await Order.findOne({ "logisticsAssignment.invitationToken": String(assignmentToken).trim() });
