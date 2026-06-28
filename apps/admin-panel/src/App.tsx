@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import InstallAppPrompt, { openAdminInstallPrompt } from './components/InstallAppPrompt';
+import OrchardAiLeadDatabase from './components/OrchardAiLeadDatabase';
+import OrchardAiPlaceholder from './components/OrchardAiPlaceholder';
 
 const rawApiBase =
   import.meta.env.VITE_API_BASE_URL ||
@@ -295,7 +297,7 @@ type FileMeta = {
   mimetype?: string;
 };
 
-type AdminPlatform = 'main' | 'orchard' | 'efruitmandi' | 'userManagement' | 'notifications' | 'system' | 'download' | 'logout';
+type AdminPlatform = 'main' | 'orchard' | 'orchardAi' | 'efruitmandi' | 'userManagement' | 'notifications' | 'system' | 'download' | 'logout';
 type AdminThemeMode = 'light' | 'dark' | 'system';
 type AdminTab =
   | 'dashboard'
@@ -311,6 +313,11 @@ type AdminTab =
   | 'financials'
   | 'reports'
   | 'orchardSettings'
+  | 'orchardAiDashboard'
+  | 'orchardAiLeadCollection'
+  | 'orchardAiLeadDatabase'
+  | 'orchardAiCampaignCenter'
+  | 'orchardAiReplyCenter'
   | 'efruitDashboard'
   | 'users'
   | 'kyc'
@@ -725,6 +732,11 @@ const adminRoutePaths: Record<AdminTab, string> = {
   financials: '/orchard/financials',
   reports: '/orchard/reports',
   orchardSettings: '/orchard/settings',
+  orchardAiDashboard: '/orchard-ai/dashboard',
+  orchardAiLeadCollection: '/orchard-ai/lead-collection',
+  orchardAiLeadDatabase: '/orchard-ai/lead-database',
+  orchardAiCampaignCenter: '/orchard-ai/campaign-center',
+  orchardAiReplyCenter: '/orchard-ai/reply-center',
   efruitDashboard: '/efruitmandi/dashboard',
   users: '/efruitmandi/users',
   kyc: '/efruitmandi/kyc-verification',
@@ -764,6 +776,11 @@ const adminTabPlatforms: Record<AdminTab, AdminPlatform> = {
   financials: 'orchard',
   reports: 'orchard',
   orchardSettings: 'orchard',
+  orchardAiDashboard: 'orchardAi',
+  orchardAiLeadCollection: 'orchardAi',
+  orchardAiLeadDatabase: 'orchardAi',
+  orchardAiCampaignCenter: 'orchardAi',
+  orchardAiReplyCenter: 'orchardAi',
   efruitDashboard: 'efruitmandi',
   users: 'efruitmandi',
   kyc: 'efruitmandi',
@@ -798,6 +815,13 @@ const platformTabs: Record<AdminPlatform, AdminTabButton[]> = {
     { id: 'logistics', label: 'Logistics' },
     { id: 'financials', label: 'Financials' },
     { id: 'orchardSettings', label: 'Settings' },
+  ],
+  orchardAi: [
+    { id: 'orchardAiDashboard', label: 'Dashboard' },
+    { id: 'orchardAiLeadCollection', label: 'Lead Collection' },
+    { id: 'orchardAiLeadDatabase', label: 'Lead Database' },
+    { id: 'orchardAiCampaignCenter', label: 'Campaign Center' },
+    { id: 'orchardAiReplyCenter', label: 'Reply Center' },
   ],
   efruitmandi: [
     { id: 'efruitDashboard', label: 'Dashboard' },
@@ -2246,7 +2270,7 @@ function App() {
     tab: AdminTab,
     options?: { childLabel?: string; parentTab?: AdminTab }
   ) => {
-    let nextTab = tab;
+    const nextTab = tab;
 
     if (options?.childLabel && options.parentTab) {
       setOrchardModulePages((current) => ({
@@ -2535,6 +2559,47 @@ function App() {
     }
     if (tab === 'systemSettings') return <ModulePlanPanel plan={modulePlans.systemSettings} />;
     if (tab === 'downloadApp') return <ModulePlanPanel plan={modulePlans.downloadApp} />;
+    if (tab === 'orchardAiDashboard') {
+      return (
+        <OrchardAiPlaceholder
+          title="Orchard Growers AI Dashboard"
+          description="An overview of Orchard Growers AI tools and activity will be available here."
+        />
+      );
+    }
+    if (tab === 'orchardAiLeadCollection') {
+      return (
+        <OrchardAiPlaceholder
+          title="Lead Collection"
+          description="AI-assisted lead capture and collection workflows will be available here."
+        />
+      );
+    }
+    if (tab === 'orchardAiLeadDatabase') {
+      return (
+        <OrchardAiLeadDatabase
+          apiBase={API_BASE}
+          authHeaders={authHeaders}
+          admins={adminUsers}
+        />
+      );
+    }
+    if (tab === 'orchardAiCampaignCenter') {
+      return (
+        <OrchardAiPlaceholder
+          title="Campaign Center"
+          description="Campaign creation, scheduling, and performance tools will be available here."
+        />
+      );
+    }
+    if (tab === 'orchardAiReplyCenter') {
+      return (
+        <OrchardAiPlaceholder
+          title="Reply Center"
+          description="AI-assisted reply review and conversation management will be available here."
+        />
+      );
+    }
     return <Navigate to={adminRoutePaths.dashboard} replace />;
   };
 
@@ -2875,6 +2940,18 @@ function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: (
             { label: 'Low Stock Thresholds', tab: 'orchardSettings' },
           ],
         },
+      ],
+    },
+    {
+      platform: 'orchardAi',
+      title: 'Orchard Growers AI',
+      subtitle: 'AI leads and campaigns',
+      items: [
+        { label: 'Dashboard', icon: 'dashboard', tab: 'orchardAiDashboard' },
+        { label: 'Lead Collection', icon: 'plus', tab: 'orchardAiLeadCollection' },
+        { label: 'Lead Database', icon: 'users', tab: 'orchardAiLeadDatabase' },
+        { label: 'Campaign Center', icon: 'chart', tab: 'orchardAiCampaignCenter' },
+        { label: 'Reply Center', icon: 'quotes', tab: 'orchardAiReplyCenter' },
       ],
     },
     {
@@ -3498,6 +3575,11 @@ function getAdminTabTitle(activeTab: AdminTab, activePlatform: AdminPlatform) {
   if (activeTab === 'financials') return 'Orchard Growers Financials';
   if (activeTab === 'reports') return 'Orchard Growers Reports';
   if (activeTab === 'orchardSettings') return 'Orchard Growers Settings';
+  if (activeTab === 'orchardAiDashboard') return 'Orchard Growers AI Dashboard';
+  if (activeTab === 'orchardAiLeadCollection') return 'Orchard Growers AI Lead Collection';
+  if (activeTab === 'orchardAiLeadDatabase') return 'Orchard Growers AI Lead Database';
+  if (activeTab === 'orchardAiCampaignCenter') return 'Orchard Growers AI Campaign Center';
+  if (activeTab === 'orchardAiReplyCenter') return 'Orchard Growers AI Reply Center';
   if (activeTab === 'efruitDashboard') return 'eFruitMandi Dashboard';
   if (activeTab === 'users') return 'eFruitMandi Users';
   if (activeTab === 'notifications') return 'Admin Notifications';
@@ -4866,7 +4948,7 @@ function ProductAdminPanel({
       const data = await res.json();
       if (res.ok && data.sku) update('sku', data.sku);
     } catch {
-      undefined;
+      // Leave the SKU field editable when automatic generation is unavailable.
     } finally {
       setSkuGenerating(false);
     }
@@ -7582,6 +7664,7 @@ function getDefaultTabForPlatform(platform: AdminPlatform, role: AdminRole): Adm
   const defaultTabs: Record<AdminPlatform, AdminTab> = {
     main: 'dashboard',
     orchard: 'inventory',
+    orchardAi: 'orchardAiDashboard',
     efruitmandi: 'efruitDashboard',
     userManagement: 'staffUsers',
     notifications: 'notifications',
