@@ -8,6 +8,7 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "seed-admin": "node scripts/seedAdmin.js",
+    "import:orchard-ai-leads": "node scripts/import-orchard-ai-leads-from-csv.js",
     "build": "echo \"No build step required for backend\""
   },
   "keywords": [],

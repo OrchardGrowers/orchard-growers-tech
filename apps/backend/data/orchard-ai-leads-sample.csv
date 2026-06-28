@@ -1,0 +1,4 @@
+companyName,contactPerson,leadType,fruit,city,state,website,sourceUrl,sourcePlatform,phone,email,notes
+Sample Maharashtra Apple Buyer,To be verified,Buyer,Apple,Pune,Maharashtra,https://buyer-sample.example,https://buyer-sample.example/directory,Public Business Directory,,buyer@buyer-sample.example,"Public buyer lead for manual verification."
+Sample Himachal Apple Grower,To be verified,Grower,Apple,Shimla,Himachal Pradesh,https://grower-sample.example,https://grower-sample.example/profile,Public Grower Directory,,grower@grower-sample.example,"Public grower lead for manual verification."
+Sample India Apple Exporter,To be verified,Exporter,Apple,Mumbai,Maharashtra,https://exporter-sample.example,https://exporter-sample.example/company,Public Export Directory,,exporter@exporter-sample.example,"Public exporter lead for manual verification."

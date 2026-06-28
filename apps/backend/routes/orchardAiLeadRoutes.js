@@ -3,6 +3,7 @@ import {
   createOrchardAiLead,
   collectOrchardAiLeads,
   deleteOrchardAiLead,
+  extractOrchardAiLeadUrl,
   getOrchardAiLead,
   listOrchardAiLeads,
   orchardAiLeadErrorHandler,
@@ -53,6 +54,7 @@ router.use(
 router.get("/", wrapAsync(listOrchardAiLeads));
 router.post("/", wrapAsync(createOrchardAiLead));
 router.post("/collect", wrapAsync(collectOrchardAiLeads));
+router.post("/extract-url", wrapAsync(extractOrchardAiLeadUrl));
 router.get("/:id", wrapAsync(getOrchardAiLead));
 router.patch("/:id", wrapAsync(updateOrchardAiLead));
 router.delete("/:id", wrapAsync(deleteOrchardAiLead));

@@ -37,6 +37,7 @@ import User from "./models/User.js";
 import DealSettings from "./models/DealSettings.js";
 import { seedHsnMaster } from "./models/HsnMaster.js";
 import { seedAdminFromEnv } from "./services/adminSeedService.js";
+import { startOrchardAiCollectorWorker } from "./services/orchardAiCollectorWorker.js";
 import { syncMandiRates } from "./services/mandiRateService.js";
 import {
   buildGradeQuantitiesFromProduct,
@@ -69,7 +70,7 @@ const app = express();
 app.set("trust proxy", 1);
 
 // Initialize DB connection
-(async () => {
+const databaseInitialization = (async () => {
   try {
     dbConnected = await connectDB();
     if (dbConnected) {
@@ -87,7 +88,7 @@ app.set("trust proxy", 1);
   } catch (err) {
     console.error("Unexpected error during DB initialization:", err);
   }
-})();
+})().then(() => dbConnected);
 
 cron.schedule("0 6 * * *", async () => {
   if (!dbConnected) {
@@ -189,6 +190,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/me", userRoutes);
 app.use("/api/admin/orchard-ai/leads", orchardAiLeadRoutes);
+app.use("/api/admin/orchard-ai-leads", orchardAiLeadRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/auctions", auctionRoutes);
@@ -642,6 +644,9 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, "0.0.0.0", () => {
   const dbStatus = dbConnected ? "✅ DB Connected" : "⚠️  DB Offline";
   console.log(`Server running on port ${PORT} | ${dbStatus}`);
+  void databaseInitialization.then((connected) => {
+    if (connected) startOrchardAiCollectorWorker();
+  });
 });
 
 server.on("error", (err) => {

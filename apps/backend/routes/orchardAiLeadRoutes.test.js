@@ -15,6 +15,8 @@ describe("Orchard Growers AI Lead routes", () => {
     expect(registeredRoutes).toEqual([
       { path: "/", methods: ["get"] },
       { path: "/", methods: ["post"] },
+      { path: "/collect", methods: ["post"] },
+      { path: "/extract-url", methods: ["post"] },
       { path: "/:id", methods: ["get"] },
       { path: "/:id", methods: ["patch"] },
       { path: "/:id", methods: ["delete"] },
