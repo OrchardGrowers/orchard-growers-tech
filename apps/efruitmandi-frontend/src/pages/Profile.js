@@ -251,7 +251,7 @@ export default function Profile() {
         serverMessage,
       )
     ) {
-      return "No. does not exist, please check the no. and enter again.";
+      return "This Number Does Not Found Please Signup First.";
     }
     if (status === 429)
       return "Too many invalid OTP attempts. Please request a new OTP.";

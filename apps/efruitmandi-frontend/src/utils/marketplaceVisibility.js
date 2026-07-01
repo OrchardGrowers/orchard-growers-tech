@@ -210,15 +210,31 @@ export const getSafePublicProfile = (user = {}, fallback = {}) => {
           source.buyerAvatarUrl,
           source.companyLogoUrl,
           source.avatarUrl,
-          fallback.logoUrl
+          source.profileImage,
+          source.profilePic,
+          source.avatar,
+          source.photoURL,
+          fallback.logoUrl,
+          fallback.profileImage,
+          fallback.profilePic,
+          fallback.avatar,
+          fallback.photoURL
         )
       : firstText(
           source.logoUrl,
           source.companyLogoUrl,
           source.avatarUrl,
+          source.profileImage,
+          source.profilePic,
+          source.avatar,
+          source.photoURL,
           source.buyerCompanyLogoUrl,
           source.buyerAvatarUrl,
-          fallback.logoUrl
+          fallback.logoUrl,
+          fallback.profileImage,
+          fallback.profilePic,
+          fallback.avatar,
+          fallback.photoURL
         );
 
   return {
@@ -231,6 +247,10 @@ export const getSafePublicProfile = (user = {}, fallback = {}) => {
       fallback.companyName
     ),
     logoUrl,
+    profileImage: logoUrl,
+    profilePic: logoUrl,
+    avatar: logoUrl,
+    photoURL: logoUrl,
     mainLocation: getSafeMainLocation(source, role) || cleanText(fallback.mainLocation),
     isKycVerified: kycVerified,
     isOgVerified: ogVerified,

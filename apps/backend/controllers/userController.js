@@ -171,8 +171,11 @@ const toPublicProfile = (user = {}, role = "") => {
   const roleLogo =
     role === "buyer"
       ? cleanPublicText(user.buyerCompanyLogoUrl) ||
-        cleanPublicText(user.companyLogoUrl)
-      : cleanPublicText(user.companyLogoUrl);
+        cleanPublicText(user.companyLogoUrl) ||
+        cleanPublicText(user.buyerAvatarUrl) ||
+        cleanPublicText(user.avatarUrl)
+      : cleanPublicText(user.companyLogoUrl) ||
+        cleanPublicText(user.avatarUrl);
 
   const isKycVerified = Boolean(
     (role === "buyer" && user.buyerVerified) ||
@@ -206,6 +209,10 @@ const toPublicProfile = (user = {}, role = "") => {
     buyerContactPerson: role === "buyer" ? user.buyerContactPerson || "" : "",
     logoUrl: roleLogo,
     avatarUrl: roleLogo,
+    profileImage: roleLogo,
+    profilePic: roleLogo,
+    avatar: roleLogo,
+    photoURL: roleLogo,
     mainLocation,
     district,
     state,

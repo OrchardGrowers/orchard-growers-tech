@@ -2413,6 +2413,10 @@ function DesktopEmptyState({ text }) {
 }
 
 function ProfileCard({ user, onOpen }) {
+  const hasProfileIdentity = Boolean(
+    user &&
+      (user.avatarUrl || user._id || user.email || user.phone || user.name)
+  );
   const hasProfileSession = Boolean(
     hasAccessToken() &&
       user &&
@@ -2449,7 +2453,7 @@ function ProfileCard({ user, onOpen }) {
   const location = user.location || (firmName ? "Mandi, Himachal Pradesh" : "Location not available");
   const joinedLabel = formatJoinDate(user.createdAt);
   const bannerUrl = hasProfileSession ? resolveProfileMediaUrl(user.bannerUrl) || orchardCover : "";
-  const avatarUrl = hasProfileSession ? resolveProfileMediaUrl(user.avatarUrl) : "";
+  const avatarUrl = hasProfileIdentity ? resolveProfileMediaUrl(user.avatarUrl) : "";
   const accountLabel = isGrower
     ? "Growers Profile Dashboard"
     : isBuyer

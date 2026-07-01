@@ -60,6 +60,14 @@ export default function PublicBusinessProfile() {
     "Business";
   const firmName = profile?.companyName || "eFruitMandi Business";
   const canonical = `/profiles/${businessType}/${userId}`;
+  const publicProfileImage =
+    profile?.logoUrl ||
+    profile?.profileImage ||
+    profile?.profilePic ||
+    profile?.avatar ||
+    profile?.avatarUrl ||
+    profile?.photoURL ||
+    fallbackLogo;
 
   if (loading) {
     return (
@@ -91,14 +99,14 @@ export default function PublicBusinessProfile() {
         title={`${firmName} – ${typeLabel} on eFruitMandi`}
         description={`${firmName} is a public ${typeLabel.toLowerCase()} profile in ${profile.mainLocation} on eFruitMandi.`}
         canonical={canonical}
-        image={profile.logoUrl || fallbackLogo}
+        image={publicProfileImage}
       />
       <main className="mx-auto min-h-[65vh] max-w-3xl px-4 py-10">
         <article className="overflow-hidden rounded-2xl border border-green-100 bg-white shadow-sm">
           <div className="h-24 bg-gradient-to-r from-green-800 via-green-700 to-emerald-500" />
           <div className="px-5 pb-7 sm:px-8">
             <img
-              src={profile.logoUrl || fallbackLogo}
+              src={publicProfileImage}
               alt={`${firmName} official firm logo`}
               onError={(event) => {
                 event.currentTarget.src = fallbackLogo;

@@ -438,7 +438,7 @@ const sendOtpForPurpose = async ({ req, res, purpose = "auth", requireExistingUs
     if (!user) {
       return genericResponse
         ? res.json({ message: "If the account exists, an OTP has been sent.", channel: parsed.type })
-        : res.status(404).json({ msg: "No. does not exist, please check the no. and enter again." });
+        : res.status(404).json({ msg: "Number Does Not Found, Please Signup First." });
     }
   }
 
