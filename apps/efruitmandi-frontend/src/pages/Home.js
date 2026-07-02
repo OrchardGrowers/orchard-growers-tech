@@ -347,7 +347,6 @@ const policyLinkGroups = [
 
 const LOT_OPEN_HOUR = 12;
 const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
-const MOBILE_INITIAL_DEAL_COUNT = 1;
 let homeMarketDataPromise = null;
 const scheduleAfterPaint = (callback, delay = 0) => {
   let timeoutId;
@@ -484,11 +483,11 @@ export default function Home() {
     setRatesError("");
 
     const [growerRes, buyerRes, ratesRes] = await Promise.all([
-      getPublicJson("/user/public-profiles?role=grower&limit=8").catch(() => {
+      getPublicJson("/user/public-profiles?role=grower&limit=all").catch(() => {
         setProfilesError("Unable to load latest public profiles.");
         return { data: { profiles: [] } };
       }),
-      getPublicJson("/user/public-profiles?role=buyer&limit=8").catch(() => {
+      getPublicJson("/user/public-profiles?role=buyer&limit=all").catch(() => {
         setProfilesError("Unable to load latest public profiles.");
         return { data: { profiles: [] } };
       }),
@@ -602,9 +601,8 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!deferredSectionsReady) return undefined;
-    return scheduleAfterPaint(() => loadSupplementalHomeData(), 900);
-  }, [deferredSectionsReady, loadSupplementalHomeData]);
+    return scheduleAfterPaint(() => loadSupplementalHomeData(), isMobileViewport() ? 0 : 600);
+  }, [loadSupplementalHomeData]);
 
   useEffect(() => {
     let active = true;
@@ -911,9 +909,8 @@ export default function Home() {
           rates={offlineMandiRates}
           ratesLoading={ratesLoading}
           ratesError={ratesError}
-          showProfiles={deferredSectionsReady}
+          showProfiles
           showRates={deferredSectionsReady}
-          deferSecondarySections
           onOpenLotById={openLotDetails}
           onQuoteLot={openQuoteFlow}
           onRateLot={openRateGrowerFlow}
@@ -984,7 +981,7 @@ export default function Home() {
           rates={offlineMandiRates}
           ratesLoading={ratesLoading}
           ratesError={ratesError}
-          showProfiles={deferredSectionsReady}
+          showProfiles
           onOpenLotById={openLotDetails}
           onQuoteLot={openQuoteFlow}
           onRateLot={openRateGrowerFlow}
@@ -1249,7 +1246,6 @@ function PublicHomeFeed({
   ratesError,
   showProfiles = true,
   showRates = false,
-  deferSecondarySections = false,
   onOpenLotById,
   onQuoteLot,
   onRateLot,
@@ -1259,32 +1255,24 @@ function PublicHomeFeed({
   canRateLot,
   currentUserId,
 }) {
-  const dealSections = [
-    {
-      key: "live",
-      title: "Live Fruit Deals",
-      emptyText: "No live fruit deals right now. Fresh mandi deals will appear here.",
-      deals: liveLots,
-    },
-    {
-      key: "upcoming",
-      title: "Upcoming Fruit Deals",
-      emptyText: "No upcoming fruit deals yet. Scheduled lots will appear here.",
-      deals: upcomingLots,
-    },
-    {
-      key: "closed",
-      title: "Recently Closed Deals",
-      emptyText: "No recently closed deals yet. Closed deals will appear here.",
-      deals: closedLots,
-    },
-  ];
-  const primaryDealSection = deferSecondarySections
-    ? dealSections.find((section) => section.deals.length) || dealSections[0]
-    : dealSections[0];
-  const deferredDealSections = deferSecondarySections
-    ? dealSections.filter((section) => section.key !== primaryDealSection.key)
-    : dealSections.slice(1);
+  const liveDealSection = {
+    key: "live",
+    title: "Live Fruit Deals",
+    emptyText: "No live fruit deals right now. Fresh mandi deals will appear here.",
+    deals: liveLots,
+  };
+  const upcomingDealSection = {
+    key: "upcoming",
+    title: "Upcoming Fruit Deals",
+    emptyText: "No upcoming fruit deals yet. Scheduled lots will appear here.",
+    deals: upcomingLots,
+  };
+  const closedDealSection = {
+    key: "closed",
+    title: "Recently Closed Deals",
+    emptyText: "No recently closed deals yet. Closed deals will appear here.",
+    deals: closedLots,
+  };
   const renderDealSection = (section, extraProps = {}) => (
     <PublicDealList
       key={section.key}
@@ -1301,51 +1289,64 @@ function PublicHomeFeed({
       {...extraProps}
     />
   );
-  const secondaryDealSections = (
-    <>
-      {deferredDealSections.map((section) => renderDealSection(section))}
-    </>
+  const renderProfileSection = ({ key, title, role, profiles, emptyText }) => (
+    <PublicProfilesSection
+      key={key}
+      title={title}
+      role={role}
+      profiles={profiles}
+      loading={profilesLoading}
+      error={profilesError}
+      emptyText={emptyText}
+      onOpenProfile={onOpenProfile}
+      onRateProfile={onRateProfile}
+    />
   );
+  const feedSections = [];
+
+  if (dealLoading || liveLots.length) {
+    feedSections.push(renderDealSection(liveDealSection, { priorityFirstImage: true }));
+  }
+
+  if (!dealLoading && upcomingLots.length) {
+    feedSections.push(renderDealSection(upcomingDealSection));
+  }
+
+  if (showProfiles && (profilesLoading || profilesError || growers.length)) {
+    feedSections.push(
+      renderProfileSection({
+        key: "growers",
+        title: "Latest Registered Growers",
+        role: "grower",
+        profiles: growers,
+        emptyText: "Latest grower profiles will appear soon.",
+      })
+    );
+  }
+
+  if (showProfiles && !profilesLoading && !profilesError && buyers.length) {
+    feedSections.push(
+      renderProfileSection({
+        key: "buyers",
+        title: "Latest Registered Buyers",
+        role: "buyer",
+        profiles: buyers,
+        emptyText: "Latest buyer profiles will appear soon.",
+      })
+    );
+  }
+
+  if (!dealLoading && !profilesLoading && closedLots.length) {
+    feedSections.push(renderDealSection(closedDealSection));
+  }
+
+  if (!feedSections.length) {
+    feedSections.push(renderDealSection(liveDealSection));
+  }
 
   return (
     <div className={`space-y-4 ${className}`}>
-      {renderDealSection(primaryDealSection, {
-        initialItemLimit: deferSecondarySections ? MOBILE_INITIAL_DEAL_COUNT : undefined,
-        deferRemaining: deferSecondarySections,
-        priorityFirstImage: true,
-      })}
-
-      {deferSecondarySections ? (
-        <DeferredFeedMount enabled>{secondaryDealSections}</DeferredFeedMount>
-      ) : (
-        secondaryDealSections
-      )}
-
-      {showProfiles && (
-        <>
-          <PublicProfilesSection
-            title="Latest Registered Buyers"
-            role="buyer"
-            profiles={buyers}
-            loading={profilesLoading}
-            error={profilesError}
-            emptyText="Latest buyer profiles will appear soon."
-            onOpenProfile={onOpenProfile}
-            onRateProfile={onRateProfile}
-          />
-
-          <PublicProfilesSection
-            title="Latest Registered Growers"
-            role="grower"
-            profiles={growers}
-            loading={profilesLoading}
-            error={profilesError}
-            emptyText="Latest grower profiles will appear soon."
-            onOpenProfile={onOpenProfile}
-            onRateProfile={onRateProfile}
-          />
-        </>
-      )}
+      {feedSections}
 
       {showRates && (
         <OfflineMandiRatesCard

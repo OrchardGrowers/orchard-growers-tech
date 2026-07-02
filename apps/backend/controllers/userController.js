@@ -86,6 +86,7 @@ const PUBLIC_PROFILE_SELECT = [
 ].join(" ");
 
 const PUBLIC_PROFILE_ROLES = new Set(["grower", "buyer", "driver"]);
+const PUBLIC_PROFILE_ALL_LIMIT = 1000;
 const SENSITIVE_PUBLIC_LOCATION_PATTERN =
   /\b(address|house|street|road|near|plot|flat|building|village|ward|pin|pincode|post office|orchard location|exact)\b/i;
 
@@ -147,7 +148,6 @@ const buildPublicProfileQuery = (role) => {
   return {
     $and: [
       { $or: [{ accountStatus: "ACTIVE" }, { accountStatus: { $exists: false } }] },
-      { publicProfileRoles: role },
       { $or: roleClauses },
     ],
   };
@@ -176,6 +176,7 @@ const toPublicProfile = (user = {}, role = "") => {
         cleanPublicText(user.avatarUrl)
       : cleanPublicText(user.companyLogoUrl) ||
         cleanPublicText(user.avatarUrl);
+  const registeredAt = user.profileRegisteredAtByRole?.[role] || user.createdAt;
 
   const isKycVerified = Boolean(
     (role === "buyer" && user.buyerVerified) ||
@@ -220,7 +221,8 @@ const toPublicProfile = (user = {}, role = "") => {
     isKycVerified,
     isOgVerified,
     isTrusted: isOgVerified,
-    createdAt: user.createdAt,
+    registeredAt,
+    createdAt: registeredAt || user.createdAt,
   };
 };
 
@@ -385,14 +387,18 @@ export const getPublicProfiles = async (req, res) => {
         ? "buyer"
         : "");
     const requestedBusinessType = requestedRole.replace(/-/g, "_");
-    const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 30);
+    const requestedLimit = cleanPublicText(req.query.limit).toLowerCase();
+    const limit =
+      requestedLimit === "all"
+        ? PUBLIC_PROFILE_ALL_LIMIT
+        : Math.min(Math.max(Number(req.query.limit) || 10, 1), PUBLIC_PROFILE_ALL_LIMIT);
     const roles = PUBLIC_PROFILE_ROLES.has(role) ? [role] : Array.from(PUBLIC_PROFILE_ROLES);
 
     const profilesByRole = await Promise.all(
       roles.map(async (profileRole) => {
         const users = await User.find(buildPublicProfileQuery(profileRole))
           .select(PUBLIC_PROFILE_SELECT)
-          .sort({ createdAt: -1, _id: -1 })
+          .sort({ [`profileRegisteredAtByRole.${profileRole}`]: -1, createdAt: -1, _id: -1 })
           .limit(limit)
           .lean();
 
@@ -407,8 +413,8 @@ export const getPublicProfiles = async (req, res) => {
     );
 
     const profiles = profilesByRole.flat().sort((a, b) => {
-      const bTime = new Date(b.createdAt || 0).getTime();
-      const aTime = new Date(a.createdAt || 0).getTime();
+      const bTime = new Date(b.registeredAt || b.createdAt || 0).getTime();
+      const aTime = new Date(a.registeredAt || a.createdAt || 0).getTime();
       return bTime - aTime;
     });
 
