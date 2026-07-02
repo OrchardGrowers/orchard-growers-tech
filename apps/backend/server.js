@@ -182,7 +182,14 @@ if (!isProductionLike()) {
 app.use(cors(corsOptions));
 app.options(["/api/admin/send-otp", "/api/auth/*"], cors(corsOptions));
 
-app.use(express.json({ limit: "200mb" }));
+app.use(express.json({
+  limit: "200mb",
+  verify: (req, _res, buf) => {
+    if (req.originalUrl?.startsWith("/api/payments/cashfree/webhook")) {
+      req.rawBody = buf.toString("utf8");
+    }
+  },
+}));
 app.use(express.urlencoded({ limit: "200mb", extended: true }));
 app.use("/uploads", express.static("uploads"));
 

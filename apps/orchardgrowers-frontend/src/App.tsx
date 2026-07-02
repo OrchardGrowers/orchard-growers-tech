@@ -164,6 +164,59 @@ const readOAuthUser = (encodedUser: string | null): UserProfile | null => {
   }
 };
 
+type CashfreeMode = "sandbox" | "production";
+type CashfreeCheckoutResult = { error?: { message?: string }; paymentDetails?: unknown } | void;
+
+declare global {
+  interface Window {
+    Cashfree?: (options: { mode: CashfreeMode }) => {
+      checkout: (options: { paymentSessionId: string; redirectTarget?: "_self" | "_blank" | "_modal" }) => Promise<CashfreeCheckoutResult>;
+    };
+  }
+}
+
+let cashfreeSdkPromise: Promise<void> | null = null;
+const CASHFREE_SDK_SRC = "https://sdk.cashfree.com/js/v3/cashfree.js";
+
+const loadCashfreeSdk = () => {
+  if (typeof window === "undefined") return Promise.reject(new Error("Cashfree checkout is available only in a browser."));
+  if (window.Cashfree) return Promise.resolve();
+  if (cashfreeSdkPromise) return cashfreeSdkPromise;
+
+  cashfreeSdkPromise = new Promise<void>((resolve, reject) => {
+    const existingScript = document.querySelector<HTMLScriptElement>(`script[src="${CASHFREE_SDK_SRC}"]`);
+    if (existingScript) {
+      existingScript.addEventListener("load", () => resolve(), { once: true });
+      existingScript.addEventListener("error", () => reject(new Error("Could not load Cashfree checkout.")), { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = CASHFREE_SDK_SRC;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Could not load Cashfree checkout."));
+    document.head.appendChild(script);
+  });
+
+  return cashfreeSdkPromise;
+};
+
+const openCashfreeCheckout = async ({
+  paymentSessionId,
+  mode,
+}: {
+  paymentSessionId: string;
+  mode: CashfreeMode;
+}) => {
+  await loadCashfreeSdk();
+  if (!window.Cashfree) throw new Error("Cashfree checkout did not initialize.");
+
+  const cashfree = window.Cashfree({ mode });
+  const result = await cashfree.checkout({ paymentSessionId, redirectTarget: "_self" });
+  if (result && "error" in result && result.error?.message) throw new Error(result.error.message);
+};
+
 type HighestDeal = {
   category: string;
   amount: number;
@@ -197,6 +250,17 @@ type OrderInvoice = {
   trackingNumber?: string;
   deliveryPartnerSelection?: string;
   deliveryStatus?: string;
+};
+
+type CashfreeSessionResponse = {
+  order?: OrderInvoice;
+  paid?: boolean;
+  paymentSessionId?: string;
+  paymentUrl?: string;
+  cashfreeOrderId?: string;
+  cashfreeMode?: CashfreeMode;
+  testMode?: boolean;
+  msg?: string;
 };
 
 type AddressForm = {
@@ -1096,7 +1160,7 @@ const termsPolicyContent: PolicyContent = {
     { title: "Company Overview", body: ["Orchard Growers Private Limited", "Head Office: Musrani, Gohar, Mandi, Himachal Pradesh - 175029", "Website: www.orchardgrowers.in", "Email: care@orchardgrowers.in", "We offer affordable, research-backed solutions for farmers, orchardists, and landowners including:"], items: companyOverviewItems },
     { title: "1. Eligibility", body: ["To use our services, you must:"], items: ["Be 18 years or older", "Provide accurate registration and delivery details", "Use the platform legally and ethically", "Minors must use the services under the supervision of a legal guardian."] },
     { title: "2. User Accounts", body: ["Creating an account may be required to place orders, track services, or schedule consultations.", "You are responsible for protecting your login credentials. Activity under your account is your responsibility.", "We reserve the right to terminate accounts involved in fraud, misuse, or policy violations."] },
-    { title: "3. Orders and Payments", body: ["Order Placement", "Orders may be placed via website, PWA, or customer care. All orders are subject to availability and feasibility.", "Payments", "We accept:"], items: ["UPI, credit/debit cards, Razorpay", "Stripe (international), net banking", "Cash on delivery (select areas)", "Prices are inclusive of applicable taxes unless otherwise mentioned."] },
+    { title: "3. Orders and Payments", body: ["Order Placement", "Orders may be placed via website, PWA, or customer care. All orders are subject to availability and feasibility.", "Payments", "We accept:"], items: ["UPI, credit/debit cards, and net banking through Cashfree", "Cash on delivery (select areas)", "Prices are inclusive of applicable taxes unless otherwise mentioned."] },
     { title: "4. Delivery and Fulfillment", body: ["Delivery timelines vary by region, product, and weather. Shipping partners may change without notice.", "Customers must be present at the scheduled time for deliveries, especially those involving live plants or on-site consultation. For details, refer to our Shipping Policy."] },
     { title: "5. Returns and Refunds", body: ["Damaged or incorrect products must be reported within 48 hours of delivery.", "Perishable items (e.g., plants) may not be returnable. Cancellations of services should be made at least 48 hours in advance.", "Full policy available on our Refund Policy page."] },
     { title: "6. Site Analysis and Recommendations", body: ["We provide:"], items: ["Research-driven fruit plant suggestions based on location and terrain", "Optional field visits or remote consultation", "These are recommendations, not guarantees. Orchard success depends on:", "Local climate, soil, and user involvement", "Long-term care and timely follow-ups", "We are not liable for yield outcomes or plant survivability beyond the delivery phase."] },
@@ -3560,6 +3624,7 @@ function CheckoutPage() {
   const [challanReady, setChallanReady] = useState(false);
   const [paying, setPaying] = useState(false);
   const [challanOrder, setChallanOrder] = useState<OrderInvoice | null>(null);
+  const [pendingCashfreeOrder, setPendingCashfreeOrder] = useState<OrderInvoice | null>(null);
   const [lastDetectedPinCode, setLastDetectedPinCode] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"CASHFREE" | "COD">("CASHFREE");
   const [deliveryPartnerSelection, setDeliveryPartnerSelection] = useState<"AUTOMATIC" | "MANUAL">("AUTOMATIC");
@@ -3627,41 +3692,47 @@ function CheckoutPage() {
     setPaying(true);
 
     try {
-      const res = await createCheckoutOrder(paymentMethod);
+      const res = paymentMethod === "CASHFREE" && pendingCashfreeOrder
+        ? { data: pendingCashfreeOrder }
+        : await createCheckoutOrder(paymentMethod);
+
       if (paymentMethod === "COD") {
         setChallanOrder(res.data);
         setChallanReady(true);
+        setPendingCashfreeOrder(null);
         setMessage("Thanks for your order. Cash on delivery challan has been generated.");
         return;
       }
 
-      const cashfreeRes = await API.post<{ paymentUrl?: string; testMode?: boolean; msg?: string }>("/payments/cashfree/create-session", {
+      setPendingCashfreeOrder(res.data);
+
+      const cashfreeRes = await API.post<CashfreeSessionResponse>("/payments/cashfree/create-session", {
         orderId: res.data._id,
       });
-      const paymentUrl = cashfreeRes.data.paymentUrl || "";
-      if (paymentUrl) {
-        window.location.href = paymentUrl;
-        return;
-      }
 
-      if (res.data.paymentStatus === "PAID") {
+      if (cashfreeRes.data.paid || cashfreeRes.data.order?.paymentStatus === "PAID") {
         saveCartItems([]);
-        navigate(`/invoice/${res.data._id}`);
+        navigate(`/invoice/${cashfreeRes.data.order?._id || res.data._id}`);
         return;
       }
 
-      setChallanOrder(res.data);
-      setChallanReady(true);
-      setMessage(cashfreeRes.data.msg || "Cashfree session created. Complete payment to confirm the order.");
-    } catch (err: any) {
-      try {
-        const codRes = await createCheckoutOrder("COD");
-        setChallanOrder(codRes.data);
-        setChallanReady(true);
-        setMessage("Thanks for your order. Payment was not collected online, so a cash on delivery challan has been generated.");
-      } catch (codErr: any) {
-        setMessage(codErr?.response?.data?.msg || err?.response?.data?.msg || "Could not place order");
+      if (cashfreeRes.data.paymentUrl) {
+        window.location.href = cashfreeRes.data.paymentUrl;
+        return;
       }
+
+      if (!cashfreeRes.data.paymentSessionId) {
+        throw new Error(cashfreeRes.data.msg || "Cashfree payment session was not created.");
+      }
+
+      setMessage("Cashfree checkout is opening. Complete the payment to confirm your order.");
+      await openCashfreeCheckout({
+        paymentSessionId: cashfreeRes.data.paymentSessionId,
+        mode: cashfreeRes.data.cashfreeMode || "sandbox",
+      });
+      setMessage("Cashfree checkout was closed before confirmation. You can retry payment for this order.");
+    } catch (err: any) {
+      setMessage(err?.response?.data?.msg || err?.message || "Could not start Cashfree payment. Please try again or choose cash on delivery.");
     } finally {
       setPaying(false);
     }
@@ -3899,28 +3970,43 @@ function CashfreeCallbackPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const [message, setMessage] = useState("Confirming Cashfree payment...");
+  const [invoiceOrderId, setInvoiceOrderId] = useState("");
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const orderId = params.get("order_id") || "";
-    const status = params.get("status") || "PAID";
-    const reference = params.get("cf_order_id") || params.get("reference") || "";
+    const queryOrderId = params.get("order_id") || "";
+    const orderId =
+      params.get("local_order_id") ||
+      params.get("orderId") ||
+      (!queryOrderId.startsWith("OG_") ? queryOrderId : "");
+    const cashfreeOrderId =
+      params.get("cashfree_order_id") ||
+      params.get("cf_order_id") ||
+      (queryOrderId.startsWith("OG_") ? queryOrderId : "") ||
+      params.get("reference") ||
+      "";
 
-    if (!orderId) {
+    if (!orderId && !cashfreeOrderId) {
       setMessage("Payment callback is missing order details.");
       return;
     }
 
-    API.post<{ order?: OrderInvoice; msg?: string }>("/payments/cashfree/confirm", {
+    API.post<{ paid?: boolean; order?: OrderInvoice; msg?: string }>("/payments/cashfree/confirm", {
       orderId,
-      status,
-      reference,
-      gatewayResponse: Object.fromEntries(params.entries()),
+      cashfreeOrderId,
     })
       .then((res) => {
-        saveCartItems([]);
-        setMessage(res.data.msg || "Payment confirmed.");
-        window.setTimeout(() => navigate(`/invoice/${res.data.order?._id || orderId}`, { replace: true }), 900);
+        const paidOrderId = res.data.order?._id || orderId;
+        setInvoiceOrderId(paidOrderId);
+
+        if (res.data.paid) {
+          saveCartItems([]);
+          setMessage(res.data.msg || "Payment confirmed.");
+          window.setTimeout(() => navigate(`/invoice/${paidOrderId}`, { replace: true }), 900);
+          return;
+        }
+
+        setMessage(res.data.msg || "Payment is not successful yet. If amount was debited, refresh this page after a few seconds.");
       })
       .catch((err) => setMessage(err?.response?.data?.msg || "Could not confirm payment."));
   }, [location.search, navigate]);
@@ -3929,6 +4015,11 @@ function CashfreeCallbackPage() {
     <section className="mx-3 rounded-lg border border-slate-200 bg-white p-8 text-center">
       <h1 className="text-2xl font-semibold text-slate-900">Payment Confirmation</h1>
       <p className="mt-3 text-sm font-medium text-slate-600">{message}</p>
+      {invoiceOrderId && (
+        <Link to={`/invoice/${invoiceOrderId}`} className="mt-5 inline-flex rounded-full bg-green-700 px-5 py-2 text-sm font-semibold text-white">
+          View Order
+        </Link>
+      )}
     </section>
   );
 }
