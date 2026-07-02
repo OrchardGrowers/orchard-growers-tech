@@ -14,6 +14,7 @@ import {
 } from "react-icons/fa";
 import API from "../services/api";
 import { hasBuyerProfile, hasGrowerProfile } from "../utils/auth";
+import { openEFruitInstallPrompt } from "../utils/installPrompt";
 import {
   getEfruitMandiWidgetId,
   getEfruitMandiTokenAuth,
@@ -326,6 +327,9 @@ export default function Profile() {
     localStorage.setItem("refreshToken", data.refreshToken);
     localStorage.setItem("user", JSON.stringify(data.user));
   };
+  const triggerPostAuthInstallPrompt = () => {
+    window.setTimeout(() => openEFruitInstallPrompt({ source: "login" }), 900);
+  };
   const loadAuthenticatedUser = async (fallbackUser = {}) => {
     try {
       const res = await API.get("/user/profile");
@@ -417,6 +421,7 @@ export default function Profile() {
 
     const finishOAuthLogin = async () => {
       saveSession({ accessToken, refreshToken, user });
+      triggerPostAuthInstallPrompt();
       const freshUser = await loadAuthenticatedUser(user);
       const pendingRedirect = getPendingAuthRedirect();
       clearPendingAuthRedirect();
@@ -743,6 +748,7 @@ export default function Profile() {
       });
 
       saveSession(res.data);
+      triggerPostAuthInstallPrompt();
       const freshUser = await loadAuthenticatedUser(res.data.user || {});
       navigateAfterAuth(freshUser);
     } catch (err) {
@@ -792,6 +798,7 @@ export default function Profile() {
       });
 
       saveSession(registerRes.data);
+      triggerPostAuthInstallPrompt();
       const freshUser = await loadAuthenticatedUser(
         registerRes.data.user || {},
       );

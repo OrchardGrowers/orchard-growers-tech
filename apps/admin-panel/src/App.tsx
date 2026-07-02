@@ -2604,9 +2604,9 @@ function App() {
   };
 
   return (
-    <div className={`admin-theme-${effectiveTheme} h-full overflow-hidden bg-slate-950 p-2 text-slate-100`}>
+    <div className={`admin-theme-${effectiveTheme} admin-app-frame h-full overflow-hidden bg-slate-950 p-2 text-slate-100`}>
       <InstallAppPrompt />
-      <div className="mx-auto flex h-full min-h-0 max-w-[1360px] flex-col">
+      <div className="admin-app-shell mx-auto flex h-full min-h-0 max-w-[1360px] flex-col">
         <MarketSnapshotStrip
           announcementRef={announcementBarRef}
           isFullscreen={fullscreenTarget === 'announcement'}
@@ -2710,7 +2710,7 @@ function App() {
               activeTab={activeTab}
               onChange={openTab}
             />
-            <main className="flex-1 min-h-0 overflow-y-auto border-x border-slate-700 bg-slate-950 p-4 text-slate-100">
+            <main className="admin-content-scroll flex-1 min-h-0 overflow-y-auto border-x border-slate-700 bg-slate-950 p-4 text-slate-100">
               {activeTab !== 'logistics' && (
                 <div className="mb-3 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-500">
                   <span>{activePlatform === 'orchard' ? 'Orchard Growers' : getAdminTabTitle(getDefaultTabForPlatform(activePlatform, adminRole), activePlatform)}</span>
@@ -3211,7 +3211,14 @@ function MobileAdminMenu({
   };
 
   return (
-    <div id="mobile-admin-menu" className="admin-mobile-menu fixed z-40 lg:hidden">
+    <>
+      <button
+        type="button"
+        aria-label="Close admin menu"
+        className="admin-mobile-menu-backdrop fixed inset-0 z-30 bg-slate-950/70 backdrop-blur-sm lg:hidden"
+        onClick={onClose}
+      />
+      <div id="mobile-admin-menu" className="admin-mobile-menu fixed z-40 lg:hidden">
       <div className="mb-2 flex items-center justify-between gap-3 border-b border-slate-800 pb-2">
         <span className="text-sm font-black text-white">Admin Menu</span>
         <button
@@ -3302,7 +3309,8 @@ function MobileAdminMenu({
           </section>
         ))}
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -3504,7 +3512,7 @@ function AdminButtonTabs({
   onFullscreen?: () => void;
 }) {
   return (
-    <nav className="flex-shrink-0 flex items-center gap-1 overflow-x-auto border border-slate-700 bg-slate-900 px-2 py-1">
+    <nav className="admin-button-tabs flex-shrink-0 flex items-center gap-1 overflow-x-auto border border-slate-700 bg-slate-900 px-2 py-1">
       {showTabs && (
         <>
           <span className="shrink-0 px-2 text-sm font-semibold text-slate-300">Panel Actions</span>

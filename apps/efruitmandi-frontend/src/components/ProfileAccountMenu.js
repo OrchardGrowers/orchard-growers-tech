@@ -28,6 +28,7 @@ import {
 } from "../utils/auth";
 import API, { FILE_BASE_URL } from "../services/api";
 import { saveUserToStorage } from "../utils/userStorage";
+import { isStandalonePwa } from "../utils/mobilePermissions";
 
 const resolveProfileMediaUrl = (value = "") => {
   const url = String(value || "").trim();
@@ -84,6 +85,7 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
   const hasBuyerDriverConflict = isBuyer && isDriver;
   const canCreateBuyer = !isBuyer && !isDriver && !hasBuyerDriverConflict;
   const canCreateDriver = !isDriver && !isBuyer && !hasBuyerDriverConflict;
+  const [isInstalledApp, setIsInstalledApp] = useState(() => isStandalonePwa());
 
   useEffect(() => {
     const syncMode = (event) => {
@@ -98,6 +100,20 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
       window.removeEventListener("efruitmandi-profile-mode-change", syncMode);
     };
   }, [user]);
+
+  useEffect(() => {
+    const syncInstalledAppStatus = () => setIsInstalledApp(isStandalonePwa());
+    const mediaQuery = window.matchMedia?.("(display-mode: standalone)");
+
+    syncInstalledAppStatus();
+    mediaQuery?.addEventListener?.("change", syncInstalledAppStatus);
+    window.addEventListener("appinstalled", syncInstalledAppStatus);
+
+    return () => {
+      mediaQuery?.removeEventListener?.("change", syncInstalledAppStatus);
+      window.removeEventListener("appinstalled", syncInstalledAppStatus);
+    };
+  }, []);
 
   const displayName =
     activeMode === "buyer"
@@ -388,16 +404,18 @@ export default function ProfileAccountMenu({ user = {}, onAction, onLogout, mobi
       </div>
 
       <div className="shrink-0 border-t border-white/15 py-2">
-        <button
-          type="button"
-          onClick={openEFruitInstallPrompt}
-          className="flex w-full items-center gap-4 px-4 py-2.5 text-left text-sm font-semibold text-white transition hover:bg-green-800"
-        >
-          <span className="flex w-6 justify-center text-lg text-yellow-300">
-            <FaDownload />
-          </span>
-          <span>Download App</span>
-        </button>
+        {!isInstalledApp && (
+          <button
+            type="button"
+            onClick={openEFruitInstallPrompt}
+            className="flex w-full items-center gap-4 px-4 py-2.5 text-left text-sm font-semibold text-white transition hover:bg-green-800"
+          >
+            <span className="flex w-6 justify-center text-lg text-yellow-300">
+              <FaDownload />
+            </span>
+            <span>Download App</span>
+          </button>
+        )}
         <button
           type="button"
           onClick={onLogout}

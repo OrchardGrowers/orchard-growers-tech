@@ -41,6 +41,7 @@ const FruitSeoPage = lazy(() => import("./pages/FruitSeoPage"));
 const MobileCapture = lazy(() => import("./pages/MobileCapture"));
 const MandiRates = lazy(() => import("./pages/MandiRates"));
 const PublicBusinessProfile = lazy(() => import("./pages/PublicBusinessProfile"));
+const DownloadApp = lazy(() => import("./pages/DownloadApp"));
 
 const scheduleDeferred = (callback, timeout = 1600) => {
   if (typeof window === "undefined") return () => {};
@@ -125,7 +126,6 @@ function DeferredEnhancements() {
   return (
     <Suspense fallback={null}>
       <AppFeedback />
-      <InstallAppPrompt />
     </Suspense>
   );
 }
@@ -133,6 +133,9 @@ function DeferredEnhancements() {
 function App() {
   return (
     <>
+      <Suspense fallback={null}>
+        <InstallAppPrompt />
+      </Suspense>
       <DeferredEnhancements />
       <StartupSplash />
       <BrowserRouter
@@ -184,6 +187,7 @@ function App() {
             <Route path="/register-driver" element={<RegisterDriver />} />
             <Route path="/list-new-lot" element={<ListNewLot />} />
             <Route path="/mobile-capture/:sessionId" element={<MobileCapture />} />
+            <Route path="/download-app" element={<DownloadApp />} />
             <Route path="/get-verified" element={<GetVerified />} />
             <Route path="/kyc" element={<Kyc />} />
             <Route path="/kyc/status" element={<Kyc />} />

@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   FaBell,
   FaChartLine,
+  FaDownload,
   FaHandshake,
   FaHome,
   FaMicrophone,
@@ -12,6 +13,8 @@ import {
   FaYoutube,
 } from "react-icons/fa";
 import { getCurrentUser, hasAccessToken, logoutUser } from "../utils/auth";
+import { openEFruitInstallPrompt } from "../utils/installPrompt";
+import { isStandalonePwa } from "../utils/mobilePermissions";
 
 const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-240.png`;
 const ProfileAccountMenu = lazy(() => import("./ProfileAccountMenu"));
@@ -44,6 +47,7 @@ export default function Navbar() {
   const [isListening, setIsListening] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+  const [isInstalledApp, setIsInstalledApp] = useState(() => isStandalonePwa());
   const [selected, setSelected] = useState({
     code: "IN",
     flag: "https://flagcdn.com/w40/in.png",
@@ -71,6 +75,20 @@ export default function Navbar() {
 
     return () => {
       active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const syncInstalledAppStatus = () => setIsInstalledApp(isStandalonePwa());
+    const mediaQuery = window.matchMedia?.("(display-mode: standalone)");
+
+    syncInstalledAppStatus();
+    mediaQuery?.addEventListener?.("change", syncInstalledAppStatus);
+    window.addEventListener("appinstalled", syncInstalledAppStatus);
+
+    return () => {
+      mediaQuery?.removeEventListener?.("change", syncInstalledAppStatus);
+      window.removeEventListener("appinstalled", syncInstalledAppStatus);
     };
   }, []);
 
@@ -259,6 +277,18 @@ export default function Navbar() {
               </select>
             </div>
 
+            {!isInstalledApp && (
+              <button
+                type="button"
+                onClick={() => openEFruitInstallPrompt({ source: "navbar-mobile" })}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-green-700"
+                aria-label="Download eFruitMandi app"
+                title="Download App"
+              >
+                <FaDownload className="text-sm" />
+              </button>
+            )}
+
             <a
               href="https://www.youtube.com/results?search_query=Efruit+Mandi"
               target="_blank"
@@ -321,6 +351,19 @@ export default function Navbar() {
                 ))}
               </select>
             </div>
+
+            {!isInstalledApp && (
+              <button
+                type="button"
+                onClick={() => openEFruitInstallPrompt({ source: "navbar-desktop" })}
+                className="flex h-9 shrink-0 items-center gap-2 rounded-full bg-white px-3 text-xs font-extrabold text-green-800 transition hover:bg-yellow-100"
+                aria-label="Download eFruitMandi app"
+                title="Download App"
+              >
+                <FaDownload className="text-sm" />
+                <span>Download App</span>
+              </button>
+            )}
 
             <a
               href="https://www.youtube.com/results?search_query=Efruit+Mandi"

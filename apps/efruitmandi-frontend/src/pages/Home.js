@@ -404,6 +404,124 @@ function DeferredHomeSEO(props) {
   );
 }
 
+const interactiveDragTargets =
+  "a,button,input,textarea,select,option,label,[role='button'],[contenteditable='true'],video,audio";
+
+function isInteractiveDragTarget(target) {
+  return target instanceof Element && Boolean(target.closest(interactiveDragTargets));
+}
+
+function useMouseDragScroll(scrollRef) {
+  const dragStateRef = useRef({
+    active: false,
+    dragged: false,
+    pointerId: null,
+    startY: 0,
+    startScrollTop: 0,
+    suppressClick: false,
+  });
+
+  const stopDrag = useCallback(
+    (event) => {
+      const state = dragStateRef.current;
+      if (!state.active) return;
+
+      const element = scrollRef.current;
+      if (element && state.pointerId !== null && element.hasPointerCapture?.(state.pointerId)) {
+        element.releasePointerCapture(state.pointerId);
+      }
+      element?.classList.remove("drag-scroll-active");
+      document.body.classList.remove("drag-scroll-select-none");
+
+      state.active = false;
+      state.pointerId = null;
+      state.suppressClick = state.dragged;
+      window.setTimeout(() => {
+        dragStateRef.current.suppressClick = false;
+      }, 0);
+    },
+    [scrollRef]
+  );
+
+  const onPointerDown = useCallback(
+    (event) => {
+      if (event.pointerType !== "mouse" || event.button !== 0) return;
+      if (isInteractiveDragTarget(event.target)) return;
+
+      const element = scrollRef.current;
+      if (!element) return;
+
+      dragStateRef.current = {
+        active: true,
+        dragged: false,
+        pointerId: event.pointerId,
+        startY: event.clientY,
+        startScrollTop: element.scrollTop,
+        suppressClick: false,
+      };
+      element.setPointerCapture?.(event.pointerId);
+      element.classList.add("drag-scroll-active");
+      document.body.classList.add("drag-scroll-select-none");
+    },
+    [scrollRef]
+  );
+
+  const onPointerMove = useCallback(
+    (event) => {
+      const state = dragStateRef.current;
+      const element = scrollRef.current;
+      if (!state.active || state.pointerId !== event.pointerId || !element) return;
+
+      const deltaY = event.clientY - state.startY;
+      if (Math.abs(deltaY) > 3) {
+        state.dragged = true;
+        event.preventDefault();
+      }
+      element.scrollTop = state.startScrollTop - deltaY;
+    },
+    [scrollRef]
+  );
+
+  const onClickCapture = useCallback((event) => {
+    if (!dragStateRef.current.suppressClick) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragStateRef.current.suppressClick = false;
+  }, []);
+
+  return {
+    onPointerDown,
+    onPointerMove,
+    onPointerUp: stopDrag,
+    onPointerCancel: stopDrag,
+    onLostPointerCapture: stopDrag,
+    onClickCapture,
+  };
+}
+
+function useArrowKeyScroll(scrollRef) {
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+      if (isInteractiveDragTarget(event.target)) return;
+
+      const element = scrollRef.current;
+      if (!element || isMobileViewport() || element.getClientRects().length === 0) return;
+      if (element.scrollHeight <= element.clientHeight) return;
+
+      event.preventDefault();
+      element.scrollBy({
+        top: event.key === "ArrowDown" ? 96 : -96,
+        behavior: event.repeat ? "auto" : "smooth",
+      });
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [scrollRef]);
+}
+
 export default function Home() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -429,6 +547,9 @@ export default function Home() {
   const [deferredSectionsReady, setDeferredSectionsReady] = useState(false);
   const fullMarketDataRef = useRef({ products: [], auctions: [] });
   const deferredSectionsReadyRef = useRef(false);
+  const centerColumnRef = useRef(null);
+  const centerColumnDragHandlers = useMouseDragScroll(centerColumnRef);
+  useArrowKeyScroll(centerColumnRef);
   const isGrower = isGrowerAccount(user);
   const isPublicVisitor = !hasAccessToken();
   const updateListingFilter = useCallback(
@@ -944,7 +1065,11 @@ export default function Home() {
         )}
       </aside>
 
-      <section className="auto-hide-column-scroll min-h-0 min-w-0 space-y-3 overflow-y-auto pr-1 overscroll-contain">
+      <section
+        ref={centerColumnRef}
+        className="auto-hide-column-scroll mouse-drag-scroll min-h-0 min-w-0 space-y-3 overflow-y-auto pr-1 overscroll-contain"
+        {...centerColumnDragHandlers}
+      >
         <BannerSlider />
         <ListingFilterSearchRow
           activeFilter={activeListingFilter}

@@ -111,6 +111,21 @@ video {
 /* 🟢 BUTTON STYLES */
 /* ============================= */
 
+.mouse-drag-scroll {
+  cursor: grab;
+}
+
+.mouse-drag-scroll.drag-scroll-active {
+  cursor: grabbing;
+  scroll-behavior: auto;
+  user-select: none;
+}
+
+.drag-scroll-select-none {
+  cursor: grabbing;
+  user-select: none;
+}
+
 .btn-primary {
   @apply bg-green-700 text-white px-4 py-2 rounded-lg;
 }

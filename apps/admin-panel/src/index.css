@@ -297,6 +297,7 @@ a {
   scrollbar-color: #10b981 #0f172a;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
+  overscroll-behavior: contain;
 }
 
 .admin-action-panel main::-webkit-scrollbar {
@@ -348,6 +349,22 @@ a {
   opacity: 1;
 }
 
+.admin-app-frame {
+  min-height: 100dvh;
+}
+
+.admin-content-scroll {
+  touch-action: pan-y;
+}
+
+.admin-button-tabs {
+  scrollbar-width: none;
+}
+
+.admin-button-tabs::-webkit-scrollbar {
+  display: none;
+}
+
 @media (max-width: 1023px) {
   #root,
   #root > div {
@@ -356,6 +373,8 @@ a {
   }
 
   .admin-top-nav {
+    position: relative;
+    z-index: 20;
     grid-template-columns: minmax(118px, 138px) minmax(0, 1fr);
     align-items: center;
   }
@@ -398,25 +417,54 @@ a {
   .admin-shell-grid .admin-action-panel {
     min-height: 0;
     border-radius: 10px;
+    overflow: hidden;
   }
 
   .admin-action-panel nav {
     scroll-snap-type: x proximity;
     -webkit-overflow-scrolling: touch;
+    gap: 6px;
+    min-height: 46px;
   }
 
   .admin-action-panel nav button {
     scroll-snap-align: start;
+    min-height: 38px;
   }
 
   .admin-action-panel main {
     border-left: 1px solid #334155;
     border-right: 1px solid #334155;
     -webkit-overflow-scrolling: touch;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+
+  .admin-content-scroll > section,
+  .admin-content-scroll > article {
+    max-width: 100%;
+  }
+
+  .admin-content-scroll input,
+  .admin-content-scroll textarea,
+  .admin-content-scroll select {
+    font-size: 16px;
   }
 }
 
 @media (max-width: 767px) {
+  .admin-app-frame {
+    padding: max(4px, env(safe-area-inset-top)) max(4px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-left)) !important;
+  }
+
+  .admin-app-shell {
+    max-width: none;
+  }
+
+  .admin-top-nav {
+    gap: 6px;
+    margin-top: 6px;
+  }
+
   .admin-announcement-shell {
     min-height: 38px;
   }
@@ -437,6 +485,7 @@ a {
   .admin-top-nav > div:last-child {
     padding-left: 8px;
     padding-right: 8px;
+    border-radius: 14px;
   }
 
   .admin-top-nav > div:last-child > span:nth-child(2),
@@ -468,6 +517,34 @@ a {
 
   .admin-action-panel main {
     padding: 12px;
+    padding-bottom: calc(18px + env(safe-area-inset-bottom));
+  }
+
+  .admin-button-tabs {
+    border-radius: 12px 12px 0 0;
+  }
+
+  .admin-button-tabs > span:first-child {
+    display: none;
+  }
+
+  .admin-button-tabs button {
+    white-space: nowrap;
+  }
+
+  .admin-content-scroll {
+    border-left-width: 1px;
+    border-right-width: 1px;
+  }
+
+  .admin-content-scroll table {
+    font-size: 12px;
+  }
+
+  .admin-content-scroll th,
+  .admin-content-scroll td {
+    padding-left: 10px;
+    padding-right: 10px;
   }
 }
 
@@ -503,11 +580,14 @@ a {
   }
 
   .admin-mobile-menu {
-    top: 86px;
+    top: auto;
+    bottom: max(8px, env(safe-area-inset-bottom));
     right: max(8px, env(safe-area-inset-right));
     left: max(8px, env(safe-area-inset-left));
     width: auto;
-    max-height: calc(100dvh - 100px);
+    max-height: min(78dvh, 680px);
+    border-radius: 18px;
+    padding: 12px;
   }
 
   .admin-action-panel nav {
@@ -549,5 +629,17 @@ a {
 
   .admin-action-panel table {
     min-width: 680px;
+  }
+
+  .admin-mobile-menu .grid-cols-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-mobile-menu button {
+    min-height: 42px;
+  }
+
+  .admin-mobile-menu-backdrop {
+    background: rgb(2 6 23 / 0.78);
   }
 }
