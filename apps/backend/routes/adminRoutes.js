@@ -55,6 +55,18 @@ import {
   mergeDealSettings,
 } from "../services/dealCalculationService.js";
 import { syncCommodityMaster } from "../services/mandiRateService.js";
+import {
+  getAdminErpDashboard,
+  listAdminErpAuditEvents,
+  listAdminErpCommissions,
+  listAdminErpDocuments,
+  listAdminErpLedgerEntries,
+  listAdminErpNotificationLogs,
+  listAdminErpPayments,
+  listAdminErpRefunds,
+  listAdminErpSettlements,
+  listAdminErpSupportTickets,
+} from "../controllers/adminErpController.js";
 
 const router = express.Router();
 const wrapAsync = (handler) => (req, res, next) =>
@@ -123,6 +135,7 @@ const ORDER_READ_ROLES = ADMIN_ACCESS_ROLES;
 const SETTINGS_WRITE_ROLES = ["SUPER_ADMIN", "ADMIN", "FINANCE_MANAGER"];
 const VERIFICATION_READ_ROLES = ADMIN_ACCESS_ROLES;
 const VERIFICATION_WRITE_ROLES = ["SUPER_ADMIN", "ADMIN", "VERIFICATION_OFFICER", "EMPLOYEE"];
+const ERP_READ_ROLES = ADMIN_ACCESS_ROLES;
 const requireRoles = (...roles) => authorize(...roles);
 const ADMIN_PRODUCT_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 const adminOnly = [
@@ -168,6 +181,16 @@ router.post("/forgot-password", wrapAsync(requestAdminPasswordReset));
 router.post("/reset-password", wrapAsync(resetAdminPassword));
 
 router.get("/analytics", ...adminOnly, requireRoles(...ANALYTICS_ROLES), wrapAsync(getAdminAnalytics));
+router.get("/erp/dashboard", ...adminOnly, requireRoles(...ERP_READ_ROLES), wrapAsync(getAdminErpDashboard));
+router.get("/erp/payments", ...adminOnly, requireRoles(...ERP_READ_ROLES), wrapAsync(listAdminErpPayments));
+router.get("/erp/settlements", ...adminOnly, requireRoles(...ERP_READ_ROLES), wrapAsync(listAdminErpSettlements));
+router.get("/erp/commission-ledger", ...adminOnly, requireRoles(...ERP_READ_ROLES), wrapAsync(listAdminErpCommissions));
+router.get("/erp/documents", ...adminOnly, requireRoles(...ERP_READ_ROLES), wrapAsync(listAdminErpDocuments));
+router.get("/erp/accounting/ledger", ...adminOnly, requireRoles(...ERP_READ_ROLES), wrapAsync(listAdminErpLedgerEntries));
+router.get("/erp/audit/events", ...adminOnly, requireRoles(...ERP_READ_ROLES), wrapAsync(listAdminErpAuditEvents));
+router.get("/erp/notifications", ...adminOnly, requireRoles(...ERP_READ_ROLES), wrapAsync(listAdminErpNotificationLogs));
+router.get("/erp/support/tickets", ...adminOnly, requireRoles(...ERP_READ_ROLES), wrapAsync(listAdminErpSupportTickets));
+router.get("/erp/refunds", ...adminOnly, requireRoles(...ERP_READ_ROLES), wrapAsync(listAdminErpRefunds));
 
 router.get("/admins", ...adminOnly, wrapAsync(listAdmins));
 router.post("/admins", ...adminOnly, wrapAsync(createAdmin));

@@ -249,32 +249,42 @@ const resolveProfileMediaUrl = (value = "") => {
   return url.startsWith("/") ? url : `/${url}`;
 };
 
+const normalizeProfileMode = (value = "") => {
+  const mode = String(value || "").trim().toLowerCase();
+  return mode === "logistic" ? "driver" : mode;
+};
+
 const getStoredProfileMode = () => {
   try {
     if (typeof window === "undefined" || !window.localStorage) return "";
-    return window.localStorage.getItem(PROFILE_MODE_STORAGE_KEY) || "";
+    return normalizeProfileMode(window.localStorage.getItem(PROFILE_MODE_STORAGE_KEY) || "");
   } catch {
     return "";
   }
 };
 
-const resolveHomeProfileMode = (user = {}, requestedMode = "") => {
-  const mode = String(requestedMode || "").toLowerCase();
+const resolveHomeProfileMode = (user = {}, requestedMode = "", storedMode = "") => {
+  const mode = normalizeProfileMode(requestedMode);
   if (mode === "buyer" && hasBuyerProfile(user)) return "buyer";
   if (mode === "grower" && hasGrowerProfile(user)) return "grower";
   if (mode === "driver" && hasDriverProfile(user)) return "driver";
 
-  const role = String(user.activeRole || user.selectedRole || "").toLowerCase();
+  const role = normalizeProfileMode(user.activeRole || user.selectedRole || "");
   if (role === "grower" && hasGrowerProfile(user)) return "grower";
   if (role === "buyer" && hasBuyerProfile(user)) return "buyer";
   if (role === "driver" && hasDriverProfile(user)) return "driver";
+
+  const stored = normalizeProfileMode(storedMode);
+  if (stored === "buyer" && hasBuyerProfile(user)) return "buyer";
+  if (stored === "grower" && hasGrowerProfile(user)) return "grower";
+  if (stored === "driver" && hasDriverProfile(user)) return "driver";
 
   const availableProfiles = [
     hasGrowerProfile(user),
     hasBuyerProfile(user),
     hasDriverProfile(user),
   ].filter(Boolean).length;
-  const primaryRole = String(user.role || "").toLowerCase();
+  const primaryRole = normalizeProfileMode(user.role || "");
   if (availableProfiles <= 1 && primaryRole === "grower" && hasGrowerProfile(user)) return "grower";
   if (availableProfiles <= 1 && primaryRole === "buyer" && hasBuyerProfile(user)) return "buyer";
   if (availableProfiles <= 1 && primaryRole === "driver" && hasDriverProfile(user)) return "driver";
@@ -564,12 +574,14 @@ export default function Home() {
   const [searchParams, setSearchParams] = useSearchParams();
   const listingFilterParam = searchParams.get("listingFilter") || "";
   const listingSearchParam = searchParams.get("listingSearch") || "";
+  const profileModeQueryParam = searchParams.get("mode") || "";
   const activeListingFilter = listingFilterValues.has(listingFilterParam)
     ? listingFilterParam
     : DEFAULT_LISTING_FILTER;
   const [listingSearch, setListingSearch] = useState(listingSearchParam);
   const [user, setUser] = useState(() => getCurrentUser());
-  const [profileModePreference, setProfileModePreference] = useState(() => getStoredProfileMode());
+  const [profileModePreference, setProfileModePreference] = useState("");
+  const [storedProfileMode, setStoredProfileMode] = useState(() => getStoredProfileMode());
   const [products, setProducts] = useState([]);
   const [auctions, setAuctions] = useState([]);
   const [publicGrowers, setPublicGrowers] = useState([]);
@@ -591,8 +603,8 @@ export default function Home() {
   const isGrower = isGrowerAccount(user);
   const isPublicVisitor = !hasAccessToken();
   const activeProfileMode = useMemo(
-    () => resolveHomeProfileMode(user, profileModePreference),
-    [user, profileModePreference]
+    () => resolveHomeProfileMode(user, profileModeQueryParam || profileModePreference, storedProfileMode),
+    [user, profileModeQueryParam, profileModePreference, storedProfileMode]
   );
   const updateListingFilter = useCallback(
     (nextFilter) => {
@@ -876,14 +888,16 @@ export default function Home() {
 
   useEffect(() => {
     const syncProfileModePreference = (mode) => {
-      setProfileModePreference(String(mode || getStoredProfileMode() || "").toLowerCase());
+      const nextMode = normalizeProfileMode(mode || "");
+      setProfileModePreference(nextMode);
+      setStoredProfileMode(nextMode || getStoredProfileMode());
     };
     const handleProfileModeChange = (event) => {
       syncProfileModePreference(event.detail?.mode);
     };
     const handleStorage = (event) => {
       if (!event.key || event.key === PROFILE_MODE_STORAGE_KEY) {
-        syncProfileModePreference();
+        setStoredProfileMode(getStoredProfileMode());
       }
     };
 

@@ -479,6 +479,137 @@ type AdminQuote = {
   lotStatus?: string;
   settlementStatus?: string;
 };
+type AdminErpDashboard = {
+  generatedAt?: string;
+  source?: string;
+  kpis?: Record<string, number>;
+  topFruits?: { fruit?: string; lots?: number; quantity?: number }[];
+  topBuyers?: { id?: string; name?: string; deals?: number; amount?: number }[];
+  topGrowers?: { id?: string; name?: string; deals?: number; amount?: number }[];
+  topStates?: { state?: string; deals?: number; amount?: number }[];
+  growthAnalytics?: { date?: string; deals?: number; gmv?: number; commission?: number }[];
+  dataFoundation?: Record<string, number>;
+};
+type AdminErpPayment = {
+  _id?: string;
+  id?: string;
+  sourceOrder?: string;
+  sourceQuote?: string;
+  provider?: string;
+  gatewayOrderId?: string;
+  gatewayPaymentId?: string;
+  amount?: number;
+  currency?: string;
+  status?: string;
+  escrowStatus?: string;
+  paymentGatewayStatus?: string;
+  createdAt?: string;
+  persisted?: boolean;
+};
+type AdminErpSettlement = {
+  _id?: string;
+  id?: string;
+  sourceOrder?: string;
+  beneficiaryType?: string;
+  beneficiaryName?: string;
+  netAmount?: number;
+  grossAmount?: number;
+  status?: string;
+  provider?: string;
+  kycStatus?: string;
+  bankOrUpiVerified?: boolean;
+  createdAt?: string;
+  persisted?: boolean;
+};
+type AdminErpCommission = {
+  _id?: string;
+  id?: string;
+  sourceOrder?: string;
+  sourceQuote?: string;
+  commissionBase?: number;
+  commissionPercent?: number;
+  commissionAmount?: number;
+  taxAmount?: number;
+  totalAmount?: number;
+  status?: string;
+  invoiceNumber?: string;
+  createdAt?: string;
+  persisted?: boolean;
+};
+type AdminErpDocument = {
+  _id?: string;
+  id?: string;
+  documentType?: string;
+  sourceType?: string;
+  documentNumber?: string;
+  status?: string;
+  totalAmount?: number;
+  createdAt?: string;
+  persisted?: boolean;
+};
+type AdminErpLedgerEntry = {
+  _id?: string;
+  id?: string;
+  sourceType?: string;
+  accountCode?: string;
+  accountName?: string;
+  accountType?: string;
+  partyType?: string;
+  debit?: number;
+  credit?: number;
+  postingDate?: string;
+  memo?: string;
+  persisted?: boolean;
+};
+type AdminErpAuditEvent = {
+  _id?: string;
+  id?: string;
+  module?: string;
+  action?: string;
+  entityType?: string;
+  riskLevel?: string;
+  note?: string;
+  createdAt?: string;
+  persisted?: boolean;
+};
+type AdminErpNotification = {
+  _id?: string;
+  channel?: string;
+  recipient?: string;
+  templateKey?: string;
+  status?: string;
+  createdAt?: string;
+};
+type AdminErpTicket = {
+  _id?: string;
+  ticketNumber?: string;
+  type?: string;
+  subject?: string;
+  status?: string;
+  priority?: string;
+  createdAt?: string;
+};
+type AdminErpRefund = {
+  _id?: string;
+  sourceOrder?: string;
+  amount?: number;
+  reason?: string;
+  status?: string;
+  provider?: string;
+  createdAt?: string;
+};
+type AdminErpData = {
+  dashboard: AdminErpDashboard | null;
+  payments: AdminErpPayment[];
+  settlements: AdminErpSettlement[];
+  commissions: AdminErpCommission[];
+  documents: AdminErpDocument[];
+  ledgerEntries: AdminErpLedgerEntry[];
+  auditEvents: AdminErpAuditEvent[];
+  notifications: AdminErpNotification[];
+  tickets: AdminErpTicket[];
+  refunds: AdminErpRefund[];
+};
 type MandiCommodity = {
   _id: string;
   commodity: string;
@@ -638,6 +769,19 @@ const emptyProductDraft: ProductDraft = {
   chargeableWeightKg: '',
   status: 'AVAILABLE',
   uploadedImages: [],
+};
+
+const emptyAdminErpData: AdminErpData = {
+  dashboard: null,
+  payments: [],
+  settlements: [],
+  commissions: [],
+  documents: [],
+  ledgerEntries: [],
+  auditEvents: [],
+  notifications: [],
+  tickets: [],
+  refunds: [],
 };
 
 const orchardProductCategories = [
@@ -1207,6 +1351,7 @@ function App() {
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [quotes, setQuotes] = useState<AdminQuote[]>([]);
   const [mandiCommodities, setMandiCommodities] = useState<MandiCommodity[]>([]);
+  const [erpData, setErpData] = useState<AdminErpData>(emptyAdminErpData);
   const [loading, setLoading] = useState(false);
   const [viewingFile, setViewingFile] = useState<UploadedFile | null>(null);
   const [adminSearch, setAdminSearch] = useState('');
@@ -1656,6 +1801,67 @@ function App() {
       setAdminUsers(adminsData || []);
       setQuotes(quotesData.quotes || []);
       setMandiCommodities(mandiCommodityData.commodities || []);
+
+      const loadOptionalErpJson = async <T,>(path: string, fallback: T): Promise<T> => {
+        try {
+          const response = await fetch(`${API_BASE}${path}`, { headers: authHeaders });
+          if ([401, 403].includes(response.status)) {
+            throw new Error('ERP_ADMIN_UNAUTHORIZED');
+          }
+          if (!response.ok) return fallback;
+          return (await readResponseJson(response)) as T;
+        } catch (erpError) {
+          if (erpError instanceof Error && erpError.message === 'ERP_ADMIN_UNAUTHORIZED') {
+            throw erpError;
+          }
+          return fallback;
+        }
+      };
+
+      try {
+        const [
+          erpDashboardData,
+          erpPaymentsData,
+          erpSettlementsData,
+          erpCommissionsData,
+          erpDocumentsData,
+          erpLedgerData,
+          erpAuditData,
+          erpNotificationsData,
+          erpTicketsData,
+          erpRefundsData,
+        ] = await Promise.all([
+          loadOptionalErpJson<{ success?: boolean } & AdminErpDashboard>('/admin/erp/dashboard', { success: false }),
+          loadOptionalErpJson<{ payments?: AdminErpPayment[] }>('/admin/erp/payments?limit=100', { payments: [] }),
+          loadOptionalErpJson<{ settlements?: AdminErpSettlement[] }>('/admin/erp/settlements?limit=100', { settlements: [] }),
+          loadOptionalErpJson<{ commissions?: AdminErpCommission[] }>('/admin/erp/commission-ledger?limit=100', { commissions: [] }),
+          loadOptionalErpJson<{ documents?: AdminErpDocument[] }>('/admin/erp/documents?limit=100', { documents: [] }),
+          loadOptionalErpJson<{ ledgerEntries?: AdminErpLedgerEntry[] }>('/admin/erp/accounting/ledger?limit=100', { ledgerEntries: [] }),
+          loadOptionalErpJson<{ auditEvents?: AdminErpAuditEvent[] }>('/admin/erp/audit/events?limit=100', { auditEvents: [] }),
+          loadOptionalErpJson<{ notifications?: AdminErpNotification[] }>('/admin/erp/notifications?limit=100', { notifications: [] }),
+          loadOptionalErpJson<{ tickets?: AdminErpTicket[] }>('/admin/erp/support/tickets?limit=100', { tickets: [] }),
+          loadOptionalErpJson<{ refunds?: AdminErpRefund[] }>('/admin/erp/refunds?limit=100', { refunds: [] }),
+        ]);
+
+        setErpData({
+          dashboard: erpDashboardData.success === false ? null : erpDashboardData,
+          payments: erpPaymentsData.payments || [],
+          settlements: erpSettlementsData.settlements || [],
+          commissions: erpCommissionsData.commissions || [],
+          documents: erpDocumentsData.documents || [],
+          ledgerEntries: erpLedgerData.ledgerEntries || [],
+          auditEvents: erpAuditData.auditEvents || [],
+          notifications: erpNotificationsData.notifications || [],
+          tickets: erpTicketsData.tickets || [],
+          refunds: erpRefundsData.refunds || [],
+        });
+      } catch (erpError) {
+        if (erpError instanceof Error && erpError.message === 'ERP_ADMIN_UNAUTHORIZED') {
+          clearAdminSession('Admin session expired or access was revoked. Please log in again.');
+          return;
+        }
+        setErpData(emptyAdminErpData);
+      }
     } catch (err) {
       setMessage(getNetworkErrorMessage(err));
     } finally {
@@ -2282,6 +2488,11 @@ function App() {
     kyc: kycRequests.length,
     ogVerified: verificationRequests.length,
     mandiCommodities: mandiCommodities.length,
+    deals: orders.length,
+    transactions: erpData.payments.length || orders.length,
+    efruitInvoices: erpData.documents.length,
+    supportDisputes: erpData.tickets.length,
+    analytics: erpData.dashboard?.growthAnalytics?.length || undefined,
     sellers: users.filter((user) => user.role === 'grower').length,
     buyers: users.filter((user) => user.role === 'buyer').length,
     suspendedUsers: users.filter((user) => ['HOLD', 'SUSPENDED', 'TERMINATED'].includes(user.accountStatus || '')).length,
@@ -2453,6 +2664,7 @@ function App() {
             userCount={users.length}
             onOpenTab={openTab}
           />
+          <EfruitErpDashboardPanel dashboard={erpData.dashboard} />
           <ModulePlanPanel plan={modulePlans.efruitDashboard} />
         </section>
       );
@@ -2536,8 +2748,45 @@ function App() {
         </section>
       );
     }
-    if (['deals', 'transactions', 'supportDisputes', 'analytics', 'efruitSettings'].includes(tab)) {
-      return <ModulePlanPanel plan={modulePlans[tab]} />;
+    if (tab === 'deals') {
+      return (
+        <section className="space-y-4">
+          <ModulePlanPanel plan={modulePlans.deals} />
+          <EfruitDealsPanel orders={orders} settlements={erpData.settlements} />
+        </section>
+      );
+    }
+    if (tab === 'transactions') {
+      return (
+        <section className="space-y-4">
+          <ModulePlanPanel plan={modulePlans.transactions} />
+          <EfruitTransactionsPanel
+            payments={erpData.payments}
+            settlements={erpData.settlements}
+            commissions={erpData.commissions}
+            refunds={erpData.refunds}
+          />
+        </section>
+      );
+    }
+    if (tab === 'supportDisputes') {
+      return (
+        <section className="space-y-4">
+          <ModulePlanPanel plan={modulePlans.supportDisputes} />
+          <EfruitSupportDisputesPanel tickets={erpData.tickets} refunds={erpData.refunds} />
+        </section>
+      );
+    }
+    if (tab === 'analytics') {
+      return (
+        <section className="space-y-4">
+          <ModulePlanPanel plan={modulePlans.analytics} />
+          <EfruitAnalyticsPanel dashboard={erpData.dashboard} />
+        </section>
+      );
+    }
+    if (tab === 'efruitSettings') {
+      return <ModulePlanPanel plan={modulePlans.efruitSettings} />;
     }
     if (tab === 'staffUsers' || tab === 'customers') return <ModulePlanPanel plan={modulePlans[tab]} />;
     if (tab === 'sellers') {
@@ -5665,6 +5914,333 @@ function SimpleAdminPanel({ title, text }: { title: string; text: string }) {
         Admin workflow controls will appear here as this module is expanded.
       </div>
     </section>
+  );
+}
+
+const formatAdminMoney = (value?: number) =>
+  `Rs. ${Number(value || 0).toLocaleString('en-IN')}`;
+
+const getAdminRecordKey = (record: { _id?: string; id?: string }, fallback: string) =>
+  record._id || record.id || fallback;
+
+function EfruitErpDashboardPanel({ dashboard }: { dashboard: AdminErpDashboard | null }) {
+  const kpis = dashboard?.kpis || {};
+  const cards = [
+    { label: "Today's GMV", value: formatAdminMoney(kpis.todayGmv) },
+    { label: "Today's Revenue", value: formatAdminMoney(kpis.todayRevenue) },
+    { label: 'Escrow Balance', value: formatAdminMoney(kpis.escrowBalance) },
+    { label: 'Pending Settlements', value: kpis.pendingSettlements || 0 },
+  ];
+
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="text-lg font-bold text-white">ERP Control Center</h2>
+        <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-bold text-emerald-300">
+          {dashboard?.generatedAt ? formatDate(dashboard.generatedAt) : 'Live view'}
+        </span>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {cards.map((card) => (
+          <MetricCard key={card.label} label={card.label} value={card.value} />
+        ))}
+      </div>
+      {!dashboard && (
+        <div className="mt-4">
+          <EmptyState label="ERP metrics will appear after the admin ERP API is available." />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function EfruitDealsPanel({
+  orders,
+  settlements,
+}: {
+  orders: AdminOrder[];
+  settlements: AdminErpSettlement[];
+}) {
+  const completedDeals = orders.filter((order) =>
+    ['RELEASED', 'PAID'].includes(String(order.paymentStatus || '').toUpperCase()) ||
+    String(order.deliveryStatus || '').toUpperCase() === 'DELIVERED'
+  );
+  const escrowDeals = orders.filter((order) => String(order.paymentStatus || '').toUpperCase() === 'ESCROW');
+  const blockedSettlements = settlements.filter((settlement) =>
+    ['FAILED', 'ON_HOLD', 'CANCELLED'].includes(String(settlement.status || '').toUpperCase())
+  );
+
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+      <div className="mb-4 grid gap-3 md:grid-cols-4">
+        <MetricCard label="Confirmed Deals" value={orders.length} />
+        <MetricCard label="Completed" value={completedDeals.length} />
+        <MetricCard label="Escrow / Paid" value={escrowDeals.length} />
+        <MetricCard label="Settlement Exceptions" value={blockedSettlements.length} />
+      </div>
+
+      {!orders.length ? (
+        <EmptyState label="No confirmed marketplace deals found." />
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-slate-800">
+          <div className="hidden grid-cols-[1fr_1fr_0.8fr_0.8fr_1fr] gap-3 bg-slate-950 px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-400 lg:grid">
+            <span>Deal</span>
+            <span>Customer</span>
+            <span>Payment</span>
+            <span>Delivery</span>
+            <span>Settlement</span>
+          </div>
+          <div className="divide-y divide-slate-800">
+            {orders.slice(0, 30).map((order) => (
+              <article key={order._id} className="grid gap-3 bg-slate-900 px-3 py-3 text-sm lg:grid-cols-[1fr_1fr_0.8fr_0.8fr_1fr] lg:items-center">
+                <div className="min-w-0">
+                  <p className="truncate font-extrabold text-white">{order.invoiceNumber || order._id}</p>
+                  <p className="text-xs font-semibold text-slate-400">{formatDate(order.createdAt)}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate font-bold text-slate-100">{order.customer?.name || 'Buyer'}</p>
+                  <p className="text-xs font-semibold text-slate-500">{maskAdminPhone(order.customer?.phone)}</p>
+                </div>
+                <p className="font-bold text-emerald-300">{order.paymentStatus || 'PENDING'}</p>
+                <p className="font-bold text-slate-300">{order.deliveryStatus || 'PENDING'}</p>
+                <div className="text-xs font-semibold text-slate-400">
+                  <p>{order.escrowStatus || order.settlementStatus || 'PENDING_BUYER_PAYMENT'}</p>
+                  <p>{order.settlementEligibility?.settlementReleaseAllowed ? 'Release allowed' : 'Release blocked'}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function EfruitTransactionsPanel({
+  payments,
+  settlements,
+  commissions,
+  refunds,
+}: {
+  payments: AdminErpPayment[];
+  settlements: AdminErpSettlement[];
+  commissions: AdminErpCommission[];
+  refunds: AdminErpRefund[];
+}) {
+  const paymentTotal = payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+  const settlementTotal = settlements.reduce((sum, settlement) => sum + Number(settlement.netAmount || settlement.grossAmount || 0), 0);
+  const commissionTotal = commissions.reduce((sum, commission) => sum + Number(commission.totalAmount || commission.commissionAmount || 0), 0);
+  const refundTotal = refunds.reduce((sum, refund) => sum + Number(refund.amount || 0), 0);
+
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+      <div className="mb-4 grid gap-3 md:grid-cols-4">
+        <MetricCard label="Payments" value={`${payments.length} / ${formatAdminMoney(paymentTotal)}`} />
+        <MetricCard label="Settlements" value={`${settlements.length} / ${formatAdminMoney(settlementTotal)}`} />
+        <MetricCard label="Commission" value={formatAdminMoney(commissionTotal)} />
+        <MetricCard label="Refunds" value={`${refunds.length} / ${formatAdminMoney(refundTotal)}`} />
+      </div>
+
+      {!payments.length && !settlements.length && !commissions.length && !refunds.length ? (
+        <EmptyState label="No ERP transaction records found." />
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-2">
+          <ErpMiniTable
+            title="Payment Center"
+            rows={payments.slice(0, 20).map((payment, index) => ({
+              key: getAdminRecordKey(payment, `payment-${index}`),
+              primary: payment.provider || 'Gateway',
+              secondary: payment.gatewayOrderId || payment.sourceOrder || 'Order',
+              amount: payment.amount,
+              status: payment.status || payment.paymentGatewayStatus || 'PENDING',
+            }))}
+          />
+          <ErpMiniTable
+            title="Settlement Center"
+            rows={settlements.slice(0, 20).map((settlement, index) => ({
+              key: getAdminRecordKey(settlement, `settlement-${index}`),
+              primary: settlement.beneficiaryType || 'Beneficiary',
+              secondary: settlement.beneficiaryName || settlement.sourceOrder || 'Order',
+              amount: settlement.netAmount || settlement.grossAmount,
+              status: settlement.status || 'PENDING',
+            }))}
+          />
+          <ErpMiniTable
+            title="Commission Center"
+            rows={commissions.slice(0, 20).map((commission, index) => ({
+              key: getAdminRecordKey(commission, `commission-${index}`),
+              primary: commission.invoiceNumber || commission.sourceOrder || commission.sourceQuote || 'Commission',
+              secondary: `${commission.commissionPercent || 0}% service fee`,
+              amount: commission.totalAmount || commission.commissionAmount,
+              status: commission.status || 'ACCRUED',
+            }))}
+          />
+          <ErpMiniTable
+            title="Refund Center"
+            rows={refunds.slice(0, 20).map((refund, index) => ({
+              key: getAdminRecordKey(refund, `refund-${index}`),
+              primary: refund.provider || 'Refund',
+              secondary: refund.reason || refund.sourceOrder || 'Order',
+              amount: refund.amount,
+              status: refund.status || 'REQUESTED',
+            }))}
+          />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function EfruitSupportDisputesPanel({
+  tickets,
+  refunds,
+}: {
+  tickets: AdminErpTicket[];
+  refunds: AdminErpRefund[];
+}) {
+  const openTickets = tickets.filter((ticket) => !['RESOLVED', 'CLOSED', 'CANCELLED'].includes(String(ticket.status || '').toUpperCase()));
+  const activeRefunds = refunds.filter((refund) => !['REFUNDED', 'REJECTED', 'CANCELLED'].includes(String(refund.status || '').toUpperCase()));
+
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+      <div className="mb-4 grid gap-3 md:grid-cols-3">
+        <MetricCard label="Open Tickets" value={openTickets.length} />
+        <MetricCard label="Refund Cases" value={activeRefunds.length} />
+        <MetricCard label="Total Records" value={tickets.length + refunds.length} />
+      </div>
+      {!tickets.length && !refunds.length ? (
+        <EmptyState label="No support, dispute, or refund cases found." />
+      ) : (
+        <ErpMiniTable
+          title="Support Queue"
+          rows={[
+            ...tickets.map((ticket, index) => ({
+              key: getAdminRecordKey(ticket, `ticket-${index}`),
+              primary: ticket.ticketNumber || ticket.type || 'Ticket',
+              secondary: ticket.subject || formatDate(ticket.createdAt),
+              status: ticket.status || 'OPEN',
+            })),
+            ...refunds.map((refund, index) => ({
+              key: getAdminRecordKey(refund, `refund-case-${index}`),
+              primary: refund.provider || 'Refund',
+              secondary: refund.reason || refund.sourceOrder || 'Order',
+              amount: refund.amount,
+              status: refund.status || 'REQUESTED',
+            })),
+          ].slice(0, 30)}
+        />
+      )}
+    </section>
+  );
+}
+
+function EfruitAnalyticsPanel({ dashboard }: { dashboard: AdminErpDashboard | null }) {
+  const topFruits = dashboard?.topFruits || [];
+  const topBuyers = dashboard?.topBuyers || [];
+  const topGrowers = dashboard?.topGrowers || [];
+  const topStates = dashboard?.topStates || [];
+  const growth = dashboard?.growthAnalytics || [];
+
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+      {!dashboard ? (
+        <EmptyState label="Analytics will appear after the admin ERP API is available." />
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-2">
+          <ErpMiniTable
+            title="Top Fruits"
+            rows={topFruits.map((fruit, index) => ({
+              key: `${fruit.fruit || 'fruit'}-${index}`,
+              primary: fruit.fruit || 'Fruit',
+              secondary: `${fruit.lots || 0} lots`,
+              amount: fruit.quantity,
+              status: 'LOTS',
+            }))}
+          />
+          <ErpMiniTable
+            title="Top Buyers"
+            rows={topBuyers.map((buyer, index) => ({
+              key: buyer.id || `buyer-${index}`,
+              primary: buyer.name || 'Buyer',
+              secondary: `${buyer.deals || 0} deals`,
+              amount: buyer.amount,
+              status: 'GMV',
+            }))}
+          />
+          <ErpMiniTable
+            title="Top Growers"
+            rows={topGrowers.map((grower, index) => ({
+              key: grower.id || `grower-${index}`,
+              primary: grower.name || 'Grower',
+              secondary: `${grower.deals || 0} deals`,
+              amount: grower.amount,
+              status: 'GMV',
+            }))}
+          />
+          <ErpMiniTable
+            title="Top States"
+            rows={topStates.map((state, index) => ({
+              key: `${state.state || 'state'}-${index}`,
+              primary: state.state || 'State',
+              secondary: `${state.deals || 0} deals`,
+              amount: state.amount,
+              status: 'GMV',
+            }))}
+          />
+          <div className="xl:col-span-2">
+            <ErpMiniTable
+              title="Growth Analytics"
+              rows={growth.map((row, index) => ({
+                key: row.date || `growth-${index}`,
+                primary: row.date || 'Date',
+                secondary: `${row.deals || 0} deals | ${formatAdminMoney(row.commission)}`,
+                amount: row.gmv,
+                status: 'GMV',
+              }))}
+            />
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ErpMiniTable({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: { key: string; primary: string; secondary?: string; amount?: number; status?: string }[];
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-800">
+      <div className="flex items-center justify-between gap-3 bg-slate-950 px-3 py-2">
+        <p className="text-sm font-black text-white">{title}</p>
+        <span className="rounded-full bg-slate-800 px-2 py-1 text-[10px] font-bold text-emerald-300">
+          {rows.length}
+        </span>
+      </div>
+      {!rows.length ? (
+        <div className="p-4">
+          <EmptyState label="No records found." />
+        </div>
+      ) : (
+        <div className="divide-y divide-slate-800">
+          {rows.map((row) => (
+            <div key={row.key} className="grid gap-2 bg-slate-900 px-3 py-3 text-sm md:grid-cols-[1fr_0.9fr_0.7fr] md:items-center">
+              <div className="min-w-0">
+                <p className="truncate font-extrabold text-white">{row.primary}</p>
+                <p className="truncate text-xs font-semibold text-slate-500">{row.secondary || 'Not available'}</p>
+              </div>
+              <p className="font-bold text-emerald-300">{row.amount === undefined ? '-' : formatAdminMoney(row.amount)}</p>
+              <span className="w-fit rounded-full bg-slate-800 px-2.5 py-1 text-xs font-black uppercase text-slate-200">
+                {row.status || 'OPEN'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
