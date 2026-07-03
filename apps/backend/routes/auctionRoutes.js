@@ -35,8 +35,8 @@ const kycRequiredResponse = (res) =>
   res.status(403).json({
     success: false,
     code: "KYC_REQUIRED",
-    message: "KYC approval is required before placing a quote.",
-    msg: "KYC approval is required before placing a quote.",
+    message: "KYC approval is required before placing an offer.",
+    msg: "KYC approval is required before placing an offer.",
   });
 
 const requireApprovedKyc = async (userId, role) => {

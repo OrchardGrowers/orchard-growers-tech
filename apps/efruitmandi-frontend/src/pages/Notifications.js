@@ -20,7 +20,7 @@ import { getEfruitMandiProducts } from "../utils/marketProducts";
 
 const filters = [
   { key: "all", label: "All" },
-  { key: "won", label: "Won Quotes" },
+  { key: "won", label: "Accepted Offers" },
   { key: "deal", label: "Deal Open" },
   { key: "upcoming", label: "Upcoming" },
   { key: "closed", label: "Closed" },
@@ -284,7 +284,7 @@ function NotificationCard({ notification, onOpen, onMarkRead }) {
               className="inline-flex items-center gap-1 rounded-full bg-green-700 px-3 py-1.5 text-[10px] font-extrabold text-white hover:bg-green-800"
             >
               <FaEye />
-              {notification.type === "won" ? (notification.paymentExpired ? "View Quote" : "Pay to Confirm") : "View Listing"}
+              {notification.type === "won" ? (notification.paymentExpired ? "View Offer" : "Pay to Confirm") : "View Listing"}
             </button>
             {!notification.read && (
               <button
@@ -366,16 +366,16 @@ function buildQuoteWonNotification(quote, read, now) {
     orderId: quote.acceptedOrderId,
     read,
     type: "won",
-    title: "You Won the Quote",
+    title: "Your Offer Was Accepted",
     location: quote.lotTitle || "Fruit consignment",
     quantity: quote.lotQuantity || 0,
     imageUrl: "",
     time: formatNotificationTime(quote.acceptedAt || quote.updatedAt || quote.createdAt),
     countdown: paymentExpired ? "Payment window expired" : dueAt ? `Pay within ${formatPaymentCountdown(msLeft)}` : "Confirm payment",
     paymentExpired,
-    kicker: "Quote result",
+    kicker: "Offer result",
     icon: <FaCheck />,
-    statusLabel: "You Won the Quote",
+    statusLabel: "Offer Accepted",
     statusClass: "bg-green-700 text-white",
   };
 }

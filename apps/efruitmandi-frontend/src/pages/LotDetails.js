@@ -154,7 +154,7 @@ export default function LotDetails() {
           roleType: "buyer",
           intent: "quote",
           message:
-            "To keep eFruitMandi safe and trusted, KYC verification is required before placing a quote or deal. Please complete your KYC and wait for admin approval.",
+            "To keep eFruitMandi safe and trusted, KYC verification is required before placing an offer or deal. Please complete your KYC and wait for admin approval.",
         },
       });
       return;
@@ -386,7 +386,7 @@ export default function LotDetails() {
                 onClick={openQuoteFlow}
                 className="rounded-full bg-green-700 px-3 py-2 text-[11px] font-extrabold text-white"
               >
-                Quote Your Price
+               Offer Your Price
               </button>
             )}
           </div>

@@ -208,7 +208,7 @@ export default function Auctions() {
             roleType: "buyer",
             intent: "quote",
             message:
-              "To keep eFruitMandi safe and trusted, KYC verification is required before placing a quote or deal. Please complete your KYC and wait for admin approval.",
+              "To keep eFruitMandi safe and trusted, KYC verification is required before placing an offer or deal. Please complete your KYC and wait for admin approval.",
           },
         });
         return;
@@ -245,7 +245,7 @@ export default function Auctions() {
     <>
       <SEO
         title="Live Fruit Lots for Bulk Buyers | eFruitMandi"
-        description="Browse live fresh fruit lots, orchard consignments, grades, quantities and buyer quote opportunities on eFruitMandi."
+        description="Browse live fresh fruit lots, orchard consignments, grades, quantities and buyer offer opportunities on eFruitMandi."
         canonical="/auctions"
       />
       <div className="mx-auto max-w-6xl pb-20">
@@ -259,7 +259,7 @@ export default function Auctions() {
             <div>
               <h1 className="text-2xl font-black leading-tight md:text-3xl">Live Fruit Lots</h1>
               <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-green-50">
-                Fresh orchard consignments currently open for buyer quotes and complete-lot deals.
+                Fresh orchard consignments currently open for buyer offers and complete-lot deals.
               </p>
             </div>
             <button
@@ -395,7 +395,7 @@ function FeaturedLot({ auction, canDeal, onView, onQuote }) {
           </div>
 
           <p className="mt-4 text-xs font-bold text-gray-600">
-            {grower.orchardName || grower.businessName || grower.name || "Verified grower"} is accepting complete-lot buyer quotes.
+            {grower.orchardName || grower.businessName || grower.name || "Verified grower"} is accepting complete-lot buyer offers.
           </p>
 
           <div className="mt-4 flex flex-wrap gap-2">
@@ -405,7 +405,7 @@ function FeaturedLot({ auction, canDeal, onView, onQuote }) {
             </button>
             <button type="button" onClick={onQuote} className="inline-flex items-center gap-2 rounded-full bg-green-50 px-4 py-2 text-xs font-extrabold text-green-800 ring-1 ring-green-100 hover:bg-green-100">
               <FaRupeeSign />
-              {canDeal ? "Quote Price" : "Check Quote Access"}
+              {canDeal ? "Offer Price" : "Check Offer Access"}
             </button>
           </div>
         </div>
@@ -565,17 +565,17 @@ function LiveLotCard({
           )}
           <button type="button" onClick={onDeal} className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-green-700 px-3 py-2 text-xs font-extrabold text-white hover:bg-green-800">
             <FaRupeeSign />
-            Quote Your Price
+            Offer Lot Price
           </button>
         </div>
       ) : (
         <div className="mt-3 space-y-2 rounded-md bg-gray-50 p-3">
           <p className="text-[10px] font-extrabold text-gray-600">
-            {isBuyer ? "KYC approval is required before quoting." : "Buyer account required to participate."}
+            {isBuyer ? "KYC approval is required before offering." : "Buyer account required to participate."}
           </p>
           <button type="button" onClick={onDeal} className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-green-700 px-3 py-2 text-xs font-extrabold text-white hover:bg-green-800">
             <FaRupeeSign />
-            Quote Your Price
+            Offer Lot Price
           </button>
         </div>
       )}
@@ -640,7 +640,7 @@ function EmptyState() {
       <FaSeedling className="mx-auto text-2xl" />
       <p className="mt-3 text-sm font-black">No live fruit lots yet.</p>
       <p className="mt-1 text-xs font-bold text-green-800">
-        Fresh lots will appear here when growers open deals for buyer quotes.
+        Fresh lots will appear here when growers open deals for buyer offers.
       </p>
     </div>
   );

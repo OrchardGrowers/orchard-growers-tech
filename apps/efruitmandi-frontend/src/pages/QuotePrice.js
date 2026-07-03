@@ -87,7 +87,7 @@ export default function QuotePrice() {
   const submitQuote = async (event) => {
     event.preventDefault();
     if (isOwnLot) {
-      setMessage("You cannot quote on your own listed lot.");
+      setMessage("You cannot make an offer on your own listed lot.");
       return;
     }
 
@@ -117,9 +117,9 @@ export default function QuotePrice() {
         category: product?.category || product?.fruitName || "",
         value: Number(res.data?.quotation?.quotedPrice || 0),
       });
-      setMessage("Quote submitted successfully.");
+      setMessage("Offer submitted successfully.");
     } catch (err) {
-      setMessage(err.response?.data?.message || err.response?.data?.msg || "Quote could not be submitted.");
+      setMessage(err.response?.data?.message || err.response?.data?.msg || "Offer could not be submitted.");
     } finally {
       setSaving(false);
     }
@@ -128,7 +128,7 @@ export default function QuotePrice() {
   return (
     <div className="mx-auto w-full max-w-full overflow-x-hidden pb-[calc(160px+env(safe-area-inset-bottom))] md:max-w-6xl md:pb-20">
       <section className="section w-full max-w-full rounded-md border border-gray-200 bg-white p-3 md:p-4">
-        <p className="text-xs font-extrabold uppercase tracking-wide text-green-700">Quote Your Price</p>
+        <p className="text-xs font-extrabold uppercase tracking-wide text-green-700">Offer Your Price</p>
         <div className="mt-1 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
           <div className="min-w-0">
             <h1 className="text-lg font-extrabold leading-tight text-gray-950 md:text-xl">
@@ -151,7 +151,7 @@ export default function QuotePrice() {
         <section className="mt-3 rounded-md border border-green-200 bg-white p-4">
           <h2 className="text-lg font-extrabold text-gray-950">Register as Fruit Buyer first</h2>
           <p className="mt-2 text-sm font-bold leading-6 text-gray-600">
-            Only registered fruit buyers can quote prices for grower lots. Create or update your buyer profile, then return to this lot.
+            Only registered fruit buyers can offer prices for grower lots. Create or update your buyer profile, then return to this lot.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <button
@@ -172,9 +172,9 @@ export default function QuotePrice() {
         </section>
       ) : !isKycApproved ? (
         <section className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-4">
-          <h2 className="text-lg font-extrabold text-amber-950">Complete Your KYC to Quote Your Price</h2>
+          <h2 className="text-lg font-extrabold text-amber-950">Complete Your KYC to Offer Your Price</h2>
           <p className="mt-2 text-sm font-bold leading-6 text-amber-800">
-            To keep eFruitMandi safe and trusted, KYC verification is required before placing a quote or deal. Please complete your KYC and wait for admin approval.
+            To keep eFruitMandi safe and trusted, KYC verification is required before placing an offer or deal. Please complete your KYC and wait for admin approval.
           </p>
           <p className="mt-2 rounded-md bg-white px-3 py-2 text-sm font-extrabold text-amber-900">
             Current KYC status: {kycStatusLabel}
@@ -273,7 +273,7 @@ export default function QuotePrice() {
             <div className="mt-4 w-full max-w-full rounded-md bg-green-50 p-3 text-sm font-bold text-green-900">
               <div className="flex items-center gap-2">
                 <FaCalculator />
-                <span>Buyer quote preview</span>
+                <span>Buyer offer preview</span>
               </div>
               <BuyerQuoteSummary breakdown={quotation || preview} />
             </div>
@@ -290,7 +290,7 @@ export default function QuotePrice() {
               className="mt-4 hidden w-full items-center justify-center gap-2 rounded-md bg-green-700 px-4 py-3 text-sm font-extrabold text-white md:inline-flex"
             >
               <FaSeedling />
-              {saving ? "Submitting..." : "Submit Quote"}
+              {saving ? "Submitting..." : "Submit Offer"}
             </button>
             <div className="mt-3 hidden justify-center md:flex">
               <BackHomeButton />

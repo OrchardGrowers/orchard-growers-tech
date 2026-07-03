@@ -62,10 +62,10 @@ export default function FruitLotsPage() {
       },
       {
         "@type": "Question",
-        name: `Can buyers request quotations for ${fruit.name} lots?`,
+        name: `Can buyers submit offers for ${fruit.name} lots?`,
         acceptedAnswer: {
           "@type": "Answer",
-          text: `Yes. Buyers can explore available ${fruit.name} fruit lots and request quotations according to eFruitMandi platform rules.`,
+          text: `Yes. Buyers can explore available ${fruit.name} fruit lots and submit offers according to eFruitMandi platform rules.`,
         },
       },
       {
@@ -204,7 +204,7 @@ export default function FruitLotsPage() {
             buyers beyond local mandi networks. Clear information such as Fruit
             Lot No., Lot Size, grade, total boxes and packing details helps
             buyers understand the available quantity and quality before
-            requesting quotations.
+            receiving offers.
           </p>
 
           <h2 className="mt-6 text-base font-extrabold text-black">
@@ -213,7 +213,7 @@ export default function FruitLotsPage() {
 
           <p className="mt-2 text-sm font-semibold leading-relaxed text-gray-700">
             Bulk buyers can explore {fruit.name} lots, compare available
-            quantities, review quality details and request quotations for
+            quantities, review quality details and submit offers for
             complete-lot deals. This helps buyers save time while sourcing fresh
             produce directly from growing regions.
           </p>
@@ -225,7 +225,7 @@ export default function FruitLotsPage() {
           <ol className="mt-2 list-decimal pl-5 text-sm font-semibold leading-relaxed text-gray-700">
             <li>Growers list their fruit lot with complete lot details.</li>
             <li>Buyers explore available fruit lots on the marketplace.</li>
-            <li>Interested buyers request quotations.</li>
+            <li>Interested buyers submit offers.</li>
             <li>Growers and buyers proceed according to platform rules.</li>
             <li>Logistics and payment flow follow eFruitMandi policies.</li>
           </ol>
@@ -241,8 +241,8 @@ export default function FruitLotsPage() {
             />
 
             <FAQ
-              question={`Can buyers request quotations for ${fruit.name} lots?`}
-              answer={`Yes. Buyers can explore available ${fruit.name} fruit lots and request quotations according to eFruitMandi platform rules.`}
+              question={`Can buyers submit offers for ${fruit.name} lots?`}
+              answer={`Yes. Buyers can explore available ${fruit.name} fruit lots and submit offers according to eFruitMandi platform rules.`}
             />
 
             <FAQ

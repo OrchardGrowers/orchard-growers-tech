@@ -409,8 +409,8 @@ const createQuoteForLot = async (req, res) => {
       return res.status(403).json({
         success: false,
         code: "KYC_REQUIRED",
-        message: "KYC approval is required before placing a quote.",
-        msg: "KYC approval is required before placing a quote.",
+        message: "KYC approval is required before placing an offer.",
+        msg: "KYC approval is required before placing an offer.",
       });
     }
 
@@ -419,7 +419,7 @@ const createQuoteForLot = async (req, res) => {
     }
 
     if (isOwnListedLot(product, buyer, req.user)) {
-      return res.status(400).json({ msg: "You cannot quote on your own listed lot." });
+      return res.status(400).json({ msg: "You cannot make an offer on your own listed lot." });
     }
 
     const existingActiveQuote = await Quotation.findOne({
@@ -429,7 +429,7 @@ const createQuoteForLot = async (req, res) => {
     });
     if (existingActiveQuote) {
       return res.status(409).json({
-        msg: "You already have a pending quote for this lot. Please wait for grower action before submitting another quote.",
+        msg: "You already have a pending offer for this lot. Please wait for grower action before submitting another offer.",
         quotation: formatQuote(existingActiveQuote, "buyer"),
       });
     }
@@ -509,9 +509,9 @@ const createQuoteForLot = async (req, res) => {
     });
   } catch (err) {
     if (err?.code === 11000) {
-      return res.status(409).json({ msg: "You already have a pending quote for this lot." });
+      return res.status(409).json({ msg: "You already have a pending offer for this lot." });
     }
-    res.status(400).json({ msg: err.message || "Quotation could not be saved" });
+    res.status(400).json({ msg: err.message || "Offer could not be saved" });
   }
 };
 
@@ -526,7 +526,7 @@ router.get("/grower", protect, authorize("grower"), async (req, res) => {
     ).lean();
     res.json({ success: true, quotes: quotations.map((quote) => formatQuote(quote, "grower")) });
   } catch (err) {
-    res.status(500).json({ msg: err.message || "Could not load grower quotes" });
+    res.status(500).json({ msg: err.message || "Could not load grower offers" });
   }
 });
 
@@ -543,7 +543,7 @@ router.get("/buyer", protect, authorize("buyer"), async (req, res) => {
       quotes: quotations.map((quote) => formatQuote({ ...quote, acceptedOrder: orderByQuoteId.get(String(quote._id)) }, "buyer")),
     });
   } catch (err) {
-    res.status(500).json({ msg: err.message || "Could not load buyer quotes" });
+    res.status(500).json({ msg: err.message || "Could not load buyer offers" });
   }
 });
 
@@ -552,7 +552,7 @@ router.get("/admin", protect, authorize("SUPER_ADMIN", "ADMIN", "UNIT_MANAGER", 
     const quotations = await populateQuoteQuery(Quotation.find().sort({ createdAt: -1 }).limit(500)).lean();
     res.json({ success: true, quotes: quotations.map((quote) => formatQuote(quote, "admin")) });
   } catch (err) {
-    res.status(500).json({ msg: err.message || "Could not load quotes" });
+    res.status(500).json({ msg: err.message || "Could not load offers" });
   }
 });
 
@@ -564,15 +564,15 @@ router.patch("/:quoteId", protect, authorize("buyer"), async (req, res) => {
     });
 
     if (!quotation || !quotation.lot) {
-      return res.status(404).json({ msg: "Quote not found" });
+      return res.status(404).json({ msg: "Offer not found" });
     }
 
     if (quotation.buyer?.toString() !== req.user.id?.toString()) {
-      return res.status(403).json({ msg: "You can update only your own quote" });
+      return res.status(403).json({ msg: "You can update only your own offer" });
     }
 
     if (!["pending", "submitted"].includes(normalizeQuoteStatus(quotation.status))) {
-      return res.status(400).json({ msg: "Only pending quotes can be updated" });
+      return res.status(400).json({ msg: "Only pending offers can be updated" });
     }
 
     const buyer = await User.findById(req.user.id).select("name phone businessName buyerContactPerson mapLatitude mapLongitude");
@@ -628,7 +628,7 @@ router.patch("/:quoteId", protect, authorize("buyer"), async (req, res) => {
     const updated = await populateQuoteQuery(Quotation.findById(quotation._id)).lean();
     res.json({ success: true, quotation: formatQuote(updated || quotation.toObject(), "buyer") });
   } catch (err) {
-    res.status(400).json({ msg: err.message || "Quote could not be updated" });
+    res.status(400).json({ msg: err.message || "Offer could not be updated" });
   }
 });
 
@@ -636,20 +636,20 @@ router.patch("/:quoteId/accept", protect, authorize("grower"), requirePaymentPar
   try {
     const quotation = await Quotation.findById(req.params.quoteId).populate("lot");
     if (!quotation || !quotation.lot) {
-      return res.status(404).json({ msg: "Quote not found" });
+      return res.status(404).json({ msg: "Offer not found" });
     }
 
     const lotOwner = quotation.lot.createdBy?.toString();
     if (lotOwner !== req.user.id?.toString() || quotation.grower?.toString() !== req.user.id?.toString()) {
-      return res.status(403).json({ msg: "You can accept quotes only on your own lots" });
+      return res.status(403).json({ msg: "You can accept offers only on your own lots" });
     }
 
     if (quotation.lot.acceptedQuoteId && quotation.lot.acceptedQuoteId.toString() !== quotation._id.toString()) {
-      return res.status(409).json({ msg: "A quote has already been accepted for this lot" });
+      return res.status(409).json({ msg: "An offer has already been accepted for this lot" });
     }
 
     if (!["pending", "submitted"].includes(normalizeQuoteStatus(quotation.status))) {
-      return res.status(400).json({ msg: "Only pending quotes can be accepted" });
+      return res.status(400).json({ msg: "Only pending offers can be accepted" });
     }
 
     quotation.status = "accepted";
@@ -721,9 +721,9 @@ router.patch("/:quoteId/accept", protect, authorize("grower"), requirePaymentPar
       sendMobileMessage({
         phone: buyer.phone,
         platform: "efruitmandi",
-        message: `Hi ${buyerName}, you won the quote for ${quotation.lotTitle || "your fruit lot"}. Please pay Rs. ${amount} within 15 minutes to confirm the consignment.`,
+        message: `Hi ${buyerName}, your offer was accepted for ${quotation.lotTitle || "your fruit lot"}. Please pay Rs. ${amount} within 15 minutes to confirm the consignment.`,
       }).catch((smsErr) => {
-        console.warn("Quote won SMS could not be sent", {
+        console.warn("Offer accepted SMS could not be sent", {
           quoteId: quotation._id?.toString(),
           buyerId: quotation.buyer?.toString(),
           code: smsErr?.code || "",
@@ -735,7 +735,7 @@ router.patch("/:quoteId/accept", protect, authorize("grower"), requirePaymentPar
     const updated = await populateQuoteQuery(Quotation.findById(quotation._id)).lean();
     res.json({ success: true, quote: formatQuote(updated || quotation.toObject(), "grower") });
   } catch (err) {
-    res.status(500).json({ msg: err.message || "Quote could not be accepted" });
+    res.status(500).json({ msg: err.message || "Offer could not be accepted" });
   }
 });
 
@@ -743,15 +743,15 @@ router.patch("/:quoteId/reject", protect, authorize("grower"), async (req, res) 
   try {
     const quotation = await Quotation.findById(req.params.quoteId).populate("lot");
     if (!quotation || !quotation.lot) {
-      return res.status(404).json({ msg: "Quote not found" });
+      return res.status(404).json({ msg: "Offer not found" });
     }
 
     if (quotation.lot.createdBy?.toString() !== req.user.id?.toString()) {
-      return res.status(403).json({ msg: "You can reject quotes only on your own lots" });
+      return res.status(403).json({ msg: "You can reject offers only on your own lots" });
     }
 
     if (!["pending", "submitted"].includes(normalizeQuoteStatus(quotation.status))) {
-      return res.status(400).json({ msg: "Only pending quotes can be rejected" });
+      return res.status(400).json({ msg: "Only pending offers can be rejected" });
     }
 
     quotation.status = "rejected";
@@ -761,19 +761,19 @@ router.patch("/:quoteId/reject", protect, authorize("grower"), async (req, res) 
     const updated = await populateQuoteQuery(Quotation.findById(quotation._id)).lean();
     res.json({ success: true, quote: formatQuote(updated || quotation.toObject(), "grower") });
   } catch (err) {
-    res.status(500).json({ msg: err.message || "Quote could not be rejected" });
+    res.status(500).json({ msg: err.message || "Offer could not be rejected" });
   }
 });
 
 router.get("/:quoteId", protect, authorize("buyer", "grower"), async (req, res) => {
   try {
     const quotation = await populateQuoteQuery(Quotation.findById(req.params.quoteId)).lean();
-    if (!quotation) return res.status(404).json({ msg: "Quote not found" });
+    if (!quotation) return res.status(404).json({ msg: "Offer not found" });
     const requesterId = req.user.id?.toString();
     const isBuyerRequester = quotation.buyer?._id?.toString() === requesterId;
     const isGrowerRequester = quotation.grower?._id?.toString() === requesterId;
     if (!isBuyerRequester && !isGrowerRequester) {
-      return res.status(403).json({ msg: "You cannot view this quote" });
+      return res.status(403).json({ msg: "You cannot view this offer" });
     }
     const requestedView = String(req.query.view || "").trim().toLowerCase();
     const visibility =
@@ -789,7 +789,7 @@ router.get("/:quoteId", protect, authorize("buyer", "grower"), async (req, res) 
       : null;
     res.json({ success: true, quote: formatQuote({ ...quotation, acceptedOrder }, visibility) });
   } catch (err) {
-    res.status(500).json({ msg: err.message || "Could not load quote" });
+    res.status(500).json({ msg: err.message || "Could not load offer" });
   }
 });
 
@@ -831,7 +831,7 @@ router.get("/lots/:lotId", protect, authorize("buyer", "grower"), async (req, re
 
     res.json({ success: true, sellerView: false, quotations });
   } catch (err) {
-    res.status(500).json({ msg: err.message || "Could not load quotations" });
+    res.status(500).json({ msg: err.message || "Could not load offerings" });
   }
 });
 

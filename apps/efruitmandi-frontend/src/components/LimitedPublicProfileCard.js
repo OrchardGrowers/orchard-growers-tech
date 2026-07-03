@@ -81,7 +81,7 @@ export default function LimitedPublicProfileCard({
               <ProfileLine icon={<FaSeedling />} text={`${safeProfile.totalLots} listed lots`} />
             )}
             {safeProfile.totalDeals !== undefined && (
-              <ProfileLine icon={<FaHandshake />} text={`${safeProfile.totalDeals} deals / quotes`} />
+              <ProfileLine icon={<FaHandshake />} text={`${safeProfile.totalDeals} deals / offers`} />
             )}
           </div>
         </div>

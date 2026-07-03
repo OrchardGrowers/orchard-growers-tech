@@ -2,7 +2,7 @@ export const fruitSeoPages = {
   buyers: {
     apple: {
       title: "Apple Buyers in India | Buy Apples Directly from Growers | eFruitMandi",
-      description: "Find apple growers, apple lots, grading, packing, quotation, logistics and direct sourcing support through eFruitMandi.",
+      description: "Find apple growers, apple lots, grading, packing, offers, logistics and direct sourcing support through eFruitMandi.",
       h1: "Apple Buyers in India",
       intro: "eFruitMandi helps apple buyers, wholesalers, traders, commission agents, retailers and bulk purchasers discover apple lots directly from growers and orchard owners.",
       sections: [
@@ -10,7 +10,7 @@ export const fruitSeoPages = {
           title: "Apple sourcing through eFruitMandi",
           body: [
             "Apple buyers can review available lots, fruit variety, grade, packing, estimated quantity, orchard location, harvest stage, photos and seller information where available.",
-            "The platform supports quotation-based communication. Buyers can compare lots and share rates through a documented process instead of depending only on scattered phone calls."
+            "The platform supports offer-based communication. Buyers can compare lots and share rates through a documented process instead of depending only on scattered phone calls."
           ]
         },
         {
@@ -33,7 +33,7 @@ export const fruitSeoPages = {
   growers: {
     apple: {
       title: "Apple Growers in India | List Apple Lots Online | eFruitMandi",
-      description: "Apple growers can list fruit lots, share grading and packing details, receive buyer quotations and improve market reach through eFruitMandi.",
+      description: "Apple growers can list fruit lots, share grading and packing details, receive buyer offers and improve market reach through eFruitMandi.",
       h1: "Apple Growers in India",
       intro: "eFruitMandi helps apple growers and orchard owners list produce online, receive buyer interest and manage fruit trade communication with better documentation.",
       sections: [
@@ -41,7 +41,7 @@ export const fruitSeoPages = {
           title: "Apple lot listing for growers",
           body: [
             "Apple growers can list fruit type, variety, grade, size, packing, expected quantity, harvest stage, orchard location, photos and dispatch timeline.",
-            "Clear information helps buyers understand quality and share more practical quotations."
+            "Clear information helps buyers understand quality and share more practical offers."
           ]
         },
         {
@@ -64,14 +64,14 @@ export const fruitSeoPages = {
   marketPrice: {
     apple: {
       title: "Apple Market Price | Apple Mandi Bhav and Rate Discovery | eFruitMandi",
-      description: "Understand apple market price, mandi bhav, buyer quotations, grade-wise rates, packing impact and transport factors with eFruitMandi.",
+      description: "Understand apple market price, mandi bhav, buyer offers, grade-wise rates, packing impact and transport factors with eFruitMandi.",
       h1: "Apple Market Price and Mandi Bhav",
       intro: "Apple market price depends on grade, size, colour, variety, packing, market demand, buyer location, transport distance and harvest timing.",
       sections: [
         {
           title: "Apple rate discovery",
           body: [
-            "eFruitMandi helps growers and buyers compare apple lots and quotations before final trade.",
+            "eFruitMandi helps growers and buyers compare apple lots and offers before final trade.",
             "The platform does not guarantee a fixed apple mandi rate. Rates change according to market demand, quality and commercial feasibility."
           ]
         },
@@ -79,14 +79,14 @@ export const fruitSeoPages = {
           title: "Factors affecting apple price",
           body: [
             "Important factors include A grade, B grade, mixed grade, colour percentage, carton packing, storage condition, location, quantity, maturity and road distance.",
-            "Transport cost, loading time, weather and buyer demand can also affect final apple quotation."
+            "Transport cost, loading time, weather and buyer demand can also affect final apple offer."
           ]
         },
         {
           title: "Use price information carefully",
           body: [
             "Apple market price should be used as guidance, not as a guaranteed selling price.",
-            "Growers should compare quotations, quality expectations, payment clarity and logistics before final confirmation."
+            "Growers should compare offers, quality expectations, payment clarity and logistics before final confirmation."
           ]
         }
       ]

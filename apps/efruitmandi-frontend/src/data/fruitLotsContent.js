@@ -6,7 +6,7 @@ const buildFruit = ({
 }) => ({
   name,
   title: `${name} Fruit Lots for Bulk Buyers | eFruitMandi`,
-  description: `Discover ${name.toLowerCase()} fruit lots from verified growers. Explore Fruit Lot No., Lot Size, grade, packing details, orchard location and buyer quotation options on eFruitMandi.`,
+  description: `Discover ${name.toLowerCase()} fruit lots from verified growers. Explore Fruit Lot No., Lot Size, grade, packing details, orchard location and buyer offer options on eFruitMandi.`,
   h1: `${name} Fruit Lots for Bulk Buyers`,
   intro: `eFruitMandi helps ${name.toLowerCase()} growers list their ${name} Fruit Lots online and connect with bulk fruit buyers across India.`,
   varieties,

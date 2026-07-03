@@ -25,7 +25,7 @@ Focus: Fruit lots, fruit buyers, fruit growers, logistics, KYC verified trading,
 
 ## Platform Summary
 
-eFruitMandi helps growers list fruit lots and receive quotations from verified buyers. Buyers can discover fruit lots, submit quotes, and complete payments through a secure platform flow. Logistics partners can participate in fruit transportation after registration and KYC verification.
+eFruitMandi helps growers list fruit lots and receive offers from verified buyers. Buyers can discover fruit lots, submit offers, and complete payments through a secure platform flow. Logistics partners can participate in fruit transportation after registration and KYC verification.
 
 ## Main Fruit Categories
 

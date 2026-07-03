@@ -79,7 +79,7 @@ export default function PressReleasePage() {
               <p>
                 eFruitMandi has been created to address these challenges by
                 bringing fruit listings, buyer discovery, grower profiles,
-                quotation flow, logistics coordination and trust-based
+                offer flow, logistics coordination and trust-based
                 verification into one digital ecosystem. The platform is focused
                 on making fruit trading simpler, faster and more transparent
                 while keeping the practical needs of Indian growers and buyers

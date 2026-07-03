@@ -189,7 +189,7 @@ export default function Payment() {
         </section>
 
         <section className="rounded bg-white p-5 shadow lg:col-span-2">
-          <h3 className="mb-3 text-lg font-bold">Grade-wise Buyer Quote</h3>
+          <h3 className="mb-3 text-lg font-bold">Grade-wise Buyer Offer</h3>
           {gradeRows.length ? (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[560px] text-left text-sm">
@@ -198,7 +198,7 @@ export default function Payment() {
                     <th className="py-2">Grade</th>
                     <th className="py-2">Quantity</th>
                     <th className="py-2">Buyer Rate</th>
-                    <th className="py-2 text-right">Buyer Quote Amount</th>
+                    <th className="py-2 text-right">Buyer Offer Amount</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -215,7 +215,7 @@ export default function Payment() {
             </div>
           ) : (
             <p className="rounded border border-gray-100 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-600">
-              Grade-wise buyer quote will appear after the accepted quote is available.
+              Grade-wise buyer offer will appear after the accepted offer is available.
             </p>
           )}
         </section>

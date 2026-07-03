@@ -220,7 +220,7 @@ export default function PolicyPage({ type }) {
                   <h2 className="text-xl font-black">Need help?</h2>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-green-50">
                     Contact {business.platform} support for account, KYC, listing,
-                    quotation, payment, delivery, or dispute questions.
+                    offer, payment, delivery, or dispute questions.
                   </p>
                   <div className="mt-4 flex flex-wrap gap-3">
                     <a
@@ -262,7 +262,7 @@ function ArticleIntro({ business }) {
       <p className="mt-3 text-lg leading-8 text-gray-800">
         eFruitMandi is built as a practical marketplace layer for India’s fresh
         fruit ecosystem. It supports growers, buyers, and logistics partners with
-        structured listings, documented quotations, KYC, delivery references, and
+        structured listings, documented offers, KYC, delivery references, and
         support workflows.
       </p>
       <div className="mt-5 grid gap-3 sm:grid-cols-3">

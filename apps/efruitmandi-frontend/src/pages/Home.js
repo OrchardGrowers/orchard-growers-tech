@@ -176,6 +176,8 @@ const API_BASE_URL = normalizeApiUrl(
 const FILE_BASE_URL = normalizeBaseUrl(
   process.env.VITE_FILE_BASE_URL || process.env.REACT_APP_FILE_BASE_URL || API_ORIGIN
 );
+const PROFILE_MODE_STORAGE_KEY = "efruitmandiProfileMode";
+const PROFILE_MODE_CHANGE_EVENT = "efruitmandi-profile-mode-change";
 let apiClientPromise = null;
 const getApiClient = () => {
   if (!apiClientPromise) {
@@ -245,6 +247,41 @@ const resolveProfileMediaUrl = (value = "") => {
   const cleanPath = url.replace(/^\/+/, "");
   if (cleanPath.startsWith("uploads/")) return `${FILE_BASE_URL}/${cleanPath}`;
   return url.startsWith("/") ? url : `/${url}`;
+};
+
+const getStoredProfileMode = () => {
+  try {
+    if (typeof window === "undefined" || !window.localStorage) return "";
+    return window.localStorage.getItem(PROFILE_MODE_STORAGE_KEY) || "";
+  } catch {
+    return "";
+  }
+};
+
+const resolveHomeProfileMode = (user = {}, requestedMode = "") => {
+  const mode = String(requestedMode || "").toLowerCase();
+  if (mode === "buyer" && hasBuyerProfile(user)) return "buyer";
+  if (mode === "grower" && hasGrowerProfile(user)) return "grower";
+  if (mode === "driver" && hasDriverProfile(user)) return "driver";
+
+  const role = String(user.activeRole || user.selectedRole || "").toLowerCase();
+  if (role === "grower" && hasGrowerProfile(user)) return "grower";
+  if (role === "buyer" && hasBuyerProfile(user)) return "buyer";
+  if (role === "driver" && hasDriverProfile(user)) return "driver";
+
+  const availableProfiles = [
+    hasGrowerProfile(user),
+    hasBuyerProfile(user),
+    hasDriverProfile(user),
+  ].filter(Boolean).length;
+  const primaryRole = String(user.role || "").toLowerCase();
+  if (availableProfiles <= 1 && primaryRole === "grower" && hasGrowerProfile(user)) return "grower";
+  if (availableProfiles <= 1 && primaryRole === "buyer" && hasBuyerProfile(user)) return "buyer";
+  if (availableProfiles <= 1 && primaryRole === "driver" && hasDriverProfile(user)) return "driver";
+  if (hasGrowerProfile(user)) return "grower";
+  if (hasBuyerProfile(user)) return "buyer";
+  if (hasDriverProfile(user)) return "driver";
+  return "visitor";
 };
 
 const CLOUDINARY_UPLOAD_SEGMENT = "/image/upload/";
@@ -532,6 +569,7 @@ export default function Home() {
     : DEFAULT_LISTING_FILTER;
   const [listingSearch, setListingSearch] = useState(listingSearchParam);
   const [user, setUser] = useState(() => getCurrentUser());
+  const [profileModePreference, setProfileModePreference] = useState(() => getStoredProfileMode());
   const [products, setProducts] = useState([]);
   const [auctions, setAuctions] = useState([]);
   const [publicGrowers, setPublicGrowers] = useState([]);
@@ -552,6 +590,10 @@ export default function Home() {
   useArrowKeyScroll(centerColumnRef);
   const isGrower = isGrowerAccount(user);
   const isPublicVisitor = !hasAccessToken();
+  const activeProfileMode = useMemo(
+    () => resolveHomeProfileMode(user, profileModePreference),
+    [user, profileModePreference]
+  );
   const updateListingFilter = useCallback(
     (nextFilter) => {
       setSearchParams(
@@ -833,6 +875,27 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    const syncProfileModePreference = (mode) => {
+      setProfileModePreference(String(mode || getStoredProfileMode() || "").toLowerCase());
+    };
+    const handleProfileModeChange = (event) => {
+      syncProfileModePreference(event.detail?.mode);
+    };
+    const handleStorage = (event) => {
+      if (!event.key || event.key === PROFILE_MODE_STORAGE_KEY) {
+        syncProfileModePreference();
+      }
+    };
+
+    window.addEventListener(PROFILE_MODE_CHANGE_EVENT, handleProfileModeChange);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener(PROFILE_MODE_CHANGE_EVENT, handleProfileModeChange);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
+
+  useEffect(() => {
     const timer = window.setInterval(() => setMarketClock(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
@@ -920,7 +983,7 @@ export default function Home() {
           roleType: "buyer",
           intent: "quote",
           message:
-            "To keep eFruitMandi safe and trusted, KYC verification is required before placing a quote or deal. Please complete your KYC and wait for admin approval.",
+            "To keep eFruitMandi safe and trusted, KYC verification is required before placing an offer or deal. Please complete your KYC and wait for admin approval.",
         },
       });
       return;
@@ -1054,6 +1117,7 @@ export default function Home() {
       <aside className="auto-hide-column-scroll h-full min-h-0 space-y-2.5 overflow-y-auto pr-1 overscroll-contain">
         <ProfileCard
           user={user}
+          profileMode={activeProfileMode}
           onOpen={openProfileEntry}
         />
         {deferredSectionsReady && (
@@ -2147,7 +2211,7 @@ function DesktopSection({
   if (section === "liveLots") {
     const sectionTextByGroup = {
       live: "Fresh orchard deals available for mandi buyers.",
-      upcoming: "Scheduled deals will open for price quoting automatically at their live time.",
+      upcoming: "Scheduled deals will open for price offers automatically at their live time.",
       closed: "Recently closed fruit deals remain available to review.",
       empty: "Fresh orchard deals available for mandi buyers.",
     };
@@ -2172,7 +2236,7 @@ function DesktopSection({
     return (
       <WebSectionPost
         title="Upcoming Fruit Deals"
-        text="Scheduled lots will open for price quoting automatically at their live time."
+        text="Scheduled lots will open for price offers automatically at their live time."
       >
         <DesktopLotPost
           items={upcomingLots}
@@ -2383,7 +2447,7 @@ function DesktopLotPost({
                 disabled={!productId}
                 className="min-w-0 rounded-full bg-green-700 px-2 py-2 text-[10px] font-extrabold leading-tight text-white hover:bg-green-800 sm:px-3 sm:text-[11px]"
               >
-                Quote Your Price
+                Offer Your Price
               </button>
             ) : (
               <button
@@ -2538,19 +2602,26 @@ function DesktopEmptyState({ text }) {
   );
 }
 
-function ProfileCard({ user, onOpen }) {
+function ProfileCard({ user, profileMode = "", onOpen }) {
   const hasProfileIdentity = Boolean(
     user &&
-      (user.avatarUrl || user._id || user.email || user.phone || user.name)
+      (user.avatarUrl ||
+        user.buyerAvatarUrl ||
+        user.buyerCompanyLogoUrl ||
+        user._id ||
+        user.email ||
+        user.phone ||
+        user.name)
   );
   const hasProfileSession = Boolean(
     hasAccessToken() &&
       user &&
       (user._id || user.email || user.phone || user.name)
   );
-  const isGrower = hasGrowerProfile(user);
-  const isBuyer = hasBuyerProfile(user);
-  const isDriver = hasDriverProfile(user);
+  const activeMode = resolveHomeProfileMode(user, profileMode);
+  const isGrower = activeMode === "grower";
+  const isBuyer = activeMode === "buyer";
+  const isDriver = activeMode === "driver";
   const isTrustedAccount = isGrower
     ? Boolean(
         user.ogVerificationByRole?.grower?.requestId &&
@@ -2570,16 +2641,31 @@ function ProfileCard({ user, onOpen }) {
   const firmName = isGrower
     ? user.orchardName
     : isBuyer
-      ? user.businessName
+      ? user.businessName || user.buyerContactPerson
       : isDriver
         ? user.logisticsName
         : "";
   const displayName = firmName || user.name || "Visitor";
-  const ownerName = user.name || "Guest User";
-  const location = user.location || (firmName ? "Mandi, Himachal Pradesh" : "Location not available");
+  const ownerName = isBuyer
+    ? user.buyerContactPerson || user.name || "Guest User"
+    : user.name || "Guest User";
+  const location =
+    (isBuyer ? user.buyerLocation || user.location : user.location) ||
+    (firmName ? "Mandi, Himachal Pradesh" : "Location not available");
   const joinedLabel = formatJoinDate(user.createdAt);
-  const bannerUrl = hasProfileSession ? resolveProfileMediaUrl(user.bannerUrl) || orchardCover : "";
-  const avatarUrl = hasProfileIdentity ? resolveProfileMediaUrl(user.avatarUrl) : "";
+  const bannerUrl = hasProfileSession
+    ? isBuyer
+      ? resolveProfileMediaUrl(user.buyerBannerUrl) || resolveProfileMediaUrl(user.bannerUrl) || orchardCover
+      : resolveProfileMediaUrl(user.bannerUrl) || orchardCover
+    : "";
+  const avatarUrl = hasProfileIdentity
+    ? isBuyer
+      ? resolveProfileMediaUrl(user.buyerCompanyLogoUrl) ||
+        resolveProfileMediaUrl(user.buyerAvatarUrl) ||
+        resolveProfileMediaUrl(user.companyLogoUrl) ||
+        resolveProfileMediaUrl(user.avatarUrl)
+      : resolveProfileMediaUrl(user.avatarUrl)
+    : "";
   const accountLabel = isGrower
     ? "Growers Profile Dashboard"
     : isBuyer

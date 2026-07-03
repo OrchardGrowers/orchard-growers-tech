@@ -314,7 +314,7 @@ export default function BlogPage() {
               The future of fruit trading will likely be hybrid. Physical
               mandis, local networks and traditional trade relationships will
               continue, but digital discovery, verified profiles, online
-              listings, transparent quotation systems and logistics coordination
+              listings, transparent offer systems and logistics coordination
               will become more important. Growers who adopt digital tools early
               can gain better visibility, and buyers who use digital sourcing
               can discover more opportunities.
@@ -346,7 +346,7 @@ export default function BlogPage() {
               </li>
               <li>Fruit grading, packing and dispatch education.</li>
               <li>KYC, OG Verified and trusted profile guidance.</li>
-              <li>Digital mandi pricing and quotation education.</li>
+              <li>Digital mandi pricing and offer education.</li>
               <li>Logistics planning for fruit transportation.</li>
               <li>Grower success stories and platform updates.</li>
               <li>

@@ -41,7 +41,7 @@ export const staticPages = {
     description:
       "Learn about eFruitMandi, a digital fruit marketplace facilitation platform by Orchard Growers Private Limited for growers, buyers, logistics partners, traders, and fruit industry stakeholders in India.",
     intro:
-      "eFruitMandi is built to support India's fruit trade with structured listings, quotations, KYC, OG Verified trust systems, logistics records, and digital marketplace tools.",
+      "eFruitMandi is built to support India's fruit trade with structured listings, offers, KYC, OG Verified trust systems, logistics records, and digital marketplace tools.",
     sections: [
       {
         title: "About eFruitMandi",
@@ -49,12 +49,12 @@ export const staticPages = {
           "eFruitMandi is a digital fruit marketplace facilitation platform operated by Orchard Growers Private Limited. The platform has been created for India's fresh fruit ecosystem, including fruit growers, orchard owners, buyers, commission agents, traders, logistics partners, packers, and future export-linked participants.",
           "The company is based in Himachal Pradesh, a region where fruit cultivation is not just an agricultural activity but a way of life for thousands of families. eFruitMandi has been built from practical field experience, not only from a software idea. Its foundation comes from more than 14 years of practical fruit industry experience in orchard management, fruit production, grading, packing, post-harvest handling, and horticulture operations.",
           "Along with this practical experience, the platform is backed by more than 5 years of focused research on the sale and purchase of fruits and vegetables. This research includes mandi systems, commission agent networks, buyer behavior, grower challenges, trader practices, logistics issues, price discovery, payment risks, supply chain gaps, and digital marketplace opportunities.",
-          "eFruitMandi is designed to help growers present fruit lots in a structured way, buyers discover available fruit consignments, and logistics partners support movement where required. The platform focuses on listings, quotations, deal records, KYC, payment references, delivery support, dispute records, and trust-building features like OG Verified and Trusted Badge.",
+          "eFruitMandi is designed to help growers present fruit lots in a structured way, buyers discover available fruit consignments, and logistics partners support movement where required. The platform focuses on listings, offers, deal records, KYC, payment references, delivery support, dispute records, and trust-building features like OG Verified and Trusted Badge.",
           "Orchard Growers Private Limited created eFruitMandi with a long-term vision to modernize fruit trade without disconnecting it from real-world mandi practices. The platform does not claim to replace every existing relationship in the fruit industry. Instead, it creates a digital layer where information can be recorded, verified, compared, and managed more clearly.",
           "In India's fruit trade, growers often face challenges such as limited buyer reach, uncertain price discovery, dependence on local networks, transport delays, payment risk, quality disputes, and lack of digital records. Buyers also face challenges in finding reliable growers, verifying quality, understanding packing standards, and coordinating logistics. eFruitMandi has been developed to reduce these gaps through a structured marketplace process.",
           "The platform supports multiple fruit categories, including apple, mango, pear, plum, persimmon, pomegranate, grapes, and other seasonal fruits. The goal is to build an all-India digital fruit mandi network where fruit growers and buyers can connect before physical movement of produce begins.",
           "eFruitMandi is a marketplace facilitation platform. It does not directly own, buy, sell, transport, grade, or insure fruit unless separately stated in writing. Final commercial decisions remain between growers and buyers. The platform helps organize the process, document important activity, and support transparency.",
-          "The company believes that Indian fruit growers need better access to buyers, better documentation, stronger trust systems, and practical technology that works for real agricultural conditions. eFruitMandi has therefore been built around simple user flows, mobile-first access, PWA functionality, KYC verification, listing tools, quotation systems, and support processes.",
+          "The company believes that Indian fruit growers need better access to buyers, better documentation, stronger trust systems, and practical technology that works for real agricultural conditions. eFruitMandi has therefore been built around simple user flows, mobile-first access, PWA functionality, KYC verification, listing tools, offer systems, and support processes.",
           "The long-term objective is to create a trusted national fruit marketplace where growers can list produce before going to mandi, buyers can review lots before committing, logistics partners can coordinate movement, and support teams can review records when disputes arise.",
           "eFruitMandi also supports the idea that technology should not remove human negotiation from fruit trade. Fruit quality, grade, packing, timing, and market demand can vary widely. Therefore, the platform keeps direct grower-buyer decision-making at the center while improving the information available to both sides.",
           "Orchard Growers Private Limited is committed to building eFruitMandi as a serious AgriTech platform for India. The company aims to support growers, buyers, logistics providers, commission agents, exporters, and related stakeholders through digital tools that are practical, transparent, and field-informed.",
@@ -97,7 +97,7 @@ export const staticPages = {
           "Alongside field experience, more than 5 years were spent studying fruit and vegetable sale and purchase systems. This included observing mandi behavior, commission agent roles, buyer requirements, trader networks, logistics arrangements, price discovery methods, payment cycles, and quality disputes. The study showed that the problem was not only price. The bigger issue was lack of structured information, verified trust, transparent records, and reliable digital coordination.",
           "eFruitMandi was created to address these practical challenges. The goal was not to build a platform that ignores existing mandi culture. Instead, the goal was to create a digital fruit marketplace layer that can support growers, buyers, commission agents, logistics partners, and exporters with better records and wider visibility.",
           "Fresh fruit is different from many other products. It is perishable, grade-sensitive, season-dependent, region-specific, and highly affected by time. A delay of one or two days can change value. Poor packing can affect quality. Weak communication can create disputes. Missing records can make payment settlement difficult. eFruitMandi was built with these realities in mind.",
-          "The platform therefore focuses on fruit lot listings, grade-wise information, packing details, location, media, quotations, deal records, KYC, support references, logistics coordination, and dispute documentation. These are not random features. They are based on real problems seen in fruit trade.",
+          "The platform therefore focuses on fruit lot listings, grade-wise information, packing details, location, media, offers, deal records, KYC, support references, logistics coordination, and dispute documentation. These are not random features. They are based on real problems seen in fruit trade.",
           "The vision behind eFruitMandi is also national. Although the platform has strong roots in Himachal Pradesh and orchard-growing regions, it is not limited to apples or one state. India has a large fruit economy, including mango, pear, plum, persimmon, pomegranate, grapes, citrus, banana, and many other fruits. eFruitMandi aims to serve the wider fruit industry across India.",
           "The story is also about trust. In agricultural trade, trust is everything. Buyers want confidence in growers and produce. Growers want confidence in buyers and payments. Logistics partners need clear routes and settlement references. eFruitMandi uses KYC, OG Verified, Trusted Badge, structured records, and support processes to strengthen that trust.",
           "The company understands that digital adoption in agriculture takes time. Many users are comfortable with phone calls, WhatsApp, local agents, and personal relationships. eFruitMandi does not reject those practices. Instead, it gives them a more organized digital backbone so that important information is not lost.",
@@ -131,10 +131,10 @@ export const staticPages = {
           "eFruitMandi's vision is to reduce these gaps by creating a marketplace where fruit lots can be listed before physical movement, buyers can review produce information in a structured format, logistics partners can support movement, and support teams can review records when required.",
           "The mission of eFruitMandi is practical. The platform is not built around theory alone. It is built on more than 14 years of fruit industry experience and more than 5 years of research on the sale and purchase of fruits and vegetables. This combination of field knowledge and market study helps the platform focus on real needs.",
           "The first mission is to empower growers. Growers should be able to present their fruit lots with grade, quantity, packing, location, images, videos, and other important details. They should not remain dependent only on limited local networks. A grower should have a digital identity, KYC record, and marketplace presence.",
-          "The second mission is to support buyers. Buyers need reliable information before making quotations or finalizing deals. eFruitMandi helps buyers review listings, understand available fruit lots, communicate interest, and create documented quotation records.",
+          "The second mission is to support buyers. Buyers need reliable information before making offers or finalizing deals. eFruitMandi helps buyers review listings, understand available fruit lots, communicate interest, and create documented offer records.",
           "The third mission is to improve trust. Trust is central to fruit trade. KYC, OG Verified, Trusted Badge, support records, dispute references, and clear platform policies help build confidence between participants.",
           "The fourth mission is to support logistics coordination. Fruit movement requires timing, route clarity, vehicle coordination, labour, loading, unloading, and settlement references. eFruitMandi supports logistics details where applicable so that delivery records are clearer.",
-          "The fifth mission is to create transparent records. In many fruit transactions, disputes arise because important details were not recorded properly. eFruitMandi supports structured records for listings, quotations, deals, payments, delivery, and support issues.",
+          "The fifth mission is to create transparent records. In many fruit transactions, disputes arise because important details were not recorded properly. eFruitMandi supports structured records for listings, offers, deals, payments, delivery, and support issues.",
           "The sixth mission is to help modernize fruit marketing in India. Digital tools can make the system more efficient, but they must be simple enough for real users. eFruitMandi is therefore built as a mobile-first, practical platform with PWA functionality and future mobile app direction.",
           "The seventh mission is to support all-India expansion. The platform is not limited to one fruit or one region. It aims to become useful for fruit growers and buyers across states, markets, and fruit categories.",
           "The eighth mission is to support future export readiness. Indian fruits have domestic and export potential, but export-linked trade requires stronger quality, packing, traceability, documentation, and verified participants. eFruitMandi can gradually support this direction.",
@@ -169,12 +169,12 @@ export const staticPages = {
           "eFruitMandi is needed because India's fruit trade is large, valuable, and full of opportunity, but still faces many practical challenges. Growers produce fruit with hard work over many months, but when the selling season arrives, they often face limited buyer reach, uncertain rates, transport pressure, quality disputes, and payment concerns.",
           "The platform is different because it has been designed from real fruit industry experience. It is backed by more than 14 years of practical experience in orchard management, fruit production, grading, packing, post-harvest handling, and horticulture operations. It is also supported by more than 5 years of research on sale and purchase systems of fruits and vegetables.",
           "Many digital platforms fail because they do not understand ground realities. Fruit trade is not like selling a fixed factory product. Fruit quality changes by grade, size, color, maturity, packing, season, weather, transport time, and market demand. eFruitMandi is designed with this complexity in mind.",
-          "For growers, eFruitMandi provides a way to create structured fruit lot listings. A grower can present fruit details, quantity, grade, packing, location, photos, videos, and other information. This creates better visibility and helps buyers review produce before direct communication or quotation.",
-          "For buyers, eFruitMandi provides organized access to fruit listings. Instead of depending only on scattered calls or informal references, buyers can review available lots, compare details, and share quotations through a documented platform process.",
+          "For growers, eFruitMandi provides a way to create structured fruit lot listings. A grower can present fruit details, quantity, grade, packing, location, photos, videos, and other information. This creates better visibility and helps buyers review produce before direct communication or offers.",
+          "For buyers, eFruitMandi provides organized access to fruit listings. Instead of depending only on scattered calls or informal references, buyers can review available lots, compare details, and share offers through a documented platform process.",
           "For logistics partners, the platform supports delivery-related records where they are appointed through the grower or seller side. Fruit transport needs clarity because delay, route confusion, or poor coordination can damage value.",
           "For commission agents and market-linked participants, eFruitMandi can become a digital communication layer. The platform does not need to remove existing mandi systems. It can make them more transparent, searchable, and documented.",
           "One major reason to choose eFruitMandi is trust. The platform includes KYC and optional OG Verified / Trusted Badge features. These systems help build confidence between growers and buyers. In future, verified profiles can become important for serious fruit trade and export-linked opportunities.",
-          "Another reason is documentation. In traditional systems, many discussions happen verbally. When disputes arise, users may not have clear records. eFruitMandi supports listing records, quotation records, deal references, payment references, delivery details, and support history.",
+          "Another reason is documentation. In traditional systems, many discussions happen verbally. When disputes arise, users may not have clear records. eFruitMandi supports listing records, offer records, deal references, payment references, delivery details, and support history.",
           "Another reason is price discovery. Before going to mandi or finalizing a deal, growers need better market communication. eFruitMandi can help growers understand buyer interest and possible market demand. The platform does not promise any fixed sale or price, but it improves information flow.",
           "Another reason is scalability. India needs a fruit marketplace that can work across states and categories. eFruitMandi is not only for apple growers. It is designed for apples, mangoes, pears, plums, persimmons, pomegranates, grapes, and other fruits across India.",
           "Another reason is future readiness. The fruit industry is moving toward digital payments, verified sellers, traceability, quality documentation, logistics tracking, and online buyer discovery. eFruitMandi is being built in that direction with PWA functionality, future mobile app plans, KYC, support systems, and structured marketplace workflows.",
@@ -208,20 +208,20 @@ export const staticPages = {
     eyebrow: "Support",
     title: "Contact Us",
     description:
-      "Contact eFruitMandi support for account, KYC, listing, quotation, payment, delivery, dispute, OG Verified, or marketplace help.",
+      "Contact eFruitMandi support for account, KYC, listing, offer, payment, delivery, dispute, OG Verified, or marketplace help.",
     intro:
       "Use the official contact details below for eFruitMandi support requests, marketplace questions, payment follow-up, KYC help, OG Verified support, or reporting a problem.",
     sections: [
       {
         title: "Contact eFruitMandi",
         body: [
-          "eFruitMandi support is available for growers, buyers, logistics partners, and marketplace users who need help with account access, registration, KYC, fruit listings, quotations, deal records, payment references, delivery coordination, support requests, or dispute-related information.",
-          "Users can contact eFruitMandi through the official email, phone, WhatsApp number, and website details provided on this page. While contacting support, users should provide their registered name, registered mobile number or email address, platform role, and the relevant listing, quotation, deal, payment, delivery, KYC, or support reference.",
-          "For grower support, users may contact eFruitMandi for help with profile creation, KYC submission, fruit lot listing, grade information, packing details, media upload, quotation review, OG Verified process, Trusted Badge information, and support records.",
-          "For buyer support, users may contact eFruitMandi for help with account registration, KYC, listing review, quotation submission, deal references, payment process questions, buyer verification, and support escalation.",
+          "eFruitMandi support is available for growers, buyers, logistics partners, and marketplace users who need help with account access, registration, KYC, fruit listings, offers, deal records, payment references, delivery coordination, support requests, or dispute-related information.",
+          "Users can contact eFruitMandi through the official email, phone, WhatsApp number, and website details provided on this page. While contacting support, users should provide their registered name, registered mobile number or email address, platform role, and the relevant listing, offer, deal, payment, delivery, KYC, or support reference.",
+          "For grower support, users may contact eFruitMandi for help with profile creation, KYC submission, fruit lot listing, grade information, packing details, media upload, offer review, OG Verified process, Trusted Badge information, and support records.",
+          "For buyer support, users may contact eFruitMandi for help with account registration, KYC, listing review, offer submission, deal references, payment process questions, buyer verification, and support escalation.",
           "For logistics partner support, users may contact eFruitMandi regarding delivery details, vehicle information, route references, settlement references, and delivery-related support where logistics coordination is applicable.",
           "For payment or settlement support, users should share clear reference details, screenshots, transaction information, and deal references. eFruitMandi can review platform records and guide the next step based on available information and applicable policies.",
-          "For disputes, users should share complete details, including photos, videos, screenshots, call details, listing information, quotation references, delivery information, and payment details. Fruit quality, grade, rate, and consignment matters are generally between grower and buyer, but eFruitMandi can review platform records and assist with support information where possible.",
+          "For disputes, users should share complete details, including photos, videos, screenshots, call details, listing information, offer references, delivery information, and payment details. Fruit quality, grade, rate, and consignment matters are generally between grower and buyer, but eFruitMandi can review platform records and assist with support information where possible.",
           "For urgent safety, unlawful detention, threat, fraud, or serious legal matters, users should contact local authorities first. eFruitMandi support can assist with platform records but does not replace law enforcement, courts, or legal authorities.",
           "Official support should be contacted only through verified eFruitMandi channels. Users should avoid sharing OTP, passwords, bank credentials, or sensitive documents with unauthorized persons.",
         ],
@@ -240,7 +240,7 @@ export const staticPages = {
         bullets: [
           "Your registered name and phone number or email.",
           "Your role: Grower, Buyer, or Logistics Partner.",
-          "Relevant listing, quotation, deal, payment, delivery, or KYC reference.",
+          "Relevant listing, offer, deal, payment, delivery, or KYC reference.",
           "Clear screenshots, photos, documents, or delivery details where available.",
         ],
       },
@@ -274,11 +274,11 @@ export const staticPages = {
           },
           {
             q: "What can users do on the platform?",
-            a: "Users can create or review fruit listings, share quotations, manage deal records, submit KYC, coordinate logistics information, and request support.",
+            a: "Users can create or review fruit listings, share offers, manage deal records, submit KYC, coordinate logistics information, and request support.",
           },
           {
             q: "What are the platform access hours?",
-            a: "Platform access, registration, and KYC submission are available 24x7. Live quotation hours are 09:00 AM IST to 04:00 PM IST.",
+            a: "Platform access, registration, and KYC submission are available 24x7. Live offer hours are 09:00 AM IST to 04:00 PM IST.",
           },
         ],
       },
@@ -311,8 +311,8 @@ export const staticPages = {
         category: "Buyer",
         items: [
           {
-            q: "How can a buyer share a quotation?",
-            a: "A buyer must log in, create a buyer profile if needed, complete required KYC, and then use the listing quotation flow.",
+            q: "How can a buyer share an offer?",
+            a: "A buyer must log in, create a buyer profile if needed, complete required KYC, and then use the listing offer flow.",
           },
           {
             q: "Is there a buyer-side success commission?",
@@ -523,7 +523,7 @@ export const staticPages = {
         title: "Information we collect",
         bullets: [
           "Name, phone number, email address, account role, business identity, and profile details.",
-          "Grower, buyer, logistics, KYC, bank/payment trust, listing, quotation, deal, consignment, and support records.",
+          "Grower, buyer, logistics, KYC, bank/payment trust, listing, offer, deal, consignment, and support records.",
           "Images, videos, documents, location or map-point information, delivery updates, and communication submitted through the platform.",
           "Device, browser, session, and basic usage information needed for safety and service reliability.",
         ],
@@ -532,7 +532,7 @@ export const staticPages = {
         title: "How we use information",
         bullets: [
           "Create and secure user accounts.",
-          "Review KYC, profile details, listings, quotations, payments, delivery records, and support requests.",
+          "Review KYC, profile details, listings, offers, payments, delivery records, and support requests.",
           "Support marketplace safety, dispute review, compliance, reporting, and platform improvement.",
           "Communicate service updates, verification requests, support responses, and transaction-related notices.",
         ],
@@ -566,7 +566,7 @@ export const staticPages = {
         title: "Marketplace facilitator role",
         body: [
           facilitatorText,
-          "Final decisions about listing details, quotations, deal acceptance, quality, delivery, and commercial terms remain between the grower and buyer.",
+          "Final decisions about listing details, offers, deal acceptance, quality, delivery, and commercial terms remain between the grower and buyer.",
         ],
       },
       {
@@ -593,7 +593,7 @@ export const staticPages = {
         title: "Timings and jurisdiction",
         bullets: [
           "Platform access, registration, and KYC submission are available 24x7.",
-          "Live quotation hours are 09:00 AM IST to 04:00 PM IST.",
+          "Live offer hours are 09:00 AM IST to 04:00 PM IST.",
           `Legal jurisdiction: ${business.jurisdiction}`,
         ],
       },
@@ -739,7 +739,7 @@ export const staticPages = {
       {
         title: "Buyer KYC verification",
         body: [
-          "Buyer KYC helps create confidence for growers who receive quotations, enquiries, or purchase interest through eFruitMandi. Verified buyer records improve accountability and reduce fake or misleading buyer activity.",
+          "Buyer KYC helps create confidence for growers who receive offers, enquiries, or purchase interest through eFruitMandi. Verified buyer records improve accountability and reduce fake or misleading buyer activity.",
           "Buyer KYC does not guarantee payment capacity, purchase volume, business reliability, creditworthiness, or future conduct. Growers should still take practical business precautions before confirming any deal.",
         ],
       },
@@ -816,7 +816,7 @@ export const staticPages = {
       {
         title: "High-risk activity review",
         body: [
-          "eFruitMandi may conduct additional review when an account shows unusual activity, repeated complaints, inconsistent information, suspicious quotations, misleading listings, payment concerns, or behavior that may affect marketplace trust.",
+          "eFruitMandi may conduct additional review when an account shows unusual activity, repeated complaints, inconsistent information, suspicious offers, misleading listings, payment concerns, or behavior that may affect marketplace trust.",
           "During review, some account features may be limited until the concern is resolved. This helps protect growers, buyers, logistics partners, and the platform ecosystem.",
         ],
       },
@@ -1363,7 +1363,7 @@ export const staticPages = {
       {
         title: "Be fair in deals",
         bullets: [
-          "Respect agreed quotations and consignment terms.",
+          "Respect agreed offers and consignment terms.",
           "Do not misuse payment, delivery, support, or dispute workflows.",
           "Do not unlawfully stop or hold a grower's consignment.",
         ],
@@ -1451,9 +1451,9 @@ export const staticPages = {
         ],
       },
       {
-        title: "Responsible use of quotations",
+        title: "Responsible use of offers",
         body: [
-          "Quotations, offers, and price discussions should be made in good faith. Users should avoid creating fake interest, artificial demand, misleading quotations, or non-serious negotiations that waste the time of other participants.",
+          "Offers and price discussions should be made in good faith. Users should avoid creating fake interest, artificial demand, misleading offers, or non-serious negotiations that waste the time of other participants.",
           "Price discovery tools should be used responsibly and for genuine commercial purposes.",
         ],
       },
@@ -1467,7 +1467,7 @@ export const staticPages = {
       {
         title: "Buyer conduct standards",
         body: [
-          "Buyers should make quotations and purchase enquiries only when there is genuine business interest. Artificial bidding, fake demand creation, misleading negotiations, or repeated cancellation without reasonable cause may negatively affect marketplace trust.",
+          "Buyers should make offers and purchase enquiries only when there is genuine business interest. Artificial bidding, fake demand creation, misleading negotiations, or repeated cancellation without reasonable cause may negatively affect marketplace trust.",
           "Buyers should communicate clearly regarding quantity requirements, fruit specifications, loading timelines, payment expectations, logistics arrangements, and delivery destinations.",
         ],
       },
@@ -1530,7 +1530,7 @@ export const staticPages = {
       {
         title: "Market manipulation and artificial activity",
         body: [
-          "Users should not attempt to artificially influence marketplace activity through fake quotations, fabricated demand, coordinated pricing behaviour, false availability claims, misleading transaction reports, or other deceptive commercial practices.",
+          "Users should not attempt to artificially influence marketplace activity through fake offers, fabricated demand, coordinated pricing behaviour, false availability claims, misleading transaction reports, or other deceptive commercial practices.",
           "Price discovery should reflect genuine commercial interest and real market conditions.",
         ],
       },
@@ -1569,9 +1569,9 @@ export const staticPages = {
     eyebrow: "Help Center",
     title: "Buyer Guide",
     description:
-      "Complete buyer guide for eFruitMandi covering fruit sourcing, buyer quotations, rate discovery, mandi terminology, Phad, Boli, Ladani, Commission Agent, Parcha, Bilty, fruit grading, packing, logistics, KYC, payment safety, and buyer responsibilities.",
+      "Complete buyer guide for eFruitMandi covering fruit sourcing, buyer offers, rate discovery, mandi terminology, Phad, Boli, Ladani, Commission Agent, Parcha, Bilty, fruit grading, packing, logistics, KYC, payment safety, and buyer responsibilities.",
     intro:
-      "eFruitMandi helps fruit buyers, wholesalers, traders, commission agents, exporters, retailers, processing units, and bulk fruit buyers discover fruit lots directly from growers and orchard owners. This buyer guide explains how to use the platform, understand traditional fruit mandi terminology, evaluate produce quality, share quotations, coordinate logistics, and complete safe fruit trade through mutual agreement.",
+      "eFruitMandi helps fruit buyers, wholesalers, traders, commission agents, exporters, retailers, processing units, and bulk fruit buyers discover fruit lots directly from growers and orchard owners. This buyer guide explains how to use the platform, understand traditional fruit mandi terminology, evaluate produce quality, share offers, coordinate logistics, and complete safe fruit trade through mutual agreement.",
     sections: [
       {
         title: "What is eFruitMandi for Buyers?",
@@ -1595,8 +1595,8 @@ export const staticPages = {
         title: "Important Mandi Terminology for Buyers",
         body: [
           "Traditional fruit mandis use many local words that are important for buyers to understand. eFruitMandi uses these terms to educate users and explain market practices in simple language.",
-          "Phad (???) means the designated trading place inside a fruit mandi or APMC mandi where a commission agent manages trading activity between growers and buyers. In many mandis, fruit lots are displayed, discussed, quoted, or auctioned from the Phad.",
-          "Boli (????) means the traditional price discovery process where buyers propose rates for a grower's produce. In English, it is often called auction, bidding, quote, quotation, or rate discovery.",
+          "Phad (???) means the designated trading place inside a fruit mandi or APMC mandi where a commission agent manages trading activity between growers and buyers. In many mandis, fruit lots are displayed, discussed, offered on, or auctioned from the Phad.",
+          "Boli (????) means the traditional price discovery process where buyers propose rates for a grower's produce. In English, it is often called auction, bidding, offer, offering, or rate discovery.",
           "Ladani (?????) means a bulk fruit buyer. A Ladani usually buys fruit in large quantity and supplies it to other mandis, wholesalers, retailers, supermarkets, processing units, or export markets.",
           "Commission Agent means the middle person or mandi agent who helps connect growers and buyers, manages Phad activity, coordinates Boli, prepares records, and supports settlement in traditional mandi systems.",
           "Grower means the fruit producer, orchard owner, farmer, or supplier who grows fruits such as apple, mango, pear, plum, persimmon, pomegranate, grapes, citrus, peach, cherry, kiwi, or other produce.",
@@ -1607,12 +1607,12 @@ export const staticPages = {
       },
       {
         title:
-          "Clarification about Auction, Boli, Bid, Quote and Rate Discovery",
+          "Clarification about Auction, Boli, Bid, Offer and Rate Discovery",
         body: [
-          "On eFruitMandi, words such as Auction, Boli, Bid, Quote, Quotation, Offer, and Rate Discovery may be used only to explain the traditional fruit mandi price discovery system.",
-          "eFruitMandi is not a compulsory auction platform and does not create a forced sale. A quotation shared by a buyer is only a proposed rate or commercial interest.",
+          "On eFruitMandi, words such as Auction, Boli, Bid, Offer, Offering, and Rate Discovery may be used only to explain the traditional fruit mandi price discovery system.",
+          "eFruitMandi is not a compulsory auction platform and does not create a forced sale. An offer shared by a buyer is only a proposed rate or commercial interest.",
           "A final deal becomes meaningful only when the buyer and grower mutually agree on fruit quality, grade, rate, packing, quantity, loading, logistics, payment, and delivery terms.",
-          "Buyers should not treat a quotation as automatic ownership of the fruit lot. Growers can accept, reject, negotiate, pause, update, or withdraw their listings depending on market situation and mutual understanding.",
+          "Buyers should not treat an offer as automatic ownership of the fruit lot. Growers can accept, reject, negotiate, pause, update, or withdraw their listings depending on market situation and mutual understanding.",
           "This clarification is important because traditional mandi words like Boli, auction, Phad, commission agent, Ladani, parcha, and bilty are used for education and market communication, not for creating a forced transaction.",
         ],
       },
@@ -1622,9 +1622,9 @@ export const staticPages = {
           "Create or log in to your eFruitMandi account.",
           "Create a buyer profile with correct name, mobile number, location, and business information.",
           "Complete free buyer KYC where required.",
-          "Review available fruit lots carefully before sharing a quotation.",
+          "Review available fruit lots carefully before sharing an offer.",
           "Check fruit type, variety, grade, packing, quantity, location, harvest stage, photos, videos, and grower details.",
-          "Share a realistic quotation based on quality, market demand, logistics cost, commission, labour, packing, and expected resale value.",
+          "Share a realistic offer based on quality, market demand, logistics cost, commission, labour, packing, and expected resale value.",
           "Finalize the deal only after mutual agreement with the grower.",
         ],
       },
@@ -1634,7 +1634,7 @@ export const staticPages = {
           "Buyers can search and review fruit lots listed by growers and orchard owners. A fruit lot may include apple, mango, pear, plum, persimmon, peach, cherry, pomegranate, grapes, citrus, kiwi, dry fruits, or other fruit categories.",
           "A good buyer should compare fruit lots based on location, variety, size, grade, packing, expected quantity, harvest date, transport feasibility, photos, and grower credibility.",
           "Bulk fruit buyers should also consider road distance, loading point, packing type, shelf life, market demand, delivery time, and risk of damage during transport.",
-          "For example, an apple buyer may compare A grade, B grade, mixed grade, carton packing, orchard location, expected harvest date, transport route, and estimated mandi resale rate before sharing a quotation.",
+          "For example, an apple buyer may compare A grade, B grade, mixed grade, carton packing, orchard location, expected harvest date, transport route, and estimated mandi resale rate before sharing an offer.",
           "A mango buyer may focus on variety, ripening stage, size, packing, distance, transit time, and damage risk. A pear buyer may focus on maturity, firmness, packing strength, and handling requirements.",
         ],
       },
@@ -1671,15 +1671,15 @@ export const staticPages = {
         ],
       },
       {
-        title: "Quotation Process for Buyers",
+        title: "Offer Process for Buyers",
         steps: [
           "Review the fruit lot carefully.",
           "Check quality, grade, packing, location, quantity, harvest timing, and logistics feasibility.",
           "Estimate your buying rate after considering transport, labour, commission, loading, unloading, market demand, and expected resale price.",
-          "Share a quotation or proposed rate through the available platform flow.",
+          "Share an offer or proposed rate through the available platform flow.",
           "Discuss final terms with the grower where required.",
           "Proceed only after mutual agreement and payment clarity.",
-          "Keep records of quotation, final rate, quantity, grade, payment proof, bilty, challan, parcha, and delivery confirmation.",
+          "Keep records of offer, final rate, quantity, grade, payment proof, bilty, challan, parcha, and delivery confirmation.",
         ],
       },
       {
@@ -1699,7 +1699,7 @@ export const staticPages = {
           "Buyers should confirm vehicle type, loading time, unloading location, driver contact, route, expected arrival, bilty, challan, transport charges, and responsibility for damage.",
           "Bilty is especially important in transport because it records movement of goods. Challan or invoice records commercial transaction details. Parcha may record mandi sale or transaction information.",
           "For delicate fruit, buyers should consider faster dispatch, careful loading, ventilation, temperature control, and proper unloading arrangements.",
-          "Long-distance buyers should calculate transport cost, loading cost, unloading cost, wastage risk, transit loss, market arrival timing, and resale demand before finalizing the quotation.",
+          "Long-distance buyers should calculate transport cost, loading cost, unloading cost, wastage risk, transit loss, market arrival timing, and resale demand before finalizing the offer.",
         ],
       },
       {
@@ -1726,7 +1726,7 @@ export const staticPages = {
       {
         title: "Buyer Rights",
         bullets: [
-          "Buyers have the right to review fruit lot details before quotation.",
+          "Buyers have the right to review fruit lot details before making an offer.",
           "Buyers have the right to ask for grade, packing, photos, quantity, and location clarity.",
           "Buyers have the right to negotiate before final agreement.",
           "Buyers have the right to receive agreed fruit quality and quantity as per confirmed deal terms.",
@@ -1739,8 +1739,8 @@ export const staticPages = {
         bullets: [
           "Review fruit details carefully before finalizing.",
           "Keep payment and contact details accurate.",
-          "Share realistic quotations based on actual market conditions.",
-          "Do not misuse Boli, Bid, Quote, or Auction terminology to pressure growers.",
+          "Share realistic offers based on actual market conditions.",
+          "Do not misuse Boli, Bid, Offer, or Auction terminology to pressure growers.",
           "Do not hold a grower's consignment unlawfully.",
           "Maintain records such as payment proof, bilty, challan, parcha, invoice, photos, and communication history.",
           "Raise disputes quickly with clear evidence.",
@@ -1750,7 +1750,7 @@ export const staticPages = {
       {
         title: "Common mistakes Buyers should avoid",
         bullets: [
-          "Do not quote rates without reviewing grade, packing, location, and logistics cost.",
+          "Do not offer rates without reviewing grade, packing, location, and logistics cost.",
           "Do not assume that all fruit in a lot is premium grade.",
           "Do not finalize deals only through verbal communication.",
           "Do not ignore bilty, challan, invoice, parcha, and payment proof.",
@@ -1765,7 +1765,7 @@ export const staticPages = {
         title: "Understanding Traditional Fruit Mandi System",
         body: [
           "India's fruit trade has traditionally operated through fruit mandis, wholesale markets, APMC mandis, commission agents, traders, Ladanis, transporters, and fruit growers.",
-          "Understanding how fruit mandis work helps buyers evaluate quotations, compare fruit lots, understand market behaviour, and communicate effectively with growers, commission agents, and logistics partners.",
+          "Understanding how fruit mandis work helps buyers evaluate offers, compare fruit lots, understand market behaviour, and communicate effectively with growers, commission agents, and logistics partners.",
           "Traditional fruit trade uses terminology such as Phad (???), Boli (????), Ladani (?????), Commission Agent, Parcha (?????), Bilty (??????), Challan, grading, packing, loading, unloading, and rate discovery.",
           "eFruitMandi preserves practical fruit mandi knowledge while helping buyers and growers use modern digital tools.",
         ],
@@ -1824,7 +1824,7 @@ export const staticPages = {
         title: "Fruit Market Terminology Dictionary for Buyers",
         body: [
           "APMC means Agricultural Produce Market Committee. Many traditional fruit and vegetable mandis operate under local APMC market systems.",
-          "Auction means a price discovery method. On eFruitMandi, auction, Boli, Bid, Quote, and Rate Discovery words are used only for market education and quotation understanding.",
+          "Auction means a price discovery method. On eFruitMandi, auction, Boli, Bid, Offer, and Rate Discovery words are used only for market education and offer understanding.",
           "Bilty (\u092c\u093f\u0932\u094d\u091f\u0940) means a transport document or consignment note used when fruit is dispatched from one location to another.",
           "Boli (\u092c\u094b\u0932\u0940) means the traditional price discovery process where buyers propose rates for fruit lots.",
           "Bulk Fruit Buyer means a buyer who purchases fruit in large quantity for resale, wholesale supply, retail chains, processing, or export.",
@@ -1836,15 +1836,15 @@ export const staticPages = {
           "Ladani (\u0932\u0926\u093e\u0928\u0940) means a bulk fruit buyer or wholesale fruit trader.",
           "Parcha (\u092a\u0930\u094d\u091a\u093e) means a mandi sale record or transaction slip used in fruit trade.",
           "Phad (\u092b\u0921\u093c) means the trading space inside a fruit mandi where commission agents coordinate trade activity.",
-          "Quotation means a proposed buying rate shared by a buyer for a fruit lot.",
-          "Rate Discovery means the process of finding a fair market rate through buyer interest, quotation, negotiation, or mandi price signals.",
+          "Offer means a proposed buying rate shared by a buyer for a fruit lot.",
+          "Rate Discovery means the process of finding a fair market rate through buyer interest, offer, negotiation, or mandi price signals.",
         ],
       },
       {
         title: "Buyer Case Studies and Practical Examples",
         body: [
-          "Example 1: A wholesale apple buyer from Delhi reviews multiple apple lots from Himachal Pradesh. Instead of quoting only on fruit name, the buyer compares grade, carton quality, orchard location, dispatch timing, transport cost, and expected resale demand.",
-          "Example 2: A mango buyer compares two mango lots. One has better variety but longer transport distance, while the other has slightly lower grade but faster delivery. The buyer calculates total landed cost before quotation.",
+          "Example 1: A wholesale apple buyer from Delhi reviews multiple apple lots from Himachal Pradesh. Instead of offering only on fruit name, the buyer compares grade, carton quality, orchard location, dispatch timing, transport cost, and expected resale demand.",
+          "Example 2: A mango buyer compares two mango lots. One has better variety but longer transport distance, while the other has slightly lower grade but faster delivery. The buyer calculates total landed cost before making an offer.",
           "Example 3: A Ladani purchases mixed grade fruit for local wholesale markets. The buyer checks grading percentage, packing type, bilty, challan, loading arrangement, and payment terms before final agreement.",
           "Example 4: An export-focused buyer reviews fruit quality more strictly and asks for better grading, packing, traceability, and logistics planning before procurement.",
         ],
@@ -1852,11 +1852,11 @@ export const staticPages = {
       {
         title: "Buyer Best Practices for Safe Fruit Procurement",
         bullets: [
-          "Always compare grade, packing, quantity, location, and logistics cost before quotation.",
+          "Always compare grade, packing, quantity, location, and logistics cost before making an offer.",
           "Ask for clear fruit photos and videos when available.",
           "Do not depend only on verbal communication.",
           "Maintain payment proof, bilty, challan, parcha, invoice, and delivery records.",
-          "Understand the difference between quotation and final agreement.",
+          "Understand the difference between an offer and final agreement.",
           "Check whether the fruit is suitable for wholesale, retail, processing, export, or local sale.",
           "Respect grower time, harvest risk, packing effort, and transport limitations.",
           "Use KYC, OG Verified details, and platform records to improve trust.",
@@ -1866,7 +1866,7 @@ export const staticPages = {
       {
         title: "Buyer FAQs",
         body: [
-          "Is eFruitMandi an auction platform? No. eFruitMandi uses auction, Boli, quote, bid, and rate discovery only to explain price discovery. It is not a compulsory auction or forced sale platform.",
+          "Is eFruitMandi an auction platform? No. eFruitMandi uses auction, Boli, offer, bid, and rate discovery only to explain price discovery. It is not a compulsory auction or forced sale platform.",
           "Who is a Ladani? A Ladani is a bulk fruit buyer who purchases fruit in large quantity for wholesale trade, other mandis, retail chains, processing units, or export markets.",
           "What is Phad? Phad is the designated trading space in a mandi where commission agents manage trading activity between growers and buyers.",
           "What is Boli? Boli is the traditional price discovery process where buyers propose rates for a grower's produce.",
@@ -1888,23 +1888,23 @@ export const staticPages = {
     eyebrow: "Help Center",
     title: "Grower Guide",
     description:
-      "Complete grower guide for eFruitMandi covering fruit lot listing, buyer quotations, rate discovery, mandi terminology, grading, packing, logistics, KYC, OG Verified trust badge, payment safety, and grower rights.",
+      "Complete grower guide for eFruitMandi covering fruit lot listing, buyer offers, rate discovery, mandi terminology, grading, packing, logistics, KYC, OG Verified trust badge, payment safety, and grower rights.",
     intro:
-      "eFruitMandi helps fruit growers and orchard owners list produce, receive buyer quotations, compare market interest, and complete fruit trade through mutual agreement. This guide explains mandi terms such as Phad, Boli, Ladani, Parcha, Bilty, Commission Agent, grading, packing, and fruit lots.",
+      "eFruitMandi helps fruit growers and orchard owners list produce, receive buyer offers, compare market interest, and complete fruit trade through mutual agreement. This guide explains mandi terms such as Phad, Boli, Ladani, Parcha, Bilty, Commission Agent, grading, packing, and fruit lots.",
     sections: [
       {
         title: "What is eFruitMandi for Growers?",
         body: [
           "eFruitMandi is a digital fruit marketplace and fruit trade facilitation platform by Orchard Growers Private Limited. It connects fruit growers, orchard owners, fruit producers, bulk fruit buyers, traders, commission agents, logistics partners, and market participants.",
-          "For growers, eFruitMandi helps create fruit lot listings with fruit type, variety, grade, packing, expected quantity, location, harvest stage, and sample photos. Buyers can review the lot and share quotations or proposed rates.",
+          "For growers, eFruitMandi helps create fruit lot listings with fruit type, variety, grade, packing, expected quantity, location, harvest stage, and sample photos. Buyers can review the lot and share offers or proposed rates.",
           "The final deal depends on mutual agreement between grower and buyer. Listing fruit on eFruitMandi does not force the grower to sell.",
         ],
       },
       {
         title:
-          "Important clarification about Auction, Boli, Quote and Rate Discovery",
+          "Important clarification about Auction, Boli, Offer and Rate Discovery",
         body: [
-          "On eFruitMandi, words such as Auction, Boli, Bid, Quotation, Quote, or Rate Discovery may be used only to explain the traditional fruit mandi price discovery concept. eFruitMandi is not a compulsory auction or forced sale platform.",
+          "On eFruitMandi, words such as Auction, Boli, Bid, Offer, Offering, or Rate Discovery may be used only to explain the traditional fruit mandi price discovery concept. eFruitMandi is not a compulsory auction or forced sale platform.",
           "In offline mandi systems, Boli or auction often means that fruit is offered through a commission agent and rate is discovered through buyers. eFruitMandi works differently because the grower can accept, reject, negotiate, pause, update, or withdraw a listing.",
           "A transaction becomes meaningful only when grower and buyer mutually agree on rate, quantity, grade, packing, logistics, payment terms, and delivery conditions.",
         ],
@@ -1924,7 +1924,7 @@ export const staticPages = {
         title: "Fruit mandi terminology for growers",
         body: [
           "Phad: Phad is the trading space in a fruit or vegetable mandi where a commission agent coordinates trade discussion, Boli, rate discovery, and buyer-grower dealing.",
-          "Boli: Boli means price discovery or rate discussion. On eFruitMandi, Boli does not mean compulsory auction. It means buyer quote and grower-buyer negotiation.",
+          "Boli: Boli means price discovery or rate discussion. On eFruitMandi, Boli does not mean compulsory auction. It means buyer offer and grower-buyer negotiation.",
           "Commission Agent: A commission agent coordinates offline mandi trade between growers and buyers and may handle rate discussion, sale record, payment follow-up, and mandi documentation.",
           "Ladani: Ladani means bulk fruit buyer who buys fruit in large quantity for wholesale, retail, mandi, export, processing, or distribution.",
           "Grower: A grower means fruit producer, orchard owner, farmer, bagwan, producer group, or seller of apple, mango, pear, plum, persimmon, pomegranate, grapes, citrus, cherry, peach, almond, or other fruit.",
@@ -1955,7 +1955,7 @@ export const staticPages = {
       {
         title: "Grower rights and consignment control",
         body: [
-          "The grower remains free to accept or reject buyer quotations. Listing fruit on eFruitMandi does not make it compulsory to sell through the platform.",
+          "The grower remains free to accept or reject buyer offers. Listing fruit on eFruitMandi does not make it compulsory to sell through the platform.",
           "If the grower does not receive a satisfactory rate, the grower may wait, update the listing, negotiate, withdraw the lot, sell offline, move fruit to another mandi, or choose another buyer.",
           "If a dispute cannot be resolved mutually, the grower has the right to withdraw or take back the consignment and may move it to another buyer, another market, or offline mandi, subject to applicable platform policies and already accepted deal terms.",
         ],
@@ -1980,7 +1980,7 @@ export const staticPages = {
         title: "Offline Mandi vs eFruitMandi Digital Marketplace",
         body: [
           "In an offline fruit mandi, growers often depend on a local mandi, phad, commission agent, and available buyers on that day. The final rate may depend on arrival volume, demand, buyer presence, fruit quality, and negotiation strength.",
-          "eFruitMandi helps growers create digital visibility before moving fruit. A grower can list fruit lots online, receive buyer quotations, compare interest, and decide whether the offered rate is suitable.",
+          "eFruitMandi helps growers create digital visibility before moving fruit. A grower can list fruit lots online, receive buyer offers, compare interest, and decide whether the offered rate is suitable.",
           "This does not remove the importance of offline mandis. Instead, eFruitMandi gives growers an additional digital option for market communication, buyer discovery, and rate comparison.",
         ],
       },
@@ -2013,7 +2013,7 @@ export const staticPages = {
         body: [
           "A commission agent can be useful in traditional mandi systems because the agent understands buyers, phad operations, local mandi practice, parcha, payment follow-up, and rate movement.",
           "A direct buyer or Ladani may buy in bulk and may offer faster movement when quality, quantity, packing, and logistics match their requirement.",
-          "eFruitMandi creates a digital layer where growers can receive buyer interest, understand rate discovery, compare quotations, and then decide whether to deal through platform communication, offline mandi, commission agent, or another buyer option.",
+          "eFruitMandi creates a digital layer where growers can receive buyer interest, understand rate discovery, compare offers, and then decide whether to deal through platform communication, offline mandi, commission agent, or another buyer option.",
         ],
       },
       {
@@ -2039,7 +2039,7 @@ export const staticPages = {
         title: "Understanding Traditional Fruit Mandi System for Growers",
         body: [
           "India's fruit trade has traditionally operated through fruit mandis, wholesale markets, APMC mandis, commission agents, traders, Ladanis, transporters, and fruit growers.",
-          "Understanding how traditional fruit mandis work helps growers make better decisions regarding fruit grading, packing, quotations, logistics, and buyer selection.",
+          "Understanding how traditional fruit mandis work helps growers make better decisions regarding fruit grading, packing, offers, logistics, and buyer selection.",
           "Traditional fruit trade uses terminology such as Phad (???), Boli (????), Ladani (?????), Commission Agent, Parcha (?????), Bilty (??????), Challan, grading, packing, loading, unloading, and rate discovery.",
         ],
       },
@@ -2074,7 +2074,7 @@ export const staticPages = {
         body: [
           "Mango growers should mention variety, maturity stage, ripening condition, fruit size, packing type, harvest date, estimated quantity, location, and dispatch readiness.",
           "Different mango varieties serve different markets such as wholesale mandis, retail chains, pulp processing units, exporters, and direct fruit buyers.",
-          "Clear information about maturity, sweetness, packing, transport time, and shelf life helps mango buyers make better quotations.",
+          "Clear information about maturity, sweetness, packing, transport time, and shelf life helps mango buyers make better offers.",
           "Mango growers should avoid uploading old photos or unclear quality information because mango trade is highly sensitive to ripening stage and transit timing.",
         ],
       },
@@ -2121,8 +2121,8 @@ export const staticPages = {
       {
         title: "Grower FAQs",
         body: [
-          "Is eFruitMandi an auction platform? No. eFruitMandi uses auction, Boli, quote, and rate discovery only to explain price discovery. It is not a compulsory auction or forced sale platform.",
-          "Can I reject a buyer quotation? Yes. A grower can reject a quotation if the rate, buyer, payment terms, logistics, or deal conditions are not suitable.",
+          "Is eFruitMandi an auction platform? No. eFruitMandi uses auction, Boli, offer, and rate discovery only to explain price discovery. It is not a compulsory auction or forced sale platform.",
+          "Can I reject a buyer offer? Yes. A grower can reject an offer if the rate, buyer, payment terms, logistics, or deal conditions are not suitable.",
           "Can I sell fruit offline after listing? Yes, unless you have already accepted a specific deal under platform terms. If fruit is sold offline, update or remove the listing.",
           "What is Phad? Phad is the trading space in mandi where commission agents coordinate trade between growers and buyers.",
           "Who is Ladani? Ladani is a bulk fruit buyer who purchases fruit in large quantity.",
@@ -2298,7 +2298,7 @@ export const staticPages = {
     eyebrow: "Help Center",
     title: "Report a Problem",
     description:
-      "Report an account, listing, quotation, payment, delivery, KYC, or safety problem to eFruitMandi support.",
+      "Report an account, listing, offer, payment, delivery, KYC, or safety problem to eFruitMandi support.",
     intro:
       "Use this page to understand what to send when reporting a marketplace problem.",
     sections: [
@@ -2314,7 +2314,7 @@ export const staticPages = {
         bullets: [
           "Your registered name and contact.",
           "Your role: Grower, Buyer, or Logistics Partner.",
-          "Listing, quotation, deal, payment, delivery, or KYC reference.",
+          "Listing, offer, deal, payment, delivery, or KYC reference.",
           "A short explanation of what happened.",
           "Screenshots, photos, videos, documents, or call details if available.",
         ],
@@ -2341,7 +2341,7 @@ export const staticPages = {
     description:
       "eFruitMandi data deletion policy for account deletion, personal data erasure, verification, retention, grievance redressal, and lawful compliance in India.",
     intro:
-      "This policy explains how eFruitMandi users may request deletion or erasure of personal information connected with their account, listings, KYC, support records, quotations, deals, delivery, and payment activity, subject to lawful retention requirements.",
+      "This policy explains how eFruitMandi users may request deletion or erasure of personal information connected with their account, listings, KYC, support records, offers, deals, delivery, and payment activity, subject to lawful retention requirements.",
     sections: [
       {
         title: "How to request deletion",
@@ -2353,7 +2353,7 @@ export const staticPages = {
           "Registered phone number or email address",
           "Account role: Grower, Buyer, or Logistics Partner",
           "A clear statement that you want to delete your eFruitMandi account data",
-          "Any relevant listing, KYC, quotation, deal, payment, or support reference",
+          "Any relevant listing, KYC, offer, deal, payment, or support reference",
         ],
       },
       {
@@ -2395,7 +2395,7 @@ export const staticPages = {
       {
         title: "Important note",
         body: [
-          "Deleting or deactivating an account may affect access to listings, quotes, deals, invoices, KYC status, OG Verified status, delivery records, support history, and marketplace services.",
+          "Deleting or deactivating an account may affect access to listings, offers, deals, invoices, KYC status, OG Verified status, delivery records, support history, and marketplace services.",
           "This policy should be read with the Privacy Policy, Terms of Service, KYC Verification Policy, Payment / Escrow Policy, Refund & Cancellation Policy, and Shipping & Logistics Policy.",
         ],
       },

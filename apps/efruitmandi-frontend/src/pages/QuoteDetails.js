@@ -26,7 +26,7 @@ export default function QuoteDetails() {
         const res = await API.get(`/quotes/${quoteId}${location.search || ""}`);
         setQuote(res.data?.quote || null);
       } catch (err) {
-        setMessage(err.response?.data?.msg || err.response?.data?.message || "Quote details could not be loaded.");
+        setMessage(err.response?.data?.msg || err.response?.data?.message || "Offer details could not be loaded.");
       } finally {
         setLoading(false);
       }
@@ -42,7 +42,7 @@ export default function QuoteDetails() {
       return;
     }
 
-    if (!window.confirm("After accepting this deal, other quotes for this lot will be closed. Continue?")) {
+    if (!window.confirm("After accepting this deal, other offers for this lot will be closed. Continue?")) {
       return;
     }
 
@@ -112,12 +112,12 @@ export default function QuoteDetails() {
 
       <section className="rounded-md border border-green-100 bg-white p-4">
         <p className="text-xs font-extrabold uppercase tracking-wide text-green-700">
-          {isConsignmentReport ? "Bought Consignment Report" : "Buyer Quote Details"}
+          {isConsignmentReport ? "Bought Consignment Report" : "Buyer Offer Details"}
         </p>
         <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-xl font-black leading-tight text-gray-950">
-              {loading ? "Loading quote..." : quote?.lotTitle || "Fruit Lot Quote"}
+              {loading ? "Loading offer..." : quote?.lotTitle || "Fruit Lot Offer"}
             </h1>
             {quote && (
               <p className="mt-1 text-sm font-bold text-gray-600">
@@ -137,14 +137,14 @@ export default function QuoteDetails() {
 
       {!loading && !quote ? (
         <section className="mt-3 rounded-md border border-dashed border-green-200 bg-green-50 p-4 text-sm font-bold text-green-800">
-          Quote details are not available.
+          Offer details are not available.
         </section>
       ) : quote ? (
         <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
           <section className="rounded-md border border-gray-200 bg-white p-4">
             <h2 className="mb-3 flex items-center gap-2 text-sm font-extrabold text-gray-950">
               <FaUser className="text-green-700" />
-              {isGrowerSettlementView ? "Lot Quote" : "Buyer and Lot"}
+              {isGrowerSettlementView ? "Lot Offer" : "Buyer and Lot"}
             </h2>
             <div className="grid gap-2 sm:grid-cols-2">
               {!isGrowerSettlementView && <InfoTile label="Buyer" value={quote.buyerName || "Buyer"} />}
@@ -155,7 +155,7 @@ export default function QuoteDetails() {
               {!isGrowerSettlementView && <InfoTile label="Packing" value={quote.packingType || quote.lotUnit} />}
               {!isGrowerSettlementView && <InfoTile label="Total Weight" value={formatWeight(quote.totalWeightKg)} />}
               {!isGrowerSettlementView && <InfoTile label="Location" value={quote.lotLocation} />}
-              <InfoTile label="Quote Date" value={formatDate(quote.createdAt)} />
+              <InfoTile label="Offer Date" value={formatDate(quote.createdAt)} />
             </div>
 
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -237,7 +237,7 @@ export default function QuoteDetails() {
           <section className="rounded-md border border-gray-200 bg-white p-4">
             <h2 className="mb-3 flex items-center gap-2 text-sm font-extrabold text-gray-950">
               <FaSeedling className="text-green-700" />
-              {isGrowerSettlementView ? "Grade-wise Net Quote" : "Grade-wise Quote"}
+              {isGrowerSettlementView ? "Grade-wise Net Offer" : "Grade-wise Offer"}
             </h2>
             <div className="space-y-2">
               {(quote.grades || []).map((grade) => (
@@ -303,7 +303,7 @@ function SummaryTextRow({ label, value }) {
 
 function QuoteStatusBadge({ status, buyerView = false }) {
   const label = normalizeQuoteStatusLabel(status);
-  const displayLabel = buyerView && label === "Accepted" ? "You Won the Quote" : label;
+  const displayLabel = buyerView && label === "Accepted" ? "Your Offer Was Accepted" : label;
   const classes =
     label === "Accepted"
       ? "bg-green-700 text-white"

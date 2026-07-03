@@ -29,6 +29,8 @@ const ADMIN_AUTH_SOURCE = {
   sourceApp: 'admin-panel',
 } as const;
 const ADMIN_OTP_RESEND_SECONDS = 60;
+const ORCHARD_PARTIES_STORAGE_KEY = 'orchard_parties';
+const ORCHARD_PARTIES_CHANGED_EVENT = 'orchard-parties-changed';
 
 const withAdminAuthSource = <T extends Record<string, unknown>>(payload: T) => ({
   ...payload,
@@ -393,6 +395,52 @@ type AdminProduct = {
   createdSource?: string;
   createdBy?: { name?: string; orchardName?: string; businessName?: string } | string;
   createdAt?: string;
+};
+type OrchardPartyRecord = {
+  id?: string;
+  partyName: string;
+  partyType: string;
+  contactPerson?: string;
+  phone?: string;
+  email?: string;
+  gstin?: string;
+  status?: string;
+  productMapping?: string;
+};
+
+const getStoredPartyString = (record: Record<string, unknown>, field: string) => {
+  const value = record[field];
+  return typeof value === 'string' ? value.trim() : '';
+};
+
+const toOrchardPartyRecord = (value: unknown): OrchardPartyRecord | null => {
+  if (!value || typeof value !== 'object') return null;
+
+  const record = value as Record<string, unknown>;
+  const partyName = getStoredPartyString(record, 'partyName');
+  if (!partyName) return null;
+
+  return {
+    id: getStoredPartyString(record, 'id') || undefined,
+    partyName,
+    partyType: getStoredPartyString(record, 'partyType') || 'Party',
+    contactPerson: getStoredPartyString(record, 'contactPerson') || undefined,
+    phone: getStoredPartyString(record, 'phone') || undefined,
+    email: getStoredPartyString(record, 'email') || undefined,
+    gstin: getStoredPartyString(record, 'gstin') || undefined,
+    status: getStoredPartyString(record, 'status') || 'Active',
+    productMapping: getStoredPartyString(record, 'productMapping') || undefined,
+  };
+};
+
+const readStoredOrchardParties = ({ activeOnly = false }: { activeOnly?: boolean } = {}) => {
+  const stored = readAdminJson<unknown>(ORCHARD_PARTIES_STORAGE_KEY);
+  if (!Array.isArray(stored)) return [];
+
+  return stored
+    .map(toOrchardPartyRecord)
+    .filter((party): party is OrchardPartyRecord => Boolean(party))
+    .filter((party) => !activeOnly || (party.status || 'Active').toLowerCase() === 'active');
 };
 type AdminQuote = {
   _id: string;
@@ -830,7 +878,7 @@ const platformTabs: Record<AdminPlatform, AdminTabButton[]> = {
     { id: 'ogVerified', label: 'OG Verified' },
     { id: 'produceLots', label: 'Produce Lots' },
     { id: 'mandiCommodities', label: 'Mandi Commodities' },
-    { id: 'quotes', label: 'Quotes' },
+    { id: 'quotes', label: 'Offers' },
     { id: 'deals', label: 'Deals' },
     { id: 'efruitInvoices', label: 'Invoices / Chalan' },
     { id: 'transactions', label: 'Transactions' },
@@ -1013,11 +1061,11 @@ const modulePlans: Partial<Record<AdminTab, ModulePlan>> = {
   },
   efruitDashboard: {
     title: 'eFruitMandi Dashboard',
-    text: 'Marketplace monitoring only. Lot creation, quote submission, deal creation, transaction records, service charge, and settlement status are automated.',
+    text: 'Marketplace monitoring only. Lot creation, offer submission, deal creation, transaction records, service charge, and settlement status are automated.',
     rules: [
       'Seller / grower lists produce lot',
-      'Buyer submits quoted price',
-      'Seller accepts quoted price',
+      'Buyer submits offered price',
+      'Seller accepts offered price',
       'Deal is created automatically',
       'Payment / escrow / gateway status is tracked',
       'Transaction record and platform service charge are generated automatically',
@@ -1055,10 +1103,10 @@ const modulePlans: Partial<Record<AdminTab, ModulePlan>> = {
     rules: ['Commodity discovery comes from AGMARKNET data.', 'Admins can add or recategorize fruit commodities without code changes.'],
   },
   quotes: {
-    title: 'Quote Management',
-    text: 'Review quote requests, quoted prices, accepted deals, rejected quotes, and deal conversion without manual marketplace billing.',
-    pages: ['Active Quote Requests', 'Quoted Prices', 'Accepted Deals', 'Rejected Quotes', 'Deal Conversion'],
-    fields: ['Quote', 'Quoted Price', 'Price Offer', 'Quote Request', 'Deal Price', 'Accepted Deal', 'Price Negotiation'],
+    title: 'Offer Management',
+    text: 'Review offer requests, offered prices, accepted deals, rejected offers, and deal conversion without manual marketplace billing.',
+    pages: ['Active Offer Requests', 'Offered Prices', 'Accepted Deals', 'Rejected Offers', 'Deal Conversion'],
+    fields: ['Offer', 'Offered Price', 'Price Offer', 'Offer Request', 'Deal Price', 'Accepted Deal', 'Price Negotiation'],
   },
   deals: {
     title: 'Deal Management',
@@ -1078,7 +1126,7 @@ const modulePlans: Partial<Record<AdminTab, ModulePlan>> = {
   analytics: {
     title: 'Analytics',
     text: 'One analytics module for marketplace and Orchard Growers patterns.',
-    pages: ['Sales Pattern', 'Quote Pattern', 'Deal Pattern', 'Produce-wise Demand', 'Location-wise Demand', 'Transaction Pattern', 'Revenue Pattern'],
+    pages: ['Sales Pattern', 'Offer Pattern', 'Deal Pattern', 'Produce-wise Demand', 'Location-wise Demand', 'Transaction Pattern', 'Revenue Pattern'],
   },
   efruitSettings: {
     title: 'eFruitMandi Settings',
@@ -1099,7 +1147,7 @@ const modulePlans: Partial<Record<AdminTab, ModulePlan>> = {
   },
   buyers: {
     title: 'Buyers',
-    text: 'Buyer profile, quote activity, deal history, payment status, support, and account controls.',
+    text: 'Buyer profile, offer activity, deal history, payment status, support, and account controls.',
   },
   rolesPermissions: {
     title: 'Roles & Permissions',
@@ -1598,7 +1646,7 @@ function App() {
       if (!usersRes.ok) throw new Error(usersData.msg || 'Could not load users');
       if (!productsRes.ok) throw new Error(productsData.msg || 'Could not load products');
       if (!adminsRes.ok) throw new Error(adminsData.msg || 'Could not load admin users');
-      if (!quotesRes.ok) throw new Error(quotesData.msg || 'Could not load quotes');
+      if (!quotesRes.ok) throw new Error(quotesData.msg || 'Could not load offers');
       if (!mandiCommodityRes.ok) throw new Error(mandiCommodityData.msg || 'Could not load mandi commodities');
       setKycRequests(kycData || []);
       setVerificationRequests(verificationData || []);
@@ -2513,7 +2561,7 @@ function App() {
           <ModulePlanPanel plan={modulePlans.buyers} />
           <UsersPanel
             title="Buyers"
-            badge="Profile, quotes, deals, payments"
+            badge="Profile, offers, deals, payments"
             emptyLabel="No buyers found."
             users={searchedUsers.filter((user) => user.role === 'buyer')}
             onEdit={editUserInfo}
@@ -2964,7 +3012,7 @@ function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: (
         { label: 'KYC Verification', icon: 'verify', tab: 'kyc' },
         { label: 'OG Verified', icon: 'verify', tab: 'ogVerified', count: counts.ogVerified },
         { label: 'Produce Lots', icon: 'lot', tab: 'produceLots' },
-        { label: 'Quotes', icon: 'quotes', tab: 'quotes' },
+        { label: 'Offers', icon: 'quotes', tab: 'quotes' },
         { label: 'Deals', icon: 'deal', tab: 'deals' },
         { label: 'Invoices / Chalan', icon: 'sales', tab: 'efruitInvoices' },
         { label: 'Transactions', icon: 'transaction', tab: 'transactions' },
@@ -3594,7 +3642,7 @@ function getAdminTabTitle(activeTab: AdminTab, activePlatform: AdminPlatform) {
   if (activeTab === 'kyc') return 'eFruitMandi KYC Verification';
   if (activeTab === 'ogVerified') return 'eFruitMandi OG Verification';
   if (activeTab === 'produceLots') return 'eFruitMandi Produce Lots';
-  if (activeTab === 'quotes') return 'eFruitMandi Quotes';
+  if (activeTab === 'quotes') return 'eFruitMandi Offers';
   if (activeTab === 'deals') return 'eFruitMandi Deals';
   if (activeTab === 'transactions') return 'eFruitMandi Transactions';
   if (activeTab === 'supportDisputes') return 'eFruitMandi Support & Disputes';
@@ -4340,8 +4388,10 @@ function PartyVendorPanel() {
     }
 
     try {
-      const stored = JSON.parse(localStorage.getItem('orchard_parties') || '[]');
-      localStorage.setItem('orchard_parties', JSON.stringify([{ ...draft, id: `party-${Date.now()}` }, ...stored]));
+      const stored = readAdminJson<unknown>(ORCHARD_PARTIES_STORAGE_KEY);
+      const existingParties = Array.isArray(stored) ? stored : [];
+      setAdminStorageItem(ORCHARD_PARTIES_STORAGE_KEY, JSON.stringify([{ ...draft, id: `party-${Date.now()}` }, ...existingParties]));
+      window.dispatchEvent(new Event(ORCHARD_PARTIES_CHANGED_EVENT));
       notifyLocalAction('Party / vendor saved.');
       setDraft({
         partyName: '',
@@ -4365,11 +4415,11 @@ function PartyVendorPanel() {
     notifyLocalAction(draft.gstin.trim() ? `GST verification queued for ${draft.gstin}.` : 'Enter GSTIN before verification.');
   };
   const openLedger = () => {
-    const stored = JSON.parse(localStorage.getItem('orchard_parties') || '[]');
-    notifyLocalAction(`Local vendor ledger has ${Array.isArray(stored) ? stored.length : 0} saved parties.`);
+    const stored = readStoredOrchardParties();
+    notifyLocalAction(`Local vendor ledger has ${stored.length} saved parties.`);
   };
   const exportParties = () => {
-    const stored = localStorage.getItem('orchard_parties') || '[]';
+    const stored = getAdminStorageItem(ORCHARD_PARTIES_STORAGE_KEY) || '[]';
     const blob = new Blob([stored], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -4484,6 +4534,33 @@ function PurchaseEntryPanel({ products }: { products: AdminProduct[] }) {
     paymentStatus: 'Unpaid',
     notes: '',
   });
+  const [vendorParties, setVendorParties] = useState<OrchardPartyRecord[]>(() => readStoredOrchardParties({ activeOnly: true }));
+  const vendorListId = useMemo(() => `purchase-vendor-list-${Math.random().toString(36).slice(2)}`, []);
+  const vendorOptions = useMemo(() => {
+    const seen = new Set<string>();
+    return vendorParties.filter((party) => {
+      const key = party.partyName.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [vendorParties]);
+  useEffect(() => {
+    const refreshVendorParties = () => setVendorParties(readStoredOrchardParties({ activeOnly: true }));
+    const handleStorage = (event: StorageEvent) => {
+      if (!event.key || event.key === ORCHARD_PARTIES_STORAGE_KEY) refreshVendorParties();
+    };
+
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('focus', refreshVendorParties);
+    window.addEventListener(ORCHARD_PARTIES_CHANGED_EVENT, refreshVendorParties);
+
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('focus', refreshVendorParties);
+      window.removeEventListener(ORCHARD_PARTIES_CHANGED_EVENT, refreshVendorParties);
+    };
+  }, []);
   const update = (field: keyof typeof draft, value: string) => setDraft((current) => ({ ...current, [field]: value }));
   const taxable = Number(draft.quantity || 0) * Number(draft.rate || 0);
   const tax = taxable * (Number(draft.gstRate || 0) / 100);
@@ -4499,7 +4576,23 @@ function PurchaseEntryPanel({ products }: { products: AdminProduct[] }) {
       </div>
       <PanelShell title="Purchase Entry" text="Enter supplier invoices, product rows, GST, transport cost, and stock receiving details.">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <AdminInput label="Vendor / Supplier" value={draft.vendor} onChange={(value) => update('vendor', value)} placeholder="Supplier name" />
+          <label className="block text-sm font-bold text-slate-300">
+            Vendor / Supplier
+            <input
+              value={draft.vendor}
+              list={vendorListId}
+              onChange={(event) => update('vendor', event.target.value)}
+              placeholder="Supplier name"
+              className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none placeholder:text-slate-600 focus:border-emerald-400"
+            />
+            <datalist id={vendorListId}>
+              {vendorOptions.map((party) => (
+                <option key={party.id || party.partyName} value={party.partyName}>
+                  {[party.partyType, party.contactPerson, party.phone, party.gstin].filter(Boolean).join(' | ')}
+                </option>
+              ))}
+            </datalist>
+          </label>
           <AdminInput label="Invoice No." value={draft.invoiceNo} onChange={(value) => update('invoiceNo', value.toUpperCase())} placeholder="Purchase invoice no." />
           <AdminInput label="Invoice Date" value={draft.invoiceDate} onChange={(value) => update('invoiceDate', value)} placeholder="YYYY-MM-DD" type="date" />
           <FormSelect label="Purchase Item Type" value={draft.purchaseItemType} onChange={(value) => update('purchaseItemType', value)} options={['Finished Product', 'Raw Material']} />
@@ -5583,14 +5676,14 @@ function AdminQuotesPanel({ quotes }: { quotes: AdminQuote[] }) {
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
       <div className="mb-4 grid gap-3 md:grid-cols-3">
-        <MetricCard label="Total Quotes" value={quotes.length} />
-        <MetricCard label="Pending Quotes" value={pending} />
+        <MetricCard label="Total Offers" value={quotes.length} />
+        <MetricCard label="Pending Offers" value={pending} />
         <MetricCard label="Accepted Deals" value={`${accepted} / Rs. ${totalValue.toLocaleString('en-IN')}`} />
       </div>
 
       {!quotes.length ? (
         <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950 p-5 text-sm font-semibold text-slate-500">
-          No buyer quotes have been submitted yet.
+          No buyer offers have been submitted yet.
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-800">
@@ -7701,7 +7794,7 @@ function normalizeProductStatusInput(status: string) {
 
 function formatProductStatus(status: string) {
   if (status === 'AVAILABLE') return 'ACTIVE';
-  if (status === 'IN_AUCTION') return 'QUOTE ENABLED';
+  if (status === 'IN_AUCTION') return 'OFFER ENABLED';
   if (status === 'SOLD') return 'INACTIVE';
   return status;
 }

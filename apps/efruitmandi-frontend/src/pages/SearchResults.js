@@ -19,7 +19,7 @@ const blogCards = [
   {
     title: "Apple Market Price & Trends",
     url: "/blog/market-price/apple",
-    description: "Apple market price, mandi bhav, rate discovery, buyer quotations and fruit trade trends.",
+    description: "Apple market price, mandi bhav, rate discovery, buyer offers and fruit trade trends.",
   },
   {
     title: "Fruit Transport & Logistics",
@@ -50,7 +50,7 @@ const priorityContentCards = [
     type: "Marketplace",
     title: "No Upcoming Fruit Lots Available",
     url: "/auctions",
-    description: "No upcoming fruit lots are available right now. You can still check live fruit lots, buyer quotes, grower listings and related marketplace information below.",
+    description: "No upcoming fruit lots are available right now. You can still check live fruit lots, buyer offers, grower listings and related marketplace information below.",
     keywords: [
       "upcoming lots",
       "upcoming fruit lots",
@@ -62,18 +62,18 @@ const priorityContentCards = [
   },
   {
     type: "Marketplace",
-    title: "Fruit Lots for Quote",
+    title: "Fruit Lots for Offers",
     url: "/auctions",
-    description: "Check fruit lots open for buyer quotation, rate discovery and deal negotiation.",
+    description: "Check fruit lots open for buyer offers, rate discovery and deal negotiation.",
     keywords: [
       "fruit lots for auctions",
       "fruit auctions",
       "upcoming auctions",
       "auction lots",
       "live auctions",
-      "quote lots",
-      "quotation lots",
-      "buyer quote",
+      "offer lots",
+      "offering lots",
+      "buyer offer",
       "rate discovery",
     ],
   },

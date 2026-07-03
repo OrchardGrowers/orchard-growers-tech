@@ -475,17 +475,17 @@ export default function ProfileDashboard() {
       return;
     }
 
-    if (!window.confirm("After accepting this quote, other quotes for this lot will be closed. Continue?")) {
+    if (!window.confirm("After accepting this offer, other offers for this lot will be closed. Continue?")) {
       return;
     }
 
     try {
       setQuoteActionId(quote._id);
       await API.patch(`/quotes/${quote._id}/accept`);
-      setNotice("Quote accepted. The lot is now marked as deal confirmed.");
+      setNotice("Offer accepted. The lot is now marked as deal confirmed.");
       await refreshQuotes();
     } catch (err) {
-      setNotice(err.response?.data?.msg || err.response?.data?.message || "Quote could not be accepted.");
+      setNotice(err.response?.data?.msg || err.response?.data?.message || "Offer could not be accepted.");
     } finally {
       setQuoteActionId("");
     }
@@ -495,10 +495,10 @@ export default function ProfileDashboard() {
     try {
       setQuoteActionId(quote._id);
       await API.patch(`/quotes/${quote._id}/reject`);
-      setNotice("Quote rejected.");
+      setNotice("Offer rejected.");
       await refreshQuotes();
     } catch (err) {
-      setNotice(err.response?.data?.msg || err.response?.data?.message || "Quote could not be rejected.");
+      setNotice(err.response?.data?.msg || err.response?.data?.message || "Offer could not be rejected.");
     } finally {
       setQuoteActionId("");
     }
@@ -623,7 +623,7 @@ export default function ProfileDashboard() {
       ? {
           title: "KYC Pending for Buyer's Account.",
           description: "Submit Aadhaar, bank/passbook proof, and business details to complete your buyer profile.",
-          action: "Complete KYC to become eligible to buy and quote your price.",
+          action: "Complete KYC to become eligible to buy and offer your price.",
         }
       : profileMode === "grower"
         ? {
@@ -2471,16 +2471,16 @@ function GrowerBuyerQuotesSection({ quotes = [], actionId = "", onViewDetails, o
     <section>
       <div className="mb-2 flex items-center justify-between">
         <div>
-          <h2 className="text-[12px] font-extrabold text-black">Grade-wise Net Quote</h2>
-          <p className="text-[10px] font-bold text-gray-500">Net receivable quotes on your own fruit lots only</p>
+          <h2 className="text-[12px] font-extrabold text-black">Grade-wise Net Offer</h2>
+          <p className="text-[10px] font-bold text-gray-500">Net receivable offers on your own fruit lots only</p>
         </div>
         <span className="rounded-full bg-green-50 px-3 py-1 text-[9px] font-extrabold text-green-800">
-          {quotes.length} quotes
+          {quotes.length} offers
         </span>
       </div>
 
       {!quotes.length ? (
-        <MarketEmptyState text="No buyer quotes received yet." />
+        <MarketEmptyState text="No buyer offers received yet." />
       ) : (
         <div className="space-y-2">
           {quotes.slice(0, 10).map((quote) => {
@@ -2552,7 +2552,7 @@ function GrowerBuyerQuotesSection({ quotes = [], actionId = "", onViewDetails, o
                     onClick={() => onViewDetails?.(quote._id)}
                     className="rounded bg-white px-2 py-2 text-[10px] font-extrabold text-green-800 ring-1 ring-green-100"
                   >
-                    View Quote Details
+                    View Offer Details
                   </button>
                   <button
                     type="button"
@@ -2584,8 +2584,8 @@ function BuyerSubmittedQuotes({ quotes = [], orders = [], onViewLot, onViewQuote
     <section className="mt-4 rounded-lg border border-green-100 bg-white p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-sm font-extrabold text-gray-950">Submitted Quotes</h2>
-          <p className="text-xs font-bold text-gray-500">Track quote status from growers.</p>
+          <h2 className="text-sm font-extrabold text-gray-950">Submitted Offers</h2>
+          <p className="text-xs font-bold text-gray-500">Track offer status from growers.</p>
         </div>
         <span className="rounded-full bg-green-50 px-3 py-1 text-[10px] font-extrabold text-green-800">
           {quotes.length}
@@ -2593,7 +2593,7 @@ function BuyerSubmittedQuotes({ quotes = [], orders = [], onViewLot, onViewQuote
       </div>
 
       {!quotes.length ? (
-        <MarketEmptyState text="No submitted buyer quotes yet." />
+        <MarketEmptyState text="No submitted buyer offers yet." />
       ) : (
         <div className="space-y-2">
           {quotes.slice(0, 10).map((quote) => {
@@ -2612,7 +2612,7 @@ function BuyerSubmittedQuotes({ quotes = [], orders = [], onViewLot, onViewQuote
                   <div className="min-w-0">
                     {wonQuote && (
                       <p className="mb-1 inline-flex rounded-full bg-green-700 px-2 py-1 text-[10px] font-extrabold uppercase text-white">
-                        You Won the Quote
+                        Offer Accepted
                       </p>
                     )}
                     <h3 className="truncate text-sm font-extrabold text-gray-950">
@@ -2649,7 +2649,7 @@ function BuyerSubmittedQuotes({ quotes = [], orders = [], onViewLot, onViewQuote
                       onClick={() => onViewQuote?.(quote._id)}
                       className="rounded-full bg-white px-3 py-1 text-[10px] font-extrabold text-green-800 ring-1 ring-green-100"
                     >
-                      Quote Details
+                      Offer Details
                     </button>
                     {canPay && (
                       <button
@@ -2851,7 +2851,7 @@ function toInputDate(value) {
 
 function QuoteStatusBadge({ status, buyerView = false }) {
   const label = normalizeQuoteStatusLabel(status);
-  const displayLabel = buyerView && label === "Accepted" ? "You Won the Quote" : label;
+  const displayLabel = buyerView && label === "Accepted" ? "Offer Accepted" : label;
   const classes =
     label === "Accepted"
       ? "bg-green-700 text-white"

@@ -54,7 +54,7 @@ export default function MediaPage() {
               produce, verified growers, transparent supply and better
               communication. eFruitMandi aims to bring these market participants
               closer through technology, verified profiles, fruit listings,
-              quotations, logistics coordination and useful market information.
+              offers, logistics coordination and useful market information.
             </p>
             <p className="leading-7 text-gray-700 md:leading-8">
               Through this media section, eFruitMandi will publish content related
@@ -124,7 +124,7 @@ export default function MediaPage() {
             <p className="leading-8 text-gray-700">
               Articles published here will also help users understand common
               market terms such as fruit buyer, fruit trader, fruit commission
-              agent, APMC market, mandi bhav, lot listing, quotation, fruit
+              agent, APMC market, mandi bhav, lot listing, offer, fruit
               grading, packing standards, logistics partner, KYC verification and
               trusted badge. This makes the platform useful not only for
               transactions but also for education and decision-making.
@@ -181,7 +181,7 @@ export default function MediaPage() {
               eFruitMandi Media will help explain this transition. It will cover
               both traditional market concepts and modern fruit technology
               systems. This includes blogs on how fruit lots are listed, how
-              quotations work, why KYC matters, how fruit grading improves buyer
+              offers work, why KYC matters, how fruit grading improves buyer
               confidence, how logistics affects net price, and how online
               visibility can help growers and market participants.
             </p>
