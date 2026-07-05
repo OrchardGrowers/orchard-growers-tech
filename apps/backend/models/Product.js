@@ -74,6 +74,7 @@ const productSchema = new mongoose.Schema(
     basePrice: Number,
     discountPercent: { type: Number, default: 0 },
     auctionStartTime: Date,
+    auctionEndTime: Date,
 
     location: String,
     packShape: {
@@ -97,13 +98,28 @@ const productSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["AVAILABLE", "IN_AUCTION", "SOLD", "QUOTE_ACCEPTED", "DEAL_CONFIRMED", "quote_accepted", "deal_confirmed"],
+      enum: [
+        "AVAILABLE",
+        "SCHEDULED",
+        "IN_AUCTION",
+        "SOLD",
+        "QUOTE_ACCEPTED",
+        "DEAL_CONFIRMED",
+        "EXPIRED",
+        "CANCELLED",
+        "DELETED",
+        "quote_accepted",
+        "deal_confirmed",
+      ],
       default: "AVAILABLE",
     },
     acceptedQuoteId: { type: mongoose.Schema.Types.ObjectId, ref: "Quotation" },
     acceptedBuyerId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     finalPrice: Number,
     finalDealValue: Number,
+    deletedAt: Date,
+    deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    deletionReason: { type: String, trim: true, default: "" },
   },
   { timestamps: true }
 );

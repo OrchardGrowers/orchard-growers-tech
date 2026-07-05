@@ -13,6 +13,7 @@ import {
   normalizePhone,
   refreshSettlementEligibility,
 } from "../services/logisticsAssignmentService.js";
+import { generateBuyerInvoiceNo } from "../services/invoiceNumberingService.js";
 
 const router = express.Router();
 
@@ -77,20 +78,6 @@ const sanitizeOrderForUser = (order, user) => {
 };
 
 const INDIA_POST_TEST_KEY = process.env.INDIA_POST_TEST_KEY || "INDIA_POST_TEST_KEY";
-
-const getFinancialYearStart = () => {
-  const now = new Date();
-  return new Date(now.getFullYear(), 0, 1);
-};
-
-const createInvoiceNumber = async () => {
-  const year = new Date().getFullYear();
-  const count = await Order.countDocuments({
-    invoiceDate: { $gte: getFinancialYearStart() },
-    invoiceNumber: new RegExp(`^OG/${year}/`),
-  });
-  return `OG/${year}/${String(count + 1).padStart(7, "0")}`;
-};
 
 const createIndiaPostTracking = () => `IPTEST${Date.now().toString().slice(-10)}`;
 
@@ -158,12 +145,12 @@ router.post("/checkout", requirePaymentPartnerEnabled, optionalProtect, async (r
     const subtotal = orderItems.reduce((sum, item) => sum + item.lineTotal, 0);
     const shippingCharge = subtotal >= 499 ? 0 : 60;
     const taxAmount = Math.round(subtotal * 0.05);
-    const totalAmount = subtotal + shippingCharge + taxAmount;
-    const invoiceNumber = await createInvoiceNumber();
-
     const selectedDeliveryMode = deliveryPartnerSelection === "MANUAL" ? "MANUAL" : "AUTOMATIC";
     const selectedCourier = courierPartner || "India Post";
     const onlinePayment = paymentMethod === "CASHFREE";
+    const isImmediatePaidOrder = paymentMethod !== "COD" && !onlinePayment;
+    const invoiceDate = isImmediatePaidOrder ? new Date() : undefined;
+    const invoiceNumber = isImmediatePaidOrder ? await generateBuyerInvoiceNo(invoiceDate) : "";
 
     const order = await Order.create({
       product: orderItems[0]?.product,
@@ -178,10 +165,10 @@ router.post("/checkout", requirePaymentPartnerEnabled, optionalProtect, async (r
       totalAmount,
       finalPrice: totalAmount,
       invoiceNumber,
-      invoiceDate: new Date(),
+      invoiceDate,
       paymentMethod,
-      paymentStatus: paymentMethod === "COD" || onlinePayment ? "PENDING" : "PAID",
-      paymentReference: paymentMethod === "COD" || onlinePayment ? "" : `TESTPAY-${Date.now()}`,
+      paymentStatus: isImmediatePaidOrder ? "PAID" : "PENDING",
+      paymentReference: isImmediatePaidOrder ? `TESTPAY-${Date.now()}` : "",
       deliveryStatus: "PLACED",
       courierPartner: selectedCourier,
       deliveryPartnerSelection: selectedDeliveryMode,

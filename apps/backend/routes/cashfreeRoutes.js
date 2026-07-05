@@ -3,6 +3,7 @@ import axios from "axios";
 import crypto from "crypto";
 import Order from "../models/Order.js";
 import { requirePaymentPartnerEnabled } from "../utils/paymentFeatureFlag.js";
+import { generateBuyerInvoiceNo } from "../services/invoiceNumberingService.js";
 
 const router = express.Router();
 
@@ -165,12 +166,17 @@ const buildGatewayResponse = ({ cashfreeOrder, payments, webhookPayload, source 
 });
 
 const markOrderPaid = async (order, { reference, response }) => {
+  const paidAt = new Date();
   order.paymentStatus = "PAID";
   order.paymentMethod = "CASHFREE";
   order.paymentGateway = "CASHFREE";
   order.paymentGatewayStatus = "PAID";
   order.paymentReference = reference || order.paymentReference || `CASHFREE-${Date.now()}`;
   order.paymentGatewayResponse = response;
+  if (!order.invoiceNumber) {
+    order.invoiceNumber = await generateBuyerInvoiceNo(paidAt);
+    order.invoiceDate = paidAt;
+  }
   order.settlementEligibility = {
     ...(order.settlementEligibility?.toObject ? order.settlementEligibility.toObject() : order.settlementEligibility || {}),
     buyerPaymentReceived: true,

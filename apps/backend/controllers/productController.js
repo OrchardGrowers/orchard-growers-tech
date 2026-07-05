@@ -9,9 +9,15 @@ import {
   uploadBufferToCloudinary,
   uploadBuffersToCloudinary,
 } from "../services/cloudinaryService.js";
+import {
+  buildMarketplaceLifecycle,
+  getCompletedMarketplaceOrder,
+  isOrderCompletedForMarketplace,
+  isOrderProtectedFromGrowerDelete,
+  isPublicLotVisible,
+  resolveDealSchedule,
+} from "../services/dealLifecycleService.js";
 
-const AUCTION_DELAY_MS = 5 * 60 * 1000;
-const AUCTION_DURATION_MS = 24 * 60 * 60 * 1000;
 const PUBLIC_PROFILE_SELECT =
   "name orchardName businessName buyerContactPerson companyLogoUrl avatarUrl bannerUrl buyerAvatarUrl buyerCompanyLogoUrl role profileTypes growerVerified buyerVerified growerOgVerified buyerOgVerified driverOgVerified ogVerificationByRole growerRatingAverage growerRatingCount createdAt";
 const CLOSED_PRODUCT_STATUSES = new Set(["SOLD", "QUOTE_ACCEPTED", "DEAL_CONFIRMED", "quote_accepted", "deal_confirmed"]);
@@ -42,8 +48,9 @@ const canSeeBasePrice = (product, user) =>
   product?.createdBy &&
   (product.createdBy._id || product.createdBy)?.toString() === user.id?.toString();
 
-const serializeProduct = (product, user) => {
+const serializeProduct = (product, user, completedOrder = null) => {
   const data = product.toObject ? product.toObject() : { ...product };
+  Object.assign(data, buildMarketplaceLifecycle(completedOrder));
 
   if (!canSeeBasePrice(data, user) && data.createdSource !== "admin-panel") {
     delete data.basePrice;
@@ -80,22 +87,18 @@ const isWrongProductPlatform = (product, platform = "") => {
 };
 
 const buildClosedDealSummary = ({ product, auction, acceptedQuote, order }) => {
-  const closed =
-    isClosedProductStatus(product?.status) ||
-    isClosedAuctionStatus(auction?.status) ||
-    Boolean(acceptedQuote || order);
+  const completedOrder = getCompletedMarketplaceOrder(order);
+  if (!completedOrder) return null;
 
-  if (!closed) return null;
-
-  const buyer = order?.buyer || acceptedQuote?.buyer || product?.acceptedBuyerId || auction?.highestBidder || null;
-  const grower = order?.grower || acceptedQuote?.grower || product?.createdBy || null;
+  const buyer = completedOrder?.buyer || acceptedQuote?.buyer || product?.acceptedBuyerId || auction?.highestBidder || null;
+  const grower = completedOrder?.grower || acceptedQuote?.grower || product?.createdBy || null;
   const primaryQuoteGrade = Array.isArray(acceptedQuote?.grades) ? acceptedQuote.grades[0] : null;
   const finalValue = firstFiniteNumber(
     product?.finalDealValue,
     product?.finalPrice,
-    order?.finalPrice,
-    order?.totalAmount,
-    order?.auctionPrice,
+    completedOrder?.finalPrice,
+    completedOrder?.totalAmount,
+    completedOrder?.auctionPrice,
     acceptedQuote?.dealAmount,
     acceptedQuote?.buyerPayableThroughPlatform,
     acceptedQuote?.buyerPayable,
@@ -105,7 +108,7 @@ const buildClosedDealSummary = ({ product, auction, acceptedQuote, order }) => {
   );
   const closedRate = firstFiniteNumber(
     auction?.highestGradeRate,
-    order?.highestGradeRate,
+    completedOrder?.highestGradeRate,
     acceptedQuote?.quotedPrice,
     primaryQuoteGrade?.price,
     primaryQuoteGrade?.quotedRatePerUnit,
@@ -118,10 +121,10 @@ const buildClosedDealSummary = ({ product, auction, acceptedQuote, order }) => {
     finalDealValue: finalValue,
     soldBy: grower,
     purchasedBy: buyer,
-    grade: auction?.highestGrade || order?.highestGrade || primaryQuoteGrade?.grade || "",
+    grade: auction?.highestGrade || completedOrder?.highestGrade || primaryQuoteGrade?.grade || "",
     closedAt:
       acceptedQuote?.acceptedAt ||
-      order?.updatedAt ||
+      completedOrder?.updatedAt ||
       auction?.updatedAt ||
       auction?.endTime ||
       product?.updatedAt ||
@@ -549,8 +552,9 @@ export const createProduct = async (req, res) => {
       : resolvedCaptureMedia.sampleVideo;
     const sampleVideo = uploadedSampleVideo?.url || "";
     if (uploadedSampleVideo?.publicId) uploadedPublicIds.push(uploadedSampleVideo.publicId);
-    const auctionStartAt = new Date(Date.now() + AUCTION_DELAY_MS);
-    const auctionEndAt = new Date(auctionStartAt.getTime() + AUCTION_DURATION_MS);
+    const dealSchedule = resolveDealSchedule(new Date());
+    const auctionStartAt = dealSchedule.startTime;
+    const auctionEndAt = dealSchedule.endTime;
 
     const generatedLotNo = await generateLotNo(req.user.id);
 
@@ -570,6 +574,7 @@ export const createProduct = async (req, res) => {
       totalWeightKg,
       basePrice,
       auctionStartTime: auctionStartAt,
+      auctionEndTime: auctionEndAt,
       location,
       images: imagePaths,
       imageObjects,
@@ -577,14 +582,14 @@ export const createProduct = async (req, res) => {
       gradeLots,
       sampleVideo,
       createdBy: req.user.id,
-      status: "IN_AUCTION",
+      status: dealSchedule.isLiveNow ? "IN_AUCTION" : "SCHEDULED",
     });
 
     const auction = await Auction.create({
       product: product._id,
       startingPrice: Number(basePrice || 0),
       currentBid: Number(basePrice || 0),
-      status: "SCHEDULED",
+      status: dealSchedule.isLiveNow ? "ACTIVE" : "SCHEDULED",
       startTime: auctionStartAt,
       endTime: auctionEndAt,
     });
@@ -638,7 +643,37 @@ export const getProducts = async (req, res) => {
     const products = await Product.find(filters)
       .populate("createdBy", "name orchardName businessName companyLogoUrl avatarUrl bannerUrl role location growerRatingAverage growerRatingCount growerOgVerified buyerOgVerified driverOgVerified ogVerificationByRole")
       .sort({ createdAt: -1 });
-    res.json(products.map((product) => serializeProduct(product, req.user)));
+    const productIds = products.map((product) => product._id).filter(Boolean);
+    const completedOrders = productIds.length
+      ? await Order.find({ product: { $in: productIds } })
+          .select("_id product paymentStatus deliveryStatus")
+          .lean()
+      : [];
+    const completedOrderByProductId = completedOrders.reduce((map, order) => {
+      if (isOrderCompletedForMarketplace(order)) {
+        map.set(String(order.product), order);
+      }
+      return map;
+    }, new Map());
+
+    const requesterId = req.user?.id?.toString();
+    const now = new Date();
+    const visibleProducts = products.filter((product) => {
+      const productObject = product.toObject ? product.toObject() : product;
+      const status = String(productObject.status || "").trim().toUpperCase();
+      if (productObject.active === false || ["EXPIRED", "CANCELLED", "DELETED"].includes(status)) {
+        return false;
+      }
+      const creator = productObject.createdBy?._id || productObject.createdBy;
+      if (requesterId && creator?.toString() === requesterId) return true;
+      return isPublicLotVisible(productObject, completedOrderByProductId, now);
+    });
+
+    res.json(
+      visibleProducts.map((product) =>
+        serializeProduct(product, req.user, completedOrderByProductId.get(String(product._id)))
+      )
+    );
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }
@@ -693,15 +728,19 @@ export const getProductById = async (req, res) => {
     if (acceptedQuote?._id) orderFilters.unshift({ quote: acceptedQuote._id });
     const order = await Order.findOne({ $or: orderFilters })
       .select(
-        "_id auction quote product buyer grower auctionPrice finalPrice totalAmount highestGrade highestGradeRate dealBreakdown createdAt updatedAt"
+        "_id auction quote product buyer grower auctionPrice finalPrice totalAmount highestGrade highestGradeRate dealBreakdown paymentStatus deliveryStatus createdAt updatedAt"
       )
       .populate("buyer", PUBLIC_PROFILE_SELECT)
       .populate("grower", PUBLIC_PROFILE_SELECT)
       .sort({ updatedAt: -1, createdAt: -1 })
       .lean();
 
-    const serializedProduct = serializeProduct(product, req.user);
+    const completedOrder = getCompletedMarketplaceOrder(order);
+    const serializedProduct = serializeProduct(product, req.user, completedOrder);
     const serializedAuction = auction?.toObject ? auction.toObject() : auction;
+    if (serializedAuction) {
+      Object.assign(serializedAuction, buildMarketplaceLifecycle(completedOrder));
+    }
     const closedDeal = buildClosedDealSummary({
       product: serializedProduct,
       auction: serializedAuction,
@@ -839,7 +878,7 @@ export const updateProduct = async (req, res) => {
   }
 };
 
-// DELETE PRODUCT BEFORE IT GOES TO MARKET
+// REMOVE UNCONFIRMED / INCOMPLETE GROWER LOTS
 export const deleteProduct = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
@@ -848,25 +887,60 @@ export const deleteProduct = async (req, res) => {
       return res.status(404).json({ msg: "Product not found" });
     }
 
-    if (product.createdBy.toString() !== req.user.id) {
+    if (product.createdBy?.toString() !== req.user.id?.toString()) {
       return res.status(403).json({ msg: "You can delete only your own listing" });
     }
 
-    if (product.status === "SOLD") {
+    const relatedOrders = await Order.find({
+      $or: [
+        { product: product._id },
+        { quote: product.acceptedQuoteId },
+      ],
+    }).select("_id paymentStatus deliveryStatus").lean();
+
+    const protectedOrder = relatedOrders.find(isOrderProtectedFromGrowerDelete);
+    if (protectedOrder) {
       return res.status(400).json({
-        msg: "This lot cannot be deleted after deal confirmation",
+        msg: "This lot has a confirmed or paid transaction and cannot be deleted from the grower dashboard.",
       });
     }
 
-    await Auction.deleteMany({ product: product._id });
-    await Quotation.deleteMany({ lot: product._id });
-    await product.deleteOne();
+    const now = new Date();
+    await Promise.all([
+      Auction.updateMany(
+        { product: product._id, status: { $in: ["SCHEDULED", "ACTIVE", "ENDED"] } },
+        {
+          $set: {
+            status: "CANCELLED",
+            cancelledAt: now,
+            cancelledBy: req.user.id,
+            cancellationReason: "Removed by grower before deal completion",
+          },
+        }
+      ),
+      Quotation.updateMany(
+        { lot: product._id, status: { $in: ["pending", "SUBMITTED", "accepted", "ACCEPTED"] } },
+        { $set: { status: "cancelled", rejectedAt: now } }
+      ),
+      Order.deleteMany({
+        product: product._id,
+        paymentStatus: { $in: ["PENDING", "FAILED"] },
+        deliveryStatus: { $nin: ["IN_TRANSIT", "DELIVERED"] },
+      }),
+    ]);
+
+    product.active = false;
+    product.status = "DELETED";
+    product.deletedAt = now;
+    product.deletedBy = req.user.id;
+    product.deletionReason = "Removed by grower before deal completion";
+    await product.save();
 
     emitEfruitMandiMarketUpdate(req, "lot-deleted", {
       productId: product._id,
     });
 
-    res.json({ msg: "Listing deleted successfully" });
+    res.json({ msg: "Unconfirmed lot removed successfully" });
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }

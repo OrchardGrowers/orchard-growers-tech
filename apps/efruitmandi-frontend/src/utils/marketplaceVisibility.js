@@ -10,18 +10,32 @@ const LIVE_STATUSES = new Set([
 const UPCOMING_STATUSES = new Set([
   "upcoming",
   "scheduled",
-  "pending",
   "not started",
 ]);
 
-const CLOSED_STATUSES = new Set([
-  "closed",
+const COMPLETED_DEAL_STATUSES = new Set([
   "completed",
-  "ended",
-  "sold",
-  "quote accepted",
+  "paid",
+  "delivered",
+]);
+
+const COMPLETED_PAYMENT_STATUSES = new Set(["escrow", "paid", "released", "success", "completed"]);
+const COMPLETED_DELIVERY_STATUSES = new Set(["delivered"]);
+const INCOMPLETE_TERMINAL_STATUSES = new Set([
+  "abandoned",
+  "cancelled",
+  "canceled",
+  "closed",
   "deal confirmed",
+  "deleted",
+  "ended",
   "expired",
+  "failed",
+  "payment pending",
+  "pending payment",
+  "quote accepted",
+  "sold",
+  "unpaid",
 ]);
 
 const SENSITIVE_LOCATION_PATTERN =
@@ -35,7 +49,57 @@ const normalizeStatusToken = (value = "") =>
     .replace(/\s+/g, " ")
     .toLowerCase();
 
+export const hasCompletedDealSignal = (deal = {}) => {
+  if (
+    deal.completedDeal === true ||
+    deal.dealCompleted === true ||
+    deal.isCompletedDeal === true ||
+    deal.marketplaceCompleted === true
+  ) {
+    return true;
+  }
+
+  const order = deal.order || deal.acceptedOrder || deal.completedOrder || deal.marketplaceOrder || {};
+  const paymentCandidates = [
+    deal.marketplaceLifecycle?.paymentStatus,
+    deal.completedOrderPaymentStatus,
+    deal.acceptedOrderPaymentStatus,
+    deal.paymentStatus,
+    order.paymentStatus,
+    deal.product?.paymentStatus,
+    deal.auction?.paymentStatus,
+  ].map(normalizeStatusToken);
+
+  if (paymentCandidates.some((status) => COMPLETED_PAYMENT_STATUSES.has(status))) return true;
+
+  const deliveryCandidates = [
+    deal.marketplaceLifecycle?.deliveryStatus,
+    deal.completedOrderDeliveryStatus,
+    deal.acceptedOrderDeliveryStatus,
+    deal.deliveryStatus,
+    order.deliveryStatus,
+    deal.product?.deliveryStatus,
+    deal.auction?.deliveryStatus,
+  ].map(normalizeStatusToken);
+
+  if (deliveryCandidates.some((status) => COMPLETED_DELIVERY_STATUSES.has(status))) return true;
+
+  const statusCandidates = [
+    deal.marketplaceLifecycle?.status,
+    deal.lifecycleStatus,
+    deal.completionStatus,
+    deal.orderStatus,
+    order.status,
+    deal.dealStatus,
+    deal.status,
+  ].map(normalizeStatusToken);
+
+  return statusCandidates.some((status) => COMPLETED_DEAL_STATUSES.has(status));
+};
+
 export const normalizeDealStatus = (deal = {}) => {
+  if (hasCompletedDealSignal(deal)) return "closed";
+
   const candidates = [
     deal.dealTiming?.state,
     deal.status,
@@ -48,7 +112,7 @@ export const normalizeDealStatus = (deal = {}) => {
     .map(normalizeStatusToken)
     .filter(Boolean);
 
-  if (candidates.some((status) => CLOSED_STATUSES.has(status))) return "closed";
+  if (candidates.some((status) => INCOMPLETE_TERMINAL_STATUSES.has(status))) return "";
   if (candidates.some((status) => LIVE_STATUSES.has(status))) return "live";
   if (candidates.some((status) => UPCOMING_STATUSES.has(status))) return "upcoming";
 

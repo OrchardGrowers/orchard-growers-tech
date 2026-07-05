@@ -24,6 +24,13 @@ const formatDate = (value) => {
 const getDocumentType = (order = {}) =>
   String(order.paymentMethod || "").toUpperCase() === "COD" ? "Chalan" : "Invoice";
 
+const COMPLETED_PAYMENT_STATUSES = new Set(["ESCROW", "PAID", "RELEASED"]);
+const COMPLETED_DELIVERY_STATUSES = new Set(["DELIVERED"]);
+
+const isCompletedDocumentOrder = (order = {}) =>
+  COMPLETED_PAYMENT_STATUSES.has(String(order.paymentStatus || "").toUpperCase()) ||
+  COMPLETED_DELIVERY_STATUSES.has(String(order.deliveryStatus || "").toUpperCase());
+
 const getOrderAmount = (order = {}, growerView = false) =>
   growerView
     ? order.sellerReceivable || order.growerPayout || order.auctionPrice || 0
@@ -42,7 +49,7 @@ const buildDocumentHtml = (order = {}, growerView = false) => {
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>${documentType} ${order.invoiceNumber || order._id}</title>
+  <title>${documentType} ${order.invoiceNumber || "-"}</title>
   <style>
     body { font-family: Arial, sans-serif; color: #111827; padding: 28px; }
     .top { display: flex; justify-content: space-between; gap: 20px; border-bottom: 2px solid #15803d; padding-bottom: 14px; }
@@ -57,7 +64,7 @@ const buildDocumentHtml = (order = {}, growerView = false) => {
   <div class="top">
     <div>
       <h1>eFruitMandi ${documentType}</h1>
-      <p><strong>Document No:</strong> ${order.invoiceNumber || order._id || "-"}</p>
+      <p><strong>Document No:</strong> ${order.invoiceNumber || "-"}</p>
       <p><strong>Date:</strong> ${formatDate(order.invoiceDate || order.createdAt)}</p>
     </div>
     <div>
@@ -190,7 +197,7 @@ export default function InvoicesChalan() {
   }, []);
 
   const documents = useMemo(
-    () => orders.filter((order) => order.invoiceNumber || order._id),
+    () => orders.filter((order) => isCompletedDocumentOrder(order) && order.invoiceNumber),
     [orders]
   );
 
@@ -228,7 +235,7 @@ export default function InvoicesChalan() {
                   {getDocumentType(order)}
                 </p>
                 <h2 className="mt-2 text-base font-extrabold text-gray-950">
-                  {order.invoiceNumber || order._id}
+                  {order.invoiceNumber}
                 </h2>
                 <p className="mt-1 text-xs font-bold text-gray-500">
                   {formatDate(order.invoiceDate || order.createdAt)} - {order.paymentStatus || "PENDING"} / {order.deliveryStatus || "PENDING"}

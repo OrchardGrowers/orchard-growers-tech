@@ -15,10 +15,15 @@ import {
   getHighestAvailableGrade,
   mergeDealSettings,
 } from "../services/dealCalculationService.js";
+import {
+  buildMarketplaceLifecycle,
+  isOrderCompletedForMarketplace,
+  isPublicAuctionVisible,
+  resolveDealSchedule,
+} from "../services/dealLifecycleService.js";
 
 const router = express.Router();
-
-const AUCTION_DURATION_MS = 24 * 60 * 60 * 1000;
+const PAYMENT_CONFIRMATION_WINDOW_MS = 15 * 60 * 1000;
 
 const canSeeProductBasePrice = (product, user) =>
   (user?.role === "grower" ||
@@ -82,11 +87,13 @@ const buildOrderFromAuction = (auction, product) => ({
   driverPayment: auction.dealBreakdown?.driverCharge || 0,
   platformCommission: auction.dealBreakdown?.commissionAmount || 0,
   growerPayout: auction.dealBreakdown?.sellerReceivable || 0,
+  paymentDueAt: new Date(Date.now() + PAYMENT_CONFIRMATION_WINDOW_MS),
   paymentStatus: "PENDING",
 });
 
-const serializeAuction = (auction, user) => {
+const serializeAuction = (auction, user, completedOrder = null) => {
   const data = auction.toObject ? auction.toObject() : { ...auction };
+  Object.assign(data, buildMarketplaceLifecycle(completedOrder));
 
   if (data.product && !canSeeProductBasePrice(data.product, user)) {
     delete data.product.basePrice;
@@ -134,11 +141,10 @@ router.post("/", protect, authorize("grower"), async (req, res) => {
       return res.status(403).json({ msg: "You can create deals only for your own lot" });
     }
 
-    const auctionStartTime = startTime
-      ? new Date(startTime)
-      : productExists.auctionStartTime || new Date();
-    const auctionEndTime = new Date(auctionStartTime.getTime() + AUCTION_DURATION_MS);
-    const status = auctionStartTime > new Date() ? "SCHEDULED" : "ACTIVE";
+    const dealSchedule = resolveDealSchedule(startTime || productExists.auctionStartTime || new Date());
+    const auctionStartTime = dealSchedule.startTime;
+    const auctionEndTime = dealSchedule.endTime;
+    const status = dealSchedule.isLiveNow ? "ACTIVE" : "SCHEDULED";
     const openingPrice = Number(startingPrice || productExists.basePrice || 0);
     const openingBreakdown = calculateProductDeal
       ? await calculateProductDeal(productExists, Number(currentBid || openingPrice), distanceKm)
@@ -156,6 +162,11 @@ router.post("/", protect, authorize("grower"), async (req, res) => {
       startTime: auctionStartTime,
       endTime: auctionEndTime,
     });
+
+    productExists.auctionStartTime = auctionStartTime;
+    productExists.auctionEndTime = auctionEndTime;
+    productExists.status = dealSchedule.isLiveNow ? "IN_AUCTION" : "SCHEDULED";
+    await productExists.save();
 
     emitEfruitMandiMarketUpdate(req, "deal-created", {
       auctionId: auction._id,
@@ -213,7 +224,33 @@ router.get("/", optionalProtect, async (req, res) => {
       })
       .populate("highestBidder", "name");
 
-    res.json(auctions.map((auction) => serializeAuction(auction, req.user)));
+    const auctionIds = auctions.map((auction) => auction._id).filter(Boolean);
+    const completedOrders = auctionIds.length
+      ? await Order.find({ auction: { $in: auctionIds } })
+          .select("_id auction paymentStatus deliveryStatus")
+          .lean()
+      : [];
+    const completedOrderByAuctionId = completedOrders.reduce((map, order) => {
+      if (isOrderCompletedForMarketplace(order)) {
+        map.set(String(order.auction), order);
+      }
+      return map;
+    }, new Map());
+    const requesterId = req.user?.id?.toString();
+    const now = new Date();
+    const visibleAuctions = auctions.filter((auction) => {
+      const product = auction.product || {};
+      if (product.active === false) return false;
+      const creator = product.createdBy?._id || product.createdBy;
+      if (requesterId && creator?.toString() === requesterId) return true;
+      return isPublicAuctionVisible(auction, completedOrderByAuctionId, now);
+    });
+
+    res.json(
+      visibleAuctions.map((auction) =>
+        serializeAuction(auction, req.user, completedOrderByAuctionId.get(String(auction._id)))
+      )
+    );
 
   } catch (err) {
     res.status(500).json({ msg: err.message });
@@ -276,10 +313,14 @@ router.post("/end/:id", protect, authorize("grower"), async (req, res) => {
       });
     }
 
-    auction.status = "ENDED";
-    await auction.save();
-
     if (!auction.highestBidder) {
+      auction.status = "EXPIRED";
+      auction.expiredAt = new Date();
+      await auction.save();
+      product.status = "EXPIRED";
+      product.active = false;
+      await product.save();
+
       emitEfruitMandiMarketUpdate(req, "deal-ended", {
         auctionId: auction._id,
         productId: product._id,
@@ -291,11 +332,19 @@ router.post("/end/:id", protect, authorize("grower"), async (req, res) => {
       });
     }
 
+    auction.status = "ENDED";
+    await auction.save();
+
     const order = await Order.findOneAndUpdate(
       { auction: auction._id },
       buildOrderFromAuction(auction, product),
       { new: true, upsert: true, setDefaultsOnInsert: true }
     );
+    product.status = "DEAL_CONFIRMED";
+    product.acceptedBuyerId = auction.highestBidder;
+    product.finalPrice = auction.dealBreakdown?.buyerPayable ?? auction.currentBid;
+    product.finalDealValue = auction.dealBreakdown?.dealAmount ?? auction.currentBid;
+    await product.save();
 
     res.json({
       msg: "Deal ended successfully",

@@ -18,7 +18,7 @@ import LimitedPublicProfileCard from "../components/LimitedPublicProfileCard";
 import { canQuote, getCurrentUser, hasBuyerProfile } from "../utils/auth";
 import { trackLotContact, trackLotView } from "../services/analytics";
 import { saveUserToStorage } from "../utils/userStorage";
-import { getSafePublicProfile } from "../utils/marketplaceVisibility";
+import { getSafePublicProfile, isClosedDeal } from "../utils/marketplaceVisibility";
 
 const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
 const isDevelopment = process.env.NODE_ENV !== "production";
@@ -836,12 +836,7 @@ function isOrganicCertifiedProduct(product = {}) {
 
 function isClosedLotStatus(product = {}, auction = {}, closedDeal = null) {
   if (closedDeal) return true;
-  const statuses = [product?.status, auction?.status]
-    .map((status) => String(status || "").trim().replace(/[_-]+/g, " ").toLowerCase())
-    .filter(Boolean);
-  return statuses.some((status) =>
-    ["sold", "ended", "closed", "completed", "quote accepted", "deal confirmed", "expired"].includes(status)
-  );
+  return isClosedDeal(product) || isClosedDeal(auction);
 }
 
 function getStatusBadgeClass(isClosed) {
@@ -938,12 +933,9 @@ function formatDealStatus(status = "") {
     AVAILABLE: "Available",
     SCHEDULED: "Upcoming Deal",
     UPCOMING: "Upcoming Deal",
-    SOLD: "Deal Closed",
-    ENDED: "Deal Closed",
-    CLOSED: "Deal Closed",
-    COMPLETED: "Deal Closed",
-    QUOTE_ACCEPTED: "Deal Closed",
-    DEAL_CONFIRMED: "Deal Closed",
+    EXPIRED: "Deal Ended",
+    CANCELLED: "Cancelled",
+    DELETED: "Removed",
     "NOT STARTED": "Not started",
   };
   return labels[normalized] || String(status || "Available").replace(/_/g, " ");

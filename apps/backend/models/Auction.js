@@ -27,11 +27,15 @@ const auctionSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["SCHEDULED", "ACTIVE", "ENDED"],
+      enum: ["SCHEDULED", "ACTIVE", "ENDED", "EXPIRED", "CANCELLED"],
       default: "SCHEDULED",
     },
     startTime: Date,
     endTime: Date,
+    expiredAt: Date,
+    cancelledAt: Date,
+    cancelledBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    cancellationReason: { type: String, trim: true, default: "" },
   },
   { timestamps: true }
 );

@@ -14,6 +14,7 @@ import ErpPaymentTransaction from "../models/ErpPaymentTransaction.js";
 import ErpRefund from "../models/ErpRefund.js";
 import ErpSettlement from "../models/ErpSettlement.js";
 import ErpSupportTicket from "../models/ErpSupportTicket.js";
+import { isOrderCompletedForMarketplace } from "../services/dealLifecycleService.js";
 
 const IST_OFFSET_MS = 330 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -115,6 +116,14 @@ const getOrderQuery = (req) => {
   }
   return query;
 };
+
+const getCompletedOrderQuery = (req) => ({
+  ...getOrderQuery(req),
+  $or: [
+    { paymentStatus: { $in: ["ESCROW", "PAID", "RELEASED"] } },
+    { deliveryStatus: "DELIVERED" },
+  ],
+});
 
 const mapOrderPayment = (order = {}) => ({
   id: `order:${order._id}`,
@@ -263,6 +272,8 @@ const mapOrderDocuments = (order = {}) => {
 };
 
 const mapOrderLedgerEntries = (order = {}) => {
+  if (!isOrderCompletedForMarketplace(order)) return [];
+
   const amount = getOrderAmount(order);
   const growerPayout = getGrowerPayout(order);
   const logisticsAmount = getLogisticsAmount(order);
@@ -384,10 +395,16 @@ export const getAdminErpDashboard = async (req, res) => {
     topStates,
     growthOrders,
   ] = await Promise.all([
-    Order.find({ createdAt: { $gte: start, $lt: end } }).select("finalPrice totalAmount auctionPrice dealBreakdown platformCommission commissionTaxableAmount paymentStatus growerPayout driverPayment createdAt").lean(),
+    Order.find({
+      createdAt: { $gte: start, $lt: end },
+      $or: [
+        { paymentStatus: { $in: ["ESCROW", "PAID", "RELEASED"] } },
+        { deliveryStatus: "DELIVERED" },
+      ],
+    }).select("finalPrice totalAmount auctionPrice dealBreakdown platformCommission commissionTaxableAmount paymentStatus deliveryStatus growerPayout driverPayment createdAt").lean(),
     Order.find({ paymentStatus: "ESCROW" }).select("finalPrice totalAmount auctionPrice dealBreakdown paymentStatus").lean(),
     Order.find({ paymentStatus: { $in: ["ESCROW", "PAID"] }, "settlementEligibility.settlementReleaseAllowed": { $ne: true } }).select("_id").lean(),
-    Order.countDocuments({ $or: [{ paymentStatus: "RELEASED" }, { deliveryStatus: "DELIVERED" }] }),
+    Order.countDocuments(getCompletedOrderQuery(req)),
     Order.countDocuments({ $or: [{ paymentStatus: "FAILED" }, { paymentGatewayStatus: "FAILED" }] }),
     VerificationRequest.find({ createdAt: { $gte: start, $lt: end }, "fee.paid": true }).select("fee").lean(),
     ErpPaymentTransaction.countDocuments(),
@@ -418,7 +435,13 @@ export const getAdminErpDashboard = async (req, res) => {
       { $sort: { amount: -1 } },
       { $limit: 10 },
     ]),
-    Order.find({ createdAt: { $gte: last7DaysStart, $lt: end } }).select("finalPrice totalAmount auctionPrice dealBreakdown platformCommission commissionTaxableAmount createdAt").lean(),
+    Order.find({
+      createdAt: { $gte: last7DaysStart, $lt: end },
+      $or: [
+        { paymentStatus: { $in: ["ESCROW", "PAID", "RELEASED"] } },
+        { deliveryStatus: "DELIVERED" },
+      ],
+    }).select("finalPrice totalAmount auctionPrice dealBreakdown platformCommission commissionTaxableAmount paymentStatus deliveryStatus createdAt").lean(),
   ]);
 
   const growthByDate = new Map();
@@ -580,8 +603,8 @@ export const listAdminErpDocuments = async (req, res) => {
   const limit = getLimit(req);
   const [persisted, orders, verificationRequests] = await Promise.all([
     ErpDocumentRecord.find().sort({ createdAt: -1 }).limit(limit).lean(),
-    Order.find(getOrderQuery(req))
-      .select("quote buyer grower invoiceNumber invoiceDate commissionInvoiceNumber commissionInvoiceDate commissionReceiptNumber commissionReceiptDate commissionTaxableAmount commissionGstAmount commissionTotalAmount finalPrice totalAmount auctionPrice dealBreakdown createdAt")
+    Order.find(getCompletedOrderQuery(req))
+      .select("quote buyer grower invoiceNumber invoiceDate commissionInvoiceNumber commissionInvoiceDate commissionReceiptNumber commissionReceiptDate commissionTaxableAmount commissionGstAmount commissionTotalAmount finalPrice totalAmount auctionPrice dealBreakdown paymentStatus deliveryStatus createdAt")
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean(),
@@ -592,6 +615,25 @@ export const listAdminErpDocuments = async (req, res) => {
       .lean(),
   ]);
 
+  const persistedOrderIds = persisted
+    .map((document) => document.sourceOrder)
+    .filter(Boolean)
+    .map((id) => id.toString());
+  const persistedOrderStatusRows = persistedOrderIds.length
+    ? await Order.find({ _id: { $in: persistedOrderIds } })
+        .select("paymentStatus deliveryStatus")
+        .lean()
+    : [];
+  const completedPersistedOrderIds = new Set(
+    persistedOrderStatusRows
+      .filter(isOrderCompletedForMarketplace)
+      .map((order) => order._id.toString())
+  );
+  const visiblePersisted = persisted.filter(
+    (document) =>
+      !document.sourceOrder ||
+      completedPersistedOrderIds.has(document.sourceOrder.toString())
+  );
   const orderDocuments = orders.flatMap(mapOrderDocuments);
   const verificationDocuments = verificationRequests.map((request) => ({
     id: `verification:${request._id}:invoice`,
@@ -614,11 +656,11 @@ export const listAdminErpDocuments = async (req, res) => {
 
   res.json({
     success: true,
-    count: persisted.length + orderDocuments.length + verificationDocuments.length,
-    persistedCount: persisted.length,
+    count: visiblePersisted.length + orderDocuments.length + verificationDocuments.length,
+    persistedCount: visiblePersisted.length,
     derivedCount: orderDocuments.length + verificationDocuments.length,
     documents: [
-      ...persisted.map((document) => ({ ...document, persisted: true })),
+      ...visiblePersisted.map((document) => ({ ...document, persisted: true })),
       ...orderDocuments,
       ...verificationDocuments,
     ],
@@ -629,21 +671,40 @@ export const listAdminErpLedgerEntries = async (req, res) => {
   const limit = getLimit(req);
   const [persisted, orders] = await Promise.all([
     ErpLedgerEntry.find().sort({ postingDate: -1, createdAt: -1 }).limit(limit).lean(),
-    Order.find(getOrderQuery(req))
-      .select("buyer grower driver finalPrice totalAmount auctionPrice dealBreakdown growerPayout driverPayment platformCommission commissionTaxableAmount createdAt")
+    Order.find(getCompletedOrderQuery(req))
+      .select("buyer grower driver finalPrice totalAmount auctionPrice dealBreakdown growerPayout driverPayment platformCommission commissionTaxableAmount paymentStatus deliveryStatus createdAt")
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean(),
   ]);
 
+  const persistedOrderIds = persisted
+    .map((entry) => entry.sourceOrder)
+    .filter(Boolean)
+    .map((id) => id.toString());
+  const persistedOrderStatusRows = persistedOrderIds.length
+    ? await Order.find({ _id: { $in: persistedOrderIds } })
+        .select("paymentStatus deliveryStatus")
+        .lean()
+    : [];
+  const completedPersistedOrderIds = new Set(
+    persistedOrderStatusRows
+      .filter(isOrderCompletedForMarketplace)
+      .map((order) => order._id.toString())
+  );
+  const visiblePersisted = persisted.filter(
+    (entry) =>
+      !entry.sourceOrder ||
+      completedPersistedOrderIds.has(entry.sourceOrder.toString())
+  );
   const derived = orders.flatMap(mapOrderLedgerEntries);
   res.json({
     success: true,
-    count: persisted.length + derived.length,
-    persistedCount: persisted.length,
+    count: visiblePersisted.length + derived.length,
+    persistedCount: visiblePersisted.length,
     derivedCount: derived.length,
     ledgerEntries: [
-      ...persisted.map((entry) => ({ ...entry, persisted: true })),
+      ...visiblePersisted.map((entry) => ({ ...entry, persisted: true })),
       ...derived,
     ],
   });

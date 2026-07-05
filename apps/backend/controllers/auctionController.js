@@ -1,6 +1,5 @@
 import Auction from "../models/Auction.js";
-
-const AUCTION_DURATION_MS = 24 * 60 * 60 * 1000;
+import { resolveDealSchedule } from "../services/dealLifecycleService.js";
 
 // CREATE DEAL
 export const createAuction = async (req, res) => {
@@ -11,13 +10,15 @@ export const createAuction = async (req, res) => {
       return res.status(400).json({ msg: "All fields required" });
     }
 
-    const startTime = new Date();
-    const endTime = new Date(startTime.getTime() + AUCTION_DURATION_MS);
+    const dealSchedule = resolveDealSchedule(new Date());
+    const startTime = dealSchedule.startTime;
+    const endTime = dealSchedule.endTime;
 
     const auction = await Auction.create({
       product: productId,
       startingPrice,
       currentBid: startingPrice,
+      status: dealSchedule.isLiveNow ? "ACTIVE" : "SCHEDULED",
       startTime,
       endTime,
     });

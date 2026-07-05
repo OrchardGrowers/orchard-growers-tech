@@ -108,9 +108,6 @@ cron.schedule("0 6 * * *", async () => {
   }
 });
 
-// ================= TIME LOGIC =================
-const AUCTION_DURATION_MS = 24 * 60 * 60 * 1000;
-
 // ================= MIDDLEWARE =================
 const isProductionLike = () => {
   const runtime = String(process.env.APP_ENV || process.env.NODE_ENV || "").trim().toLowerCase();
@@ -338,6 +335,8 @@ const calculateAuctionDeal = async (auction, baseRate, distanceKm = 0) => {
   });
 };
 
+const PAYMENT_CONFIRMATION_WINDOW_MS = 15 * 60 * 1000;
+
 const buildOrderFromAuction = (auction, product) => ({
   auction: auction._id,
   product: auction.product?._id || auction.product,
@@ -352,6 +351,7 @@ const buildOrderFromAuction = (auction, product) => ({
   platformCommission: auction.dealBreakdown?.commissionAmount || 0,
   growerPayout: auction.dealBreakdown?.sellerReceivable || 0,
   paymentStatus: "PENDING",
+  paymentDueAt: new Date(Date.now() + PAYMENT_CONFIRMATION_WINDOW_MS),
 });
 
 io.on("connection", (socket) => {
@@ -542,14 +542,25 @@ setInterval(async () => {
 
     for (let auction of auctions) {
       if (auction.status === "SCHEDULED" && now >= auction.startTime) {
-        auction.status = "ACTIVE";
-
         if (!auction.endTime || now >= auction.endTime) {
-          auction.startTime = now;
-          auction.endTime = new Date(now.getTime() + AUCTION_DURATION_MS);
+          auction.status = "EXPIRED";
+          auction.expiredAt = now;
+          await auction.save();
+          await Product.findByIdAndUpdate(auction.product, {
+            active: false,
+            status: "EXPIRED",
+          });
+          emitEfruitMandiMarketUpdate("deal-ended", {
+            auctionId: auction._id,
+            orderId: null,
+            expired: true,
+          });
+          continue;
         }
 
+        auction.status = "ACTIVE";
         await auction.save();
+        await Product.findByIdAndUpdate(auction.product, { status: "IN_AUCTION" });
 
         io.to(auction._id.toString()).emit("auctionStarted", {
           auctionId: auction._id,
@@ -568,10 +579,14 @@ setInterval(async () => {
       }
 
       if (now >= auction.endTime && auction.status === "ACTIVE") {
-        auction.status = "ENDED";
-        await auction.save();
-
         if (!auction.highestBidder) {
+          auction.status = "EXPIRED";
+          auction.expiredAt = now;
+          await auction.save();
+          await Product.findByIdAndUpdate(auction.product, {
+            active: false,
+            status: "EXPIRED",
+          });
           io.to(auction._id.toString()).emit("auctionEnded", {
             winner: null,
             finalPrice: auction.currentBid,
@@ -586,11 +601,19 @@ setInterval(async () => {
           emitEfruitMandiMarketUpdate("deal-ended", {
             auctionId: auction._id,
             orderId: null,
+            expired: true,
           });
           continue;
         }
 
         if (!isPaymentPartnerEnabled()) {
+          auction.status = "EXPIRED";
+          auction.expiredAt = now;
+          await auction.save();
+          await Product.findByIdAndUpdate(auction.product, {
+            active: false,
+            status: "EXPIRED",
+          });
           io.to(auction._id.toString()).emit("dealRejected", {
             msg: PAYMENT_UNAVAILABLE_MESSAGE,
           });
@@ -598,16 +621,25 @@ setInterval(async () => {
             auctionId: auction._id,
             orderId: null,
             paymentDisabled: true,
+            expired: true,
           });
           continue;
         }
 
         const existingOrder = await Order.findOne({ auction: auction._id });
+        auction.status = "ENDED";
+        await auction.save();
 
         if (!existingOrder) {
           const product = await Product.findById(auction.product).select("createdBy");
 
           const order = await Order.create(buildOrderFromAuction(auction, product));
+          await Product.findByIdAndUpdate(auction.product, {
+            status: "DEAL_CONFIRMED",
+            acceptedBuyerId: auction.highestBidder,
+            finalPrice: auction.dealBreakdown?.buyerPayable ?? auction.currentBid,
+            finalDealValue: auction.dealBreakdown?.dealAmount ?? auction.currentBid,
+          });
 
           io.to(auction._id.toString()).emit("auctionEnded", {
             winner: auction.highestBidder,

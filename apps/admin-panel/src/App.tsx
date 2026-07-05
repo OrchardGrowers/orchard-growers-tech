@@ -5961,11 +5961,8 @@ function EfruitDealsPanel({
   orders: AdminOrder[];
   settlements: AdminErpSettlement[];
 }) {
-  const completedDeals = orders.filter((order) =>
-    ['RELEASED', 'PAID'].includes(String(order.paymentStatus || '').toUpperCase()) ||
-    String(order.deliveryStatus || '').toUpperCase() === 'DELIVERED'
-  );
-  const escrowDeals = orders.filter((order) => String(order.paymentStatus || '').toUpperCase() === 'ESCROW');
+  const completedDeals = orders.filter(isCompletedMarketplaceOrder);
+  const escrowDeals = orders.filter((order) => COMPLETED_EFRUIT_PAYMENT_STATUSES.has(String(order.paymentStatus || '').toUpperCase()));
   const blockedSettlements = settlements.filter((settlement) =>
     ['FAILED', 'ON_HOLD', 'CANCELLED'].includes(String(settlement.status || '').toUpperCase())
   );
@@ -5973,7 +5970,7 @@ function EfruitDealsPanel({
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
       <div className="mb-4 grid gap-3 md:grid-cols-4">
-        <MetricCard label="Confirmed Deals" value={orders.length} />
+        <MetricCard label="Orders Tracked" value={orders.length} />
         <MetricCard label="Completed" value={completedDeals.length} />
         <MetricCard label="Escrow / Paid" value={escrowDeals.length} />
         <MetricCard label="Settlement Exceptions" value={blockedSettlements.length} />
@@ -6510,6 +6507,16 @@ function getEfruitDocumentType(order: AdminOrder) {
   return String(order.paymentMethod || '').toUpperCase() === 'COD' ? 'Chalan' : 'Invoice';
 }
 
+const COMPLETED_EFRUIT_PAYMENT_STATUSES = new Set(['ESCROW', 'PAID', 'RELEASED']);
+const COMPLETED_EFRUIT_DELIVERY_STATUSES = new Set(['DELIVERED']);
+
+function isCompletedMarketplaceOrder(order: AdminOrder) {
+  return (
+    COMPLETED_EFRUIT_PAYMENT_STATUSES.has(String(order.paymentStatus || '').toUpperCase()) ||
+    COMPLETED_EFRUIT_DELIVERY_STATUSES.has(String(order.deliveryStatus || '').toUpperCase())
+  );
+}
+
 function getEfruitDocumentAmount(order: AdminOrder) {
   return order.finalPrice || order.totalAmount || order.auctionPrice || order.sellerReceivable || order.growerPayout || 0;
 }
@@ -6580,7 +6587,7 @@ function printAdminDocument(order: AdminOrder) {
 }
 
 function EfruitInvoiceChalanPanel({ orders }: { orders: AdminOrder[] }) {
-  const documents = orders.filter((order) => order.invoiceNumber || order._id);
+  const documents = orders.filter(isCompletedMarketplaceOrder);
 
   return (
     <RequestSection title="eFruitMandi Invoices / Chalan" count={documents.length}>

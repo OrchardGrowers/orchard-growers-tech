@@ -250,6 +250,11 @@ export default function ProfileDashboard() {
   const [adMenuOpen, setAdMenuOpen] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
+  const [deleteLotDialog, setDeleteLotDialog] = useState({
+    open: false,
+    product: null,
+    loading: false,
+  });
   const [profileDraft, setProfileDraft] = useState(createProfileDraft());
   const [addressDraft, setAddressDraft] = useState(createAddressDraft());
   const [businessAddressDraft, setBusinessAddressDraft] = useState(createEntityAddressDraft());
@@ -1074,8 +1079,28 @@ export default function ProfileDashboard() {
     navigate(`/list-new-lot?edit=${productId}`, { state: { productId } });
   };
 
-  const deleteLot = async (productId) => {
-    if (!window.confirm("Delete this fruit lot?")) return;
+  const deleteLot = (productId) => {
+    const product =
+      products.find((item) => item._id === productId) ||
+      { _id: productId, title: "Fruit lot" };
+
+    setDeleteLotDialog({
+      open: true,
+      product,
+      loading: false,
+    });
+  };
+
+  const closeDeleteLotDialog = () => {
+    if (deleteLotDialog.loading) return;
+    setDeleteLotDialog({ open: false, product: null, loading: false });
+  };
+
+  const confirmDeleteLot = async () => {
+    const productId = deleteLotDialog.product?._id;
+    if (!productId) return;
+
+    setDeleteLotDialog((current) => ({ ...current, loading: true }));
 
     try {
       await API.delete(`/products/${productId}`);
@@ -1084,12 +1109,14 @@ export default function ProfileDashboard() {
         current.filter((auction) => (auction.product?._id || auction.product)?.toString() !== productId)
       );
       setNotice("Lot deleted.");
+      setDeleteLotDialog({ open: false, product: null, loading: false });
     } catch (err) {
       setNotice(
         err.response?.data?.msg ||
           err.response?.data?.message ||
           "Lot could not be deleted. Please try again."
       );
+      setDeleteLotDialog((current) => ({ ...current, loading: false }));
     }
   };
 
@@ -1982,6 +2009,15 @@ export default function ProfileDashboard() {
         <ImagePreviewModal
           image={previewImage}
           onClose={() => setPreviewImage(null)}
+        />
+      )}
+
+      {deleteLotDialog.open && (
+        <DeleteLotConfirmDialog
+          product={deleteLotDialog.product}
+          loading={deleteLotDialog.loading}
+          onCancel={closeDeleteLotDialog}
+          onConfirm={confirmDeleteLot}
         />
       )}
     </div>
@@ -3006,6 +3042,54 @@ function Avatar({ name, imageUrl, className = "" }) {
       className={`flex shrink-0 items-center justify-center rounded-full bg-gray-900 font-semibold text-white ${className}`}
     >
       {name.slice(0, 1).toUpperCase()}
+    </div>
+  );
+}
+
+function DeleteLotConfirmDialog({ product, loading, onCancel, onConfirm }) {
+  const title = product?.title || product?.fruitName || "this fruit lot";
+
+  return (
+    <div
+      className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/45 px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-lot-title"
+    >
+      <section className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-700">
+            <FaTrash />
+          </span>
+          <div>
+            <h2 id="delete-lot-title" className="text-base font-black text-gray-950">
+              Delete fruit lot?
+            </h2>
+            <p className="mt-1 text-sm font-semibold text-gray-600">
+              {title} will be removed from your grower profile if it is still unconfirmed or incomplete.
+            </p>
+          </div>
+        </div>
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={loading}
+            className="rounded-md bg-gray-100 px-3 py-2 text-sm font-extrabold text-gray-800 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-red-600 px-3 py-2 text-sm font-extrabold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
+          >
+            <FaTrash />
+            {loading ? "Deleting..." : "Delete"}
+          </button>
+        </div>
+      </section>
     </div>
   );
 }

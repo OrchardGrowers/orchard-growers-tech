@@ -8,6 +8,7 @@ import ErpLedgerEntry from "../models/ErpLedgerEntry.js";
 import ErpPaymentTransaction from "../models/ErpPaymentTransaction.js";
 import ErpSettlement from "../models/ErpSettlement.js";
 import { generateErpNumber } from "./erpNumberingService.js";
+import { isOrderCompletedForMarketplace } from "./dealLifecycleService.js";
 
 const roundMoney = (value) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 const toNumber = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
@@ -144,6 +145,8 @@ const upsertPaymentTransaction = async ({ order, adminId }) => {
 };
 
 const upsertCommissionLedger = async ({ order, adminId }) => {
+  if (!isOrderCompletedForMarketplace(order)) return null;
+
   const commissionAmount = getCommissionAmount(order);
   if (commissionAmount <= 0) return null;
 
@@ -206,6 +209,8 @@ const buildSettlementRows = (order = {}) => {
 };
 
 const upsertSettlements = async ({ order, adminId }) => {
+  if (!isOrderCompletedForMarketplace(order)) return [];
+
   const releaseAllowed = Boolean(order.settlementEligibility?.settlementReleaseAllowed);
   const paymentStatus = normalizeStatus(order.paymentStatus);
   const status = paymentStatus === "RELEASED" ? "SETTLED" : releaseAllowed ? "ELIGIBLE" : "PENDING";
@@ -289,6 +294,8 @@ const upsertDocument = async ({ query, type, payload, date, adminId }) => {
 };
 
 const upsertOrderDocuments = async ({ order, adminId }) => {
+  if (!isOrderCompletedForMarketplace(order)) return [];
+
   const amount = getOrderAmount(order);
   const documents = [];
 
@@ -471,6 +478,8 @@ const buildLedgerRows = (order = {}) => {
 };
 
 const upsertLedgerEntries = async ({ order, adminId }) => {
+  if (!isOrderCompletedForMarketplace(order)) return [];
+
   const rows = buildLedgerRows(order);
   if (!rows.length) return [];
 
