@@ -10,6 +10,59 @@ import {
   PAYMENT_UNAVAILABLE_MESSAGE,
 } from "../config/payment";
 
+const loadRazorpayScript = () =>
+  new Promise((resolve) => {
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+
+const openRazorpayCheckout = ({ orderData, appOrder, user }) =>
+  new Promise((resolve, reject) => {
+    if (!window.Razorpay) {
+      reject(new Error("Unable to load Razorpay Checkout."));
+      return;
+    }
+
+    const checkout = new window.Razorpay({
+      key: orderData.keyId,
+      amount: Math.round(Number(orderData.amount || 0) * 100),
+      currency: orderData.currency || "INR",
+      name: "eFruitMandi",
+      description: "Consignment payment",
+      order_id: orderData.razorpayOrderId,
+      prefill: {
+        name: user?.businessName || user?.buyerContactPerson || user?.name || "",
+        email: user?.email || "",
+        contact: user?.phone || user?.contact || "",
+      },
+      notes: {
+        platform: "efruitmandi",
+        internalOrderId: orderData.orderId || appOrder?._id || appOrder?.id || "",
+      },
+      handler: resolve,
+      modal: {
+        ondismiss: () => reject(new Error("Payment was cancelled.")),
+      },
+      theme: {
+        color: "#15803d",
+      },
+    });
+
+    checkout.on("payment.failed", (response) => {
+      reject(new Error(response?.error?.description || "Payment failed"));
+    });
+
+    checkout.open();
+  });
+
 export default function Payment() {
   const { orderId } = useParams();
   const navigate = useNavigate();
@@ -92,19 +145,55 @@ export default function Payment() {
         value: amount || getBuyerPayableAmount(order),
       });
 
-      const res = await API.post("/billdesk/pay", { orderId });
-      setAmount(res.data.amount);
-
-      await API.post("/billdesk/callback", { orderId });
-      trackPaymentSuccess({
-        value: res.data.amount || amount || getBuyerPayableAmount(order),
+      const createOrder = await API.post("/payments/razorpay/create-order", {
+        orderId,
       });
-      navigate(`/escrow/${orderId}?payment=success&section=logistics`);
+
+      const data = createOrder.data;
+      setAmount(data.amount || amount || getBuyerPayableAmount(order));
+
+      let verifyRes;
+      if (data.localTestMode) {
+        verifyRes = await API.post("/payments/razorpay/verify-payment", {
+          orderId,
+          razorpay_order_id: data.razorpayOrderId,
+          razorpay_payment_id: `pay_local_${Date.now()}`,
+          localTestPayment: true,
+        });
+      } else {
+        const sdkLoaded = await loadRazorpayScript();
+
+        if (!sdkLoaded) {
+          throw new Error("Unable to load Razorpay Checkout.");
+        }
+
+        const paymentResult = await openRazorpayCheckout({
+          orderData: data,
+          appOrder: order,
+          user,
+        });
+
+        verifyRes = await API.post("/payments/razorpay/verify-payment", {
+          orderId,
+          razorpay_order_id: paymentResult.razorpay_order_id,
+          razorpay_payment_id: paymentResult.razorpay_payment_id,
+          razorpay_signature: paymentResult.razorpay_signature,
+        });
+      }
+
+      if (verifyRes.data?.order) {
+        setOrder(verifyRes.data.order);
+        setAmount(getBuyerPayableAmount(verifyRes.data.order));
+      }
+
+      trackPaymentSuccess({
+        value: data.amount || amount || getBuyerPayableAmount(order),
+      });
     } catch (err) {
       trackPaymentFailed({
         value: amount || getBuyerPayableAmount(order),
       });
-      setMessage(err.response?.data?.msg || "Payment failed");
+      setMessage(err.response?.data?.msg || err.message || "Payment failed");
     } finally {
       setLoading(false);
     }
@@ -114,6 +203,8 @@ export default function Payment() {
   const gradeRows = getBuyerGradeRows(order);
   const totalBoxes = getTotalBoxes(order, product, gradeRows);
   const paymentDueText = formatPaymentCountdown(order?.paymentDueAt, now);
+  const paymentStatus = String(order?.paymentStatus || "PENDING").toUpperCase();
+  const canPayOrder = paymentStatus === "PENDING";
 
   return (
     <div className="mx-auto w-full max-w-4xl overflow-x-hidden px-4 pb-10 md:px-0">
@@ -171,16 +262,16 @@ export default function Payment() {
               {formatCurrency(amount)}
             </p>
             <p className="mt-2 text-xs font-semibold text-green-900">
-              Unloading labour is not collected by eFruitMandi. Buyer pays it directly at unloading, if applicable.
+              Unloading labour is not collected by eFruitMandi. Grower pays it directly at unloading, if applicable.
             </p>
           </div>
 
           <button
             onClick={handlePayment}
-            disabled={loading || !orderReady}
+            disabled={loading || !orderReady || !canPayOrder}
             className="mt-4 min-h-12 w-full rounded bg-green-700 px-4 py-3 text-sm font-bold text-white disabled:bg-gray-300"
           >
-            {loading ? "Processing..." : "Pay to Confirm Consignment"}
+            {loading ? "Processing..." : canPayOrder ? "Pay to Confirm Consignment" : "Payment Confirmed"}
           </button>
 
           <p className="mt-3 rounded-md bg-green-50 px-3 py-2 text-xs font-bold text-green-800">

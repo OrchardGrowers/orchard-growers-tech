@@ -19,6 +19,7 @@ import orderRoutes from "./routes/orderRoutes.js";
 import deliveryRoutes from "./routes/deliveryRoutes.js";
 import billdeskRoutes from "./routes/billdeskRoutes.js";
 import cashfreeRoutes from "./routes/cashfreeRoutes.js";
+import razorpayRoutes from "./routes/razorpayRoutes.js";
 import mandiRatesRoutes from "./routes/mandiRates.js";
 import verificationRoutes from "./routes/verificationRoutes.js";
 import kycRoutes from "./routes/kycRoutes.js";
@@ -26,6 +27,7 @@ import cloudinaryRoutes from "./routes/cloudinaryRoutes.js";
 import hsnRoutes from "./routes/hsnRoutes.js";
 import debugRoutes from "./routes/debugRoutes.js";
 import logisticsRoutes from "./routes/logisticsRoutes.js";
+import logisticsPartnerRoutes from "./routes/logisticsPartnerRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 import searchRoutes from "./routes/searchRoutes.js";
 import captureSessionRoutes from "./routes/captureSessionRoutes.js";
@@ -182,7 +184,10 @@ app.options(["/api/admin/send-otp", "/api/auth/*"], cors(corsOptions));
 app.use(express.json({
   limit: "200mb",
   verify: (req, _res, buf) => {
-    if (req.originalUrl?.startsWith("/api/payments/cashfree/webhook")) {
+    if (
+      req.originalUrl?.startsWith("/api/payments/cashfree/webhook") ||
+      req.originalUrl?.startsWith("/api/payments/razorpay/webhook")
+    ) {
       req.rawBody = buf.toString("utf8");
     }
   },
@@ -209,12 +214,14 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/delivery", deliveryRoutes);
 app.use("/api/billdesk", billdeskRoutes);
 app.use("/api/payments/cashfree", cashfreeRoutes);
+app.use("/api/payments/razorpay", razorpayRoutes);
 app.use("/api/mandi-rates", mandiRatesRoutes);
 app.use("/api/verification-requests", verificationRoutes);
 app.use("/api/kyc", kycRoutes);
 app.use("/api/cloudinary", cloudinaryRoutes);
 app.use("/api/hsn", hsnRoutes);
 app.use("/api/debug", debugRoutes);
+app.use("/api/logistics-partners", logisticsPartnerRoutes);
 app.use("/api/logistics", logisticsRoutes);
 app.use("/api/uploads", uploadRoutes);
 app.use("/api/search", searchRoutes);
@@ -295,6 +302,16 @@ const emitEfruitMandiMarketUpdate = (action, payload = {}) => {
 const userHasProfile = (user, profileType) =>
   user?.role === profileType ||
   (Array.isArray(user?.profileTypes) && user.profileTypes.includes(profileType));
+
+const isLocalTestBuyer = (user = {}) => {
+  if (process.env.NODE_ENV === "production") return false;
+  if (process.env.ALLOW_TEST_OTP !== "true") return false;
+
+  const email = String(user.email || "").trim().toLowerCase();
+  const phone = String(user.phone || user.contact || "").trim();
+
+  return email === "testbuyer@efruitmandi.live" || phone === "1234567890";
+};
 
 const hasApprovedRoleKyc = (user = {}, roleType = "") => {
   const role = String(roleType || "").toLowerCase();
@@ -381,7 +398,7 @@ io.on("connection", (socket) => {
       }
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const dealBuyer = await User.findById(decoded.id).select("_id role profileTypes kyc kycByRole buyerVerified");
+      const dealBuyer = await User.findById(decoded.id).select("_id email phone contact role profileTypes kyc kycByRole buyerVerified");
 
       if (!dealBuyer || !userHasProfile(dealBuyer, "buyer")) {
         socket.emit("dealRejected", {
@@ -390,7 +407,7 @@ io.on("connection", (socket) => {
         return;
       }
 
-      if (!hasApprovedRoleKyc(dealBuyer, "buyer")) {
+      if (!isLocalTestBuyer(dealBuyer) && !hasApprovedRoleKyc(dealBuyer, "buyer")) {
         socket.emit("dealRejected", {
           success: false,
           code: "KYC_REQUIRED",
@@ -462,7 +479,7 @@ io.on("connection", (socket) => {
       }
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const dealBuyer = await User.findById(decoded.id).select("_id role profileTypes kyc kycByRole buyerVerified");
+      const dealBuyer = await User.findById(decoded.id).select("_id email phone contact role profileTypes kyc kycByRole buyerVerified");
 
       if (!dealBuyer || !userHasProfile(dealBuyer, "buyer")) {
         socket.emit("dealRejected", {
@@ -471,7 +488,7 @@ io.on("connection", (socket) => {
         return;
       }
 
-      if (!hasApprovedRoleKyc(dealBuyer, "buyer")) {
+      if (!isLocalTestBuyer(dealBuyer) && !hasApprovedRoleKyc(dealBuyer, "buyer")) {
         socket.emit("dealRejected", {
           success: false,
           code: "KYC_REQUIRED",
@@ -697,5 +714,7 @@ server.listen(PORT, "0.0.0.0", () => {
 server.on("error", (err) => {
   console.error("Server error:", err);
 });
+
+
 
 

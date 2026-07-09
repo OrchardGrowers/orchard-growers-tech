@@ -2,6 +2,7 @@ import crypto from "crypto";
 import User from "../models/User.js";
 
 export const normalizePhone = (value = "") => String(value || "").replace(/\D/g, "");
+const normalizeIdentifier = (value = "") => String(value || "").trim().toLowerCase();
 
 export const getRoleKycStatus = (user = {}, role = "driver") => {
   const status = user.kycByRole?.[role]?.status || user.kyc?.status || "";
@@ -20,14 +21,25 @@ export const hasVerifiedPayout = (user = {}, role = "driver") => {
   return Boolean(kyc.upiId || kyc.accountNumber || kyc.bankAccountNo);
 };
 
-export const findLogisticsPartner = async ({ driverMobile = "", transportFirmName = "" } = {}) => {
-  const mobile = normalizePhone(driverMobile);
+const buildLogisticsProfileFilter = () => ({
+  $or: [
+    { role: "driver" },
+    { profileTypes: "driver" },
+    { logisticsName: { $exists: true, $ne: "" } },
+  ],
+});
+
+export const findLogisticsPartner = async ({ identifier = "", driverMobile = "", transportFirmName = "" } = {}) => {
+  const normalizedIdentifier = normalizeIdentifier(identifier);
+  const mobile = normalizePhone(driverMobile || normalizedIdentifier);
   const firm = String(transportFirmName || "").trim();
+  const email = normalizedIdentifier.includes("@") ? normalizedIdentifier : "";
   const query = {
     $and: [
-      { profileTypes: "driver" },
+      buildLogisticsProfileFilter(),
       {
         $or: [
+          ...(email ? [{ email }] : []),
           ...(mobile
             ? [
                 { phone: mobile },
@@ -51,6 +63,23 @@ export const findLogisticsPartner = async ({ driverMobile = "", transportFirmNam
   return User.findOne(query).lean();
 };
 
+export const formatSafeLogisticsPartner = (user = {}) => {
+  if (!user?._id) return null;
+  return {
+    _id: user._id,
+    name: user.name || "",
+    email: user.email || "",
+    phone: user.phone || user.contact || user.driverContact || user.logisticsOwnerContact || "",
+    driverName: user.driverName || user.name || "",
+    driverMobile: user.driverContact || user.phone || user.contact || user.logisticsOwnerContact || "",
+    vehicleNumber: user.vehicleNumber || user.kycByRole?.driver?.vehicleNumber || user.kyc?.vehicleNumber || "",
+    vehicleType: user.vehicleType || "",
+    transportFirmName: user.logisticsName || user.businessName || "",
+    ownerName: user.logisticsOwnerName || user.name || "",
+    kycStatus: getRoleKycStatus(user, "driver") || (user.driverVerified ? "APPROVED" : "NOT_SUBMITTED"),
+  };
+};
+
 export const createInvitationToken = () => crypto.randomBytes(18).toString("hex");
 
 export const buildLogisticsInvitationLink = (token) => {
@@ -59,7 +88,7 @@ export const buildLogisticsInvitationLink = (token) => {
 };
 
 export const refreshSettlementEligibility = async (order, { grower, logistics } = {}) => {
-  const logisticsAccepted = order.logisticsAssignment?.status === "LOGISTICS_ACCEPTED";
+  const logisticsAccepted = ["LOGISTICS_ACCEPTED", "READY_FOR_DISPATCH"].includes(order.logisticsAssignment?.status);
   const growerKycVerified = grower ? isRoleKycVerified(grower, "grower") : Boolean(order.settlementEligibility?.growerKycVerified);
   const logisticsKycVerified = logistics ? isRoleKycVerified(logistics, "driver") : Boolean(order.settlementEligibility?.logisticsKycVerified);
 

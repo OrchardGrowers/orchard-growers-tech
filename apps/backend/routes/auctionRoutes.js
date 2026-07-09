@@ -93,7 +93,9 @@ const buildOrderFromAuction = (auction, product) => ({
 
 const serializeAuction = (auction, user, completedOrder = null) => {
   const data = auction.toObject ? auction.toObject() : { ...auction };
-  Object.assign(data, buildMarketplaceLifecycle(completedOrder));
+  if (completedOrder) {
+    Object.assign(data, buildMarketplaceLifecycle(completedOrder));
+  }
 
   if (data.product && !canSeeProductBasePrice(data.product, user)) {
     delete data.product.basePrice;
@@ -230,7 +232,7 @@ router.get("/", optionalProtect, async (req, res) => {
           .select("_id auction paymentStatus deliveryStatus")
           .lean()
       : [];
-    const completedOrderByAuctionId = completedOrders.reduce((map, order) => {
+    const completedOrderByAuctionId = completedOrders.filter(Boolean).reduce((map, order) => {
       if (isOrderCompletedForMarketplace(order)) {
         map.set(String(order.auction), order);
       }
@@ -364,3 +366,4 @@ router.post("/end/:id", protect, authorize("grower"), async (req, res) => {
 
 
 export default router;
+

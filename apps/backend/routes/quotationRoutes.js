@@ -15,6 +15,8 @@ import {
 
 const router = express.Router();
 const PAYMENT_CONFIRMATION_WINDOW_MS = 15 * 60 * 1000;
+const BUSINESS_LOCATION_DISTANCE_MESSAGE =
+  "Delivery distance will be calculated after buyer and grower business locations are available.";
 
 const hasCompletedKyc = (user = {}, roleType = "") => {
   const role = String(roleType || "").toLowerCase();
@@ -55,6 +57,17 @@ const calculateDistanceKm = (from = {}, to = {}) => {
       Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return Math.round(earthRadiusKm * c * 10) / 10;
+};
+
+const requireBusinessLocationDistance = (from = {}, to = {}) => {
+  const distanceKm = calculateDistanceKm(from, to);
+  if (distanceKm === null) {
+    const error = new Error(BUSINESS_LOCATION_DISTANCE_MESSAGE);
+    error.statusCode = 400;
+    error.code = "BUSINESS_LOCATION_REQUIRED";
+    throw error;
+  }
+  return distanceKm;
 };
 
 const buildGradePrices = (prices = []) => {
@@ -364,6 +377,19 @@ const normalizeId = (value) => {
 
 const normalizePhone = (value = "") => String(value || "").replace(/\D/g, "");
 
+const isLocalTestAccount = (user = {}) => {
+  if (process.env.NODE_ENV === "production") return false;
+  if (process.env.ALLOW_TEST_OTP !== "true") return false;
+
+  const email = String(user.email || "").trim().toLowerCase();
+  const phone = String(user.phone || user.contact || "").trim();
+
+  return (
+    email === "testbuyer@efruitmandi.live" ||
+    phone === "1234567890"
+  );
+};
+
 const isOwnListedLot = (product = {}, buyer = {}, authenticatedUser = {}) => {
   const requesterIds = new Set(
     [
@@ -394,7 +420,7 @@ const createQuoteForLot = async (req, res) => {
     const lotId = req.params.lotId || req.body.lotId;
     const [product, buyer] = await Promise.all([
       Product.findById(lotId).populate("createdBy", "name orchardName businessName phone mapLatitude mapLongitude"),
-      User.findById(req.user.id).select("role profileTypes name phone businessName buyerContactPerson kyc kycByRole buyerVerified mapLatitude mapLongitude"),
+      User.findById(req.user.id).select("email phone contact role profileTypes name businessName buyerContactPerson kyc kycByRole buyerVerified mapLatitude mapLongitude"),
     ]);
 
     if (!product || product.createdSource === "admin-panel") {
@@ -405,7 +431,7 @@ const createQuoteForLot = async (req, res) => {
       return res.status(403).json({ msg: "Register as Fruit Buyer first" });
     }
 
-    if (!buyer.buyerVerified && !hasCompletedKyc(buyer, "buyer")) {
+    if (!isLocalTestAccount(buyer) && !buyer.buyerVerified && !hasCompletedKyc(buyer, "buyer")) {
       return res.status(403).json({
         success: false,
         code: "KYC_REQUIRED",
@@ -449,11 +475,7 @@ const createQuoteForLot = async (req, res) => {
       return res.status(400).json({ msg: `Enter a price greater than 0 for Grade ${missingGrade}` });
     }
 
-    const autoDistanceKm = calculateDistanceKm(product.createdBy, buyer);
-    const fallbackDistance = req.body.distanceKm === undefined || req.body.distanceKm === ""
-      ? null
-      : Number(req.body.distanceKm);
-    const distanceKm = autoDistanceKm ?? (Number.isFinite(fallbackDistance) ? fallbackDistance : 0);
+    const distanceKm = requireBusinessLocationDistance(product.createdBy, buyer);
     const settings = await loadDealSettings();
     const breakdown = calculateDealBreakdown({
       gradeQuantities,
@@ -505,13 +527,16 @@ const createQuoteForLot = async (req, res) => {
     res.status(201).json({
       success: true,
       quotation: formatQuote(populated || quotation.toObject(), "buyer"),
-      distanceSource: autoDistanceKm === null ? "manual" : "profile",
+      distanceSource: "profile",
     });
   } catch (err) {
     if (err?.code === 11000) {
       return res.status(409).json({ msg: "You already have a pending offer for this lot." });
     }
-    res.status(400).json({ msg: err.message || "Offer could not be saved" });
+    res.status(err.statusCode || 400).json({
+      msg: err.message || "Offer could not be saved",
+      code: err.code,
+    });
   }
 };
 
@@ -586,11 +611,7 @@ router.patch("/:quoteId", protect, authorize("buyer"), async (req, res) => {
       return res.status(400).json({ msg: `Enter a price greater than 0 for Grade ${missingGrade}` });
     }
 
-    const autoDistanceKm = calculateDistanceKm(quotation.lot.createdBy, buyer);
-    const fallbackDistance = req.body.distanceKm === undefined || req.body.distanceKm === ""
-      ? null
-      : Number(req.body.distanceKm);
-    const distanceKm = autoDistanceKm ?? (Number.isFinite(fallbackDistance) ? fallbackDistance : quotation.distanceKm || 0);
+    const distanceKm = requireBusinessLocationDistance(quotation.lot.createdBy, buyer);
     const settings = await loadDealSettings();
     const breakdown = calculateDealBreakdown({
       gradeQuantities,
@@ -628,7 +649,10 @@ router.patch("/:quoteId", protect, authorize("buyer"), async (req, res) => {
     const updated = await populateQuoteQuery(Quotation.findById(quotation._id)).lean();
     res.json({ success: true, quotation: formatQuote(updated || quotation.toObject(), "buyer") });
   } catch (err) {
-    res.status(400).json({ msg: err.message || "Offer could not be updated" });
+    res.status(err.statusCode || 400).json({
+      msg: err.message || "Offer could not be updated",
+      code: err.code,
+    });
   }
 });
 
@@ -804,7 +828,10 @@ router.get("/lots/:lotId", protect, authorize("buyer", "grower"), async (req, re
     const isGrowerOwner = product.createdBy?.toString() === requesterId;
     const query = isGrowerOwner
       ? { lot: product._id }
-      : { lot: product._id, buyer: req.user.id };
+      : {
+          lot: product._id,
+          buyer: { $ne: req.user.id },
+        };
 
     const quotations = await Quotation.find(query)
       .populate("buyer", "name businessName buyerContactPerson")
@@ -829,10 +856,27 @@ router.get("/lots/:lotId", protect, authorize("buyer", "grower"), async (req, re
       });
     }
 
-    res.json({ success: true, sellerView: false, quotations });
+    res.json({
+      success: true,
+      sellerView: false,
+      quotations: quotations.map((quotation) => ({
+        _id: quotation._id,
+        buyerName:
+          quotation.buyer?.businessName ||
+          quotation.buyer?.buyerContactPerson ||
+          quotation.buyer?.name ||
+          quotation.buyerName ||
+          "Buyer",
+        status: quotation.status,
+        grades: quotation.grades || [],
+        quotedTotalValue: quotation.quotedTotalValue || quotation.baseDealAmount || quotation.dealAmount || quotation.buyerPayableThroughPlatform || 0,
+        createdAt: quotation.createdAt,
+      })),
+    });
   } catch (err) {
     res.status(500).json({ msg: err.message || "Could not load offerings" });
   }
 });
 
 export default router;
+

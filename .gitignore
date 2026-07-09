@@ -136,3 +136,6 @@ uploads/
 logs/
 *.log
 *.bak*
+
+# Turbo cache
+.turbo/

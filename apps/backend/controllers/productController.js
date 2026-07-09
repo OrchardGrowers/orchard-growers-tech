@@ -19,7 +19,7 @@ import {
 } from "../services/dealLifecycleService.js";
 
 const PUBLIC_PROFILE_SELECT =
-  "name orchardName businessName buyerContactPerson companyLogoUrl avatarUrl bannerUrl buyerAvatarUrl buyerCompanyLogoUrl role profileTypes growerVerified buyerVerified growerOgVerified buyerOgVerified driverOgVerified ogVerificationByRole growerRatingAverage growerRatingCount createdAt";
+  "name orchardName businessName buyerContactPerson companyLogoUrl avatarUrl bannerUrl buyerAvatarUrl buyerCompanyLogoUrl role profileTypes growerVerified buyerVerified growerOgVerified buyerOgVerified driverOgVerified ogVerificationByRole growerRatingAverage growerRatingCount mapLatitude mapLongitude createdAt";
 const CLOSED_PRODUCT_STATUSES = new Set(["SOLD", "QUOTE_ACCEPTED", "DEAL_CONFIRMED", "quote_accepted", "deal_confirmed"]);
 const CLOSED_AUCTION_STATUSES = new Set(["ENDED", "CLOSED", "COMPLETED"]);
 const ACCEPTED_QUOTE_STATUSES = ["accepted", "ACCEPTED"];
@@ -50,7 +50,9 @@ const canSeeBasePrice = (product, user) =>
 
 const serializeProduct = (product, user, completedOrder = null) => {
   const data = product.toObject ? product.toObject() : { ...product };
-  Object.assign(data, buildMarketplaceLifecycle(completedOrder));
+  if (completedOrder) {
+    Object.assign(data, buildMarketplaceLifecycle(completedOrder));
+  }
 
   if (!canSeeBasePrice(data, user) && data.createdSource !== "admin-panel") {
     delete data.basePrice;
@@ -208,6 +210,23 @@ const ORGANIC_CERTIFIED_QUALITIES = new Set([
 const requiresOrganicCertificate = (quality = "") =>
   ORGANIC_CERTIFIED_QUALITIES.has(String(quality || "").trim().toLowerCase());
 
+const isLocalTestAccount = (user = {}) => {
+  if (process.env.NODE_ENV === "production") return false;
+  if (process.env.ALLOW_TEST_OTP !== "true") return false;
+
+  const email = String(user.email || "").trim().toLowerCase();
+  const phone = String(user.phone || user.contact || "").trim();
+
+  return (
+    email === "testbuyer@efruitmandi.live" ||
+    email === "testgrower@efruitmandi.live" ||
+    email === "testdriver@efruitmandi.live" ||
+    phone === "1234567890" ||
+    phone === "1234567891" ||
+    phone === "1234567892"
+  );
+};
+
 const hasCompletedKyc = (user = {}, roleType = "") => {
   const role = String(roleType || "").toLowerCase();
   const roleKyc = user?.kycByRole?.[role] || {};
@@ -216,7 +235,12 @@ const hasCompletedKyc = (user = {}, roleType = "") => {
 };
 
 const requireCompletedKyc = async (userId) => {
-  const user = await User.findById(userId).select("kyc kycByRole growerVerified");
+  const user = await User.findById(userId).select("email phone contact kyc kycByRole growerVerified");
+
+  if (isLocalTestAccount(user)) {
+    return true;
+  }
+
   return Boolean(user?.growerVerified) || hasCompletedKyc(user, "grower");
 };
 
@@ -649,7 +673,7 @@ export const getProducts = async (req, res) => {
           .select("_id product paymentStatus deliveryStatus")
           .lean()
       : [];
-    const completedOrderByProductId = completedOrders.reduce((map, order) => {
+    const completedOrderByProductId = completedOrders.filter(Boolean).reduce((map, order) => {
       if (isOrderCompletedForMarketplace(order)) {
         map.set(String(order.product), order);
       }
@@ -666,7 +690,7 @@ export const getProducts = async (req, res) => {
       }
       const creator = productObject.createdBy?._id || productObject.createdBy;
       if (requesterId && creator?.toString() === requesterId) return true;
-      return isPublicLotVisible(productObject, completedOrderByProductId, now);
+      return isPublicLotVisible(productObject, completedOrderByProductId.get(String(productObject._id)) || null, now);
     });
 
     res.json(
@@ -739,7 +763,9 @@ export const getProductById = async (req, res) => {
     const serializedProduct = serializeProduct(product, req.user, completedOrder);
     const serializedAuction = auction?.toObject ? auction.toObject() : auction;
     if (serializedAuction) {
-      Object.assign(serializedAuction, buildMarketplaceLifecycle(completedOrder));
+      if (completedOrder) {
+        Object.assign(serializedAuction, buildMarketplaceLifecycle(completedOrder));
+      }
     }
     const closedDeal = buildClosedDealSummary({
       product: serializedProduct,
@@ -945,3 +971,7 @@ export const deleteProduct = async (req, res) => {
     res.status(500).json({ msg: err.message });
   }
 };
+
+
+
+

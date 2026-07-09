@@ -1,0 +1,50 @@
+?User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: *
+Allow: /
+
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /profile-dashboard
+Disallow: /profile
+Disallow: /login
+Disallow: /kyc
+Disallow: /payment
+Disallow: /checkout
+Disallow: /notifications
+Disallow: /orders
+Disallow: /invoices-chalan
+Disallow: /delivery
+Disallow: /tracking
+Disallow: /escrow
+Disallow: /register-grower
+Disallow: /register-buyer
+Disallow: /register-driver
+Disallow: /list-new-lot
+Disallow: /get-verified
+Disallow: /lots/*/quote
+Disallow: /lots/*/rating
+Disallow: /quotes
+Disallow: /api
+
+Sitemap: https://www.efruitmandi.live/sitemap.xml
+

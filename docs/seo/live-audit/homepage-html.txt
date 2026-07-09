@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+
+    <!-- Favicons -->
+    <link rel="icon" href="/favicon.ico?v=20260612-carousel-auth" />
+    <link rel="shortcut icon" href="/favicon.ico?v=20260612-carousel-auth" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=20260612-carousel-auth" />
+    <link rel="icon" type="image/png" sizes="24x24" href="/favicon-24x24.png?v=20260612-carousel-auth" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=20260612-carousel-auth" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64x64.png?v=20260612-carousel-auth" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png?v=20260612-carousel-auth" />
+
+    <!-- Viewport -->
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- SEO -->
+    <title>eFruitMandi - Fresh Fruit Marketplace for Growers & Buyers</title>
+
+
+    <meta name="robots" content="index, follow" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="eFruitMandi" />
+    <meta
+      property="og:title"
+      content="eFruitMandi - Fresh Fruit Marketplace for Growers & Buyers"
+    />
+    <meta
+      property="og:description"
+      content="India's fresh fruit marketplace connecting growers, buyers and logistics partners."
+    />
+    <meta property="og:url" content="https://www.efruitmandi.live/" />
+    <meta
+      property="og:image"
+      content="https://www.efruitmandi.live/logo.png"
+    />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="eFruitMandi - Fresh Fruit Marketplace"
+    />
+    <meta
+      name="twitter:description"
+      content="Buy and sell fresh fruits directly from growers."
+    />
+    <meta
+      name="twitter:image"
+      content="https://www.efruitmandi.live/logo.png"
+    />
+
+    <!-- PWA -->
+    <meta name="theme-color" content="#0B6B2F" />
+    <meta name="application-name" content="eFruitMandi" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="eFruitMandi" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20260612-carousel-auth" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="preconnect" href="https://api.efruitmandi.live" crossorigin />
+    <link rel="preconnect" href="https://res.cloudinary.com" crossorigin />
+    <link rel="dns-prefetch" href="https://api.efruitmandi.live" />
+    <link rel="dns-prefetch" href="https://res.cloudinary.com" />
+    <link
+      rel="preload"
+      as="image"
+      href="https://res.cloudinary.com/doprdp6bi/image/upload/f_auto,q_auto:eco,c_fill,w_420,h_300/v1780455531/efruitmandi/lots/dvyrl8goxmgvr0fetn5v.jpg"
+      imagesrcset="https://res.cloudinary.com/doprdp6bi/image/upload/f_auto,q_auto:eco,c_fill,w_360,h_257/v1780455531/efruitmandi/lots/dvyrl8goxmgvr0fetn5v.jpg 360w, https://res.cloudinary.com/doprdp6bi/image/upload/f_auto,q_auto:eco,c_fill,w_420,h_300/v1780455531/efruitmandi/lots/dvyrl8goxmgvr0fetn5v.jpg 420w"
+      imagesizes="420px"
+      fetchpriority="high"
+    />
+
+    <style>
+      html,
+      body,
+      #root {
+        min-height: 100%;
+        background: #0B6B2F;
+      }
+    </style>
+        <!-- Microsoft Clarity -->
+    <script type="text/javascript">
+      (function(c,l,a,r,i,t,y){
+          c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+          t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+          y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+      })(window, document, "clarity", "script", "xdjc4h4atr");
+    </script>
+    <script type="module" crossorigin src="/assets/index-D22lrdS9.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/react-vendor-SQbiiA2E.js">
+    <link rel="modulepreload" crossorigin href="/assets/seo-vendor-7oESdshJ.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-BPDiORvx.css">
+  </head>
+
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+
+    <div id="root">
+      <div
+        class="startup-splash startup-shell"
+        style="position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; background: #0B6B2F; padding: 0 2rem;"
+        aria-label="Loading eFruitMandi"
+      >
+        <span class="startup-logo-shine">
+          <img
+            src="/logo-240.png"
+            alt="eFruitMandi logo"
+            width="240"
+            height="160"
+            fetchpriority="high"
+            decoding="sync"
+            style="display: block; width: min(250px, 72vw); height: auto; object-fit: contain;"
+          />
+        </span>
+      </div>
+    </div>
+
+  </body>
+</html>
+

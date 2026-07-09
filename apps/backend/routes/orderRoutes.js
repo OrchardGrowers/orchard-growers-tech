@@ -9,6 +9,7 @@ import {
   buildLogisticsInvitationLink,
   createInvitationToken,
   findLogisticsPartner,
+  formatSafeLogisticsPartner,
   getRoleKycStatus,
   normalizePhone,
   refreshSettlementEligibility,
@@ -40,8 +41,8 @@ const populateOrder = (query) =>
     .populate("items.product")
     .populate("buyer", "name businessName")
     .populate("grower", "name orchardName")
-    .populate("driver", "name logisticsName driverName driverContact vehicleNumber driverVerified kycByRole accountStatus")
-    .populate("logisticsAssignment.assignedLogisticsAccount", "name logisticsName driverName driverContact vehicleNumber driverVerified kycByRole accountStatus");
+    .populate("driver", "name email phone contact logisticsName logisticsOwnerName driverName driverContact vehicleNumber vehicleType driverVerified kycByRole accountStatus")
+    .populate("logisticsAssignment.assignedLogisticsAccount", "name email phone contact logisticsName logisticsOwnerName driverName driverContact vehicleNumber vehicleType driverVerified kycByRole accountStatus");
 
 const sanitizeOrderForUser = (order, user) => {
   const data = order?.toObject ? order.toObject() : { ...order };
@@ -253,6 +254,7 @@ router.post("/:id/logistics-assignment", protect, async (req, res) => {
     }
 
     const {
+      logisticsIdentifier = "",
       driverName = "",
       driverMobile = "",
       vehicleNumber = "",
@@ -264,24 +266,41 @@ router.post("/:id/logistics-assignment", protect, async (req, res) => {
       remarks = "",
     } = req.body || {};
 
-    if (!driverName.trim() || !normalizePhone(driverMobile) || !vehicleNumber.trim() || !vehicleType.trim() || !pickupDate || !expectedDispatchDate) {
-      return res.status(400).json({ msg: "Driver name, mobile number, vehicle number, vehicle type, pickup date, and expected dispatch date are required" });
+    const identifier = String(logisticsIdentifier || driverMobile || "").trim();
+    const identifierEmail = identifier.includes("@") ? identifier.toLowerCase() : "";
+    if (!identifier) {
+      return res.status(400).json({ msg: "Driver / logistics partner phone or email is required" });
     }
 
-    const logisticsPartner = await findLogisticsPartner({ driverMobile, transportFirmName });
+    const logisticsPartner = await findLogisticsPartner({ identifier, driverMobile, transportFirmName });
+    const safePartner = formatSafeLogisticsPartner(logisticsPartner);
+    const resolvedDriverName = driverName.trim() || safePartner?.driverName || safePartner?.name || "";
+    const resolvedDriverMobile = normalizePhone(driverMobile || safePartner?.driverMobile || safePartner?.phone || identifier);
+    const resolvedDriverEmail = safePartner?.email || identifierEmail;
+    const resolvedVehicleNumber = vehicleNumber.trim() || safePartner?.vehicleNumber || "";
+    const resolvedVehicleType = vehicleType.trim() || safePartner?.vehicleType || "";
+    const resolvedTransportFirmName = transportFirmName.trim() || safePartner?.transportFirmName || "";
+    const resolvedOwnerName = ownerName.trim() || safePartner?.ownerName || "";
+
+    if (!resolvedDriverName || (!resolvedDriverMobile && !resolvedDriverEmail) || !resolvedVehicleNumber || !resolvedVehicleType || !pickupDate || !expectedDispatchDate) {
+      return res.status(400).json({ msg: "Driver name, phone/email, vehicle number, vehicle type, pickup date, and expected dispatch date are required" });
+    }
+
     const token = logisticsPartner ? "" : createInvitationToken();
     const invitationLink = logisticsPartner ? "" : buildLogisticsInvitationLink(token);
-    const status = logisticsPartner ? "REGISTERED_LOGISTICS_FOUND" : "AWAITING_LOGISTICS_REGISTRATION";
+    const status = logisticsPartner ? "PENDING_LOGISTICS_ACCEPTANCE" : "AWAITING_LOGISTICS_REGISTRATION";
 
     order.logisticsAssignment = {
       ...(order.logisticsAssignment?.toObject ? order.logisticsAssignment.toObject() : order.logisticsAssignment || {}),
       status,
-      driverName: driverName.trim(),
-      driverMobile: normalizePhone(driverMobile),
-      vehicleNumber: vehicleNumber.trim().toUpperCase(),
-      vehicleType: vehicleType.trim(),
-      transportFirmName: transportFirmName.trim(),
-      ownerName: ownerName.trim(),
+      logisticsIdentifier: identifier,
+      driverName: resolvedDriverName,
+      driverMobile: resolvedDriverMobile,
+      driverEmail: resolvedDriverEmail,
+      vehicleNumber: resolvedVehicleNumber.toUpperCase(),
+      vehicleType: resolvedVehicleType,
+      transportFirmName: resolvedTransportFirmName,
+      ownerName: resolvedOwnerName,
       pickupDate: new Date(pickupDate),
       expectedDispatchDate: new Date(expectedDispatchDate),
       remarks: String(remarks || "").trim(),
@@ -314,9 +333,11 @@ router.post("/:id/logistics-assignment", protect, async (req, res) => {
       ? `New eFruitMandi consignment assignment available. Please login and accept or reject. Order: ${order._id}`
       : `You have been assigned as logistics partner for an eFruitMandi consignment. Complete registration, mobile verification, KYC, bank/UPI setup, and terms acceptance: ${invitationLink}`;
 
-    sendMobileMessage({ phone: driverMobile, message, platform: "efruitmandi" })
-      .then(() => Order.findByIdAndUpdate(order._id, { "logisticsAssignment.notifications.sms": true }).catch(() => {}))
-      .catch((err) => console.warn("Logistics assignment SMS skipped:", err.code || err.message));
+    if (resolvedDriverMobile) {
+      sendMobileMessage({ phone: resolvedDriverMobile, message, platform: "efruitmandi" })
+        .then(() => Order.findByIdAndUpdate(order._id, { "logisticsAssignment.notifications.sms": true }).catch(() => {}))
+        .catch((err) => console.warn("Logistics assignment SMS skipped:", err.code || err.message));
+    }
 
     res.json({
       msg: logisticsPartner ? "Registered logistics partner found. Assignment request created." : "Logistics provider is not registered on eFruitMandi. Invitation sent.",
@@ -335,13 +356,13 @@ router.patch("/:id/logistics-assignment/accept", protect, async (req, res) => {
     if (!hasProfile(req.user, "driver") || assignedId !== req.user.id?.toString()) {
       return res.status(403).json({ msg: "Only the assigned logistics account can accept this assignment" });
     }
-    if (!["REGISTERED_LOGISTICS_FOUND", "LOGISTICS_REGISTERED", "LOGISTICS_REJECTED"].includes(order.logisticsAssignment?.status)) {
+    if (!["PENDING_LOGISTICS_ACCEPTANCE", "REGISTERED_LOGISTICS_FOUND", "LOGISTICS_REGISTERED", "LOGISTICS_REJECTED"].includes(order.logisticsAssignment?.status)) {
       return res.status(400).json({ msg: "This logistics assignment cannot be accepted now" });
     }
 
     const logistics = await User.findById(req.user.id).lean();
     order.driver = req.user.id;
-    order.logisticsAssignment.status = "LOGISTICS_ACCEPTED";
+    order.logisticsAssignment.status = "READY_FOR_DISPATCH";
     order.logisticsAssignment.acceptedAt = new Date();
     order.logisticsAssignment.rejectedAt = undefined;
     order.logisticsAssignment.kycStatus = getRoleKycStatus(logistics, "driver") || (logistics?.driverVerified ? "APPROVED" : "NOT_SUBMITTED");

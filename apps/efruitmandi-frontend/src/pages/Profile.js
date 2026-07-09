@@ -252,7 +252,7 @@ export default function Profile() {
         serverMessage,
       )
     ) {
-      return "This Number Does Not Found Please Signup First.";
+      return "This Number or Email Does Not Found Please Signup First.";
     }
     if (status === 429)
       return "Too many invalid OTP attempts. Please request a new OTP.";

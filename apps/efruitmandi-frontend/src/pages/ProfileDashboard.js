@@ -466,7 +466,11 @@ export default function ProfileDashboard() {
 
   const respondLogisticsAssignment = async (orderId, action) => {
     try {
-      await API.patch(`/orders/${orderId}/logistics-assignment/${action}`);
+      if (action === "accept") {
+        await API.post(`/logistics/assignments/${orderId}/accept`);
+      } else {
+        await API.patch(`/orders/${orderId}/logistics-assignment/${action}`);
+      }
       setNotice(action === "accept" ? "Logistics assignment accepted." : "Logistics assignment rejected.");
       await refreshOrders();
     } catch (err) {
@@ -1494,12 +1498,7 @@ export default function ProfileDashboard() {
         )}
 
         {profileMode === "driver" && (
-          <DriverAssignmentRequests
-            orders={orders}
-            onAccept={(orderId) => respondLogisticsAssignment(orderId, "accept")}
-            onReject={(orderId) => respondLogisticsAssignment(orderId, "reject")}
-            onOpenDelivery={() => navigate("/delivery")}
-          />
+          <DriverDashboardGate onRegisterGrower={() => navigate("/register-grower")} />
         )}
 
         <div className="mt-4 space-y-3 md:hidden">
@@ -2743,6 +2742,7 @@ function GrowerLogisticsAssignments({ orders = [], onSubmit }) {
 function LogisticsAssignmentForm({ order, onSubmit }) {
   const existing = order.logisticsAssignment || {};
   const [form, setForm] = useState({
+    logisticsIdentifier: existing.logisticsIdentifier || existing.driverEmail || existing.driverMobile || "",
     driverName: existing.driverName || "",
     driverMobile: existing.driverMobile || "",
     vehicleNumber: existing.vehicleNumber || "",
@@ -2753,8 +2753,51 @@ function LogisticsAssignmentForm({ order, onSubmit }) {
     expectedDispatchDate: toInputDate(existing.expectedDispatchDate),
     remarks: existing.remarks || "",
   });
+  const [selectedPartner, setSelectedPartner] = useState(null);
+  const [partnerLookup, setPartnerLookup] = useState({ loading: false, message: "" });
 
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+
+  useEffect(() => {
+    const identifier = String(form.logisticsIdentifier || "").trim();
+    if (identifier.length < 3) {
+      setSelectedPartner(null);
+      setPartnerLookup({ loading: false, message: "" });
+      return undefined;
+    }
+
+    let cancelled = false;
+    setPartnerLookup({ loading: true, message: "" });
+    const timer = setTimeout(async () => {
+      try {
+        const res = await API.get(`/logistics-partners/search?identifier=${encodeURIComponent(identifier)}`);
+        if (cancelled) return;
+        const partner = res.data?.partner || null;
+        setSelectedPartner(partner);
+        if (partner) {
+          setForm((current) => ({
+            ...current,
+            driverName: current.driverName || partner.driverName || partner.name || "",
+            driverMobile: partner.driverMobile || partner.phone || current.driverMobile || "",
+            vehicleNumber: partner.vehicleNumber || current.vehicleNumber || "",
+            vehicleType: partner.vehicleType || current.vehicleType || "",
+            transportFirmName: partner.transportFirmName || current.transportFirmName || "",
+            ownerName: partner.ownerName || current.ownerName || "",
+          }));
+          setPartnerLookup({ loading: false, message: "Registered logistics partner selected." });
+        } else {
+          setPartnerLookup({ loading: false, message: "No registered logistics partner found. Enter details manually." });
+        }
+      } catch {
+        if (!cancelled) setPartnerLookup({ loading: false, message: "Could not search logistics partner. Enter details manually." });
+      }
+    }, 450);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [form.logisticsIdentifier]);
 
   return (
     <article className="rounded-md border border-green-100 bg-green-50 p-3">
@@ -2772,6 +2815,29 @@ function LogisticsAssignmentForm({ order, onSubmit }) {
           The logistics provider is not registered on eFruitMandi. Invitation sent: {existing.invitationLink}
         </p>
       )}
+      <div className="mb-2">
+        <SmallInput
+          label="Driver / Logistics Partner Phone or Email"
+          value={form.logisticsIdentifier}
+          onChange={(value) => {
+            update("logisticsIdentifier", value);
+            update("driverMobile", value);
+          }}
+        />
+        {partnerLookup.loading && (
+          <p className="mt-1 text-[10px] font-bold text-green-700">Searching logistics partner...</p>
+        )}
+        {!partnerLookup.loading && partnerLookup.message && (
+          <p className={`mt-1 rounded px-2 py-1 text-[10px] font-bold ${selectedPartner ? "bg-green-100 text-green-800" : "bg-amber-50 text-amber-800"}`}>
+            {partnerLookup.message}
+          </p>
+        )}
+        {selectedPartner && (
+          <div className="mt-2 rounded border border-green-100 bg-white px-3 py-2 text-xs font-bold text-green-900">
+            Selected: {selectedPartner.transportFirmName || selectedPartner.name || "Logistics partner"} - {selectedPartner.phone || selectedPartner.email || "Contact saved"}
+          </div>
+        )}
+      </div>
       <div className="grid gap-2 md:grid-cols-3">
         <SmallInput label="Driver Name" value={form.driverName} onChange={(value) => update("driverName", value)} />
         <SmallInput label="Driver Mobile Number" value={form.driverMobile} onChange={(value) => update("driverMobile", value)} />
@@ -2796,7 +2862,7 @@ function LogisticsAssignmentForm({ order, onSubmit }) {
 
 function DriverAssignmentRequests({ orders = [], onAccept, onReject, onOpenDelivery }) {
   const assignments = orders.filter((order) =>
-    ["REGISTERED_LOGISTICS_FOUND", "LOGISTICS_ACCEPTED", "LOGISTICS_REJECTED"].includes(order.logisticsAssignment?.status || "")
+    ["PENDING_LOGISTICS_ACCEPTANCE", "REGISTERED_LOGISTICS_FOUND", "LOGISTICS_ACCEPTED", "READY_FOR_DISPATCH", "LOGISTICS_REJECTED"].includes(order.logisticsAssignment?.status || "")
   );
 
   return (
@@ -2811,7 +2877,7 @@ function DriverAssignmentRequests({ orders = [], onAccept, onReject, onOpenDeliv
         <div className="space-y-2">
           {assignments.map((order) => {
             const assignment = order.logisticsAssignment || {};
-            const accepted = assignment.status === "LOGISTICS_ACCEPTED";
+            const accepted = ["LOGISTICS_ACCEPTED", "READY_FOR_DISPATCH"].includes(assignment.status);
             return (
               <article key={order._id} className="rounded-md border border-green-100 bg-green-50 p-3">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2838,6 +2904,24 @@ function DriverAssignmentRequests({ orders = [], onAccept, onReject, onOpenDeliv
           })}
         </div>
       )}
+    </section>
+  );
+}
+
+function DriverDashboardGate({ onRegisterGrower }) {
+  return (
+    <section className="mt-4 rounded-lg border border-green-100 bg-white p-4">
+      <div className="rounded-md bg-green-50 px-4 py-4 text-green-900">
+        <h2 className="text-sm font-extrabold text-gray-950">This dashboard is visible only to Growers and Buyers.</h2>
+        <p className="mt-2 text-xs font-bold text-green-800">Register as Grower to sell your fruit.</p>
+        <button
+          type="button"
+          onClick={onRegisterGrower}
+          className="mt-3 rounded-full bg-green-700 px-4 py-2 text-xs font-extrabold text-white hover:bg-green-800"
+        >
+          Register as Grower to sell your fruit.
+        </button>
+      </div>
     </section>
   );
 }

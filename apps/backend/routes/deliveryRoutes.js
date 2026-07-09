@@ -39,7 +39,7 @@ router.post("/start", protect, authorize("driver"), async (req, res) => {
       });
     }
 
-    if (order.logisticsAssignment?.status !== "LOGISTICS_ACCEPTED" || order.driver?.toString() !== req.user.id?.toString()) {
+    if (!["LOGISTICS_ACCEPTED", "READY_FOR_DISPATCH"].includes(order.logisticsAssignment?.status) || order.driver?.toString() !== req.user.id?.toString()) {
       return res.status(403).json({
         msg: "Dispatch is blocked until the assigned logistics partner accepts this consignment.",
       });
@@ -237,7 +237,7 @@ router.post("/confirm-settlement", protect, authorize("grower"), requirePaymentP
 
 router.post("/location", protect, authorize("driver"), async (req, res) => {
   try {
-    const { orderId, lat, lng, accuracy, source = "MANUAL" } = req.body;
+    const { orderId, lat, lng, accuracy, source = "MANUAL", stationName = "", status = "" } = req.body;
     const delivery = await Delivery.findOne({ order: orderId });
     if (!delivery) return res.status(404).json({ msg: "Delivery not found" });
     if (delivery.driver?.toString() !== req.user.id?.toString()) {
@@ -248,6 +248,8 @@ router.post("/location", protect, authorize("driver"), async (req, res) => {
       lat: Number(lat),
       lng: Number(lng),
       accuracy: Number(accuracy || 0),
+      stationName: String(stationName || "").trim(),
+      status: String(status || "GPS station update").trim(),
       source: source === "AUTO" ? "AUTO" : "MANUAL",
       updatedAt: new Date(),
     };
@@ -258,7 +260,34 @@ router.post("/location", protect, authorize("driver"), async (req, res) => {
     delivery.lastLocation = location;
     delivery.locationHistory.push(location);
     await delivery.save();
+    // TODO: Reuse notification/SMS hooks here when station-progress alerts are enabled.
     res.json({ msg: "Location updated", location });
+  } catch (err) {
+    res.status(500).json({ msg: err.message });
+  }
+});
+
+router.post("/unload", protect, authorize("driver"), async (req, res) => {
+  try {
+    const { orderId, stationName = "" } = req.body;
+    const delivery = await Delivery.findOne({ order: orderId });
+    if (!delivery) return res.status(404).json({ msg: "Delivery not found" });
+    if (delivery.driver?.toString() !== req.user.id?.toString()) {
+      return res.status(403).json({ msg: "You can update only your own delivery" });
+    }
+
+    delivery.status = "DELIVERED";
+    const lastLocation = delivery.lastLocation?.toObject ? delivery.lastLocation.toObject() : delivery.lastLocation;
+    if (lastLocation?.lat && lastLocation?.lng) {
+      delivery.locationHistory.push({
+        ...lastLocation,
+        stationName: String(stationName || lastLocation.stationName || "Unloaded / Delivered").trim(),
+        status: "Unloaded / Delivered",
+        updatedAt: new Date(),
+      });
+    }
+    await delivery.save();
+    res.json({ msg: "Consignment marked unloaded/delivered", delivery });
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }

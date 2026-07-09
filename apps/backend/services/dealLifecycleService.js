@@ -125,8 +125,10 @@ export const resolveDealSchedule = (requestedAt = new Date(), timeZone = getDeal
 };
 
 export const isOrderCompletedForMarketplace = (order = {}) => {
-  const paymentStatus = normalizeStatus(order.paymentStatus);
-  const deliveryStatus = normalizeStatus(order.deliveryStatus);
+  if (!order) return false;
+
+  const paymentStatus = normalizeStatus(order?.paymentStatus);
+  const deliveryStatus = normalizeStatus(order?.deliveryStatus);
 
   return (
     COMPLETED_PAYMENT_STATUSES.has(paymentStatus) ||
@@ -136,7 +138,7 @@ export const isOrderCompletedForMarketplace = (order = {}) => {
 
 export const isOrderProtectedFromGrowerDelete = (order = {}) =>
   isOrderCompletedForMarketplace(order) ||
-  ["IN_TRANSIT", "DELIVERED"].includes(normalizeStatus(order.deliveryStatus));
+  ["IN_TRANSIT", "DELIVERED"].includes(normalizeStatus(order?.deliveryStatus));
 
 export const getCompletedMarketplaceOrder = (order = {}) =>
   isOrderCompletedForMarketplace(order) ? order : null;
@@ -157,9 +159,9 @@ export const buildMarketplaceLifecycle = (order = {}) => {
     dealStatus: "completed",
     marketplaceLifecycle: {
       status: "completed",
-      orderId: completedOrder._id,
-      paymentStatus: completedOrder.paymentStatus || "",
-      deliveryStatus: completedOrder.deliveryStatus || "",
+      orderId: completedOrder?._id,
+      paymentStatus: completedOrder?.paymentStatus || "",
+      deliveryStatus: completedOrder?.deliveryStatus || "",
     },
   };
 };
@@ -183,3 +185,4 @@ export const isPublicLotVisible = (product = {}, completedOrderByProductId = new
   if (hasPassedEndTime(product.auctionEndTime || product.endTime, now)) return Boolean(completedOrder);
   return true;
 };
+

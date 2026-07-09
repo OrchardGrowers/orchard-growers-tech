@@ -18,6 +18,21 @@ const OTP_SEND_WINDOW_MS = 10 * 60 * 1000;
 const OTP_MAX_SENDS_PER_WINDOW = Math.max(0, Number(process.env.OTP_MAX_SENDS_PER_WINDOW || 0));
 const OTP_LOCK_MS = 15 * 60 * 1000;
 const truthyEnv = (value = "") => ["1", "true", "yes"].includes(String(value).trim().toLowerCase());
+const getAllowedTestAuthIdentifiers = () =>
+  String(process.env.TEST_AUTH_IDENTIFIERS || "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+
+const isAllowedTestAuthIdentifier = (parsed) => {
+  if (!parsed?.value) return false;
+  return getAllowedTestAuthIdentifiers().includes(
+    String(parsed.value).trim().toLowerCase()
+  );
+};
+
+const shouldUseTestOtpForIdentifier = (parsed) =>
+  truthyEnv(process.env.ALLOW_TEST_OTP) && isAllowedTestAuthIdentifier(parsed);
 const useLegacyMsg91Api = () => truthyEnv(process.env.USE_LEGACY_MSG91_API);
 const shouldUseServerMobileOtp = () => true;
 const getOtpTtlMs = () => {
@@ -342,7 +357,7 @@ const deliverOtp = async ({ platform, parsed, otp, purpose, forceLegacy = false 
   // Allow a developer/test mode where OTPs are not sent externally.
   // Controlled via `ALLOW_TEST_OTP=true` and optional `TEST_OTP` value in env.
   try {
-    const allowTest = truthyEnv(process.env.ALLOW_TEST_OTP);
+    const allowTest = shouldUseTestOtpForIdentifier(parsed);
     if (allowTest) {
       const testOtp = String(process.env.TEST_OTP || otp || "");
       const requestId = `test:${Date.now()}`;
@@ -480,7 +495,7 @@ const sendOtpForPurpose = async ({ req, res, purpose = "auth", requireExistingUs
   try {
     // Developer/test mode: if ALLOW_TEST_OTP=true, override stored OTP with TEST_OTP
     try {
-      const allowTest = truthyEnv(process.env.ALLOW_TEST_OTP);
+      const allowTest = shouldUseTestOtpForIdentifier(parsed);
       if (allowTest) {
         const testOtp = String(process.env.TEST_OTP || otp || "");
         // update the stored OTP so verify will accept the test value

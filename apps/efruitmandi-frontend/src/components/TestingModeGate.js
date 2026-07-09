@@ -82,7 +82,7 @@ export default function TestingModeGate({ children }) {
             </span>
             <div>
               <h1 className="text-2xl font-bold leading-tight text-gray-950 sm:text-3xl">
-                On testing Mode available shortely to public
+                This feature is currently under scheduled rollout.
               </h1>
             </div>
           </div>
@@ -121,3 +121,4 @@ export default function TestingModeGate({ children }) {
     </main>
   );
 }
+

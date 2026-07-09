@@ -26,10 +26,9 @@ import {
 } from "../config/payment";
 
 const statusSteps = [
-  { key: "PLACED", label: "Order placed" },
-  { key: "PENDING", label: "Partner pending" },
-  { key: "IN_TRANSIT", label: "In transit" },
-  { key: "DELIVERED", label: "Delivered" },
+  { key: "LOADED", label: "Consignment Loaded" },
+  { key: "STATIONS", label: "En Route - Stations Auto Detected" },
+  { key: "DELIVERED", label: "Unloaded / Delivered" },
 ];
 
 export default function Delivery() {
@@ -48,7 +47,7 @@ export default function Delivery() {
   const [deliveryOtp, setDeliveryOtp] = useState("");
   const [settlementOtp, setSettlementOtp] = useState("");
   const [negotiationAmount, setNegotiationAmount] = useState("");
-  const [manualLocation, setManualLocation] = useState({ lat: "", lng: "" });
+  const [manualLocation, setManualLocation] = useState({ stationName: "", lat: "", lng: "" });
 
   const selectedOrder = useMemo(
     () => orders.find((order) => order._id === selectedOrderId) || null,
@@ -120,7 +119,13 @@ export default function Delivery() {
   const startDelivery = () =>
     runAction(
       () => API.post("/delivery/start", { orderId: selectedOrderId }),
-      (res) => `Delivery started. Buyer OTP: ${res.data.deliveryOTP}`
+      (res) => `Consignment loaded. Buyer OTP: ${res.data.deliveryOTP}`
+    );
+
+  const markUnloadedDelivered = () =>
+    runAction(
+      () => API.post("/delivery/unload", { orderId: selectedOrderId, stationName: manualLocation.stationName }),
+      () => "Consignment marked unloaded/delivered."
     );
 
   const confirmDelivery = () =>
@@ -178,6 +183,8 @@ export default function Delivery() {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
           accuracy: position.coords.accuracy,
+          stationName: manualLocation.stationName,
+          status: "GPS auto location update",
           source: "AUTO",
         }),
       () => setMessage("Location permission denied or unavailable."),
@@ -186,7 +193,13 @@ export default function Delivery() {
   };
 
   const saveManualLocation = () =>
-    updateLocation({ lat: manualLocation.lat, lng: manualLocation.lng, source: "MANUAL" });
+    updateLocation({
+      lat: manualLocation.lat,
+      lng: manualLocation.lng,
+      stationName: manualLocation.stationName,
+      status: "GPS station update",
+      source: "MANUAL",
+    });
 
   return (
     <div className="mx-auto max-w-6xl pb-20">
@@ -301,6 +314,7 @@ export default function Delivery() {
             confirmSettlement={confirmSettlement}
             requestAutoLocation={requestAutoLocation}
             saveManualLocation={saveManualLocation}
+            markUnloadedDelivered={markUnloadedDelivered}
           />
         </section>
       </div>
@@ -354,8 +368,9 @@ function TrackingPanel({ order, tracking, deliveryTracking, loading, onOpenEscro
   const delivery = deliveryTracking?.delivery;
   const driver = delivery?.driver || order?.driver;
   const lastLocation = delivery?.lastLocation;
-  const currentStatus = tracking?.deliveryStatus || order?.deliveryStatus || "PENDING";
+  const currentStatus = delivery?.status || tracking?.deliveryStatus || order?.deliveryStatus || "PENDING";
   const trackingNumber = tracking?.trackingNumber || order?.trackingNumber || "";
+  const stationUpdates = getStationUpdates(delivery, tracking);
 
   if (!order) {
     return (
@@ -403,7 +418,7 @@ function TrackingPanel({ order, tracking, deliveryTracking, loading, onOpenEscro
         <p className="mt-3 flex flex-wrap items-center gap-2 text-xs font-bold text-gray-700">
           <FaMapMarkerAlt className="text-green-700" />
           {lastLocation
-            ? `${lastLocation.lat}, ${lastLocation.lng} (${lastLocation.source || "MANUAL"})`
+            ? `${formatStationName(lastLocation)} - ${lastLocation.lat}, ${lastLocation.lng} (${lastLocation.source || "MANUAL"})`
             : "No GPS location update yet."}
         </p>
         {lastLocation?.lat && lastLocation?.lng && (
@@ -422,7 +437,7 @@ function TrackingPanel({ order, tracking, deliveryTracking, loading, onOpenEscro
         <p className="mb-3 text-xs font-black text-gray-950">Delivery progress</p>
         <div className="space-y-3">
           {statusSteps.map((step) => {
-            const done = isStepDone(step.key, currentStatus, tracking);
+            const done = isStepDone(step.key, currentStatus, tracking, stationUpdates);
             return (
               <div key={step.key} className="flex gap-3">
                 <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] ${
@@ -432,7 +447,20 @@ function TrackingPanel({ order, tracking, deliveryTracking, loading, onOpenEscro
                 </span>
                 <div className="min-w-0">
                   <p className="text-sm font-black text-gray-950">{step.label}</p>
-                  <p className="text-xs font-bold text-gray-500">{getStepDetail(step.key, tracking, order)}</p>
+                  <p className="text-xs font-bold text-gray-500">{getStepDetail(step.key, tracking, order, stationUpdates)}</p>
+                  {step.key === "STATIONS" && stationUpdates.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {stationUpdates.map((station, index) => (
+                        <div key={`${formatStationName(station)}-${station.updatedAt || station.createdAt || index}`} className="rounded bg-white px-2 py-1 text-[11px] font-bold text-green-900 ring-1 ring-green-100">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span>{formatStationName(station)}</span>
+                            <span className="text-green-700">{formatStationTime(station)}</span>
+                          </div>
+                          <p className="mt-0.5 text-[10px] text-gray-600">{formatStationStatus(station, index, stationUpdates.length)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -466,6 +494,7 @@ function RoleActionPanel(props) {
     confirmSettlement,
     requestAutoLocation,
     saveManualLocation,
+    markUnloadedDelivered,
   } = props;
 
   return (
@@ -477,17 +506,22 @@ function RoleActionPanel(props) {
         {isDriver && (
           <ActionBox icon={<FaTruck />} title="Driver actions">
             <button type="button" onClick={startDelivery} disabled={!selectedOrderId} className={primaryButtonClass}>
-              Start Delivery
+              Mark Consignment Loaded
             </button>
             <button type="button" onClick={requestAutoLocation} disabled={!selectedOrderId} className={secondaryButtonClass}>
-              Allow Auto Location Tracking
+              Start GPS Tracking / Allow Auto Location Tracking
             </button>
+            {/* TODO: Reuse notification/SMS hooks here when station-progress alerts are enabled. */}
+            <TextInput value={manualLocation.stationName} placeholder="Station name (optional)" onChange={(value) => setManualLocation({ ...manualLocation, stationName: value })} />
             <div className="grid grid-cols-2 gap-2">
               <TextInput value={manualLocation.lat} placeholder="Latitude" onChange={(value) => setManualLocation({ ...manualLocation, lat: value })} />
               <TextInput value={manualLocation.lng} placeholder="Longitude" onChange={(value) => setManualLocation({ ...manualLocation, lng: value })} />
             </div>
             <button type="button" onClick={saveManualLocation} disabled={!selectedOrderId} className={secondaryButtonClass}>
-              Save Manual Location
+              Add GPS Detected Station Update
+            </button>
+            <button type="button" onClick={markUnloadedDelivered} disabled={!selectedOrderId} className={primaryButtonClass}>
+              Mark Unloaded / Delivered
             </button>
           </ActionBox>
         )}
@@ -606,21 +640,47 @@ function EmptyState() {
   );
 }
 
-function isStepDone(step, currentStatus, tracking) {
+function isStepDone(step, currentStatus, tracking, stationUpdates = []) {
   const normalized = String(currentStatus || "PENDING").toUpperCase();
-  if (step === "PLACED") return true;
-  if (step === "PENDING") return Boolean(tracking?.trackingNumber) || ["IN_TRANSIT", "DELIVERED"].includes(normalized);
-  if (step === "IN_TRANSIT") return ["IN_TRANSIT", "DELIVERED"].includes(normalized);
+  if (step === "LOADED") return ["IN_TRANSIT", "DELIVERED"].includes(normalized);
+  if (step === "STATIONS") return stationUpdates.length > 0 || ["IN_TRANSIT", "DELIVERED"].includes(normalized);
   if (step === "DELIVERED") return normalized === "DELIVERED";
   return false;
 }
 
-function getStepDetail(step, tracking, order) {
-  if (step === "PLACED") return formatDate(order?.createdAt);
-  if (step === "PENDING") return tracking?.trackingNumber ? `Tracking ${tracking.trackingNumber}` : "Awaiting booking";
-  if (step === "IN_TRANSIT") return "Driver or courier movement updates";
+function getStepDetail(step, tracking, order, stationUpdates = []) {
+  if (step === "LOADED") return order?.deliveryStatus === "IN_TRANSIT" ? "Consignment loaded and dispatch started" : "Awaiting consignment loading";
+  if (step === "STATIONS") return stationUpdates.length ? `${stationUpdates.length} GPS station update${stationUpdates.length === 1 ? "" : "s"}` : "GPS station updates will appear here";
   if (step === "DELIVERED") return "Buyer confirmation completes this step";
   return "";
+}
+
+function getStationUpdates(delivery, tracking) {
+  const updates = [
+    ...(Array.isArray(delivery?.locationHistory) ? delivery.locationHistory : []),
+    ...(Array.isArray(tracking?.locationHistory) ? tracking.locationHistory : []),
+    ...(Array.isArray(tracking?.events) ? tracking.events : []),
+    ...(Array.isArray(tracking?.trackingEvents) ? tracking.trackingEvents : []),
+  ];
+
+  return updates
+    .filter((update) => update && (update.stationName || update.location || update.lat || update.lng))
+    .slice(-12);
+}
+
+function formatStationName(update = {}) {
+  const name = update.stationName || update.station || update.city || update.location || update.place || "";
+  if (name) return name;
+  if (update.lat && update.lng) return `GPS point ${Number(update.lat).toFixed(4)}, ${Number(update.lng).toFixed(4)}`;
+  return "GPS station update";
+}
+
+function formatStationStatus(update = {}, index = 0, total = 0) {
+  return update.status || (index === total - 1 ? "Latest GPS update" : "Station passed");
+}
+
+function formatStationTime(update = {}) {
+  return formatDate(update.updatedAt || update.createdAt || update.timestamp || update.time || update.statusTime);
 }
 
 function formatDate(value) {
