@@ -184,7 +184,7 @@ export default function LotDetails() {
         <SEO
           title="Fresh Fruit Lot Details | eFruitMandi"
           description="View fresh fruit lot details, grade, packing, quantity and grower information on eFruitMandi."
-          canonical={`/auctions/${lotId || ""}`}
+          canonical={`/lots/${lotId || ""}`}
           noIndex
         />
         <div className="w-full max-w-full overflow-x-hidden pb-[calc(160px+env(safe-area-inset-bottom))]">
@@ -202,7 +202,7 @@ export default function LotDetails() {
         <SEO
           title="Lot Not Found | eFruitMandi"
           description="The requested eFruitMandi fruit lot could not be found or is no longer available."
-          canonical={`/auctions/${lotId || ""}`}
+          canonical={`/lots/${lotId || ""}`}
           noIndex
         />
         <div className="w-full max-w-full overflow-x-hidden pb-[calc(160px+env(safe-area-inset-bottom))]">
@@ -940,3 +940,4 @@ function formatDealStatus(status = "") {
   };
   return labels[normalized] || String(status || "Available").replace(/_/g, " ");
 }
+

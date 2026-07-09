@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -98,25 +98,39 @@
     <noscript>You need to enable JavaScript to run this app.</noscript>
 
     <div id="root">
-      <div
-        class="startup-splash startup-shell"
-        style="position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; background: #0B6B2F; padding: 0 2rem;"
-        aria-label="Loading eFruitMandi"
-      >
-        <span class="startup-logo-shine">
-          <img
-            src="/logo-240.png"
-            alt="eFruitMandi logo"
-            width="240"
-            height="160"
-            fetchpriority="high"
-            decoding="sync"
-            style="display: block; width: min(250px, 72vw); height: auto; object-fit: contain;"
-          />
-        </span>
-      </div>
+      <main style="background:#f7fff4;color:#123;padding:32px;font-family:Arial,sans-serif;line-height:1.6">
+        <h1>eFruitMandi - Fresh Fruit Marketplace for Growers and Buyers in India</h1>
+        <p>
+          eFruitMandi is an online fresh fruit marketplace by Orchard Growers Private Limited,
+          connecting verified fruit growers, bulk buyers, traders, commission agents and logistics
+          partners across India.
+        </p>
+        <h2>Buy and Sell Fresh Fruit Lots Online</h2>
+        <p>
+          Discover apple, pear, plum, persimmon, mango and other fresh fruit lots from growers.
+          View live fruit lots, mandi rates, grading, packing, quantity, location, harvest details,
+          buyer quotations and secure payment workflows.
+        </p>
+        <h2>Fruit Trading Platform for Growers, Buyers and Logistics</h2>
+        <p>
+          eFruitMandi helps growers list fruit produce, buyers find quality lots, and logistics
+          partners support delivery and tracking. The platform focuses on transparent fruit trade,
+          verified profiles, secure buyer payments and digital horticulture commerce.
+        </p>
+        <nav aria-label="Important eFruitMandi pages">
+          <a href="/auctions">Live Fruit Lots</a> |
+          <a href="/mandi-rates">Mandi Rates</a> |
+          <a href="/fruit-lots/apple">Apple Lots</a> |
+          <a href="/blog">Fruit Trade Blog</a> |
+          <a href="/buyer-guide">Buyer Guide</a> |
+          <a href="/grower-guide">Grower Guide</a> |
+          <a href="/why-efruitmandi">Why eFruitMandi</a> |
+          <a href="/contact">Contact</a>
+        </nav>
+      </main>
     </div>
 
     <script type="module" src="/src/index.js"></script>
   </body>
 </html>
+

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   FaChevronLeft,
@@ -34,8 +34,7 @@ import {
   isLiveDeal,
   normalizeDealStatus,
 } from "../utils/marketplaceVisibility";
-
-const SEO = lazy(() => import("../components/SEO"));
+import SEO from "../components/SEO";
 
 const categories = [
   { name: "Apple", icon: "🍎" },
@@ -420,33 +419,7 @@ if (typeof window !== "undefined" && window.location.pathname === "/") {
 }
 
 function DeferredHomeSEO(props) {
-  const [ready, setReady] = useState(() => !isMobileViewport());
-
-  useEffect(() => {
-    if (ready) return undefined;
-
-    let idleId;
-    const timerId = window.setTimeout(() => {
-      if ("requestIdleCallback" in window) {
-        idleId = window.requestIdleCallback(() => setReady(true), { timeout: 3000 });
-      } else {
-        setReady(true);
-      }
-    }, 10000);
-
-    return () => {
-      window.clearTimeout(timerId);
-      if (idleId) window.cancelIdleCallback(idleId);
-    };
-  }, [ready]);
-
-  if (!ready) return null;
-
-  return (
-    <Suspense fallback={null}>
-      <SEO {...props} />
-    </Suspense>
-  );
+  return <SEO {...props} />;
 }
 
 const interactiveDragTargets =
@@ -2840,7 +2813,7 @@ function OfflineMandiRatesCard({ rates = [], loading = false, error = "" }) {
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-5">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-black">APMC, Govt. Mandi Auction and Rates</h2>
+        <h2 className="text-xl font-semibold text-black">APMC, Govt. Mandi Marketplace and Rates</h2>
         <FaInfoCircle className="text-xs text-gray-600" />
       </div>
 
