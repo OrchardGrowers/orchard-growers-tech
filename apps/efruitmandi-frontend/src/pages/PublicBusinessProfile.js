@@ -98,8 +98,6 @@ export default function PublicBusinessProfile() {
         profile?.photoURL
     ) || fallbackLogo;
   const publicBannerImage = resolveProfileMediaUrl(profile?.bannerUrl);
-  const isSignedIn =
-    typeof window !== "undefined" && Boolean(window.localStorage.getItem("accessToken"));
 
   if (loading) {
     return (
@@ -133,10 +131,10 @@ export default function PublicBusinessProfile() {
         canonical={canonical}
         image={publicProfileImage}
       />
-      <main className="mx-auto min-h-[65vh] max-w-6xl px-4 py-10">
+      <main className="mx-auto min-h-[65vh] max-w-7xl px-4 py-10">
         <article className="overflow-hidden rounded-2xl border border-green-100 bg-white shadow-sm">
           <div
-            className="h-28 bg-gradient-to-r from-green-800 via-green-700 to-emerald-500 bg-cover bg-center sm:h-36"
+            className="h-36 bg-gradient-to-r from-green-800 via-green-700 to-emerald-500 bg-cover bg-center sm:h-44"
             style={publicBannerImage ? { backgroundImage: `url(${publicBannerImage})` } : undefined}
           />
           <div className="px-5 pb-7 sm:px-8">
@@ -146,7 +144,7 @@ export default function PublicBusinessProfile() {
               onError={(event) => {
                 event.currentTarget.src = fallbackLogo;
               }}
-              className="-mt-12 h-24 w-24 rounded-xl border-4 border-white bg-white object-contain shadow"
+              className="-mt-16 h-28 w-28 rounded-xl border-4 border-white bg-white object-contain shadow"
             />
 
             <div className="mt-5 flex flex-wrap items-start justify-between gap-4">
@@ -183,19 +181,6 @@ export default function PublicBusinessProfile() {
                 Contact information and private business details are not displayed publicly.
                 Use eFruitMandi's marketplace connection flow and public listings below.
               </p>
-              <button
-                type="button"
-                onClick={() =>
-                  isSignedIn
-                    ? navigate("/")
-                    : navigate("/profile", {
-                        state: { mode: "login", from: canonical },
-                      })
-                }
-                className="mt-4 min-h-11 rounded-md bg-green-700 px-5 py-3 text-sm font-bold text-white hover:bg-green-800"
-              >
-                {isSignedIn ? "Open marketplace" : "Sign in to connect"}
-              </button>
             </div>
           </div>
         </article>
