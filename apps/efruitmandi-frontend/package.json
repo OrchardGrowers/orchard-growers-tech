@@ -25,6 +25,7 @@
     "start": "vite --host 0.0.0.0",
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
+    "postbuild": "node scripts/prerender-seo.cjs",
     "preview": "vite preview --host 0.0.0.0",
     "test": "echo \"No tests configured for eFruitMandi frontend\""
   },
