@@ -134,7 +134,7 @@ export default function PublicBusinessProfile() {
       <main className="mx-auto min-h-[65vh] max-w-7xl px-4 py-10">
         <article className="overflow-hidden rounded-2xl border border-green-100 bg-white shadow-sm">
           <div
-            className="h-36 bg-gradient-to-r from-green-800 via-green-700 to-emerald-500 bg-cover bg-center sm:h-44"
+            className="h-48 bg-gradient-to-r from-green-800 via-green-700 to-emerald-500 bg-cover bg-center sm:h-64"
             style={publicBannerImage ? { backgroundImage: `url(${publicBannerImage})` } : undefined}
           />
           <div className="px-5 pb-7 sm:px-8">
