@@ -145,7 +145,7 @@
   "rewrites": [
   {
     "source": "/sitemap.xml",
-    "destination": "https://orchard-growers-backend.onrender.com/sitemap.xml"
+    "destination": "https://api.efruitmandi.live/sitemap.xml"
   },
   {
     "source": "/auctions",

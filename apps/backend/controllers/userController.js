@@ -178,6 +178,7 @@ const buildPublicProfileQuery = (role) => {
   return {
     $and: [
       { $or: [{ accountStatus: "ACTIVE" }, { accountStatus: { $exists: false } }] },
+      { publicProfileRoles: role },
       { $or: roleClauses },
     ],
   };
