@@ -12,20 +12,42 @@ const normalizeApiUrl = (value = "") => {
   if (!normalized) return "";
   return /\/api$/i.test(normalized) ? normalized : `${normalized}/api`;
 };
+const PUBLIC_API_ORIGIN = "https://api.efruitmandi.live";
+const isLocalBrowserHost = () => {
+  if (typeof window === "undefined") return true;
+  return ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+};
+const isLoopbackUrl = (value = "") => {
+  try {
+    const { hostname } = new URL(value);
+    return ["localhost", "127.0.0.1", "::1"].includes(hostname);
+  } catch {
+    return false;
+  }
+};
+const usePublicApiWhenNeeded = (value = "") => {
+  const normalized = normalizeBaseUrl(value || PUBLIC_API_ORIGIN);
+  if (!isLocalBrowserHost() && isLoopbackUrl(normalized)) return PUBLIC_API_ORIGIN;
+  return normalized;
+};
 
 export const API_ORIGIN = normalizeBaseUrl(
-  process.env.VITE_API_BASE_URL ||
+  stripApiSuffix(usePublicApiWhenNeeded(
+    process.env.VITE_API_BASE_URL ||
     process.env.REACT_APP_API_BASE_URL ||
     stripApiSuffix(process.env.VITE_API_URL || "") ||
     stripApiSuffix(process.env.REACT_APP_API_URL || "") ||
-    "https://api.efruitmandi.live"
+    PUBLIC_API_ORIGIN
+  ))
 );
 export const API_BASE_URL = normalizeApiUrl(
-  process.env.VITE_API_BASE_URL ||
+  usePublicApiWhenNeeded(
+    process.env.VITE_API_BASE_URL ||
     process.env.REACT_APP_API_BASE_URL ||
     process.env.VITE_API_URL ||
     process.env.REACT_APP_API_URL ||
     API_ORIGIN
+  )
 );
 export const FILE_BASE_URL = normalizeBaseUrl(process.env.VITE_FILE_BASE_URL || process.env.REACT_APP_FILE_BASE_URL || API_ORIGIN);
 export const SOCKET_URL = normalizeBaseUrl(process.env.VITE_SOCKET_URL || process.env.REACT_APP_SOCKET_URL || API_ORIGIN);

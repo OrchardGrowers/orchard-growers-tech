@@ -246,6 +246,15 @@ export default function Profile() {
     const serverMessage = String(
       err?.response?.data?.msg || err?.response?.data?.message || "",
     ).trim();
+    const clientMessage = String(err?.message || "").trim();
+    if (
+      !status &&
+      /failed to fetch|network\s*error|networkerror|load failed/i.test(
+        serverMessage || clientMessage,
+      )
+    ) {
+      return "Could not connect to eFruitMandi server. Please check your internet connection and try again.";
+    }
     if (
       status === 404 ||
       /user\s+not\s+found|account.*not.*exist|does\s+not\s+exist/i.test(
