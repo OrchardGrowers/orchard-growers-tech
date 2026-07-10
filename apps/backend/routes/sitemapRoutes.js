@@ -1,5 +1,6 @@
 import express from "express";
 import Product from "../models/Product.js";
+import User from "../models/User.js";
 
 const router = express.Router();
 
@@ -17,6 +18,33 @@ function escapeXml(value = "") {
 function formatDate(date) {
   if (!date) return new Date().toISOString();
   return new Date(date).toISOString();
+}
+
+function buildPublicProfileSitemapQuery(role) {
+  const roleClauses = [
+    { role },
+    { activeRole: role },
+    { profileTypes: role },
+  ];
+
+  if (role === "grower") {
+    roleClauses.push({ orchardName: { $exists: true, $ne: "" } });
+  }
+
+  if (role === "buyer") {
+    roleClauses.push(
+      { businessName: { $exists: true, $ne: "" } },
+      { buyerContactPerson: { $exists: true, $ne: "" } }
+    );
+  }
+
+  return {
+    $and: [
+      { $or: [{ accountStatus: "ACTIVE" }, { accountStatus: { $exists: false } }] },
+      { publicProfileRoles: role },
+      { $or: roleClauses },
+    ],
+  };
 }
 
 router.get("/sitemap.xml", async (req, res) => {
@@ -69,6 +97,19 @@ router.get("/sitemap.xml", async (req, res) => {
       .limit(5000)
       .lean();
 
+    const [growerProfiles, buyerProfiles] = await Promise.all([
+      User.find(buildPublicProfileSitemapQuery("grower"))
+        .select("_id updatedAt createdAt")
+        .sort({ updatedAt: -1 })
+        .limit(5000)
+        .lean(),
+      User.find(buildPublicProfileSitemapQuery("buyer"))
+        .select("_id updatedAt createdAt")
+        .sort({ updatedAt: -1 })
+        .limit(5000)
+        .lean(),
+    ]);
+
     const urls = [
       ...staticUrls.map((page) => ({
         loc: `${SITE_URL}${page.loc}`,
@@ -81,6 +122,18 @@ router.get("/sitemap.xml", async (req, res) => {
         lastmod: formatDate(product.updatedAt || product.createdAt),
         changefreq: "daily",
         priority: "0.9",
+      })),
+      ...growerProfiles.map((profile) => ({
+        loc: `${SITE_URL}/profiles/grower/${profile._id}`,
+        lastmod: formatDate(profile.updatedAt || profile.createdAt),
+        changefreq: "weekly",
+        priority: "0.7",
+      })),
+      ...buyerProfiles.map((profile) => ({
+        loc: `${SITE_URL}/profiles/buyer/${profile._id}`,
+        lastmod: formatDate(profile.updatedAt || profile.createdAt),
+        changefreq: "weekly",
+        priority: "0.7",
       })),
     ];
 
