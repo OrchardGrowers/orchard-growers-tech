@@ -1569,9 +1569,9 @@ export const staticPages = {
     eyebrow: "Help Center",
     title: "Buyer Guide",
     description:
-      "Complete buyer guide for eFruitMandi covering fruit sourcing, buyer offers, rate discovery, mandi terminology, Phad, Boli, Ladani, Commission Agent, Parcha, Bilty, fruit grading, packing, logistics, KYC, payment safety, and buyer responsibilities.",
+      "Complete buyer guide for eFruitMandi covering fruit sourcing, buyer quotations, rate discovery, mandi terminology, Phad, Boli, Ladani, Commission Agent, Parcha, Bilty, fruit grading, packing, logistics, KYC, payment safety, and buyer responsibilities.",
     intro:
-      "eFruitMandi helps fruit buyers, wholesalers, traders, commission agents, exporters, retailers, processing units, and bulk fruit buyers discover fruit lots directly from growers and orchard owners. This buyer guide explains how to use the platform, understand traditional fruit mandi terminology, evaluate produce quality, share offers, coordinate logistics, and complete safe fruit trade through mutual agreement.",
+      "eFruitMandi helps fruit buyers, wholesalers, traders, commission agents, exporters, retailers, processing units, and bulk fruit buyers discover fruit lots directly from growers and orchard owners. This buyer guide explains how to use the platform, understand traditional fruit mandi terminology, evaluate produce quality, share quotations, coordinate logistics, and complete safe fruit trade through mutual agreement.",
     sections: [
       {
         title: "What is eFruitMandi for Buyers?",
@@ -1579,7 +1579,7 @@ export const staticPages = {
           "eFruitMandi is a digital fruit marketplace and fruit trade facilitation platform by Orchard Growers Private Limited. It connects fruit buyers with fruit growers, orchard owners, fruit producers, traders, commission agents, logistics partners, and other market participants.",
           "For buyers, eFruitMandi helps discover available fruit lots, review fruit type, variety, grade, packing, estimated quantity, location, harvest stage, photos, videos, and grower details where available.",
           "The platform is useful for wholesale fruit buyers, fruit traders, commission agents, fruit shops, retail chains, exporters, processors, juice units, hotels, institutional buyers, and anyone sourcing fruit in bulk.",
-          "eFruitMandi does not force any buyer to purchase and does not force any grower to sell. Final trade depends on mutual agreement between buyer and grower regarding rate, quantity, grade, packing, logistics, payment, and delivery conditions.",
+          "eFruitMandi does not force any buyer to purchase and does not force any grower to sell. Final trade depends on mutual agreement between buyer and grower regarding rate, quantity, grade, packing, logistics, payment, and delivery conditions."
         ],
       },
       {
@@ -1588,32 +1588,31 @@ export const staticPages = {
           "A buyer on eFruitMandi may be an individual trader, fruit wholesaler, fruit and vegetable commission agent, Ladani, retailer, exporter, processor, institutional buyer, supermarket buyer, hotel supplier, juice plant, cold store operator, or fruit procurement agency.",
           "Small buyers can use the platform to discover fruit lots and connect with growers. Large buyers can use it to source bulk fruit directly from growing regions, compare quality, review lot details, and plan procurement.",
           "Commission agents can also use eFruitMandi to discover fruit growers, understand market supply, coordinate with Ladanis, and improve digital visibility for fruit trade.",
-          "The buyer guide is written for practical mandi users as well as new digital fruit buyers who want to understand fruit sourcing, mandi terms, fruit grading, packing, logistics, bilty, challan, parcha, and payment safety.",
+          "The buyer guide is written for practical mandi users as well as new digital fruit buyers who want to understand fruit sourcing, mandi terms, fruit grading, packing, logistics, bilty, challan, parcha, and payment safety."
         ],
       },
       {
         title: "Important Mandi Terminology for Buyers",
         body: [
           "Traditional fruit mandis use many local words that are important for buyers to understand. eFruitMandi uses these terms to educate users and explain market practices in simple language.",
-          "Phad (???) means the designated trading place inside a fruit mandi or APMC mandi where a commission agent manages trading activity between growers and buyers. In many mandis, fruit lots are displayed, discussed, offered on, or auctioned from the Phad.",
-          "Boli (????) means the traditional price discovery process where buyers propose rates for a grower's produce. In English, it is often called auction, bidding, offer, offering, or rate discovery.",
-          "Ladani (?????) means a bulk fruit buyer. A Ladani usually buys fruit in large quantity and supplies it to other mandis, wholesalers, retailers, supermarkets, processing units, or export markets.",
+          "Phad or ??? means the designated trading place inside a fruit mandi or APMC mandi where a commission agent manages trading activity between growers and buyers. In many mandis, fruit lots are displayed, discussed, quoted, or auctioned from the Phad.",
+          "Boli or ???? means the traditional price discovery process where buyers propose rates for a grower's produce. In English, it is often called auction, bidding, quote, quotation, or rate discovery.",
+          "Ladani or ????? means a bulk fruit buyer. A Ladani usually buys fruit in large quantity and supplies it to other mandis, wholesalers, retailers, supermarkets, processing units, or export markets.",
           "Commission Agent means the middle person or mandi agent who helps connect growers and buyers, manages Phad activity, coordinates Boli, prepares records, and supports settlement in traditional mandi systems.",
           "Grower means the fruit producer, orchard owner, farmer, or supplier who grows fruits such as apple, mango, pear, plum, persimmon, pomegranate, grapes, citrus, peach, cherry, kiwi, or other produce.",
-          "Parcha (?????) is a mandi transaction slip or sale record. It may include fruit quantity, grade, rate, buyer name, seller name, commission, charges, and other trade details. In some regions, it is also called challan.",
-          "Bilty (??????) is a transport document or consignment note used when goods are moved from one place to another. It helps track loaded goods, transport details, destination, and delivery record.",
-          "Challan or Invoice is an official transaction document that records buyer, seller, quantity, price, tax, payment, and other commercial details where applicable.",
+          "Parcha or ????? is a mandi transaction slip or sale record. It may include fruit quantity, grade, rate, buyer name, seller name, commission, charges, and other trade details. In some regions, it is also called challan.",
+          "Bilty or ?????? is a transport document or consignment note used when goods are moved from one place to another. It helps track loaded goods, transport details, destination, and delivery record.",
+          "Challan or Invoice is an official transaction document that records buyer, seller, quantity, price, tax, payment, and other commercial details where applicable."
         ],
       },
       {
-        title:
-          "Clarification about Auction, Boli, Bid, Offer and Rate Discovery",
+        title: "Clarification about Auction, Boli, Bid, Quote and Rate Discovery",
         body: [
-          "On eFruitMandi, words such as Auction, Boli, Bid, Offer, Offering, and Rate Discovery may be used only to explain the traditional fruit mandi price discovery system.",
-          "eFruitMandi is not a compulsory auction platform and does not create a forced sale. An offer shared by a buyer is only a proposed rate or commercial interest.",
+          "On eFruitMandi, words such as Auction, Boli, Bid, Quote, Quotation, Offer, and Rate Discovery may be used only to explain the traditional fruit mandi price discovery system.",
+          "eFruitMandi is not a compulsory auction platform and does not create a forced sale. A quotation shared by a buyer is only a proposed rate or commercial interest.",
           "A final deal becomes meaningful only when the buyer and grower mutually agree on fruit quality, grade, rate, packing, quantity, loading, logistics, payment, and delivery terms.",
-          "Buyers should not treat an offer as automatic ownership of the fruit lot. Growers can accept, reject, negotiate, pause, update, or withdraw their listings depending on market situation and mutual understanding.",
-          "This clarification is important because traditional mandi words like Boli, auction, Phad, commission agent, Ladani, parcha, and bilty are used for education and market communication, not for creating a forced transaction.",
+          "Buyers should not treat a quotation as automatic ownership of the fruit lot. Growers can accept, reject, negotiate, pause, update, or withdraw their listings depending on market situation and mutual understanding.",
+          "This clarification is important because traditional mandi words like Boli, auction, Phad, commission agent, Ladani, parcha, and bilty are used for education and market communication, not for creating a forced transaction."
         ],
       },
       {
@@ -1622,10 +1621,10 @@ export const staticPages = {
           "Create or log in to your eFruitMandi account.",
           "Create a buyer profile with correct name, mobile number, location, and business information.",
           "Complete free buyer KYC where required.",
-          "Review available fruit lots carefully before sharing an offer.",
+          "Review available fruit lots carefully before sharing a quotation.",
           "Check fruit type, variety, grade, packing, quantity, location, harvest stage, photos, videos, and grower details.",
-          "Share a realistic offer based on quality, market demand, logistics cost, commission, labour, packing, and expected resale value.",
-          "Finalize the deal only after mutual agreement with the grower.",
+          "Share a realistic quotation based on quality, market demand, logistics cost, commission, labour, packing, and expected resale value.",
+          "Finalize the deal only after mutual agreement with the grower."
         ],
       },
       {
@@ -1634,8 +1633,8 @@ export const staticPages = {
           "Buyers can search and review fruit lots listed by growers and orchard owners. A fruit lot may include apple, mango, pear, plum, persimmon, peach, cherry, pomegranate, grapes, citrus, kiwi, dry fruits, or other fruit categories.",
           "A good buyer should compare fruit lots based on location, variety, size, grade, packing, expected quantity, harvest date, transport feasibility, photos, and grower credibility.",
           "Bulk fruit buyers should also consider road distance, loading point, packing type, shelf life, market demand, delivery time, and risk of damage during transport.",
-          "For example, an apple buyer may compare A grade, B grade, mixed grade, carton packing, orchard location, expected harvest date, transport route, and estimated mandi resale rate before sharing an offer.",
-          "A mango buyer may focus on variety, ripening stage, size, packing, distance, transit time, and damage risk. A pear buyer may focus on maturity, firmness, packing strength, and handling requirements.",
+          "For example, an apple buyer may compare A grade, B grade, mixed grade, carton packing, orchard location, expected harvest date, transport route, and estimated mandi resale rate before sharing a quotation.",
+          "A mango buyer may focus on variety, ripening stage, size, packing, distance, transit time, and damage risk. A pear buyer may focus on maturity, firmness, packing strength, and handling requirements."
         ],
       },
       {
@@ -1648,7 +1647,7 @@ export const staticPages = {
           "Location of orchard, farm, packing point, cold store, collection center, or dispatch point.",
           "Photos and videos showing sample fruit quality, colour, size, bruising, disease marks, grading, and packing condition.",
           "Harvest stage and expected availability date.",
-          "Logistics feasibility, loading point, road access, expected delivery time, and transport requirement.",
+          "Logistics feasibility, loading point, road access, expected delivery time, and transport requirement."
         ],
       },
       {
@@ -1658,28 +1657,62 @@ export const staticPages = {
           "Buyers should never rely only on fruit name or variety. Grade, packing, photos, and sample quality matter strongly in wholesale fruit trade.",
           "A+ grade generally indicates premium fruit quality. A grade indicates good marketable quality. B+, B, C+, C, D, mixed grade, or ungraded fruit may be suitable for different markets, processing, juice, local sale, or lower price segments.",
           "Before finalizing a deal, buyers should clearly discuss grade percentage, mixed grade possibility, damaged fruit tolerance, packing standard, sample photos, and inspection process.",
-          "In fruit trade, the same fruit name can have very different market value depending on grade. Apple A grade, mango export grade, pear premium grade, and processing grade fruit cannot be compared only by quantity.",
+          "In fruit trade, the same fruit name can have very different market value depending on grade. Apple A grade, mango export grade, pear premium grade, and processing grade fruit cannot be compared only by quantity."
         ],
       },
       {
-        title: "Packing Guidelines for Buyers",
+        title: "Packing Checkpoints for Buyers",
         body: [
-          "Packing plays a major role in fruit safety, transport, resale value, and buyer satisfaction. Poor packing can damage even good quality fruit during loading, unloading, and long-distance transport.",
-          "Buyers should confirm packing type, carton strength, crate quality, tray usage, fruit layering, ventilation, padding, weight per carton, branding, label details, and export or domestic market requirements.",
-          "For long-distance fruit logistics, buyers should check whether the fruit requires normal transport, covered vehicle, refrigerated vehicle, cold chain, or quick dispatch.",
-          "Packing standards may differ for apple, mango, pear, pomegranate, grapes, plum, persimmon, peach, cherry, citrus, and kiwi. Buyers should never assume that one packing method is suitable for every fruit.",
+          "Introduction",
+          "Packing directly affects fruit quality, shelf life, transportation safety, resale value, buyer satisfaction, and post-harvest losses. Buyers should inspect packing at two different stages:",
+          "1. Before confirming the deal during live price offering.",
+          "2. While receiving the consignment after dispatch.",
+          "Packing Checkpoints Before Confirming the Deal",
+          "Before accepting or offering a price, buyers should clearly confirm all packing specifications with the grower or seller to avoid future disputes.",
+          "Checklist:",
+          "• Packing type (carton, plastic crate, wooden box, bins, or other packaging)",
+          "• Carton or crate strength and durability",
+          "• Fruit size grading and uniformity",
+          "• Number of fruit layers",
+          "• Trays, separators, foam nets, or protective padding",
+          "• Ventilation holes",
+          "• Net weight and gross weight per package",
+          "• Clean and moisture-resistant packing material",
+          "• Branding, labels, lot number, and traceability details",
+          "• Compliance with domestic or export packing standards",
+          "• Palletization requirements",
+          "• Suitable transportation method (normal, covered, refrigerated vehicle, or cold chain)",
+          "Buyer Note",
+          "All packing specifications should be confirmed before accepting the offer. Proper confirmation minimizes disputes, reduces transit damage, and ensures smooth delivery.",
+          "Packing Inspection During Consignment Receiving",
+          "After the consignment reaches the destination, buyers should carefully inspect the shipment before accepting delivery.",
+          "Checklist:",
+          "• Number of cartons or crates received",
+          "• Physical condition of cartons or crates",
+          "• Broken, crushed, wet, or damaged packages",
+          "• Proper sealing and labeling",
+          "• Net weight verification (if required)",
+          "• Moisture, leakage, or contamination",
+          "• Fruit damage caused by poor packing",
+          "• Correct fruit grading as agreed",
+          "• Overripe, spoiled, or damaged fruits",
+          "• Missing packages or shortages",
+          "• Take photographs or videos before unloading if any issue is found",
+          "Buyer Note",
+          "If packing damage, shortages, or quality issues are found, buyers should immediately document the issue with photographs or videos and notify the seller before unloading or accepting the shipment.",
+          "Packing requirements vary significantly between apples, mangoes, pears, pomegranates, grapes, plums, persimmons, peaches, cherries, citrus fruits, kiwis, and other fruits. Buyers should never assume that one packing method is suitable for every fruit. Always verify the appropriate packing standard based on the fruit type, transportation distance, destination market, and storage requirements."
         ],
       },
       {
-        title: "Offer Process for Buyers",
+        title: "Quotation Process for Buyers",
         steps: [
           "Review the fruit lot carefully.",
           "Check quality, grade, packing, location, quantity, harvest timing, and logistics feasibility.",
           "Estimate your buying rate after considering transport, labour, commission, loading, unloading, market demand, and expected resale price.",
-          "Share an offer or proposed rate through the available platform flow.",
+          "Share a quotation or proposed rate through the available platform flow.",
           "Discuss final terms with the grower where required.",
           "Proceed only after mutual agreement and payment clarity.",
-          "Keep records of offer, final rate, quantity, grade, payment proof, bilty, challan, parcha, and delivery confirmation.",
+          "Keep records of quotation, final rate, quantity, grade, payment proof, bilty, challan, parcha, and delivery confirmation."
         ],
       },
       {
@@ -1689,7 +1722,7 @@ export const staticPages = {
           "Before making payment, buyers should verify grower details, lot information, fruit grade, packing, dispatch point, quantity, and agreed rate.",
           "If a buyer is purchasing through a commission agent, the buyer should also maintain records of commission, mandi charges, transport charges, labour charges, and settlement terms.",
           "Buyers should avoid unclear verbal deals, unrealistic rates, unknown parties without KYC, and transactions without proper documentation.",
-          "KYC, OG Verified details where available, platform records, photos, videos, transaction slips, and transport documents can help build trust in digital fruit trade.",
+          "KYC, OG Verified details where available, platform records, photos, videos, transaction slips, and transport documents can help build trust in digital fruit trade."
         ],
       },
       {
@@ -1699,7 +1732,7 @@ export const staticPages = {
           "Buyers should confirm vehicle type, loading time, unloading location, driver contact, route, expected arrival, bilty, challan, transport charges, and responsibility for damage.",
           "Bilty is especially important in transport because it records movement of goods. Challan or invoice records commercial transaction details. Parcha may record mandi sale or transaction information.",
           "For delicate fruit, buyers should consider faster dispatch, careful loading, ventilation, temperature control, and proper unloading arrangements.",
-          "Long-distance buyers should calculate transport cost, loading cost, unloading cost, wastage risk, transit loss, market arrival timing, and resale demand before finalizing the offer.",
+          "Long-distance buyers should calculate transport cost, loading cost, unloading cost, wastage risk, transit loss, market arrival timing, and resale demand before finalizing the quotation."
         ],
       },
       {
@@ -1711,7 +1744,7 @@ export const staticPages = {
           "Do not hold a grower's consignment unlawfully.",
           "Make payment as per agreed terms.",
           "Raise disputes quickly with clear evidence.",
-          "Understand that growers may accept, reject, negotiate, pause, update, or withdraw fruit listings before final agreement.",
+          "Understand that growers may accept, reject, negotiate, pause, update, or withdraw fruit listings before final agreement."
         ],
       },
       {
@@ -1720,18 +1753,18 @@ export const staticPages = {
           "In traditional fruit mandis, commission agents and Ladanis play an important role in trade flow. A commission agent connects growers and buyers, while a Ladani usually buys fruit in bulk for resale or distribution.",
           "eFruitMandi helps bring this traditional fruit trade language into a digital format. Buyers, growers, commission agents, Ladanis, and logistics partners can understand each other's role more clearly.",
           "The aim is not to remove genuine market participants, but to make fruit trading more transparent, searchable, documented, and accessible.",
-          "A fruit and vegetable commission agent may still play a role in local mandi trade, but digital documentation, KYC, buyer records, grower records, and logistics tracking can reduce confusion and improve trust.",
+          "A fruit and vegetable commission agent may still play a role in local mandi trade, but digital documentation, KYC, buyer records, grower records, and logistics tracking can reduce confusion and improve trust."
         ],
       },
       {
         title: "Buyer Rights",
         bullets: [
-          "Buyers have the right to review fruit lot details before making an offer.",
+          "Buyers have the right to review fruit lot details before quotation.",
           "Buyers have the right to ask for grade, packing, photos, quantity, and location clarity.",
           "Buyers have the right to negotiate before final agreement.",
           "Buyers have the right to receive agreed fruit quality and quantity as per confirmed deal terms.",
           "Buyers have the right to raise a dispute with evidence if quality, quantity, payment, or delivery terms are not followed.",
-          "Buyers have the right to maintain and request relevant documents such as invoice, challan, bilty, parcha, and payment proof.",
+          "Buyers have the right to maintain and request relevant documents such as invoice, challan, bilty, parcha, and payment proof."
         ],
       },
       {
@@ -1739,134 +1772,31 @@ export const staticPages = {
         bullets: [
           "Review fruit details carefully before finalizing.",
           "Keep payment and contact details accurate.",
-          "Share realistic offers based on actual market conditions.",
-          "Do not misuse Boli, Bid, Offer, or Auction terminology to pressure growers.",
+          "Share realistic quotations based on actual market conditions.",
+          "Do not misuse Boli, Bid, Quote, or Auction terminology to pressure growers.",
           "Do not hold a grower's consignment unlawfully.",
           "Maintain records such as payment proof, bilty, challan, parcha, invoice, photos, and communication history.",
           "Raise disputes quickly with clear evidence.",
-          "Respect grower time, harvest risk, packing effort, labour cost, and logistics limitations.",
+          "Respect grower time, harvest risk, packing effort, labour cost, and logistics limitations."
         ],
       },
       {
         title: "Common mistakes Buyers should avoid",
         bullets: [
-          "Do not offer rates without reviewing grade, packing, location, and logistics cost.",
+          "Do not quote rates without reviewing grade, packing, location, and logistics cost.",
           "Do not assume that all fruit in a lot is premium grade.",
           "Do not finalize deals only through verbal communication.",
           "Do not ignore bilty, challan, invoice, parcha, and payment proof.",
           "Do not delay pickup after confirming dispatch.",
           "Do not compare different grades as if they have the same market value.",
           "Do not treat eFruitMandi as a forced auction platform. Final trade depends on mutual agreement.",
-          "Do not ignore transport time, weather, road condition, loading quality, and unloading arrangements.",
+          "Do not ignore transport time, weather, road condition, loading quality, and unloading arrangements."
         ],
       },
-
-      {
-        title: "Understanding Traditional Fruit Mandi System",
-        body: [
-          "India's fruit trade has traditionally operated through fruit mandis, wholesale markets, APMC mandis, commission agents, traders, Ladanis, transporters, and fruit growers.",
-          "Understanding how fruit mandis work helps buyers evaluate offers, compare fruit lots, understand market behaviour, and communicate effectively with growers, commission agents, and logistics partners.",
-          "Traditional fruit trade uses terminology such as Phad (???), Boli (????), Ladani (?????), Commission Agent, Parcha (?????), Bilty (??????), Challan, grading, packing, loading, unloading, and rate discovery.",
-          "eFruitMandi preserves practical fruit mandi knowledge while helping buyers and growers use modern digital tools.",
-        ],
-      },
-      {
-        title: "Role of Ladani in Fruit Trade",
-        body: [
-          "Ladani (?????) is a bulk fruit buyer who purchases fruit in large quantity and redistributes it to wholesalers, retailers, supermarkets, exporters, processors, cold stores, and other markets.",
-          "Ladanis often evaluate grading, packing, transport cost, market demand, resale opportunities, shelf life, and logistics feasibility before procurement.",
-          "Understanding Ladani operations helps buyers understand the wholesale fruit supply chain.",
-        ],
-      },
-      {
-        title: "Role of Fruit Commission Agents",
-        body: [
-          "Fruit commission agents coordinate between growers and buyers and often help facilitate trade communication, market information, documentation, and transaction workflows.",
-          "In many traditional fruit mandis, commission agents operate from a Phad where fruit lots are reviewed and commercial discussions take place.",
-          "Common industry search terms include Fruit Commission Agent, Fruit and Vegetable Commission Agent, APMC Commission Agent, Fruit Market Agent, and Wholesale Fruit Agent.",
-        ],
-      },
-      {
-        title: "Apple Buying Guide",
-        body: [
-          "Apple buyers should evaluate grading, size, colour, maturity, packing quality, storage history, transport distance, and market demand before procurement.",
-          "Apple procurement decisions should be based on quality, packing, grading consistency, and commercial feasibility rather than variety name alone.",
-        ],
-      },
-      {
-        title: "Mango Buying Guide",
-        body: [
-          "Mango buyers should review variety, maturity stage, sweetness, packing quality, transport duration, market demand, and destination requirements before finalizing procurement decisions.",
-        ],
-      },
-      {
-        title: "Pear Buying Guide",
-        body: [
-          "Pear buyers should evaluate fruit firmness, grading consistency, maturity, packing quality, shelf life, and transportation requirements.",
-        ],
-      },
-      {
-        title: "Export Fruit Procurement",
-        body: [
-          "Export-oriented fruit buyers often operate under stricter grading, packing, traceability, documentation, and logistics requirements than domestic markets.",
-          "Export procurement planning should consider destination requirements, transit conditions, compliance expectations, and fruit quality standards.",
-        ],
-      },
-      {
-        title: "Benefits of OG Verified and Trusted Buyer Status",
-        body: [
-          "Trust, transparency, documentation, responsible trade behaviour, and long-term business relationships are important for sustainable fruit trade.",
-          "OG Verified and Trusted Buyer programs help improve confidence and professional communication between market participants.",
-        ],
-      },
-
-      {
-        title: "Fruit Market Terminology Dictionary for Buyers",
-        body: [
-          "APMC means Agricultural Produce Market Committee. Many traditional fruit and vegetable mandis operate under local APMC market systems.",
-          "Auction means a price discovery method. On eFruitMandi, auction, Boli, Bid, Offer, and Rate Discovery words are used only for market education and offer understanding.",
-          "Bilty (\u092c\u093f\u0932\u094d\u091f\u0940) means a transport document or consignment note used when fruit is dispatched from one location to another.",
-          "Boli (\u092c\u094b\u0932\u0940) means the traditional price discovery process where buyers propose rates for fruit lots.",
-          "Bulk Fruit Buyer means a buyer who purchases fruit in large quantity for resale, wholesale supply, retail chains, processing, or export.",
-          "Challan means a transaction or dispatch document that may record buyer, seller, quantity, price, and movement details.",
-          "Commission Agent means a mandi intermediary who coordinates between growers and buyers in traditional fruit markets.",
-          "Fruit Grading means sorting fruit by size, colour, quality, maturity, appearance, damage, and market value.",
-          "Fruit Lot means a listed quantity of fruit offered by a grower or supplier with details such as variety, grade, packing, quantity, and location.",
-          "Fruit Packing means preparing fruit in cartons, crates, trays, or other packaging for safe transport and sale.",
-          "Ladani (\u0932\u0926\u093e\u0928\u0940) means a bulk fruit buyer or wholesale fruit trader.",
-          "Parcha (\u092a\u0930\u094d\u091a\u093e) means a mandi sale record or transaction slip used in fruit trade.",
-          "Phad (\u092b\u0921\u093c) means the trading space inside a fruit mandi where commission agents coordinate trade activity.",
-          "Offer means a proposed buying rate shared by a buyer for a fruit lot.",
-          "Rate Discovery means the process of finding a fair market rate through buyer interest, offer, negotiation, or mandi price signals.",
-        ],
-      },
-      {
-        title: "Buyer Case Studies and Practical Examples",
-        body: [
-          "Example 1: A wholesale apple buyer from Delhi reviews multiple apple lots from Himachal Pradesh. Instead of offering only on fruit name, the buyer compares grade, carton quality, orchard location, dispatch timing, transport cost, and expected resale demand.",
-          "Example 2: A mango buyer compares two mango lots. One has better variety but longer transport distance, while the other has slightly lower grade but faster delivery. The buyer calculates total landed cost before making an offer.",
-          "Example 3: A Ladani purchases mixed grade fruit for local wholesale markets. The buyer checks grading percentage, packing type, bilty, challan, loading arrangement, and payment terms before final agreement.",
-          "Example 4: An export-focused buyer reviews fruit quality more strictly and asks for better grading, packing, traceability, and logistics planning before procurement.",
-        ],
-      },
-      {
-        title: "Buyer Best Practices for Safe Fruit Procurement",
-        bullets: [
-          "Always compare grade, packing, quantity, location, and logistics cost before making an offer.",
-          "Ask for clear fruit photos and videos when available.",
-          "Do not depend only on verbal communication.",
-          "Maintain payment proof, bilty, challan, parcha, invoice, and delivery records.",
-          "Understand the difference between an offer and final agreement.",
-          "Check whether the fruit is suitable for wholesale, retail, processing, export, or local sale.",
-          "Respect grower time, harvest risk, packing effort, and transport limitations.",
-          "Use KYC, OG Verified details, and platform records to improve trust.",
-        ],
-      },
-
       {
         title: "Buyer FAQs",
         body: [
-          "Is eFruitMandi an auction platform? No. eFruitMandi uses auction, Boli, offer, bid, and rate discovery only to explain price discovery. It is not a compulsory auction or forced sale platform.",
+          "Is eFruitMandi an auction platform? No. eFruitMandi uses auction, Boli, quote, bid, and rate discovery only to explain price discovery. It is not a compulsory auction or forced sale platform.",
           "Who is a Ladani? A Ladani is a bulk fruit buyer who purchases fruit in large quantity for wholesale trade, other mandis, retail chains, processing units, or export markets.",
           "What is Phad? Phad is the designated trading space in a mandi where commission agents manage trading activity between growers and buyers.",
           "What is Boli? Boli is the traditional price discovery process where buyers propose rates for a grower's produce.",
@@ -1877,7 +1807,7 @@ export const staticPages = {
           "Is KYC required for buyers? Buyer KYC may be required for trust, safety, payment clarity, and dispute handling.",
           "What should buyers check before payment? Buyers should check grower details, fruit grade, packing, quantity, location, dispatch timing, bilty, challan, and agreed terms.",
           "Can commission agents use eFruitMandi? Yes. Fruit and vegetable commission agents can use eFruitMandi to improve discovery, market communication, and digital trade coordination.",
-          "Can exporters use eFruitMandi? Yes. Exporters can use eFruitMandi to discover fruit lots, review quality, packing, location, and grower information where available.",
+          "Can exporters use eFruitMandi? Yes. Exporters can use eFruitMandi to discover fruit lots, review quality, packing, location, and grower information where available."
         ],
       },
     ],

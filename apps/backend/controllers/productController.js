@@ -917,11 +917,13 @@ export const deleteProduct = async (req, res) => {
       return res.status(403).json({ msg: "You can delete only your own listing" });
     }
 
+    const relatedOrderFilters = [{ product: product._id }];
+    if (product.acceptedQuoteId) {
+      relatedOrderFilters.push({ quote: product.acceptedQuoteId });
+    }
+
     const relatedOrders = await Order.find({
-      $or: [
-        { product: product._id },
-        { quote: product.acceptedQuoteId },
-      ],
+      $or: relatedOrderFilters,
     }).select("_id paymentStatus deliveryStatus").lean();
 
     const protectedOrder = relatedOrders.find(isOrderProtectedFromGrowerDelete);

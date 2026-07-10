@@ -17,6 +17,10 @@ import {
   normalizeOperationalRole,
   syncRegistrationPublication,
 } from "../services/profilePublicationService.js";
+import {
+  isOrderCompletedForMarketplace,
+  isPublicLotVisible,
+} from "../services/dealLifecycleService.js";
 
 const getVerifiedPhone = (contact, user = null, otpVerificationToken = "", platform = "efruitmandi") => {
   const parsed = parseIdentifier(contact);
@@ -73,6 +77,7 @@ const PUBLIC_PROFILE_SELECT = [
   "buyerAvatarUrl",
   "companyLogoUrl",
   "buyerCompanyLogoUrl",
+  "bannerUrl",
   "buyerVerified",
   "growerVerified",
   "driverVerified",
@@ -87,6 +92,31 @@ const PUBLIC_PROFILE_SELECT = [
 
 const PUBLIC_PROFILE_ROLES = new Set(["grower", "buyer", "driver"]);
 const PUBLIC_PROFILE_ALL_LIMIT = 1000;
+const PUBLIC_PROFILE_MARKET_LIMIT = 12;
+const PUBLIC_MARKET_PRODUCT_SELECT = [
+  "_id",
+  "title",
+  "fruitName",
+  "variety",
+  "quality",
+  "gradeLots",
+  "quantity",
+  "unit",
+  "basePrice",
+  "finalPrice",
+  "finalDealValue",
+  "location",
+  "images",
+  "imageObjects",
+  "status",
+  "active",
+  "auctionEndTime",
+  "createdAt",
+  "updatedAt",
+  "createdBy",
+  "createdSource",
+  "inventoryType",
+].join(" ");
 const SENSITIVE_PUBLIC_LOCATION_PATTERN =
   /\b(address|house|street|road|near|plot|flat|building|village|ward|pin|pincode|post office|orchard location|exact)\b/i;
 
@@ -209,6 +239,7 @@ const toPublicProfile = (user = {}, role = "") => {
     logisticsName: role === "driver" ? user.logisticsName || "" : "",
     buyerContactPerson: role === "buyer" ? user.buyerContactPerson || "" : "",
     logoUrl: roleLogo,
+    bannerUrl: cleanPublicText(user.bannerUrl),
     avatarUrl: roleLogo,
     profileImage: roleLogo,
     profilePic: roleLogo,
@@ -224,6 +255,93 @@ const toPublicProfile = (user = {}, role = "") => {
     registeredAt,
     createdAt: registeredAt || user.createdAt,
   };
+};
+
+const getPrimaryProductImage = (product = {}) => {
+  const imageObject = Array.isArray(product.imageObjects)
+    ? product.imageObjects.find((image) => image?.isPrimary && image?.url) ||
+      product.imageObjects.find((image) => image?.url)
+    : null;
+  if (imageObject?.url) return imageObject.url;
+  return Array.isArray(product.images) ? product.images.find(Boolean) || "" : "";
+};
+
+const getProductGradeLabel = (product = {}) => {
+  if (product.quality) return product.quality;
+  if (Array.isArray(product.gradeLots) && product.gradeLots.length) {
+    return product.gradeLots.map((lot) => lot?.grade).filter(Boolean).slice(0, 2).join(", ");
+  }
+  return "";
+};
+
+const toPublicMarketLot = (product = {}, order = null) => ({
+  _id: product._id,
+  title: product.title || product.fruitName || "Fruit Lot",
+  fruitName: product.fruitName || product.title || "",
+  variety: product.variety || "",
+  grade: getProductGradeLabel(product),
+  location: getPublicLocationFromText(product.location),
+  quantity: product.quantity || 0,
+  unit: product.unit || "boxes",
+  price: order
+    ? order.totalAmount || order.finalPrice || product.finalDealValue || product.finalPrice || product.basePrice || 0
+    : product.basePrice || product.finalDealValue || product.finalPrice || 0,
+  status: order ? "Completed Deal" : product.status || "AVAILABLE",
+  imageUrl: getPrimaryProductImage(product),
+  createdAt: product.createdAt,
+  updatedAt: product.updatedAt,
+  closedAt: order?.updatedAt || order?.invoiceDate || "",
+});
+
+const getPublicProfileMarketActivity = async (userId, role) => {
+  if (!["grower", "buyer"].includes(role)) {
+    return { liveLots: [], closedDeals: [] };
+  }
+
+  const liveLots =
+    role === "grower"
+      ? await Product.find({
+          createdBy: userId,
+          active: { $ne: false },
+          inventoryType: { $ne: "raw_material" },
+          createdSource: { $ne: "admin-panel" },
+        })
+          .select(PUBLIC_MARKET_PRODUCT_SELECT)
+          .sort({ createdAt: -1, _id: -1 })
+          .limit(PUBLIC_PROFILE_MARKET_LIMIT)
+          .lean()
+      : [];
+
+  const liveLotIds = liveLots.map((lot) => lot._id).filter(Boolean);
+  const liveLotOrders = liveLotIds.length
+    ? await Order.find({ product: { $in: liveLotIds } })
+        .select("_id product paymentStatus deliveryStatus")
+        .lean()
+    : [];
+  const completedOrderByProductId = liveLotOrders.reduce((map, order) => {
+    if (isOrderCompletedForMarketplace(order)) map.set(String(order.product), order);
+    return map;
+  }, new Map());
+  const now = new Date();
+
+  const visibleLiveLots = liveLots
+    .filter((lot) => isPublicLotVisible(lot, completedOrderByProductId, now))
+    .filter((lot) => !completedOrderByProductId.has(String(lot._id)))
+    .map((lot) => toPublicMarketLot(lot));
+
+  const closedOrders = await Order.find({ [role]: userId })
+    .select("_id product finalPrice totalAmount paymentStatus deliveryStatus invoiceDate updatedAt createdAt")
+    .populate("product", PUBLIC_MARKET_PRODUCT_SELECT)
+    .sort({ updatedAt: -1, _id: -1 })
+    .limit(PUBLIC_PROFILE_MARKET_LIMIT)
+    .lean();
+
+  const closedDeals = closedOrders
+    .filter(isOrderCompletedForMarketplace)
+    .filter((order) => order.product)
+    .map((order) => toPublicMarketLot(order.product, order));
+
+  return { liveLots: visibleLiveLots, closedDeals };
 };
 
 const hasGrowerKycPayload = (body = {}, files = {}) =>
@@ -458,7 +576,16 @@ export const getPublicProfileById = async (req, res) => {
     ) {
       return res.status(404).json({ msg: "Public profile not found" });
     }
-    return res.json({ profile });
+
+    const marketActivity = await getPublicProfileMarketActivity(user._id, role);
+    return res.json({
+      profile: {
+        ...profile,
+        totalLots: marketActivity.liveLots.length,
+        totalDeals: marketActivity.closedDeals.length,
+      },
+      ...marketActivity,
+    });
   } catch (err) {
     if (err?.name === "CastError") {
       return res.status(404).json({ msg: "Public profile not found" });
