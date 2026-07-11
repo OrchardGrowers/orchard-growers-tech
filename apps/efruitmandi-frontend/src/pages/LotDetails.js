@@ -14,6 +14,7 @@ import {
 import API, { FILE_BASE_URL } from "../services/api";
 import CountdownTimer from "../components/CountdownTimer";
 import SEO from "../components/SEO";
+import { buildProductSchema, publisherReference } from "../utils/schemaGenerators";
 import LimitedPublicProfileCard from "../components/LimitedPublicProfileCard";
 import { canQuote, getCurrentUser, hasBuyerProfile } from "../utils/auth";
 import { trackLotContact, trackLotView } from "../services/analytics";
@@ -254,9 +255,7 @@ export default function LotDetails() {
 
   const seoImage = activeImage || images?.[0] || "/og-efruitmandi.jpg";
 
-  const productSchema = {
-    "@context": "https://schema.org",
-    "@type": "Product",
+  const productSchema = buildProductSchema({
     name: lotTitleParts,
     description: seoDescription,
     image: seoImage,
@@ -270,7 +269,11 @@ export default function LotDetails() {
       "@type": "Organization",
       name: growerName,
     },
-  };
+    subjectOf: {
+      "@type": "WebPage",
+      publisher: publisherReference(),
+    },
+  });
 
   return (
   <>

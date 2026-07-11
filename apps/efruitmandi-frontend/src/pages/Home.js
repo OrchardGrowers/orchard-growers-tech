@@ -35,6 +35,7 @@ import {
   normalizeDealStatus,
 } from "../utils/marketplaceVisibility";
 import SEO from "../components/SEO";
+import { buildLocalBusinessSchema, buildOrganizationSchema, buildWebSiteSchema } from "../utils/schemaGenerators";
 
 const categories = [
   { name: "Apple", icon: "🍎" },
@@ -191,39 +192,21 @@ const getPublicJson = async (path) => {
   return { data: await response.json() };
 };
 const homePageSchemas = [
-  {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    name: "eFruitMandi",
-    url: "https://www.efruitmandi.live",
+  buildOrganizationSchema({
     description:
       "India's fresh fruit marketplace connecting growers, buyers and logistics partners.",
     email: "support@efruitmandi.live",
     telephone: "+91-7018108900",
-  },
-  {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    name: "eFruitMandi",
-    url: "https://www.efruitmandi.live",
-    potentialAction: {
-      "@type": "SearchAction",
-      target: {
-        "@type": "EntryPoint",
-        urlTemplate: "https://www.efruitmandi.live/search?q={search_term_string}",
-      },
-      "query-input": "required name=search_term_string",
-    },
-  },
-  {
-    "@context": "https://schema.org",
-    "@type": "LocalBusiness",
+  }),
+  buildWebSiteSchema(),
+  buildLocalBusinessSchema({
+    "@id": "https://www.efruitmandi.live/#localbusiness",
     name: "eFruitMandi",
     url: "https://www.efruitmandi.live",
     email: "support@efruitmandi.live",
     telephone: "+91-7018108900",
     areaServed: "India",
-  },
+  }),
 ];
 
 const resolveProfileMediaUrl = (value = "") => {
@@ -994,7 +977,8 @@ export default function Home() {
 
   const openPublicProfileFlow = (profile, role) => {
     const profileId = profile?._id || profile?.id || profile?.userId;
-    const profileSlug = profile?.slug;
+    const requestedSlug = String(profile?.slug || "").trim().toLowerCase();
+    const profileSlug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(requestedSlug) ? requestedSlug : "";
     const profileType = String(profile?.businessType || role || "")
       .trim()
       .toLowerCase()
@@ -1217,7 +1201,7 @@ function HeroCard({ onList }) {
             onClick={onList}
             className="mt-4 inline-flex items-center justify-center rounded-full bg-amber-400 px-5 py-3 text-sm font-black uppercase text-green-950 shadow-lg shadow-amber-300/50 transition hover:bg-amber-300"
           >
-            List a fruit lot
+            List fruit lots
           </button>
         </div>
       </div>
@@ -1298,14 +1282,14 @@ function FloatingLotActions({ onList, onBuy }) {
         onClick={onList}
         className="min-h-10 min-w-0 rounded-full border border-green-700/30 bg-green-700/90 px-2 text-center text-[10px] font-black leading-tight text-white shadow-lg backdrop-blur transition hover:bg-green-800 sm:text-[11px] md:flex-none md:px-3"
       >
-        List a fruit lot
+        List Fruit Lots
       </button>
       <button
         type="button"
         onClick={onBuy}
         className="min-h-10 min-w-0 rounded-full border border-green-700/30 bg-green-700/90 px-2 text-center text-[10px] font-black leading-tight text-white shadow-lg backdrop-blur transition hover:bg-green-800 sm:text-[11px] md:flex-none md:px-3"
       >
-        Buy Bulk Fruit Lots
+        Buy Fruit Lots
       </button>
     </div>
   );

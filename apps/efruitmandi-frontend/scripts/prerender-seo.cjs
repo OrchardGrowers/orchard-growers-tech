@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 const SITE_URL = "https://www.efruitmandi.live";
+const PUBLIC_LOCATION_MIN_PROFILES = 2;
 const API_BASE_URL = String(
   process.env.VITE_API_BASE_URL ||
     process.env.VITE_API_URL ||
@@ -239,9 +240,12 @@ function renderPublicDirectoryFallback(meta) {
     ? `<ul>${meta.profiles.map((profile) => `<li><a href="${escapeHtml(profile.path)}">${escapeHtml(profile.name)}</a>${profile.location ? ` — ${escapeHtml(profile.location)}` : ""}</li>`).join("")}</ul>`
     : `<p>No eligible public ${meta.role === "grower" ? "grower" : "buyer"} profiles are available right now.</p>`;
 
+  const locationLinks = (meta.locationLinks || []).map((link) => `<a href="${escapeHtml(link.path)}">${escapeHtml(link.name)}</a>`).join(" | ");
   return `      <main style="background:#f7fff4;color:#123;padding:32px;font-family:Arial,sans-serif;line-height:1.6">
         <h1>${escapeHtml(meta.h1)}</h1>
         <p>${escapeHtml(meta.introduction)}</p>
+        ${meta.parentLink ? `<p><a href="${escapeHtml(meta.parentLink.path)}">${escapeHtml(meta.parentLink.name)}</a></p>` : ""}
+        ${locationLinks ? `<nav aria-label="Public profile locations">${locationLinks}</nav>` : ""}
         <nav aria-label="${escapeHtml(meta.h1)} directory">${links}</nav>
       </main>`;
 }
@@ -449,6 +453,10 @@ function getPublicDirectoryMeta(profiles, role) {
 
 function prerenderPublicDirectory(baseHtml, profiles, role) {
   const meta = getPublicDirectoryMeta(profiles, role);
+  prerenderPublicDirectoryMeta(baseHtml, meta);
+}
+
+function prerenderPublicDirectoryMeta(baseHtml, meta) {
   const withHead = replaceProfileHeadTags(baseHtml, meta);
   const withFallback = replaceRootContent(withHead, renderPublicDirectoryFallback(meta));
   const outputPath = outputPathForRoute(meta.path);
@@ -457,12 +465,136 @@ function prerenderPublicDirectory(baseHtml, profiles, role) {
   console.log(`prerender-seo: generated ${path.relative(buildDir, outputPath).replace(/\\/g, "/")}`);
 }
 
+function slugifyPublicLocation(value = "") {
+  return String(value || "").trim().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+}
+
+function getPublicLocationMetas(profiles, role) {
+  const basePath = role === "grower" ? "/growers" : "/buyers";
+  const roleHeading = role === "grower" ? "Fruit Growers and Orchards" : "Fruit Buyers and Traders";
+  const states = new Map();
+  profiles.forEach((profile) => {
+    const stateName = String(profile.state || "").trim();
+    const districtName = String(profile.district || "").trim();
+    const stateSlug = slugifyPublicLocation(stateName);
+    if (!stateSlug) return;
+    const stateIdentity = stateName.toLocaleLowerCase("en-IN").replace(/\s+/g, " ");
+    const state = states.get(stateSlug) || { name: stateName, identity: stateIdentity, slug: stateSlug, profiles: [], districts: new Map(), ambiguous: false };
+    if (state.identity !== stateIdentity) state.ambiguous = true;
+    state.profiles.push(profile);
+    if (districtName) {
+      const districtSlug = slugifyPublicLocation(districtName);
+      if (districtSlug) {
+        const districtIdentity = districtName.toLocaleLowerCase("en-IN").replace(/\s+/g, " ");
+        const district = state.districts.get(districtSlug) || { name: districtName, identity: districtIdentity, slug: districtSlug, profiles: [], ambiguous: false };
+        if (district.identity !== districtIdentity) district.ambiguous = true;
+        district.profiles.push(profile);
+        state.districts.set(districtSlug, district);
+      }
+    }
+    states.set(stateSlug, state);
+  });
+
+  const metas = [];
+  states.forEach((state) => {
+    if (state.ambiguous || state.profiles.length < PUBLIC_LOCATION_MIN_PROFILES) return;
+    const statePath = `${basePath}/state/${state.slug}`;
+    const eligibleDistricts = Array.from(state.districts.values()).filter((district) => !district.ambiguous && district.profiles.length >= PUBLIC_LOCATION_MIN_PROFILES);
+    metas.push(buildPublicLocationMeta(state.profiles, role, statePath, state.name, roleHeading, [
+      { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
+      { "@type": "ListItem", position: 2, name: role === "grower" ? "Growers" : "Buyers", item: `${SITE_URL}${basePath}` },
+      { "@type": "ListItem", position: 3, name: state.name, item: `${SITE_URL}${statePath}` },
+    ], eligibleDistricts.map((district) => ({ name: district.name, path: `${statePath}/district/${district.slug}` }))));
+
+    eligibleDistricts.forEach((district) => {
+      const districtPath = `${statePath}/district/${district.slug}`;
+      metas.push(buildPublicLocationMeta(district.profiles, role, districtPath, `${district.name}, ${state.name}`, roleHeading, [
+        { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
+        { "@type": "ListItem", position: 2, name: role === "grower" ? "Growers" : "Buyers", item: `${SITE_URL}${basePath}` },
+        { "@type": "ListItem", position: 3, name: state.name, item: `${SITE_URL}${statePath}` },
+        { "@type": "ListItem", position: 4, name: district.name, item: `${SITE_URL}${districtPath}` },
+      ], [], { name: `View all profiles in ${state.name}`, path: statePath }));
+    });
+  });
+  return metas;
+}
+
+function buildPublicLocationMeta(profiles, role, routePath, locationName, roleHeading, breadcrumbs, locationLinks = [], parentLink = null) {
+  const entries = profiles.map((profile) => getPublicDirectoryEntry(profile, role)).filter(Boolean);
+  const description = role === "grower"
+    ? `Discover public fruit growers, orchards and farms listed on eFruitMandi in ${locationName}. Explore grower profiles, public locations and available fruit lots.`
+    : `Discover public fruit buyers, traders and sourcing businesses listed on eFruitMandi in ${locationName}. Explore buyer profiles and fruit sourcing activity.`;
+  const canonical = `${SITE_URL}${routePath}`;
+  return {
+    path: routePath, role, h1: `${roleHeading} in ${locationName}`, title: `${roleHeading} in ${locationName} | eFruitMandi`, description,
+    introduction: description, profiles: entries, locationLinks, parentLink, image: "", noIndex: false,
+    schemas: [
+      { "@context": "https://schema.org", "@type": "CollectionPage", name: `${roleHeading} in ${locationName}`, description, url: canonical },
+      { "@context": "https://schema.org", "@type": "ItemList", itemListElement: entries.map((entry, index) => ({ "@type": "ListItem", position: index + 1, name: entry.name, url: `${SITE_URL}${entry.path}` })) },
+      { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: breadcrumbs },
+    ],
+  };
+}
+
 async function fetchPublicProfiles(role) {
   const endpoint = `${API_BASE_URL}/user/public-profiles?role=${role}&limit=all`;
   const response = await fetch(endpoint, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const payload = await response.json();
   return Array.isArray(payload?.profiles) ? payload.profiles : [];
+}
+
+async function fetchPublicFruitDiscovery() {
+  const response = await fetch(`${API_BASE_URL}/user/public-fruit-discovery`, { headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}
+
+function getFruitPrerenderMetas(discovery) {
+  const metas = [];
+  const makeMeta = (path, h1, description, links) => ({
+    path, h1, title: `${h1} | eFruitMandi`, description, introduction: description, image: "", noIndex: false,
+    profiles: links.map((link) => ({ name: link.name, path: link.path, location: "" })),
+    schemas: [
+      { "@context": "https://schema.org", "@type": "CollectionPage", name: h1, description, url: `${SITE_URL}${path}` },
+      { "@context": "https://schema.org", "@type": "ItemList", itemListElement: links.map((link, index) => ({ "@type": "ListItem", position: index + 1, name: link.name, url: `${SITE_URL}${link.path}` })) },
+      { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` }, { "@type": "ListItem", position: 2, name: "Fruits", item: `${SITE_URL}/fruits` }] },
+    ],
+  });
+  const fruits = Array.isArray(discovery?.fruits) ? discovery.fruits : [];
+  if (fruits.length) metas.push(makeMeta("/fruits", "Fruits Traded on eFruitMandi", "Explore fruits publicly listed on eFruitMandi. Discover fruit lots, eligible growers, orchards, buyers and traders across India.", fruits.map((fruit) => ({ name: fruit.name, path: `/fruits/${fruit.slug}` }))));
+  fruits.forEach((fruit) => {
+    if (fruit.lotCount >= 1) metas.push(makeMeta(`/fruits/${fruit.slug}`, `${fruit.name} on eFruitMandi`, `Explore public ${fruit.name} growers, buyers and fruit lots on eFruitMandi.`, []));
+    [["grower", "Growers and Orchards"], ["buyer", "Buyers and Traders"]].forEach(([role, label]) => {
+      const profiles = fruit[`${role}s`] || [];
+      if (profiles.length >= 2) metas.push(makeMeta(`/fruits/${fruit.slug}/${role}s`, `${fruit.name} ${label}`, `Explore eligible public ${fruit.name} ${role}s on eFruitMandi.`, profiles.map((profile) => ({ name: profile.companyName, path: getPublicDirectoryEntry(profile, role)?.path })).filter((item) => item.path)));
+      const locationGroups = new Map();
+      profiles.forEach((profile) => {
+        const stateSlug = slugifyPublicLocation(profile.state);
+        const districtSlug = slugifyPublicLocation(profile.district);
+        if (!stateSlug) return;
+        const statePath = `/fruits/${fruit.slug}/${role}s/state/${stateSlug}`;
+        const state = locationGroups.get(statePath) || { name: profile.state, profiles: [] };
+        state.profiles.push(profile); locationGroups.set(statePath, state);
+        if (districtSlug) {
+          const districtPath = `${statePath}/district/${districtSlug}`;
+          const district = locationGroups.get(districtPath) || { name: `${profile.district}, ${profile.state}`, profiles: [] };
+          district.profiles.push(profile); locationGroups.set(districtPath, district);
+        }
+      });
+      locationGroups.forEach((group, routePath) => {
+        if (group.profiles.length >= 2) metas.push(makeMeta(routePath, `${fruit.name} ${label} in ${group.name}`, `Explore eligible public ${fruit.name} ${role}s in ${group.name} on eFruitMandi.`, group.profiles.map((profile) => ({ name: profile.companyName, path: getPublicDirectoryEntry(profile, role)?.path })).filter((item) => item.path)));
+      });
+    });
+    (fruit.varieties || []).forEach((variety) => {
+      if (variety.lotCount >= 2) metas.push(makeMeta(`/fruits/${fruit.slug}/varieties/${variety.slug}`, `${variety.name} ${fruit.name}`, `Explore public ${variety.name} ${fruit.name} marketplace activity on eFruitMandi.`, []));
+      [["grower", "Growers"], ["buyer", "Buyers"]].forEach(([role, label]) => {
+        const profiles = variety[`${role}s`] || [];
+        if (profiles.length >= 2) metas.push(makeMeta(`/fruits/${fruit.slug}/varieties/${variety.slug}/${role}s`, `${variety.name} ${fruit.name} ${label}`, `Explore eligible public ${variety.name} ${fruit.name} ${role}s on eFruitMandi.`, profiles.map((profile) => ({ name: profile.companyName, path: getPublicDirectoryEntry(profile, role)?.path })).filter((item) => item.path)));
+      });
+    });
+  });
+  return metas;
 }
 
 async function prerenderPublicProfiles(baseHtml) {
@@ -482,6 +614,14 @@ async function prerenderPublicProfiles(baseHtml) {
       console.warn(`prerender-seo: skipped /${role === "grower" ? "growers" : "buyers"} (${error.message || "write failed"})`);
     }
 
+    getPublicLocationMetas(profiles, role).forEach((meta) => {
+      try {
+        prerenderPublicDirectoryMeta(baseHtml, meta);
+      } catch (error) {
+        console.warn(`prerender-seo: skipped ${meta.path} (${error.message || "write failed"})`);
+      }
+    });
+
     for (const profile of profiles) {
       const meta = getPublicProfileMeta(profile, role);
       if (!meta) {
@@ -500,6 +640,15 @@ async function prerenderPublicProfiles(baseHtml) {
         console.warn(`prerender-seo: skipped ${meta.path} (${error.message || "write failed"})`);
       }
     }
+  }
+  try {
+    const discovery = await fetchPublicFruitDiscovery();
+    getFruitPrerenderMetas(discovery).forEach((meta) => {
+      try { prerenderPublicDirectoryMeta(baseHtml, meta); }
+      catch (error) { console.warn(`prerender-seo: skipped ${meta.path} (${error.message || "write failed"})`); }
+    });
+  } catch (error) {
+    console.warn(`prerender-seo: fruit pages skipped (${error.message || "public API unavailable"})`);
   }
 }
 

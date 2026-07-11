@@ -42,6 +42,8 @@ const MobileCapture = lazy(() => import("./pages/MobileCapture"));
 const MandiRates = lazy(() => import("./pages/MandiRates"));
 const PublicBusinessProfile = lazy(() => import("./pages/PublicBusinessProfile"));
 const PublicProfileDirectory = lazy(() => import("./pages/PublicProfileDirectory"));
+const PublicProfileLocation = lazy(() => import("./pages/PublicProfileLocation"));
+const PublicFruitDiscovery = lazy(() => import("./pages/PublicFruitDiscovery"));
 const DownloadApp = lazy(() => import("./pages/DownloadApp"));
 
 const scheduleDeferred = (callback, timeout = 1600) => {
@@ -195,9 +197,24 @@ function App() {
             <Route path="/profile/kyc" element={<Kyc />} />
             <Route path="/profiles/:businessType/:userId" element={<PublicBusinessProfile />} />
             <Route path="/growers" element={<PublicProfileDirectory role="grower" />} />
+            <Route path="/growers/state/:stateSlug" element={<PublicProfileLocation role="grower" />} />
+            <Route path="/growers/state/:stateSlug/district/:districtSlug" element={<PublicProfileLocation role="grower" />} />
             <Route path="/growers/:slug" element={<PublicBusinessProfile publicBusinessType="grower" />} />
             <Route path="/buyers" element={<PublicProfileDirectory role="buyer" />} />
+            <Route path="/buyers/state/:stateSlug" element={<PublicProfileLocation role="buyer" />} />
+            <Route path="/buyers/state/:stateSlug/district/:districtSlug" element={<PublicProfileLocation role="buyer" />} />
             <Route path="/buyers/:slug" element={<PublicBusinessProfile publicBusinessType="buyer" />} />
+            <Route path="/fruits" element={<PublicFruitDiscovery view="directory" />} />
+            <Route path="/fruits/:fruitSlug/varieties/:varietySlug/growers" element={<PublicFruitDiscovery role="grower" />} />
+            <Route path="/fruits/:fruitSlug/varieties/:varietySlug/buyers" element={<PublicFruitDiscovery role="buyer" />} />
+            <Route path="/fruits/:fruitSlug/varieties/:varietySlug" element={<PublicFruitDiscovery />} />
+            <Route path="/fruits/:fruitSlug/growers/state/:stateSlug/district/:districtSlug" element={<PublicFruitDiscovery role="grower" />} />
+            <Route path="/fruits/:fruitSlug/growers/state/:stateSlug" element={<PublicFruitDiscovery role="grower" />} />
+            <Route path="/fruits/:fruitSlug/buyers/state/:stateSlug/district/:districtSlug" element={<PublicFruitDiscovery role="buyer" />} />
+            <Route path="/fruits/:fruitSlug/buyers/state/:stateSlug" element={<PublicFruitDiscovery role="buyer" />} />
+            <Route path="/fruits/:fruitSlug/growers" element={<PublicFruitDiscovery role="grower" />} />
+            <Route path="/fruits/:fruitSlug/buyers" element={<PublicFruitDiscovery role="buyer" />} />
+            <Route path="/fruits/:fruitSlug" element={<PublicFruitDiscovery />} />
             <Route path="/about" element={<PolicyPage type="about" />} />
             <Route path="/our-story" element={<PolicyPage type="story" />} />
             <Route path="/vision-mission" element={<PolicyPage type="visionMission" />} />

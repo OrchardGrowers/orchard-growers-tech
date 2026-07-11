@@ -3,8 +3,10 @@ import { Link } from "react-router-dom";
 import { FaCheckCircle, FaMapMarkerAlt, FaSeedling } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
 import SEO from "../components/SEO";
+import { buildBreadcrumbSchema, buildCollectionPageSchema, buildItemListSchema } from "../utils/schemaGenerators";
 
 const SITE_URL = "https://www.efruitmandi.live";
+export const PUBLIC_LOCATION_MIN_PROFILES = 2;
 
 const DIRECTORY_META = {
   grower: {
@@ -34,19 +36,22 @@ const resolveProfileImage = (value = "") => {
   return `${FILE_BASE_URL}/${image}`;
 };
 
-const getProfileName = (profile, role) => String(
+export const getProfileName = (profile, role) => String(
   role === "grower"
     ? profile?.orchardName || profile?.companyName || ""
     : profile?.businessName || profile?.companyName || profile?.buyerContactPerson || ""
 ).trim();
 
-const getProfilePath = (profile, role) => {
-  if (profile?.slug) return `/${role === "grower" ? "growers" : "buyers"}/${profile.slug}`;
+export const getProfilePath = (profile, role) => {
+  const slug = String(profile?.slug || "").trim().toLowerCase();
+  if (/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+    return `/${role === "grower" ? "growers" : "buyers"}/${slug}`;
+  }
   const id = profile?._id || profile?.id || profile?.userId;
   return id ? `/profiles/${role}/${id}` : "";
 };
 
-const deduplicateProfiles = (profiles, role) => {
+export const deduplicateProfiles = (profiles, role) => {
   const seen = new Set();
   return profiles.filter((profile) => {
     const path = getProfilePath(profile, role);
@@ -62,17 +67,24 @@ export default function PublicProfileDirectory({ role }) {
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [states, setStates] = useState([]);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
     setFailed(false);
+    setProfiles([]);
+    setStates([]);
 
-    API.get(`/user/public-profiles?role=${encodeURIComponent(role)}&limit=all`)
-      .then((response) => {
+    Promise.all([
+      API.get(`/user/public-profiles?role=${encodeURIComponent(role)}&limit=all`),
+      API.get(`/user/public-profile-locations?role=${encodeURIComponent(role)}`).catch(() => ({ data: { states: [] } })),
+    ])
+      .then(([response, locationResponse]) => {
         if (!active) return;
         const results = Array.isArray(response.data?.profiles) ? response.data.profiles : [];
         setProfiles(deduplicateProfiles(results, role));
+        setStates(Array.isArray(locationResponse.data?.states) ? locationResponse.data.states : []);
       })
       .catch(() => {
         if (!active) return;
@@ -92,31 +104,19 @@ export default function PublicProfileDirectory({ role }) {
     if (!profiles.length) return undefined;
     const canonicalUrl = `${SITE_URL}${meta.path}`;
     return [
-      {
-        "@context": "https://schema.org",
-        "@type": "CollectionPage",
+      buildCollectionPageSchema({
         name: meta.h1,
         description: meta.description,
         url: canonicalUrl,
-      },
-      {
-        "@context": "https://schema.org",
-        "@type": "ItemList",
-        itemListElement: profiles.map((profile, index) => ({
-          "@type": "ListItem",
-          position: index + 1,
+      }),
+      buildItemListSchema(profiles.map((profile) => ({
           url: `${SITE_URL}${getProfilePath(profile, role)}`,
           name: getProfileName(profile, role),
-        })),
-      },
-      {
-        "@context": "https://schema.org",
-        "@type": "BreadcrumbList",
-        itemListElement: [
-          { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
-          { "@type": "ListItem", position: 2, name: role === "grower" ? "Growers" : "Buyers", item: canonicalUrl },
-        ],
-      },
+      }))),
+      buildBreadcrumbSchema([
+        { name: "Home", url: `${SITE_URL}/` },
+        { name: role === "grower" ? "Growers" : "Buyers", url: canonicalUrl },
+      ]),
     ];
   }, [meta, profiles, role]);
 
@@ -137,6 +137,16 @@ export default function PublicProfileDirectory({ role }) {
           <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-gray-600">{meta.introduction}</p>
         </header>
 
+        {states.some((state) => state.count >= PUBLIC_LOCATION_MIN_PROFILES) && (
+          <nav className="mb-6 flex flex-wrap gap-2" aria-label={`${meta.label} profiles by state`}>
+            {states.filter((state) => state.count >= PUBLIC_LOCATION_MIN_PROFILES).map((state) => (
+              <Link key={state.slug} to={`${meta.path}/state/${state.slug}`} className="rounded-full border border-green-200 px-3 py-2 text-xs font-bold text-green-800 hover:bg-green-50">
+                {state.name}
+              </Link>
+            ))}
+          </nav>
+        )}
+
         {loading ? (
           <p className="rounded-xl border border-green-100 bg-green-50 p-5 text-sm font-semibold text-green-900">Loading public profiles...</p>
         ) : profiles.length ? (
@@ -155,7 +165,7 @@ export default function PublicProfileDirectory({ role }) {
   );
 }
 
-function DirectoryCard({ profile, role, label }) {
+export function DirectoryCard({ profile, role, label }) {
   const name = getProfileName(profile, role);
   const profilePath = getProfilePath(profile, role);
   const location = String(profile.mainLocation || "").trim();

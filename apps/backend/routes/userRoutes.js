@@ -3,6 +3,8 @@ import {
   getPublicProfiles,
   getPublicProfileById,
   getPublicProfileBySlug,
+  getPublicProfileLocations,
+  getPublicFruitDiscovery,
   setUserRole,
   createRoleProfile,
   getMyRoles,
@@ -20,6 +22,8 @@ import kycUpload from "../middleware/kycUpload.js";
 const router = express.Router();
 
 router.get("/public-profiles", getPublicProfiles);
+router.get("/public-profile-locations", getPublicProfileLocations);
+router.get("/public-fruit-discovery", getPublicFruitDiscovery);
 router.get("/public-profiles/by-slug/:businessType/:slug", getPublicProfileBySlug);
 router.get("/public-profiles/:businessType/:userId", getPublicProfileById);
 

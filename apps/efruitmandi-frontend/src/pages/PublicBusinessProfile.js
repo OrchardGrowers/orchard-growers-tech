@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import {
   FaBoxes,
   FaBuilding,
@@ -11,6 +11,7 @@ import {
 } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
 import SEO from "../components/SEO";
+import { buildBreadcrumbSchema, buildBusinessOrganizationSchema, buildLocalBusinessSchema } from "../utils/schemaGenerators";
 
 const BUSINESS_TYPE_LABELS = {
   grower: "Grower",
@@ -53,6 +54,9 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
     let active = true;
     setLoading(true);
     setError("");
+    setProfile(null);
+    setLiveLots([]);
+    setClosedDeals([]);
 
     const profileEndpoint = slug
       ? `/user/public-profiles/by-slug/${encodeURIComponent(businessType)}/${encodeURIComponent(slug)}`
@@ -67,8 +71,11 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
       })
       .catch((requestError) => {
         if (active) {
+          setProfile(null);
+          setLiveLots([]);
+          setClosedDeals([]);
           setError(
-            requestError.response?.status === 404
+            [400, 404].includes(requestError.response?.status)
               ? "This public profile is not available."
               : "The public profile could not be loaded."
           );
@@ -91,6 +98,8 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
       .join(" ") ||
     "Business";
   const profileRole = profile?.role === "grower" ? "grower" : "buyer";
+  const expectedRole = businessType === "grower" ? "grower" : "buyer";
+  const profileTypeMatches = Boolean(profile && profileRole === expectedRole);
   const publicName = String(
     profileRole === "grower"
       ? profile?.orchardName || profile?.companyName || ""
@@ -100,9 +109,21 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
   const routeCanonical = slug
     ? `/${businessType === "grower" ? "growers" : "buyers"}/${slug}`
     : `/profiles/${businessType}/${userId}`;
-  const canonical = profile?.slug
-    ? `${profile.role === "grower" ? "/growers" : "/buyers"}/${profile.slug}`
+  const canonicalSlug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(profile?.slug || ""))
+    ? profile.slug
+    : "";
+  const canonical = canonicalSlug
+    ? `${profile.role === "grower" ? "/growers" : "/buyers"}/${canonicalSlug}`
     : routeCanonical;
+  const canonicalProfilePath = canonicalSlug
+    ? `/${profileRole === "grower" ? "growers" : "buyers"}/${canonicalSlug}`
+    : "";
+  const shouldReplaceRoute = Boolean(
+    profileTypeMatches &&
+      publicName &&
+      canonicalProfilePath &&
+      (userId || (slug && slug !== canonicalSlug))
+  );
   const publicLocation = String(profile?.mainLocation || "").trim();
   const profileImage = resolveProfileMediaUrl(
     profile?.logoUrl ||
@@ -138,43 +159,39 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
       }
     : null;
   const businessSchema = publicName
-    ? {
-        "@context": "https://schema.org",
-        "@type": profileRole === "grower" ? "LocalBusiness" : "Organization",
+    ? (profileRole === "grower" ? buildLocalBusinessSchema : buildBusinessOrganizationSchema)({
+        "@id": `${canonicalUrl}#entity`,
         name: publicName,
         url: canonicalUrl,
         description: seoDescription,
         ...(schemaImage ? { image: schemaImage } : {}),
         ...(publicAddress ? { address: publicAddress } : {}),
         ...(publicLocation ? { areaServed: publicLocation } : {}),
-      }
+      })
     : null;
   const breadcrumbSchema = publicName
-    ? {
-        "@context": "https://schema.org",
-        "@type": "BreadcrumbList",
-        itemListElement: [
+    ? buildBreadcrumbSchema([
           {
-            "@type": "ListItem",
-            position: 1,
             name: "Home",
-            item: `${siteUrl}/`,
+            url: `${siteUrl}/`,
           },
           {
-            "@type": "ListItem",
-            position: 2,
             name: profileRole === "grower" ? "Growers" : "Buyers",
-            item: `${siteUrl}/${profileRole === "grower" ? "growers" : "buyers"}`,
+            url: `${siteUrl}/${profileRole === "grower" ? "growers" : "buyers"}`,
           },
           {
-            "@type": "ListItem",
-            position: 3,
             name: publicName,
-            item: canonicalUrl,
+            url: canonicalUrl,
           },
-        ],
-      }
+        ])
     : null;
+  const publicFruits = Array.from(new Map(
+    [...liveLots, ...closedDeals].map((lot) => {
+      const name = String(lot.fruitName || lot.title || "").trim().replace(/\s+fruit$/i, "");
+      const fruitSlug = name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      return [fruitSlug, { name, slug: fruitSlug }];
+    }).filter(([fruitSlug, fruit]) => fruitSlug && fruit.name)
+  ).values());
 
   if (loading) {
     return (
@@ -187,20 +204,24 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
     );
   }
 
-  if (error || !profile) {
+  if (shouldReplaceRoute) {
+    return <Navigate to={canonicalProfilePath} replace />;
+  }
+
+  if (error || !profile || !profileTypeMatches || !publicName) {
+    const directoryPath = expectedRole === "grower" ? "/growers" : "/buyers";
     return (
       <>
         <SEO title="Public Profile Unavailable | eFruitMandi" canonical={routeCanonical} noIndex image={null} />
         <main className="mx-auto min-h-[60vh] max-w-3xl px-4 py-14 text-center">
           <h1 className="text-2xl font-bold text-gray-950">Public profile unavailable</h1>
-          <p className="mt-3 text-gray-600">{error}</p>
-          <button
-            type="button"
-            onClick={() => navigate("/")}
-            className="mt-6 rounded-md bg-green-700 px-5 py-3 text-sm font-bold text-white"
+          <p className="mt-3 text-gray-600">This public profile is unavailable or is no longer publicly listed.</p>
+          <Link
+            to={directoryPath}
+            className="mt-6 inline-flex rounded-md bg-green-700 px-5 py-3 text-sm font-bold text-white"
           >
-            Visit eFruitMandi
-          </button>
+            Browse public {expectedRole === "grower" ? "growers" : "buyers"}
+          </Link>
         </main>
       </>
     );
@@ -287,6 +308,15 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
             onOpenLot={(lotId) => navigate(`/lots/${lotId}`)}
           />
         </div>
+        {publicFruits.length > 0 && (
+          <nav className="mt-5 flex flex-wrap gap-3" aria-label={`Fruits associated with ${firmName}`}>
+            {publicFruits.map((fruit) => (
+              <Link key={fruit.slug} to={`/fruits/${fruit.slug}`} className="text-sm font-bold text-green-800 hover:text-green-900">
+                View {fruit.name}
+              </Link>
+            ))}
+          </nav>
+        )}
       </main>
     </>
   );

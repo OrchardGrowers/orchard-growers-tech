@@ -402,7 +402,7 @@ io.on("connection", (socket) => {
 
       if (!dealBuyer || !userHasProfile(dealBuyer, "buyer")) {
         socket.emit("dealRejected", {
-          msg: "Only buyer accounts can make a deal or buy fruit lots.",
+          msg: "Only buyer accounts can make a deal or buy a fruit lots.",
         });
         return;
       }
@@ -483,7 +483,7 @@ io.on("connection", (socket) => {
 
       if (!dealBuyer || !userHasProfile(dealBuyer, "buyer")) {
         socket.emit("dealRejected", {
-          msg: "Only buyer accounts can make a deal or buy fruit lots.",
+          msg: "Only buyer accounts can make a deal or buy a fruit lots.",
         });
         return;
       }

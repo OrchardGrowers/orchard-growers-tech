@@ -1,5 +1,6 @@
 import { Link, useParams } from "react-router-dom";
 import SEO from "../components/SEO";
+import { buildFAQSchema } from "../utils/schemaGenerators";
 import { fruitLotsContent } from "../data/fruitLotsContent";
 
 export default function FruitLotsPage() {
@@ -39,7 +40,7 @@ export default function FruitLotsPage() {
                 to="/list-new-lot"
                 className="inline-flex min-h-11 items-center justify-center rounded-full bg-green-50 px-4 py-2 text-sm font-extrabold text-green-800 ring-1 ring-green-200"
               >
-                List a Fruit Lot
+                List Fruit Lots
               </Link>
             </div>
           </section>
@@ -48,44 +49,24 @@ export default function FruitLotsPage() {
     );
   }
 
-  const faqSchema = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: [
+  const faqSchema = buildFAQSchema([
       {
-        "@type": "Question",
-        name: `How can I sell ${fruit.name} fruit lots online?`,
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: `Growers can list ${fruit.name} fruit lots on eFruitMandi with Fruit Lot No., Lot Size, grade, total boxes, packing details, orchard location and fruit images.`,
-        },
+        question: `How can I sell ${fruit.name} fruit lots online?`,
+        answer: `Growers can list ${fruit.name} fruit lots on eFruitMandi with Fruit Lot No., Lot Size, grade, total boxes, packing details, orchard location and fruit images.`,
       },
       {
-        "@type": "Question",
-        name: `Can buyers submit offers for ${fruit.name} lots?`,
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: `Yes. Buyers can explore available ${fruit.name} fruit lots and submit offers according to eFruitMandi platform rules.`,
-        },
+        question: `Can buyers submit offers for ${fruit.name} lots?`,
+        answer: `Yes. Buyers can explore available ${fruit.name} fruit lots and submit offers according to eFruitMandi platform rules.`,
       },
       {
-        "@type": "Question",
-        name: `What details should be added in a ${fruit.name} lot listing?`,
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: `A ${fruit.name} fruit lot listing should include Fruit Lot No., Lot Size, variety, grade, total boxes, average box weight, harvest date, packing details and location.`,
-        },
+        question: `What details should be added in a ${fruit.name} lot listing?`,
+        answer: `A ${fruit.name} fruit lot listing should include Fruit Lot No., Lot Size, variety, grade, total boxes, average box weight, harvest date, packing details and location.`,
       },
       {
-        "@type": "Question",
-        name: `Is Fruit Lot No. different from batch number?`,
-        acceptedAnswer: {
-          "@type": "Answer",
-          text: `Yes. Fruit Lot No. is a fresh produce trading term used to identify a packed fruit lot. It works like batch number in manufacturing, but is more suitable for growers, buyers and fruit trading.`,
-        },
+        question: `Is Fruit Lot No. different from batch number?`,
+        answer: `Yes. Fruit Lot No. is a fresh produce trading term used to identify a packed fruit lot. It works like batch number in manufacturing, but is more suitable for growers, buyers and fruit trading.`,
       },
-    ],
-  };
+    ]);
 
   return (
     <>
@@ -124,7 +105,7 @@ export default function FruitLotsPage() {
               to="/list-new-lot"
               className="inline-flex min-h-11 items-center justify-center rounded-full bg-green-50 px-4 py-2 text-sm font-extrabold text-green-800 ring-1 ring-green-200"
             >
-              List a Fruit Lot
+              List Fruit Lots
             </Link>
           </div>
 
@@ -265,7 +246,7 @@ export default function FruitLotsPage() {
               <Link to="/auctions">Live Fruit Lots</Link>
             </li>
             <li>
-              <Link to="/list-new-lot">List a Fruit Lot</Link>
+              <Link to="/list-new-lot">List Fruit Lots</Link>
             </li>
             <li>
               <Link to="/fruit-buyers">Fruit Buyers</Link>

@@ -1,5 +1,6 @@
 import React from "react";
 import { Helmet } from "react-helmet-async";
+import { normalizeCanonicalUrl, prepareSchemas } from "../utils/schemaGenerators";
 
 const SITE_URL = "https://www.efruitmandi.live";
 const SITE_NAME = "eFruitMandi";
@@ -10,9 +11,7 @@ const DEFAULT_DESCRIPTION =
 const DEFAULT_IMAGE = `${SITE_URL}/og-efruitmandi.jpg`;
 
 function normalizeUrl(pathOrUrl = "/") {
-  if (pathOrUrl.startsWith("http")) return pathOrUrl;
-  if (!pathOrUrl.startsWith("/")) return `${SITE_URL}/${pathOrUrl}`;
-  return `${SITE_URL}${pathOrUrl}`;
+  return normalizeCanonicalUrl(pathOrUrl);
 }
 
 export default function SEO({
@@ -25,8 +24,8 @@ export default function SEO({
   schema,
 }) {
   const fullCanonical = normalizeUrl(canonical);
-  const fullImage = image ? normalizeUrl(image) : "";
-  const schemaList = Array.isArray(schema) ? schema : schema ? [schema] : [];
+  const fullImage = image && (/^https?:\/\//i.test(image) || image.startsWith("/")) ? normalizeUrl(image) : "";
+  const schemaList = prepareSchemas(schema);
 
   return (
     <Helmet>
@@ -58,7 +57,7 @@ export default function SEO({
               key={`${item?.["@type"] || "schema"}-${index}`}
               type="application/ld+json"
             >
-              {JSON.stringify(item)}
+              {JSON.stringify(item).replace(/</g, "\\u003c")}
             </script>
           ))
         : null}

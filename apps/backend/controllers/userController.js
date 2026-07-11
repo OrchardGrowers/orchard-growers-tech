@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import User from "../models/User.js";
 import Product from "../models/Product.js";
 import Order from "../models/Order.js";
@@ -94,6 +95,8 @@ const PUBLIC_PROFILE_SELECT = [
 const PUBLIC_PROFILE_ROLES = new Set(["grower", "buyer", "driver"]);
 const PUBLIC_PROFILE_ALL_LIMIT = 1000;
 const PUBLIC_PROFILE_MARKET_LIMIT = 12;
+const PUBLIC_LOCATION_MIN_PROFILES = 2;
+const PUBLIC_FRUIT_PROFILE_MIN = 2;
 const PUBLIC_MARKET_PRODUCT_SELECT = [
   "_id",
   "title",
@@ -122,6 +125,27 @@ const SENSITIVE_PUBLIC_LOCATION_PATTERN =
   /\b(address|house|street|road|near|plot|flat|building|village|ward|pin|pincode|post office|orchard location|exact)\b/i;
 
 const cleanPublicText = (value = "") => String(value || "").trim();
+
+const slugifyPublicLocation = (value = "") =>
+  cleanPublicText(value)
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
+const normalizePublicProduceName = (value = "") => {
+  const name = cleanPublicText(value).replace(/\s+/g, " ");
+  const slug = slugifyPublicLocation(name.replace(/\s+fruit$/i, ""));
+  if (!name || name.length > 80 || /^\d+$/.test(name) || /^(n\/?a|na|none|other|unknown)$/i.test(name) || !slug) return null;
+  return { name: name.replace(/\s+fruit$/i, "").replace(/\b\w/g, (letter) => letter.toUpperCase()), slug };
+};
+
+const exactPublicLocationRegex = (value = "") => {
+  const escaped = cleanPublicText(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^\\s*${escaped}\\s*$`, "i");
+};
 
 const isApprovedStatus = (status = "") =>
   cleanPublicText(status).toUpperCase() === "APPROVED";
@@ -517,10 +541,19 @@ export const getPublicProfiles = async (req, res) => {
         ? PUBLIC_PROFILE_ALL_LIMIT
         : Math.min(Math.max(Number(req.query.limit) || 10, 1), PUBLIC_PROFILE_ALL_LIMIT);
     const roles = PUBLIC_PROFILE_ROLES.has(role) ? [role] : Array.from(PUBLIC_PROFILE_ROLES);
+    const requestedState = cleanPublicText(req.query.state);
+    const requestedDistrict = cleanPublicText(req.query.district);
 
     const profilesByRole = await Promise.all(
       roles.map(async (profileRole) => {
-        const users = await User.find(buildPublicProfileQuery(profileRole))
+        const locationQuery = {
+          ...(requestedState ? { [`kycByRole.${profileRole}.state`]: exactPublicLocationRegex(requestedState) } : {}),
+          ...(requestedDistrict ? { [`kycByRole.${profileRole}.district`]: exactPublicLocationRegex(requestedDistrict) } : {}),
+        };
+        const users = await User.find({
+          ...buildPublicProfileQuery(profileRole),
+          ...locationQuery,
+        })
           .select(PUBLIC_PROFILE_SELECT)
           .sort({ [`profileRegisteredAtByRole.${profileRole}`]: -1, createdAt: -1, _id: -1 })
           .limit(limit)
@@ -606,11 +639,161 @@ const getPublicProfile = async (req, res, lookup) => {
   }
 };
 
-export const getPublicProfileById = (req, res) =>
-  getPublicProfile(req, res, { _id: req.params.userId });
+export const getPublicProfileLocations = async (req, res) => {
+  try {
+    const requestedRole = cleanPublicText(req.query.role).toLowerCase();
+    const role = normalizeOperationalRole(requestedRole);
+    if (!role || !["grower", "buyer"].includes(role)) {
+      return res.status(400).json({ msg: "Unsupported public profile type" });
+    }
 
-export const getPublicProfileBySlug = (req, res) =>
-  getPublicProfile(req, res, { slug: cleanPublicText(req.params.slug).toLowerCase() });
+    const users = await User.find(buildPublicProfileQuery(role))
+      .select(PUBLIC_PROFILE_SELECT)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(PUBLIC_PROFILE_ALL_LIMIT)
+      .lean();
+    const states = new Map();
+
+    users.map((user) => toPublicProfile(user, role)).forEach((profile) => {
+      const state = cleanPublicText(profile.state);
+      const district = cleanPublicText(profile.district);
+      const stateSlug = slugifyPublicLocation(state);
+      if (!state || !stateSlug) return;
+
+      const stateKey = state.toLocaleLowerCase("en-IN").replace(/\s+/g, " ");
+      if (!states.has(stateKey)) {
+        states.set(stateKey, { name: state, slug: stateSlug, count: 0, districts: new Map() });
+      }
+      const stateEntry = states.get(stateKey);
+      stateEntry.count += 1;
+
+      const districtSlug = slugifyPublicLocation(district);
+      if (!district || !districtSlug) return;
+      const districtKey = district.toLocaleLowerCase("en-IN").replace(/\s+/g, " ");
+      if (!stateEntry.districts.has(districtKey)) {
+        stateEntry.districts.set(districtKey, { name: district, slug: districtSlug, count: 0 });
+      }
+      stateEntry.districts.get(districtKey).count += 1;
+    });
+
+    const stateValues = Array.from(states.values());
+    const stateSlugCounts = stateValues.reduce((counts, state) => counts.set(state.slug, (counts.get(state.slug) || 0) + 1), new Map());
+    return res.json({
+      role,
+      minimumIndexableProfiles: PUBLIC_LOCATION_MIN_PROFILES,
+      states: stateValues.filter((state) => stateSlugCounts.get(state.slug) === 1).map((state) => {
+        const districts = Array.from(state.districts.values());
+        const districtSlugCounts = districts.reduce((counts, district) => counts.set(district.slug, (counts.get(district.slug) || 0) + 1), new Map());
+        return {
+        name: state.name,
+        slug: state.slug,
+        count: state.count,
+        districts: districts.filter((district) => districtSlugCounts.get(district.slug) === 1),
+        };
+      }),
+    });
+  } catch (err) {
+    console.error("Get public profile locations error:", err);
+    return res.status(500).json({ msg: "Unable to load public profile locations" });
+  }
+};
+
+export const buildPublicFruitDiscovery = async () => {
+  const candidateProducts = await Product.find({
+    active: { $ne: false },
+    inventoryType: { $ne: "raw_material" },
+    createdSource: { $ne: "admin-panel" },
+    status: { $in: ["AVAILABLE", "SCHEDULED", "IN_AUCTION", "SOLD", "DEAL_CONFIRMED", "deal_confirmed"] },
+  }).select("_id fruitName variety createdBy acceptedBuyerId status active auctionEndTime").limit(5000).lean();
+  const products = candidateProducts.filter((product) =>
+    product.status === "SOLD" || isPublicLotVisible(product, new Map(), new Date())
+  );
+  const growerIds = [...new Set(products.map((product) => String(product.createdBy || "")).filter(Boolean))];
+  const completedProducts = products.filter((product) => product.status === "SOLD");
+  const buyerIds = [...new Set(completedProducts.map((product) => String(product.acceptedBuyerId || "")).filter(Boolean))];
+  const [growers, buyers] = await Promise.all([
+    User.find({ _id: { $in: growerIds }, ...buildPublicProfileQuery("grower") }).select(PUBLIC_PROFILE_SELECT).lean(),
+    User.find({ _id: { $in: buyerIds }, ...buildPublicProfileQuery("buyer") }).select(PUBLIC_PROFILE_SELECT).lean(),
+  ]);
+  const toFruitDiscoveryProfile = (user, role) => {
+    const profile = toPublicProfile(user, role);
+    return {
+      _id: profile._id,
+      slug: profile.slug,
+      role: profile.role,
+      businessType: profile.businessType,
+      companyName: profile.companyName,
+      orchardName: profile.orchardName,
+      businessName: profile.businessName,
+      mainLocation: profile.mainLocation,
+      district: profile.district,
+      state: profile.state,
+      logoUrl: profile.logoUrl,
+      isKycVerified: profile.isKycVerified,
+      isOgVerified: profile.isOgVerified,
+    };
+  };
+  const growerMap = new Map(growers.map((user) => [String(user._id), toFruitDiscoveryProfile(user, "grower")]));
+  const buyerMap = new Map(buyers.map((user) => [String(user._id), toFruitDiscoveryProfile(user, "buyer")]));
+  const fruits = new Map();
+
+  products.forEach((product) => {
+    const fruit = normalizePublicProduceName(product.fruitName);
+    if (!fruit) return;
+    const entry = fruits.get(fruit.slug) || { name: fruit.name, slug: fruit.slug, lotIds: new Set(), growers: new Map(), buyers: new Map(), varieties: new Map() };
+    entry.lotIds.add(String(product._id));
+    const grower = growerMap.get(String(product.createdBy || ""));
+    if (grower) entry.growers.set(String(grower._id), grower);
+    if (product.status === "SOLD") {
+      const buyer = buyerMap.get(String(product.acceptedBuyerId || ""));
+      if (buyer) entry.buyers.set(String(buyer._id), buyer);
+    }
+    const variety = normalizePublicProduceName(product.variety);
+    if (variety) {
+      const varietyEntry = entry.varieties.get(variety.slug) || { name: variety.name, slug: variety.slug, lotIds: new Set(), growers: new Map(), buyers: new Map() };
+      varietyEntry.lotIds.add(String(product._id));
+      if (grower) varietyEntry.growers.set(String(grower._id), grower);
+      const buyer = entry.buyers.get(String(product.acceptedBuyerId || ""));
+      if (buyer) varietyEntry.buyers.set(String(buyer._id), buyer);
+      entry.varieties.set(variety.slug, varietyEntry);
+    }
+    fruits.set(fruit.slug, entry);
+  });
+
+  const serialize = (entry) => ({
+    name: entry.name, slug: entry.slug, lotCount: entry.lotIds.size,
+    growers: Array.from(entry.growers.values()), buyers: Array.from(entry.buyers.values()),
+    growerCount: entry.growers.size, buyerCount: entry.buyers.size,
+  });
+  return {
+    thresholds: { overview: 1, profiles: PUBLIC_FRUIT_PROFILE_MIN, variety: 2 },
+    fruits: Array.from(fruits.values()).map((fruit) => ({ ...serialize(fruit), varieties: Array.from(fruit.varieties.values()).map(serialize) })),
+  };
+};
+
+export const getPublicFruitDiscovery = async (req, res) => {
+  try {
+    return res.json(await buildPublicFruitDiscovery());
+  } catch (err) {
+    console.error("Get public fruit discovery error:", err);
+    return res.status(500).json({ msg: "Unable to load public fruit discovery" });
+  }
+};
+
+export const getPublicProfileById = (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.userId)) {
+    return res.status(404).json({ msg: "Public profile not found" });
+  }
+  return getPublicProfile(req, res, { _id: req.params.userId });
+};
+
+export const getPublicProfileBySlug = (req, res) => {
+  const slug = cleanPublicText(req.params.slug).toLowerCase();
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+    return res.status(404).json({ msg: "Public profile not found" });
+  }
+  return getPublicProfile(req, res, { slug });
+};
 
 export const getMyRoles = async (req, res) => {
   try {
@@ -972,6 +1155,15 @@ export const updateProfile = async (req, res) => {
       email,
       socialLinks,
     } = req.body;
+    let publicNameChanged = false;
+    if (typeof orchardName === "string" || typeof businessName === "string" || typeof buyerContactPerson === "string") {
+      const currentPublicNames = await User.findById(req.user.id).select("orchardName businessName buyerContactPerson").lean();
+      publicNameChanged = Boolean(
+        (typeof orchardName === "string" && orchardName.trim() !== String(currentPublicNames?.orchardName || "")) ||
+        (typeof businessName === "string" && businessName.trim() !== String(currentPublicNames?.businessName || "")) ||
+        (typeof buyerContactPerson === "string" && buyerContactPerson.trim() !== String(currentPublicNames?.buyerContactPerson || ""))
+      );
+    }
     const updates = {};
 
     if (typeof location === "string") {
@@ -1064,7 +1256,7 @@ export const updateProfile = async (req, res) => {
       return res.status(404).json({ msg: "User not found" });
     }
 
-    if (typeof orchardName === "string" || typeof businessName === "string") {
+    if (publicNameChanged) {
       await user.ensurePublicSlug(true);
       await user.save();
     }
