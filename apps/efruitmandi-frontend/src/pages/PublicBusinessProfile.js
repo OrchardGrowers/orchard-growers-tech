@@ -22,6 +22,7 @@ const BUSINESS_TYPE_LABELS = {
 };
 
 const fallbackLogo = "/logo-original.png";
+const siteUrl = "https://www.efruitmandi.live";
 
 const resolveProfileMediaUrl = (value = "") => {
   const normalized = String(value || "").trim().replace(/\\/g, "/");
@@ -38,9 +39,10 @@ const formatPrice = (value) => {
   return amount.toLocaleString("en-IN");
 };
 
-export default function PublicBusinessProfile() {
+export default function PublicBusinessProfile({ publicBusinessType = "" }) {
   const navigate = useNavigate();
-  const { businessType = "", userId = "" } = useParams();
+  const { businessType: routeBusinessType = "", userId = "", slug = "" } = useParams();
+  const businessType = publicBusinessType || routeBusinessType;
   const [profile, setProfile] = useState(null);
   const [liveLots, setLiveLots] = useState([]);
   const [closedDeals, setClosedDeals] = useState([]);
@@ -52,9 +54,11 @@ export default function PublicBusinessProfile() {
     setLoading(true);
     setError("");
 
-    API.get(
-      `/user/public-profiles/${encodeURIComponent(businessType)}/${encodeURIComponent(userId)}`
-    )
+    const profileEndpoint = slug
+      ? `/user/public-profiles/by-slug/${encodeURIComponent(businessType)}/${encodeURIComponent(slug)}`
+      : `/user/public-profiles/${encodeURIComponent(businessType)}/${encodeURIComponent(userId)}`;
+
+    API.get(profileEndpoint)
       .then((response) => {
         if (!active) return;
         setProfile(response.data?.profile || null);
@@ -77,7 +81,7 @@ export default function PublicBusinessProfile() {
     return () => {
       active = false;
     };
-  }, [businessType, userId]);
+  }, [businessType, slug, userId]);
 
   const typeLabel =
     BUSINESS_TYPE_LABELS[businessType] ||
@@ -86,50 +90,132 @@ export default function PublicBusinessProfile() {
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
       .join(" ") ||
     "Business";
-  const firmName = profile?.companyName || "eFruitMandi Business";
-  const canonical = `/profiles/${businessType}/${userId}`;
-  const publicProfileImage =
-    resolveProfileMediaUrl(
-      profile?.logoUrl ||
-        profile?.profileImage ||
-        profile?.profilePic ||
-        profile?.avatar ||
-        profile?.avatarUrl ||
-        profile?.photoURL
-    ) || fallbackLogo;
+  const profileRole = profile?.role === "grower" ? "grower" : "buyer";
+  const publicName = String(
+    profileRole === "grower"
+      ? profile?.orchardName || profile?.companyName || ""
+      : profile?.businessName || profile?.companyName || ""
+  ).trim();
+  const firmName = publicName || "eFruitMandi Business";
+  const routeCanonical = slug
+    ? `/${businessType === "grower" ? "growers" : "buyers"}/${slug}`
+    : `/profiles/${businessType}/${userId}`;
+  const canonical = profile?.slug
+    ? `${profile.role === "grower" ? "/growers" : "/buyers"}/${profile.slug}`
+    : routeCanonical;
+  const publicLocation = String(profile?.mainLocation || "").trim();
+  const profileImage = resolveProfileMediaUrl(
+    profile?.logoUrl ||
+      profile?.profileImage ||
+      profile?.profilePic ||
+      profile?.avatar ||
+      profile?.avatarUrl ||
+      profile?.photoURL
+  );
+  const publicProfileImage = profileImage || fallbackLogo;
   const publicBannerImage = resolveProfileMediaUrl(profile?.bannerUrl);
+  const schemaImage = profileImage
+    ? /^https?:/i.test(profileImage)
+      ? profileImage
+      : `${siteUrl}${profileImage.startsWith("/") ? "" : "/"}${profileImage}`
+    : "";
+
+  const seoRoleLabel = profileRole === "grower" ? "Fruit Grower" : "Fruit Buyer";
+  const seoTitle = publicName
+    ? `${publicName} – ${seoRoleLabel}${publicLocation ? ` in ${publicLocation}` : ""} | eFruitMandi`
+    : "Public Profile | eFruitMandi";
+  const seoDescription = publicName
+    ? profileRole === "grower"
+      ? `View ${publicName} on eFruitMandi. Explore its public grower profile, ${publicLocation ? "location, " : ""}available fruit lots and completed deals${publicLocation ? ` from ${publicLocation}` : ""}.`
+      : `View ${publicName} on eFruitMandi. Explore its public buyer profile, ${publicLocation ? "location, " : ""}sourcing activity and completed fruit deals${publicLocation ? ` from ${publicLocation}` : ""}.`
+    : "This public business profile is not available for search indexing.";
+  const canonicalUrl = `${siteUrl}${canonical}`;
+  const publicAddress = profile?.district || profile?.state
+    ? {
+        "@type": "PostalAddress",
+        ...(profile?.district ? { addressLocality: profile.district } : {}),
+        ...(profile?.state ? { addressRegion: profile.state } : {}),
+      }
+    : null;
+  const businessSchema = publicName
+    ? {
+        "@context": "https://schema.org",
+        "@type": profileRole === "grower" ? "LocalBusiness" : "Organization",
+        name: publicName,
+        url: canonicalUrl,
+        description: seoDescription,
+        ...(schemaImage ? { image: schemaImage } : {}),
+        ...(publicAddress ? { address: publicAddress } : {}),
+        ...(publicLocation ? { areaServed: publicLocation } : {}),
+      }
+    : null;
+  const breadcrumbSchema = publicName
+    ? {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          {
+            "@type": "ListItem",
+            position: 1,
+            name: "Home",
+            item: `${siteUrl}/`,
+          },
+          {
+            "@type": "ListItem",
+            position: 2,
+            name: profileRole === "grower" ? "Growers" : "Buyers",
+            item: `${siteUrl}/${profileRole === "grower" ? "growers" : "buyers"}`,
+          },
+          {
+            "@type": "ListItem",
+            position: 3,
+            name: publicName,
+            item: canonicalUrl,
+          },
+        ],
+      }
+    : null;
 
   if (loading) {
     return (
-      <main className="mx-auto min-h-[60vh] max-w-3xl px-4 py-14">
-        <p className="text-center text-sm font-semibold text-gray-500">Loading public profile...</p>
-      </main>
+      <>
+        <SEO canonical={routeCanonical} noIndex image={null} />
+        <main className="mx-auto min-h-[60vh] max-w-3xl px-4 py-14">
+          <p className="text-center text-sm font-semibold text-gray-500">Loading public profile...</p>
+        </main>
+      </>
     );
   }
 
   if (error || !profile) {
     return (
-      <main className="mx-auto min-h-[60vh] max-w-3xl px-4 py-14 text-center">
-        <h1 className="text-2xl font-bold text-gray-950">Public profile unavailable</h1>
-        <p className="mt-3 text-gray-600">{error}</p>
-        <button
-          type="button"
-          onClick={() => navigate("/")}
-          className="mt-6 rounded-md bg-green-700 px-5 py-3 text-sm font-bold text-white"
-        >
-          Visit eFruitMandi
-        </button>
-      </main>
+      <>
+        <SEO title="Public Profile Unavailable | eFruitMandi" canonical={routeCanonical} noIndex image={null} />
+        <main className="mx-auto min-h-[60vh] max-w-3xl px-4 py-14 text-center">
+          <h1 className="text-2xl font-bold text-gray-950">Public profile unavailable</h1>
+          <p className="mt-3 text-gray-600">{error}</p>
+          <button
+            type="button"
+            onClick={() => navigate("/")}
+            className="mt-6 rounded-md bg-green-700 px-5 py-3 text-sm font-bold text-white"
+          >
+            Visit eFruitMandi
+          </button>
+        </main>
+      </>
     );
   }
 
   return (
     <>
       <SEO
-        title={`${firmName} - ${typeLabel} on eFruitMandi`}
-        description={`${firmName} is a public ${typeLabel.toLowerCase()} profile in ${profile.mainLocation || "India"} on eFruitMandi.`}
+        title={seoTitle}
+        description={seoDescription}
         canonical={canonical}
-        image={publicProfileImage}
+        image={profileImage || null}
+        type="website"
+        noIndex={!publicName}
+        schema={publicName ? [businessSchema, breadcrumbSchema] : undefined}
       />
       <main className="mx-auto min-h-[65vh] max-w-7xl px-4 py-10">
         <article className="overflow-hidden rounded-2xl border border-green-100 bg-white shadow-sm">

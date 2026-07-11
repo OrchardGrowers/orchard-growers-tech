@@ -25,7 +25,7 @@ export default function SEO({
   schema,
 }) {
   const fullCanonical = normalizeUrl(canonical);
-  const fullImage = normalizeUrl(image);
+  const fullImage = image ? normalizeUrl(image) : "";
   const schemaList = Array.isArray(schema) ? schema : schema ? [schema] : [];
 
   return (
@@ -45,12 +45,12 @@ export default function SEO({
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
       <meta property="og:url" content={fullCanonical} />
-      <meta property="og:image" content={fullImage} />
+      {fullImage && <meta property="og:image" content={fullImage} />}
 
-      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:card" content={fullImage ? "summary_large_image" : "summary"} />
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
-      <meta name="twitter:image" content={fullImage} />
+      {fullImage && <meta name="twitter:image" content={fullImage} />}
 
       {schemaList.length > 0
         ? schemaList.map((item, index) => (

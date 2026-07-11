@@ -994,15 +994,20 @@ export default function Home() {
 
   const openPublicProfileFlow = (profile, role) => {
     const profileId = profile?._id || profile?.id || profile?.userId;
+    const profileSlug = profile?.slug;
     const profileType = String(profile?.businessType || role || "")
       .trim()
       .toLowerCase()
       .replace(/_/g, "-")
       .replace(/^driver$/, "logistics");
     const profilePath =
-      profileId && profileType
-        ? `/profiles/${profileType}/${profileId}`
-        : "/profile-dashboard";
+      profileSlug && role === "grower"
+        ? `/growers/${profileSlug}`
+        : profileSlug && role === "buyer"
+          ? `/buyers/${profileSlug}`
+          : profileId && profileType
+            ? `/profiles/${profileType}/${profileId}`
+            : "/profile-dashboard";
     navigate(profilePath);
   };
 
@@ -1642,7 +1647,12 @@ function PublicFeedSkeleton({ count = 2 }) {
 function PublicProfilesSection({ title, role, profiles = [], loading, error, emptyText, onOpenProfile, onRateProfile }) {
   return (
     <section className="space-y-3">
-      <h2 className="text-sm font-extrabold text-black md:text-base">{title}</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-extrabold text-black md:text-base">{title}</h2>
+        <Link to={role === "grower" ? "/growers" : "/buyers"} className="text-xs font-extrabold text-green-800 hover:text-green-900">
+          View all {role === "grower" ? "Growers" : "Buyers"}
+        </Link>
+      </div>
       {loading ? (
         <div className="space-y-3">
           {[0, 1].map((item) => (

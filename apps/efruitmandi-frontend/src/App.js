@@ -41,6 +41,7 @@ const FruitSeoPage = lazy(() => import("./pages/FruitSeoPage"));
 const MobileCapture = lazy(() => import("./pages/MobileCapture"));
 const MandiRates = lazy(() => import("./pages/MandiRates"));
 const PublicBusinessProfile = lazy(() => import("./pages/PublicBusinessProfile"));
+const PublicProfileDirectory = lazy(() => import("./pages/PublicProfileDirectory"));
 const DownloadApp = lazy(() => import("./pages/DownloadApp"));
 
 const scheduleDeferred = (callback, timeout = 1600) => {
@@ -193,6 +194,10 @@ function App() {
             <Route path="/kyc/status" element={<Kyc />} />
             <Route path="/profile/kyc" element={<Kyc />} />
             <Route path="/profiles/:businessType/:userId" element={<PublicBusinessProfile />} />
+            <Route path="/growers" element={<PublicProfileDirectory role="grower" />} />
+            <Route path="/growers/:slug" element={<PublicBusinessProfile publicBusinessType="grower" />} />
+            <Route path="/buyers" element={<PublicProfileDirectory role="buyer" />} />
+            <Route path="/buyers/:slug" element={<PublicBusinessProfile publicBusinessType="buyer" />} />
             <Route path="/about" element={<PolicyPage type="about" />} />
             <Route path="/our-story" element={<PolicyPage type="story" />} />
             <Route path="/vision-mission" element={<PolicyPage type="visionMission" />} />

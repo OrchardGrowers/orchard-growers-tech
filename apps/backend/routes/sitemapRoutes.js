@@ -20,29 +20,32 @@ function formatDate(date) {
   return new Date(date).toISOString();
 }
 
-function buildPublicProfileSitemapQuery(role) {
-  const roleClauses = [
-    { role },
-    { activeRole: role },
-    { profileTypes: role },
-  ];
-
+function getPublicProfileIdentityQuery(role) {
   if (role === "grower") {
-    roleClauses.push({ orchardName: { $exists: true, $ne: "" } });
+    return { orchardName: { $type: "string", $regex: /\S/ } };
   }
 
   if (role === "buyer") {
-    roleClauses.push(
-      { businessName: { $exists: true, $ne: "" } },
-      { buyerContactPerson: { $exists: true, $ne: "" } }
-    );
+    return {
+      $or: [
+        { businessName: { $type: "string", $regex: /\S/ } },
+        { buyerContactPerson: { $type: "string", $regex: /\S/ } },
+      ],
+    };
   }
+
+  return null;
+}
+
+function buildPublicProfileSitemapQuery(role) {
+  const identityQuery = getPublicProfileIdentityQuery(role);
 
   return {
     $and: [
       { $or: [{ accountStatus: "ACTIVE" }, { accountStatus: { $exists: false } }] },
       { publicProfileRoles: role },
-      { $or: roleClauses },
+      { $or: [{ role }, { activeRole: role }, { profileTypes: role }] },
+      ...(identityQuery ? [identityQuery] : []),
     ],
   };
 }
@@ -52,6 +55,8 @@ router.get("/sitemap.xml", async (req, res) => {
     const staticUrls = [
       { loc: "/", changefreq: "daily", priority: "1.0" },
       { loc: "/auctions", changefreq: "hourly", priority: "0.9" },
+      { loc: "/growers", changefreq: "daily", priority: "0.8" },
+      { loc: "/buyers", changefreq: "daily", priority: "0.8" },
       { loc: "/about", changefreq: "monthly", priority: "0.7" },
       { loc: "/our-story", changefreq: "monthly", priority: "0.6" },
       { loc: "/vision-mission", changefreq: "monthly", priority: "0.6" },
@@ -99,12 +104,12 @@ router.get("/sitemap.xml", async (req, res) => {
 
     const [growerProfiles, buyerProfiles] = await Promise.all([
       User.find(buildPublicProfileSitemapQuery("grower"))
-        .select("_id updatedAt createdAt")
+        .select("_id slug updatedAt createdAt")
         .sort({ updatedAt: -1 })
         .limit(5000)
         .lean(),
       User.find(buildPublicProfileSitemapQuery("buyer"))
-        .select("_id updatedAt createdAt")
+        .select("_id slug updatedAt createdAt")
         .sort({ updatedAt: -1 })
         .limit(5000)
         .lean(),
@@ -124,13 +129,17 @@ router.get("/sitemap.xml", async (req, res) => {
         priority: "0.9",
       })),
       ...growerProfiles.map((profile) => ({
-        loc: `${SITE_URL}/profiles/grower/${profile._id}`,
+        loc: profile.slug
+          ? `${SITE_URL}/growers/${profile.slug}`
+          : `${SITE_URL}/profiles/grower/${profile._id}`,
         lastmod: formatDate(profile.updatedAt || profile.createdAt),
         changefreq: "weekly",
         priority: "0.7",
       })),
       ...buyerProfiles.map((profile) => ({
-        loc: `${SITE_URL}/profiles/buyer/${profile._id}`,
+        loc: profile.slug
+          ? `${SITE_URL}/buyers/${profile.slug}`
+          : `${SITE_URL}/profiles/buyer/${profile._id}`,
         lastmod: formatDate(profile.updatedAt || profile.createdAt),
         changefreq: "weekly",
         priority: "0.7",

@@ -63,6 +63,7 @@ const PUBLIC_PROFILE_SELECT = [
   "activeRole",
   "profileTypes",
   "publicProfileRoles",
+  "slug",
   "profileRegisteredAtByRole",
   "orchardName",
   "businessName",
@@ -157,29 +158,32 @@ const getPublicLocationFromParts = (...parts) =>
     .slice(0, 3)
     .join(", ");
 
-const buildPublicProfileQuery = (role) => {
-  const roleClauses = [
-    { role },
-    { activeRole: role },
-    { profileTypes: role },
-  ];
-
+const getPublicProfileIdentityQuery = (role) => {
   if (role === "grower") {
-    roleClauses.push({ orchardName: { $exists: true, $ne: "" } });
+    return { orchardName: { $type: "string", $regex: /\S/ } };
   }
 
   if (role === "buyer") {
-    roleClauses.push(
-      { businessName: { $exists: true, $ne: "" } },
-      { buyerContactPerson: { $exists: true, $ne: "" } }
-    );
+    return {
+      $or: [
+        { businessName: { $type: "string", $regex: /\S/ } },
+        { buyerContactPerson: { $type: "string", $regex: /\S/ } },
+      ],
+    };
   }
+
+  return null;
+};
+
+const buildPublicProfileQuery = (role) => {
+  const identityQuery = getPublicProfileIdentityQuery(role);
 
   return {
     $and: [
       { $or: [{ accountStatus: "ACTIVE" }, { accountStatus: { $exists: false } }] },
       { publicProfileRoles: role },
-      { $or: roleClauses },
+      { $or: [{ role }, { activeRole: role }, { profileTypes: role }] },
+      ...(identityQuery ? [identityQuery] : []),
     ],
   };
 };
@@ -224,6 +228,7 @@ const toPublicProfile = (user = {}, role = "") => {
 
   return {
     _id: user._id,
+    slug: user.slug || "",
     role,
     activeRole: role,
     profileTypes: [role],
@@ -548,7 +553,7 @@ export const getPublicProfiles = async (req, res) => {
   }
 };
 
-export const getPublicProfileById = async (req, res) => {
+const getPublicProfile = async (req, res, lookup) => {
   try {
     const requestedType = cleanPublicText(req.query.role || req.params.businessType)
       .toLowerCase()
@@ -562,13 +567,18 @@ export const getPublicProfileById = async (req, res) => {
       return res.status(400).json({ msg: "Unsupported public profile type" });
     }
 
-    const user = await User.findOne({
-      _id: req.params.userId,
+    const userDocument = await User.findOne({
+      ...lookup,
       ...buildPublicProfileQuery(role),
     })
-      .select(PUBLIC_PROFILE_SELECT)
-      .lean();
-    if (!user) return res.status(404).json({ msg: "Public profile not found" });
+      .select(PUBLIC_PROFILE_SELECT);
+    if (!userDocument) return res.status(404).json({ msg: "Public profile not found" });
+
+    if (!userDocument.slug) {
+      await userDocument.ensurePublicSlug();
+      await userDocument.save();
+    }
+    const user = userDocument.toObject();
 
     const profile = toPublicProfile(user, role);
     if (
@@ -595,6 +605,12 @@ export const getPublicProfileById = async (req, res) => {
     return res.status(500).json({ msg: "Unable to load public profile" });
   }
 };
+
+export const getPublicProfileById = (req, res) =>
+  getPublicProfile(req, res, { _id: req.params.userId });
+
+export const getPublicProfileBySlug = (req, res) =>
+  getPublicProfile(req, res, { slug: cleanPublicText(req.params.slug).toLowerCase() });
 
 export const getMyRoles = async (req, res) => {
   try {
@@ -1040,12 +1056,17 @@ export const updateProfile = async (req, res) => {
       };
     }
 
-    const user = await User.findByIdAndUpdate(req.user.id, updates, {
+    let user = await User.findByIdAndUpdate(req.user.id, updates, {
       new: true,
     }).select("-password -__v");
 
     if (!user) {
       return res.status(404).json({ msg: "User not found" });
+    }
+
+    if (typeof orchardName === "string" || typeof businessName === "string") {
+      await user.ensurePublicSlug(true);
+      await user.save();
     }
 
     res.json(user);

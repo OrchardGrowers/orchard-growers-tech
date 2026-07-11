@@ -2,6 +2,12 @@ const fs = require("fs");
 const path = require("path");
 
 const SITE_URL = "https://www.efruitmandi.live";
+const API_BASE_URL = String(
+  process.env.VITE_API_BASE_URL ||
+    process.env.VITE_API_URL ||
+    process.env.REACT_APP_API_BASE_URL ||
+    "https://api.efruitmandi.live"
+).replace(/\/+$/, "");
 const appRoot = path.resolve(__dirname, "..");
 const buildDir = path.join(appRoot, "build");
 const indexPath = path.join(buildDir, "index.html");
@@ -164,6 +170,36 @@ function replaceHeadTags(html, meta) {
   return nextHtml;
 }
 
+function removeHeadTag(html, regex) {
+  return html.replace(regex, "");
+}
+
+function appendToHead(html, markup) {
+  return html.replace(/<\/head>/i, `    ${markup}\n  </head>`);
+}
+
+function replaceProfileHeadTags(html, meta) {
+  let nextHtml = replaceHeadTags(html, meta);
+  nextHtml = replaceUnique(nextHtml, /<meta\s+(?=[^>]*\bname=["']robots["'])[^>]*>\s*/gi, `<meta name="robots" content="${meta.noIndex ? "noindex,nofollow" : "index,follow"}" />\n    `);
+  nextHtml = replaceUnique(nextHtml, /<meta\s+(?=[^>]*\bproperty=["']og:type["'])[^>]*>\s*/gi, '<meta property="og:type" content="website" />\n    ');
+  nextHtml = replaceUnique(nextHtml, /<meta\s+(?=[^>]*\bname=["']twitter:card["'])[^>]*>\s*/gi, `<meta name="twitter:card" content="${meta.image ? "summary_large_image" : "summary"}" />\n    `);
+
+  nextHtml = removeHeadTag(nextHtml, /<meta\s+(?=[^>]*\bproperty=["']og:image["'])[^>]*>\s*/gi);
+  nextHtml = removeHeadTag(nextHtml, /<meta\s+(?=[^>]*\bname=["']twitter:image["'])[^>]*>\s*/gi);
+  if (meta.image) {
+    nextHtml = appendToHead(
+      nextHtml,
+      `<meta property="og:image" content="${escapeHtml(meta.image)}" />\n    <meta name="twitter:image" content="${escapeHtml(meta.image)}" />`
+    );
+  }
+
+  const schemas = (meta.schemas || [meta.businessSchema, meta.breadcrumbSchema])
+    .filter(Boolean)
+    .map((schema) => `<script type="application/ld+json">${JSON.stringify(schema).replace(/</g, "\\u003c")}</script>`)
+    .join("\n    ");
+  return appendToHead(nextHtml, schemas);
+}
+
 function renderFallback(meta) {
   const links = publicLinks
     .map((link) => `<a href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`)
@@ -176,6 +212,37 @@ function renderFallback(meta) {
         <p>${escapeHtml(meta.body)}</p>
         <p>Public eFruitMandi pages support Live Deals, Active Deals, Completed Deals, Fruit Lots, Buy Lots, Sell Lots and Marketplace discovery for fresh fruit trade.</p>
         <nav aria-label="Important eFruitMandi pages">${links}</nav>
+      </main>`;
+}
+
+function renderPublicProfileFallback(meta) {
+  const location = meta.location
+    ? `<p><strong>Public location:</strong> ${escapeHtml(meta.location)}</p>`
+    : "";
+  const activity = meta.role === "grower"
+    ? "Public fruit lots and completed deals from this grower are available on eFruitMandi."
+    : "Public sourcing activity and completed fruit deals from this buyer are available on eFruitMandi.";
+
+  return `      <main style="background:#f7fff4;color:#123;padding:32px;font-family:Arial,sans-serif;line-height:1.6">
+        <article>
+          <p>${meta.role === "grower" ? "Public Fruit Grower Profile" : "Public Fruit Buyer Profile"}</p>
+          <h1>${escapeHtml(meta.name)}</h1>
+          ${location}
+          <p>${escapeHtml(activity)}</p>
+          <p><a href="/">Visit eFruitMandi</a></p>
+        </article>
+      </main>`;
+}
+
+function renderPublicDirectoryFallback(meta) {
+  const links = meta.profiles.length
+    ? `<ul>${meta.profiles.map((profile) => `<li><a href="${escapeHtml(profile.path)}">${escapeHtml(profile.name)}</a>${profile.location ? ` — ${escapeHtml(profile.location)}` : ""}</li>`).join("")}</ul>`
+    : `<p>No eligible public ${meta.role === "grower" ? "grower" : "buyer"} profiles are available right now.</p>`;
+
+  return `      <main style="background:#f7fff4;color:#123;padding:32px;font-family:Arial,sans-serif;line-height:1.6">
+        <h1>${escapeHtml(meta.h1)}</h1>
+        <p>${escapeHtml(meta.introduction)}</p>
+        <nav aria-label="${escapeHtml(meta.h1)} directory">${links}</nav>
       </main>`;
 }
 
@@ -215,9 +282,233 @@ function prerenderRoute(baseHtml, meta) {
   console.log(`prerender-seo: generated ${path.relative(buildDir, outputPath).replace(/\\/g, "/")}`);
 }
 
+function normalizePublicImage(value = "") {
+  const image = String(value || "").trim().replace(/\\/g, "/");
+  if (!image || /^(data:|blob:)/i.test(image)) return "";
+  if (/^https?:\/\//i.test(image)) {
+    try {
+      return new URL(image).toString();
+    } catch {
+      return "";
+    }
+  }
+  if (image.startsWith("/uploads/")) return `${API_BASE_URL}${image}`;
+  if (image.startsWith("/")) return `${SITE_URL}${image}`;
+  return "";
+}
+
+function getPublicProfileMeta(profile, role) {
+  if (!profile || typeof profile !== "object" || !["grower", "buyer"].includes(role)) return null;
+  const slug = String(profile.slug || "").trim().toLowerCase();
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.includes("..")) return null;
+
+  const name = String(
+    role === "grower"
+      ? profile.orchardName || profile.companyName || ""
+      : profile.businessName || profile.companyName || ""
+  ).trim();
+  if (!name) return null;
+
+  const location = String(profile.mainLocation || "").trim();
+  const roleLabel = role === "grower" ? "Fruit Grower" : "Fruit Buyer";
+  const routePath = `/${role === "grower" ? "growers" : "buyers"}/${slug}`;
+  const canonical = `${SITE_URL}${routePath}`;
+  const title = `${name} – ${roleLabel}${location ? ` in ${location}` : ""} | eFruitMandi`;
+  const description = role === "grower"
+    ? `View ${name} on eFruitMandi. Explore its public grower profile, ${location ? "location, " : ""}available fruit lots and completed deals${location ? ` from ${location}` : ""}.`
+    : `View ${name} on eFruitMandi. Explore its public buyer profile, ${location ? "location, " : ""}sourcing activity and completed fruit deals${location ? ` from ${location}` : ""}.`;
+  const image = normalizePublicImage(
+    profile.logoUrl || profile.profileImage || profile.profilePic || profile.avatar || profile.avatarUrl || profile.photoURL
+  );
+  const address = profile.district || profile.state
+    ? {
+        "@type": "PostalAddress",
+        ...(profile.district ? { addressLocality: profile.district } : {}),
+        ...(profile.state ? { addressRegion: profile.state } : {}),
+      }
+    : null;
+
+  return {
+    path: routePath,
+    slug,
+    role,
+    name,
+    location,
+    title,
+    description,
+    image,
+    businessSchema: {
+      "@context": "https://schema.org",
+      "@type": role === "grower" ? "LocalBusiness" : "Organization",
+      name,
+      url: canonical,
+      description,
+      ...(image ? { image } : {}),
+      ...(address ? { address } : {}),
+      ...(location ? { areaServed: location } : {}),
+    },
+    breadcrumbSchema: {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: role === "grower" ? "Growers" : "Buyers",
+          item: `${SITE_URL}/${role === "grower" ? "growers" : "buyers"}`,
+        },
+        { "@type": "ListItem", position: 3, name, item: canonical },
+      ],
+    },
+  };
+}
+
+function prerenderPublicProfile(baseHtml, meta) {
+  const withHead = replaceProfileHeadTags(baseHtml, meta);
+  const withFallback = replaceRootContent(withHead, renderPublicProfileFallback(meta));
+  const outputPath = outputPathForRoute(meta.path);
+  const resolvedOutputPath = path.resolve(outputPath);
+  const resolvedBuildDir = `${path.resolve(buildDir)}${path.sep}`;
+  if (!resolvedOutputPath.startsWith(resolvedBuildDir)) {
+    throw new Error("Unsafe public profile output path");
+  }
+  fs.mkdirSync(path.dirname(resolvedOutputPath), { recursive: true });
+  fs.writeFileSync(resolvedOutputPath, withFallback, "utf8");
+  console.log(`prerender-seo: generated ${path.relative(buildDir, resolvedOutputPath).replace(/\\/g, "/")}`);
+}
+
+function getPublicDirectoryEntry(profile, role) {
+  if (!profile || typeof profile !== "object") return null;
+  const name = String(
+    role === "grower"
+      ? profile.orchardName || profile.companyName || ""
+      : profile.businessName || profile.companyName || profile.buyerContactPerson || ""
+  ).trim();
+  if (!name) return null;
+
+  const slug = String(profile.slug || "").trim().toLowerCase();
+  const id = String(profile._id || profile.id || profile.userId || "").trim();
+  const hasSafeSlug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) && !slug.includes("..");
+  const path = hasSafeSlug
+    ? `/${role === "grower" ? "growers" : "buyers"}/${slug}`
+    : /^[a-f0-9]{24}$/i.test(id)
+      ? `/profiles/${role}/${id}`
+      : "";
+  if (!path) return null;
+
+  return { name, path, location: String(profile.mainLocation || "").trim() };
+}
+
+function getPublicDirectoryMeta(profiles, role) {
+  const isGrower = role === "grower";
+  const path = isGrower ? "/growers" : "/buyers";
+  const h1 = isGrower ? "Fruit Growers and Orchards" : "Fruit Buyers and Traders";
+  const title = isGrower
+    ? "Fruit Growers and Orchards in India | eFruitMandi"
+    : "Fruit Buyers and Traders in India | eFruitMandi";
+  const description = isGrower
+    ? "Discover public fruit growers, orchards and farms listed on eFruitMandi. Explore grower profiles, locations and available fruit lots across India."
+    : "Discover public fruit buyers, traders and sourcing businesses listed on eFruitMandi. Explore buyer profiles and fruit sourcing activity across India.";
+  const introduction = isGrower
+    ? "Explore public orchard and grower profiles listed on eFruitMandi, including their public locations and marketplace activity."
+    : "Explore public buyer, trader and sourcing-business profiles listed on eFruitMandi.";
+  const seen = new Set();
+  const entries = profiles.map((profile) => getPublicDirectoryEntry(profile, role)).filter((entry) => {
+    if (!entry || seen.has(entry.path)) return false;
+    seen.add(entry.path);
+    return true;
+  });
+  const canonical = `${SITE_URL}${path}`;
+  const schemas = [
+    { "@context": "https://schema.org", "@type": "CollectionPage", name: h1, description, url: canonical },
+    ...(entries.length
+      ? [{
+          "@context": "https://schema.org",
+          "@type": "ItemList",
+          itemListElement: entries.map((entry, index) => ({
+            "@type": "ListItem",
+            position: index + 1,
+            url: `${SITE_URL}${entry.path}`,
+            name: entry.name,
+          })),
+        }]
+      : []),
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
+        { "@type": "ListItem", position: 2, name: isGrower ? "Growers" : "Buyers", item: canonical },
+      ],
+    },
+  ];
+
+  return { path, role, h1, title, description, introduction, profiles: entries, schemas, noIndex: entries.length === 0, image: "" };
+}
+
+function prerenderPublicDirectory(baseHtml, profiles, role) {
+  const meta = getPublicDirectoryMeta(profiles, role);
+  const withHead = replaceProfileHeadTags(baseHtml, meta);
+  const withFallback = replaceRootContent(withHead, renderPublicDirectoryFallback(meta));
+  const outputPath = outputPathForRoute(meta.path);
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.writeFileSync(outputPath, withFallback, "utf8");
+  console.log(`prerender-seo: generated ${path.relative(buildDir, outputPath).replace(/\\/g, "/")}`);
+}
+
+async function fetchPublicProfiles(role) {
+  const endpoint = `${API_BASE_URL}/user/public-profiles?role=${role}&limit=all`;
+  const response = await fetch(endpoint, { headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const payload = await response.json();
+  return Array.isArray(payload?.profiles) ? payload.profiles : [];
+}
+
+async function prerenderPublicProfiles(baseHtml) {
+  const writtenRoutes = new Set();
+  for (const role of ["grower", "buyer"]) {
+    let profiles;
+    try {
+      profiles = await fetchPublicProfiles(role);
+    } catch (error) {
+      console.warn(`prerender-seo: skipped ${role} profiles (${error.message || "public API unavailable"})`);
+      continue;
+    }
+
+    try {
+      prerenderPublicDirectory(baseHtml, profiles, role);
+    } catch (error) {
+      console.warn(`prerender-seo: skipped /${role === "grower" ? "growers" : "buyers"} (${error.message || "write failed"})`);
+    }
+
+    for (const profile of profiles) {
+      const meta = getPublicProfileMeta(profile, role);
+      if (!meta) {
+        console.warn(`prerender-seo: skipped invalid ${role} profile`);
+        continue;
+      }
+      if (writtenRoutes.has(meta.path)) {
+        console.warn(`prerender-seo: skipped duplicate route ${meta.path}`);
+        continue;
+      }
+
+      try {
+        prerenderPublicProfile(baseHtml, meta);
+        writtenRoutes.add(meta.path);
+      } catch (error) {
+        console.warn(`prerender-seo: skipped ${meta.path} (${error.message || "write failed"})`);
+      }
+    }
+  }
+}
+
 if (!fs.existsSync(indexPath)) {
   throw new Error(`Missing ${indexPath}. Run vite build before prerender-seo.`);
 }
 
 const baseHtml = fs.readFileSync(indexPath, "utf8");
 routes.forEach((route) => prerenderRoute(baseHtml, route));
+prerenderPublicProfiles(baseHtml).catch((error) => {
+  console.warn(`prerender-seo: public profile generation skipped (${error.message || "unexpected error"})`);
+});

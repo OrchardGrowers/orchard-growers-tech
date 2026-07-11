@@ -93,6 +93,11 @@ const userSchema = new mongoose.Schema(
         enum: ["grower", "buyer", "driver"],
       },
     ],
+    slug: {
+      type: String,
+      lowercase: true,
+      trim: true,
+    },
     profileRegisteredAtByRole: {
       grower: { type: Date },
       buyer: { type: Date },
@@ -426,7 +431,43 @@ const userSchema = new mongoose.Schema(
 userSchema.index({ role: 1 });
 userSchema.index({ profileTypes: 1 });
 userSchema.index({ publicProfileRoles: 1, createdAt: -1 });
+userSchema.index({ slug: 1 }, { unique: true, sparse: true });
 userSchema.index({ createdAt: -1 });
 userSchema.index({ provider: 1, providerId: 1 });
+
+const slugifyPublicName = (value = "") =>
+  String(value || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
+userSchema.methods.ensurePublicSlug = async function ensurePublicSlug(force = false) {
+  const publicName = this.orchardName || this.businessName || this.buyerContactPerson;
+  const baseSlug = slugifyPublicName(publicName);
+  if (!baseSlug || (!force && this.slug)) return this.slug || "";
+
+  let candidate = baseSlug;
+  let suffix = 2;
+  while (await this.constructor.exists({ slug: candidate, _id: { $ne: this._id } })) {
+    candidate = `${baseSlug}-${suffix}`;
+    suffix += 1;
+  }
+
+  this.slug = candidate;
+  return candidate;
+};
+
+userSchema.pre("validate", async function generatePublicSlug() {
+  const publicNameChanged =
+    this.isModified("orchardName") ||
+    this.isModified("businessName") ||
+    this.isModified("buyerContactPerson");
+  if (!this.slug || publicNameChanged) {
+    await this.ensurePublicSlug(publicNameChanged);
+  }
+});
 
 export default mongoose.model("User", userSchema);
