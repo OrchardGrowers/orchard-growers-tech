@@ -152,12 +152,8 @@
     "destination": "/auctions/index.html"
   },
   {
-    "source": "/fruit-lots/apple",
-    "destination": "/fruit-lots/apple/index.html"
-  },
-  {
-    "source": "/fruit-lots/persimmon",
-    "destination": "/fruit-lots/persimmon/index.html"
+    "source": "/fruit-lots/:fruitSlug",
+    "destination": "/fruit-lots/:fruitSlug/index.html"
   },
   {
     "source": "/grower-guide",
@@ -206,6 +202,22 @@
   {
     "source": "/mandi-rates",
     "destination": "/mandi-rates/index.html"
+  },
+  {
+    "source": "/growers/state/:stateSlug/district/:districtSlug",
+    "destination": "/growers/state/:stateSlug/district/:districtSlug/index.html"
+  },
+  {
+    "source": "/growers/state/:stateSlug",
+    "destination": "/growers/state/:stateSlug/index.html"
+  },
+  {
+    "source": "/buyers/state/:stateSlug/district/:districtSlug",
+    "destination": "/buyers/state/:stateSlug/district/:districtSlug/index.html"
+  },
+  {
+    "source": "/buyers/state/:stateSlug",
+    "destination": "/buyers/state/:stateSlug/index.html"
   },
   {
     "source": "/growers/:slug",

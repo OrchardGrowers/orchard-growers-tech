@@ -1,36 +1,47 @@
-﻿# eFruitMandi
+# eFruitMandi
 
-eFruitMandi is an online fruit trading platform by Orchard Growers Private Limited for connecting fruit growers, buyers, and logistics partners.
+eFruitMandi is an online fresh-fruit marketplace operated by Orchard Growers Private Limited. It connects fruit growers, buyers, and logistics participants through Fruit Lots, public business profiles, buyer and grower discovery, fruit-category discovery, market information, and related marketplace workflows.
 
-Website: https://www.efruitmandi.live
-Company: Orchard Growers Private Limited
-Focus: Fruit lots, fruit buyers, fruit growers, logistics, KYC verified trading, escrow-based payment flow.
+- Primary website: https://www.efruitmandi.live/
+- Public sitemap: https://www.efruitmandi.live/sitemap.xml
 
-## Important Pages
+## Authoritative public pages
 
-- Home: https://www.efruitmandi.live/
-- Fruit Lots: https://www.efruitmandi.live/auctions
-- Buyer Registration: https://www.efruitmandi.live/register-buyer
-- Grower Registration: https://www.efruitmandi.live/register-grower
-- Driver / Logistics Registration: https://www.efruitmandi.live/register-driver
-- KYC Verification: https://www.efruitmandi.live/kyc
-- Privacy Policy: https://www.efruitmandi.live/privacy-policy
-- Terms of Service: https://www.efruitmandi.live/terms-of-service
-- Payment Escrow Policy: https://www.efruitmandi.live/payment-escrow-policy
-- KYC Verification Policy: https://www.efruitmandi.live/kyc-verification-policy
-- OG Verified Policy: https://www.efruitmandi.live/og-verified-policy
-- Commission and Fee Policy: https://www.efruitmandi.live/commission-fee-policy
-- Shipping and Logistics Policy: https://www.efruitmandi.live/shipping-logistics-policy
-- Sitemap: https://www.efruitmandi.live/sitemap.xml
+- Fruit Lots marketplace: https://www.efruitmandi.live/auctions
+- Growers directory: https://www.efruitmandi.live/growers
+- Buyers directory: https://www.efruitmandi.live/buyers
+- Fruits directory: https://www.efruitmandi.live/fruits
+- Buyer guide: https://www.efruitmandi.live/buyer-guide
+- Grower guide: https://www.efruitmandi.live/grower-guide
+- Mandi rates: https://www.efruitmandi.live/mandi-rates
+- About: https://www.efruitmandi.live/about
+- Our story: https://www.efruitmandi.live/our-story
+- FAQs: https://www.efruitmandi.live/faqs
+- Contact: https://www.efruitmandi.live/contact-us
+- Privacy policy: https://www.efruitmandi.live/privacy-policy
+- Terms of service: https://www.efruitmandi.live/terms-of-service
 
-## Platform Summary
+## Representative Fruit Lot categories
 
-eFruitMandi helps growers list fruit lots and receive offers from verified buyers. Buyers can discover fruit lots, submit offers, and complete payments through a secure platform flow. Logistics partners can participate in fruit transportation after registration and KYC verification.
+- Apple Fruit Lots: https://www.efruitmandi.live/fruit-lots/apple
+- Mango Fruit Lots: https://www.efruitmandi.live/fruit-lots/mango
+- Pomegranate Fruit Lots: https://www.efruitmandi.live/fruit-lots/pomegranate
+- Orange Fruit Lots: https://www.efruitmandi.live/fruit-lots/orange
+- Kiwi Fruit Lots: https://www.efruitmandi.live/fruit-lots/kiwi
+- Litchi Fruit Lots: https://www.efruitmandi.live/fruit-lots/litchi
 
-## Main Fruit Categories
+## Dynamic public routes
 
-Apple, Pear, Plum, Persimmon, Cherry, Peach, Mango, Almond.
+- `/fruit-lots/:fruitSlug` provides curated Fruit Lot category information.
+- `/growers/:slug` and `/buyers/:slug` provide published public business profiles.
+- `/growers/state/:stateSlug` and `/buyers/state/:stateSlug` provide eligible public profiles grouped by state.
+- `/fruits/:fruitSlug` provides activity-based public fruit discovery.
 
-## AI Usage Guidance
+Public content can change as Fruit Lots become available or close, public business profiles are updated, marketplace activity changes, and mandi-rate information changes.
 
-AI assistants may use this file to understand the platform structure, important URLs, and business purpose of eFruitMandi.
+## Content-use guidance
+
+- Prefer canonical public URLs and use the public sitemap for discovery.
+- Treat live marketplace availability and market information as time-sensitive.
+- Do not infer private contact details, KYC data, payment information, exact addresses, account information, or other non-public data.
+- Attribute public information to eFruitMandi where appropriate.

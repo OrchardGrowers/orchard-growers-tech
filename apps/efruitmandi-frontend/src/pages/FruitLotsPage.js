@@ -1,6 +1,6 @@
 import { Link, useParams } from "react-router-dom";
 import SEO from "../components/SEO";
-import { buildFAQSchema } from "../utils/schemaGenerators";
+import { buildBreadcrumbSchema, buildCollectionPageSchema, buildFAQSchema } from "../utils/schemaGenerators";
 import { fruitLotsContent } from "../data/fruitLotsContent";
 
 export default function FruitLotsPage() {
@@ -67,6 +67,16 @@ export default function FruitLotsPage() {
         answer: `Yes. Fruit Lot No. is a fresh produce trading term used to identify a packed fruit lot. It works like batch number in manufacturing, but is more suitable for growers, buyers and fruit trading.`,
       },
     ]);
+  const canonicalUrl = `https://www.efruitmandi.live/fruit-lots/${fruitSlug}`;
+  const pageSchemas = [
+    buildCollectionPageSchema({ name: fruit.h1, description: fruit.description, url: canonicalUrl }),
+    buildBreadcrumbSchema([
+      { name: "Home", url: "https://www.efruitmandi.live/" },
+      { name: "Fruit Lots", url: "https://www.efruitmandi.live/auctions" },
+      { name: fruit.name, url: canonicalUrl },
+    ]),
+    faqSchema,
+  ];
 
   return (
     <>
@@ -74,7 +84,7 @@ export default function FruitLotsPage() {
         title={fruit.title}
         description={fruit.description}
         canonical={`/fruit-lots/${fruitSlug}`}
-        schema={faqSchema}
+        schema={pageSchemas}
       />
 
       <main className="w-full max-w-full overflow-x-hidden pb-[calc(140px+env(safe-area-inset-bottom))]">

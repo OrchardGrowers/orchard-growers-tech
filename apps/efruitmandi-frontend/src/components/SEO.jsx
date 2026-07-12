@@ -22,6 +22,7 @@ export default function SEO({
   type = "website",
   noIndex = false,
   schema,
+  schemaId = "",
 }) {
   const fullCanonical = normalizeUrl(canonical);
   const fullImage = image && (/^https?:\/\//i.test(image) || image.startsWith("/")) ? normalizeUrl(image) : "";
@@ -55,6 +56,7 @@ export default function SEO({
         ? schemaList.map((item, index) => (
             <script
               key={`${item?.["@type"] || "schema"}-${index}`}
+              id={schemaId && index === 0 ? schemaId : undefined}
               type="application/ld+json"
             >
               {JSON.stringify(item).replace(/</g, "\\u003c")}

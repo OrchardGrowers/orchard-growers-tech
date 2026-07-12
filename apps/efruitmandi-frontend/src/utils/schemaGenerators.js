@@ -1,6 +1,7 @@
 export const SITE_URL = "https://www.efruitmandi.live";
 export const ORGANIZATION_NAME = "Orchard Growers Private Limited";
 export const ORGANIZATION_ID = `${SITE_URL}/#organization`;
+export const WEBSITE_ID = `${SITE_URL}/#website`;
 
 export const normalizeCanonicalUrl = (value = "/") => {
   try {
@@ -25,16 +26,25 @@ export const buildOrganizationSchema = (values = {}) => base("Organization", {
 });
 
 export const publisherReference = () => ({ "@id": ORGANIZATION_ID });
-export const buildBusinessOrganizationSchema = (values = {}) => base("Organization", { parentOrganization: publisherReference(), ...values });
+export const buildBusinessOrganizationSchema = (values = {}) => base("Organization", values);
 export const buildWebSiteSchema = ({ searchPath = "/search?q={search_term_string}", ...values } = {}) => base("WebSite", {
   "@id": `${SITE_URL}/#website`, name: "eFruitMandi", url: SITE_URL, publisher: publisherReference(),
   potentialAction: { "@type": "SearchAction", target: { "@type": "EntryPoint", urlTemplate: normalizeCanonicalUrl(searchPath) }, "query-input": "required name=search_term_string" },
   ...values,
 });
-export const buildLocalBusinessSchema = (values = {}) => base("LocalBusiness", { publisher: publisherReference(), ...values });
+export const buildLocalBusinessSchema = (values = {}) => base("LocalBusiness", values);
 export const buildPersonSchema = (values = {}) => base("Person", { affiliation: publisherReference(), ...values });
 export const buildProductSchema = (values = {}) => base("Product", { brand: { "@type": "Brand", name: "eFruitMandi" }, subjectOf: { "@type": "WebPage", publisher: publisherReference() }, ...values });
-export const buildCollectionPageSchema = (values = {}) => base("CollectionPage", { publisher: publisherReference(), ...values, url: normalizeCanonicalUrl(values.url) });
+export const buildCollectionPageSchema = (values = {}) => {
+  const url = normalizeCanonicalUrl(values.url);
+  return base("CollectionPage", {
+    "@id": `${url}#webpage`,
+    isPartOf: { "@id": WEBSITE_ID },
+    publisher: publisherReference(),
+    ...values,
+    url,
+  });
+};
 export const buildItemListSchema = (items = []) => items.length ? base("ItemList", { itemListElement: items.map((item, index) => compact({ "@type": "ListItem", position: index + 1, name: item.name, url: normalizeCanonicalUrl(item.url) })) }) : null;
 export const buildBreadcrumbSchema = (items = []) => items.length ? base("BreadcrumbList", { itemListElement: items.map((item, index) => compact({ "@type": "ListItem", position: index + 1, name: item.name, item: normalizeCanonicalUrl(item.url || item.item) })) }) : null;
 export const buildFAQSchema = (items = []) => items.length ? base("FAQPage", { publisher: publisherReference(), mainEntity: items.map((item) => ({ "@type": "Question", name: item.question, acceptedAnswer: { "@type": "Answer", text: item.answer } })) }) : null;

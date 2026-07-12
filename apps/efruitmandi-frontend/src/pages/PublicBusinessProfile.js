@@ -22,6 +22,15 @@ const BUSINESS_TYPE_LABELS = {
   logistics: "Logistics",
 };
 
+const BUYER_SEO_ROLE_LABELS = {
+  buyer: "Fruit Buyer",
+  exporter: "Fruit Exporter",
+  "commission-agent": "Fruit Commission Agent",
+  commission_agent: "Fruit Commission Agent",
+  "cold-storage": "Cold Storage Business",
+  cold_storage: "Cold Storage Business",
+};
+
 const fallbackLogo = "/logo-original.png";
 const siteUrl = "https://www.efruitmandi.live";
 
@@ -103,7 +112,7 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
   const publicName = String(
     profileRole === "grower"
       ? profile?.orchardName || profile?.companyName || ""
-      : profile?.businessName || profile?.companyName || ""
+      : profile?.businessName || profile?.companyName || profile?.buyerContactPerson || ""
   ).trim();
   const firmName = publicName || "eFruitMandi Business";
   const routeCanonical = slug
@@ -141,14 +150,16 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
       : `${siteUrl}${profileImage.startsWith("/") ? "" : "/"}${profileImage}`
     : "";
 
-  const seoRoleLabel = profileRole === "grower" ? "Fruit Grower" : "Fruit Buyer";
+  const seoRoleLabel = profileRole === "grower"
+    ? "Fruit Grower"
+    : BUYER_SEO_ROLE_LABELS[String(profile?.businessType || "").toLowerCase()] || "Fruit Buyer";
   const seoTitle = publicName
     ? `${publicName} – ${seoRoleLabel}${publicLocation ? ` in ${publicLocation}` : ""} | eFruitMandi`
     : "Public Profile | eFruitMandi";
   const seoDescription = publicName
     ? profileRole === "grower"
       ? `View ${publicName} on eFruitMandi. Explore its public grower profile, ${publicLocation ? "location, " : ""}available fruit lots and completed deals${publicLocation ? ` from ${publicLocation}` : ""}.`
-      : `View ${publicName} on eFruitMandi. Explore its public buyer profile, ${publicLocation ? "location, " : ""}sourcing activity and completed fruit deals${publicLocation ? ` from ${publicLocation}` : ""}.`
+      : `View ${publicName} on eFruitMandi. Explore this public ${seoRoleLabel.toLowerCase()} profile, ${publicLocation ? "location, " : ""}sourcing activity and completed fruit deals${publicLocation ? ` from ${publicLocation}` : ""}.`
     : "This public business profile is not available for search indexing.";
   const canonicalUrl = `${siteUrl}${canonical}`;
   const publicAddress = profile?.district || profile?.state
@@ -160,14 +171,28 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
     : null;
   const businessSchema = publicName
     ? (profileRole === "grower" ? buildLocalBusinessSchema : buildBusinessOrganizationSchema)({
-        "@id": `${canonicalUrl}#entity`,
+        "@id": `${canonicalUrl}#${profileRole === "grower" ? "business" : "organization"}`,
         name: publicName,
         url: canonicalUrl,
         description: seoDescription,
+        mainEntityOfPage: { "@id": `${canonicalUrl}#webpage` },
         ...(schemaImage ? { image: schemaImage } : {}),
         ...(publicAddress ? { address: publicAddress } : {}),
         ...(publicLocation ? { areaServed: publicLocation } : {}),
       })
+    : null;
+  const profilePageSchema = publicName
+    ? {
+        "@context": "https://schema.org",
+        "@type": "ProfilePage",
+        "@id": `${canonicalUrl}#webpage`,
+        url: canonicalUrl,
+        name: seoTitle,
+        description: seoDescription,
+        isPartOf: { "@id": `${siteUrl}/#website` },
+        publisher: { "@id": `${siteUrl}/#organization` },
+        mainEntity: { "@id": `${canonicalUrl}#${profileRole === "grower" ? "business" : "organization"}` },
+      }
     : null;
   const breadcrumbSchema = publicName
     ? buildBreadcrumbSchema([
@@ -236,7 +261,7 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
         image={profileImage || null}
         type="website"
         noIndex={!publicName}
-        schema={publicName ? [businessSchema, breadcrumbSchema] : undefined}
+        schema={publicName ? [profilePageSchema, businessSchema, breadcrumbSchema] : undefined}
       />
       <main className="mx-auto min-h-[65vh] max-w-7xl px-4 py-10">
         <article className="overflow-hidden rounded-2xl border border-green-100 bg-white shadow-sm">

@@ -65,6 +65,39 @@
     <meta name="apple-mobile-web-app-title" content="eFruitMandi" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 
+    <script id="efruitmandi-home-schema" type="application/ld+json" data-rh="true">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://www.efruitmandi.live/#organization",
+            "name": "eFruitMandi",
+            "legalName": "Orchard Growers Private Limited",
+            "url": "https://www.efruitmandi.live/",
+            "logo": "https://www.efruitmandi.live/logo.png"
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://www.efruitmandi.live/#website",
+            "name": "eFruitMandi",
+            "url": "https://www.efruitmandi.live/",
+            "publisher": { "@id": "https://www.efruitmandi.live/#organization" }
+          },
+          {
+            "@type": "WebPage",
+            "@id": "https://www.efruitmandi.live/#webpage",
+            "url": "https://www.efruitmandi.live/",
+            "name": "eFruitMandi - Fruit Buyers & Growers Marketplace in India",
+            "description": "Connect directly with verified fruit growers, buyers, commission agents, wholesalers, exporters and logistics partners across India.",
+            "isPartOf": { "@id": "https://www.efruitmandi.live/#website" },
+            "about": { "@id": "https://www.efruitmandi.live/#organization" },
+            "publisher": { "@id": "https://www.efruitmandi.live/#organization" }
+          }
+        ]
+      }
+    </script>
+
     <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=20260612-carousel-auth" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="preconnect" href="https://api.efruitmandi.live" crossorigin />

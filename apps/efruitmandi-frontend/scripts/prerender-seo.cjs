@@ -2,7 +2,22 @@ const fs = require("fs");
 const path = require("path");
 
 const SITE_URL = "https://www.efruitmandi.live";
+const WEBSITE_ID = `${SITE_URL}/#website`;
+const ORGANIZATION_ID = `${SITE_URL}/#organization`;
 const PUBLIC_LOCATION_MIN_PROFILES = 2;
+
+function buildCollectionPageSchema(url, name, description) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "@id": `${url}#webpage`,
+    name,
+    description,
+    url,
+    isPartOf: { "@id": WEBSITE_ID },
+    publisher: { "@id": ORGANIZATION_ID },
+  };
+}
 const normalizeApiBaseUrl = (value = "") => {
   const normalized = String(value).trim().replace(/\/+$/, "");
   if (!normalized) return "https://api.efruitmandi.live/api";
@@ -18,11 +33,72 @@ const API_BASE_URL = normalizeApiBaseUrl(
 const appRoot = path.resolve(__dirname, "..");
 const buildDir = path.join(appRoot, "build");
 const indexPath = path.join(buildDir, "index.html");
+const fruitLotsContentPath = path.join(appRoot, "src", "data", "fruitLotsContent.js");
+
+function readFruitLotCategories() {
+  const source = fs.readFileSync(fruitLotsContentPath, "utf8");
+  const contentMatch = source.match(/export\s+const\s+fruitLotsContent\s*=\s*\{([\s\S]*?)\n\};/);
+  if (!contentMatch) {
+    throw new Error("Could not parse fruitLotsContent from src/data/fruitLotsContent.js");
+  }
+
+  const categories = [];
+  const seenSlugs = new Set();
+  const entryPattern = /^\s*([a-z0-9-]+)\s*:\s*buildFruit\s*\(\s*\{\s*name\s*:\s*("(?:\\.|[^"\\])*")/gm;
+  let match;
+  while ((match = entryPattern.exec(contentMatch[1])) !== null) {
+    const slug = match[1];
+    const name = JSON.parse(match[2]);
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+      throw new Error(`Invalid fruit category slug: ${slug}`);
+    }
+    if (seenSlugs.has(slug)) {
+      throw new Error(`Duplicate fruit category slug: ${slug}`);
+    }
+    if (!String(name).trim()) {
+      throw new Error(`Missing fruit category name for slug: ${slug}`);
+    }
+    seenSlugs.add(slug);
+    categories.push({ slug, name: String(name).trim() });
+  }
+
+  if (!categories.length) {
+    throw new Error("No fruit categories found in src/data/fruitLotsContent.js");
+  }
+  return categories;
+}
+
+const fruitLotCategories = readFruitLotCategories();
+const fruitLotRoutes = fruitLotCategories.map(({ slug, name }) => {
+  const routePath = `/fruit-lots/${slug}`;
+  const canonical = `${SITE_URL}${routePath}`;
+  const description = `Discover ${name.toLowerCase()} fruit lots from verified growers. Explore Fruit Lot No., Lot Size, grade, packing details, orchard location and buyer offer options on eFruitMandi.`;
+  const h1 = `${name} Fruit Lots for Bulk Buyers`;
+  return {
+    path: routePath,
+    canonical,
+    title: `${name} Fruit Lots for Bulk Buyers | eFruitMandi`,
+    description,
+    h1,
+    body: `eFruitMandi helps ${name.toLowerCase()} growers list their ${name} Fruit Lots online and connect with bulk fruit buyers across India.`,
+    schemas: [
+      buildCollectionPageSchema(canonical, h1, description),
+      {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
+          { "@type": "ListItem", position: 2, name: "Fruit Lots", item: `${SITE_URL}/auctions` },
+          { "@type": "ListItem", position: 3, name, item: canonical },
+        ],
+      },
+    ],
+  };
+});
 
 const publicLinks = [
   { href: "/auctions", label: "Fruit Lots Marketplace" },
-  { href: "/fruit-lots/apple", label: "Apple Fruit Lots" },
-  { href: "/fruit-lots/persimmon", label: "Persimmon Fruit Lots" },
+  ...fruitLotCategories.map(({ slug, name }) => ({ href: `/fruit-lots/${slug}`, label: `${name} Fruit Lots` })),
   { href: "/mandi-rates", label: "Mandi Rates" },
   { href: "/buyer-guide", label: "Buyer Guide" },
   { href: "/grower-guide", label: "Grower Guide" },
@@ -30,27 +106,13 @@ const publicLinks = [
   { href: "/contact-us", label: "Contact" },
 ];
 
-const routes = [
+const staticRoutes = [
   {
     path: "/auctions",
     title: "Fruit Lots Marketplace | Live Deals on eFruitMandi",
     description: "Browse Fruit Lots, Live Deals, Active Deals and Completed Deals on eFruitMandi, India's fresh fruit marketplace for growers and buyers.",
     h1: "Fruit Lots Marketplace",
     body: "Explore Live Deals, Active Deals, Completed Deals, Fruit Lots, Buy Lots and Sell Lots from verified growers and marketplace participants.",
-  },
-  {
-    path: "/fruit-lots/apple",
-    title: "Apple Fruit Lots | Buy Apple Lots Online | eFruitMandi",
-    description: "Find Apple Fruit Lots with variety, grade, packing, region and seasonal marketplace information for fruit buyers and growers.",
-    h1: "Apple Fruit Lots",
-    body: "Apple Fruit Lots on eFruitMandi help buyers discover apple varieties, growing regions, lot details, grade information and marketplace sourcing options.",
-  },
-  {
-    path: "/fruit-lots/persimmon",
-    title: "Persimmon Fruit Lots | Buy Persimmon Lots Online | eFruitMandi",
-    description: "Explore Persimmon Fruit Lots, seasonal availability, lot details and grower-buyer marketplace information on eFruitMandi.",
-    h1: "Persimmon Fruit Lots",
-    body: "Persimmon Fruit Lots include seasonal marketplace information, lot size, quality details and buyer sourcing context for fresh fruit trade.",
   },
   {
     path: "/grower-guide",
@@ -138,6 +200,15 @@ const routes = [
   },
 ];
 
+const routes = [...staticRoutes, ...fruitLotRoutes];
+const routePaths = new Set();
+routes.forEach((route) => {
+  if (routePaths.has(route.path)) {
+    throw new Error(`Duplicate prerender route: ${route.path}`);
+  }
+  routePaths.add(route.path);
+});
+
 function escapeHtml(value = "") {
   return String(value)
     .replace(/&/g, "&amp;")
@@ -165,7 +236,7 @@ function replaceUnique(html, regex, replacement) {
 
 function replaceHeadTags(html, meta) {
   const canonical = absoluteUrl(meta.path);
-  let nextHtml = html;
+  let nextHtml = html.replace(/<script\s+(?=[^>]*\bid=["']efruitmandi-home-schema["'])[^>]*>[\s\S]*?<\/script>\s*/gi, "");
   nextHtml = replaceUnique(nextHtml, /<title>[\s\S]*?<\/title>/gi, `<title>${escapeHtml(meta.title)}</title>`);
   nextHtml = replaceUnique(nextHtml, /<meta\s+(?=[^>]*\bname=["']description["'])[^>]*>\s*/gi, `<meta name="description" content="${escapeHtml(meta.description)}" />\n    `);
   nextHtml = replaceUnique(nextHtml, /<link\s+(?=[^>]*\brel=["']canonical["'])[^>]*>\s*/gi, `<link rel="canonical" href="${escapeHtml(canonical)}" />\n    `);
@@ -200,7 +271,7 @@ function replaceProfileHeadTags(html, meta) {
     );
   }
 
-  const schemas = (meta.schemas || [meta.businessSchema, meta.breadcrumbSchema])
+  const schemas = (meta.schemas || [meta.profilePageSchema, meta.businessSchema, meta.breadcrumbSchema])
     .filter(Boolean)
     .map((schema) => `<script type="application/ld+json">${JSON.stringify(schema).replace(/</g, "\\u003c")}</script>`)
     .join("\n    ");
@@ -284,7 +355,7 @@ function outputPathForRoute(routePath) {
 }
 
 function prerenderRoute(baseHtml, meta) {
-  const withHead = replaceHeadTags(baseHtml, meta);
+  const withHead = meta.schemas ? replaceProfileHeadTags(baseHtml, meta) : replaceHeadTags(baseHtml, meta);
   const withFallback = replaceRootContent(withHead, renderFallback(meta));
   const outputPath = outputPathForRoute(meta.path);
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
@@ -315,18 +386,28 @@ function getPublicProfileMeta(profile, role) {
   const name = String(
     role === "grower"
       ? profile.orchardName || profile.companyName || ""
-      : profile.businessName || profile.companyName || ""
+      : profile.businessName || profile.companyName || profile.buyerContactPerson || ""
   ).trim();
   if (!name) return null;
 
   const location = String(profile.mainLocation || "").trim();
-  const roleLabel = role === "grower" ? "Fruit Grower" : "Fruit Buyer";
+  const buyerRoleLabels = {
+    buyer: "Fruit Buyer",
+    exporter: "Fruit Exporter",
+    "commission-agent": "Fruit Commission Agent",
+    commission_agent: "Fruit Commission Agent",
+    "cold-storage": "Cold Storage Business",
+    cold_storage: "Cold Storage Business",
+  };
+  const roleLabel = role === "grower"
+    ? "Fruit Grower"
+    : buyerRoleLabels[String(profile.businessType || "").toLowerCase()] || "Fruit Buyer";
   const routePath = `/${role === "grower" ? "growers" : "buyers"}/${slug}`;
   const canonical = `${SITE_URL}${routePath}`;
   const title = `${name} – ${roleLabel}${location ? ` in ${location}` : ""} | eFruitMandi`;
   const description = role === "grower"
     ? `View ${name} on eFruitMandi. Explore its public grower profile, ${location ? "location, " : ""}available fruit lots and completed deals${location ? ` from ${location}` : ""}.`
-    : `View ${name} on eFruitMandi. Explore its public buyer profile, ${location ? "location, " : ""}sourcing activity and completed fruit deals${location ? ` from ${location}` : ""}.`;
+    : `View ${name} on eFruitMandi. Explore this public ${roleLabel.toLowerCase()} profile, ${location ? "location, " : ""}sourcing activity and completed fruit deals${location ? ` from ${location}` : ""}.`;
   const image = normalizePublicImage(
     profile.logoUrl || profile.profileImage || profile.profilePic || profile.avatar || profile.avatarUrl || profile.photoURL
   );
@@ -347,12 +428,25 @@ function getPublicProfileMeta(profile, role) {
     title,
     description,
     image,
+    profilePageSchema: {
+      "@context": "https://schema.org",
+      "@type": "ProfilePage",
+      "@id": `${canonical}#webpage`,
+      url: canonical,
+      name: title,
+      description,
+      isPartOf: { "@id": WEBSITE_ID },
+      publisher: { "@id": ORGANIZATION_ID },
+      mainEntity: { "@id": `${canonical}#${role === "grower" ? "business" : "organization"}` },
+    },
     businessSchema: {
       "@context": "https://schema.org",
       "@type": role === "grower" ? "LocalBusiness" : "Organization",
+      "@id": `${canonical}#${role === "grower" ? "business" : "organization"}`,
       name,
       url: canonical,
       description,
+      mainEntityOfPage: { "@id": `${canonical}#webpage` },
       ...(image ? { image } : {}),
       ...(address ? { address } : {}),
       ...(location ? { areaServed: location } : {}),
@@ -431,7 +525,7 @@ function getPublicDirectoryMeta(profiles, role) {
   });
   const canonical = `${SITE_URL}${path}`;
   const schemas = [
-    { "@context": "https://schema.org", "@type": "CollectionPage", name: h1, description, url: canonical },
+    buildCollectionPageSchema(canonical, h1, description),
     ...(entries.length
       ? [{
           "@context": "https://schema.org",
@@ -535,7 +629,7 @@ function buildPublicLocationMeta(profiles, role, routePath, locationName, roleHe
     path: routePath, role, h1: `${roleHeading} in ${locationName}`, title: `${roleHeading} in ${locationName} | eFruitMandi`, description,
     introduction: description, profiles: entries, locationLinks, parentLink, image: "", noIndex: false,
     schemas: [
-      { "@context": "https://schema.org", "@type": "CollectionPage", name: `${roleHeading} in ${locationName}`, description, url: canonical },
+      buildCollectionPageSchema(canonical, `${roleHeading} in ${locationName}`, description),
       { "@context": "https://schema.org", "@type": "ItemList", itemListElement: entries.map((entry, index) => ({ "@type": "ListItem", position: index + 1, name: entry.name, url: `${SITE_URL}${entry.path}` })) },
       { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: breadcrumbs },
     ],
@@ -562,8 +656,8 @@ function getFruitPrerenderMetas(discovery) {
     path, h1, title: `${h1} | eFruitMandi`, description, introduction: description, image: "", noIndex: false,
     profiles: links.map((link) => ({ name: link.name, path: link.path, location: "" })),
     schemas: [
-      { "@context": "https://schema.org", "@type": "CollectionPage", name: h1, description, url: `${SITE_URL}${path}` },
-      { "@context": "https://schema.org", "@type": "ItemList", itemListElement: links.map((link, index) => ({ "@type": "ListItem", position: index + 1, name: link.name, url: `${SITE_URL}${link.path}` })) },
+      buildCollectionPageSchema(`${SITE_URL}${path}`, h1, description),
+      ...(links.length ? [{ "@context": "https://schema.org", "@type": "ItemList", itemListElement: links.map((link, index) => ({ "@type": "ListItem", position: index + 1, name: link.name, url: `${SITE_URL}${link.path}` })) }] : []),
       { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` }, { "@type": "ListItem", position: 2, name: "Fruits", item: `${SITE_URL}/fruits` }] },
     ],
   });

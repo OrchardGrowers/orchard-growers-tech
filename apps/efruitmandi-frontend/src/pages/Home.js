@@ -35,7 +35,6 @@ import {
   normalizeDealStatus,
 } from "../utils/marketplaceVisibility";
 import SEO from "../components/SEO";
-import { buildLocalBusinessSchema, buildOrganizationSchema, buildWebSiteSchema } from "../utils/schemaGenerators";
 
 const categories = [
   { name: "Apple", icon: "🍎" },
@@ -191,23 +190,39 @@ const getPublicJson = async (path) => {
   if (!response.ok) throw new Error(`Request failed: ${response.status}`);
   return { data: await response.json() };
 };
-const homePageSchemas = [
-  buildOrganizationSchema({
-    description:
-      "India's fresh fruit marketplace connecting growers, buyers and logistics partners.",
-    email: "support@efruitmandi.live",
-    telephone: "+91-7018108900",
-  }),
-  buildWebSiteSchema(),
-  buildLocalBusinessSchema({
-    "@id": "https://www.efruitmandi.live/#localbusiness",
-    name: "eFruitMandi",
-    url: "https://www.efruitmandi.live",
-    email: "support@efruitmandi.live",
-    telephone: "+91-7018108900",
-    areaServed: "India",
-  }),
-];
+const HOME_TITLE = "eFruitMandi - Fruit Buyers & Growers Marketplace in India";
+const HOME_DESCRIPTION = "Connect directly with verified fruit growers, buyers, commission agents, wholesalers, exporters and logistics partners across India.";
+const HOME_URL = "https://www.efruitmandi.live/";
+const homePageSchemas = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": `${HOME_URL}#organization`,
+      name: "eFruitMandi",
+      legalName: "Orchard Growers Private Limited",
+      url: HOME_URL,
+      logo: `${HOME_URL}logo.png`,
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${HOME_URL}#website`,
+      name: "eFruitMandi",
+      url: HOME_URL,
+      publisher: { "@id": `${HOME_URL}#organization` },
+    },
+    {
+      "@type": "WebPage",
+      "@id": `${HOME_URL}#webpage`,
+      url: HOME_URL,
+      name: HOME_TITLE,
+      description: HOME_DESCRIPTION,
+      isPartOf: { "@id": `${HOME_URL}#website` },
+      about: { "@id": `${HOME_URL}#organization` },
+      publisher: { "@id": `${HOME_URL}#organization` },
+    },
+  ],
+};
 
 const resolveProfileMediaUrl = (value = "") => {
   const url = String(value || "").trim();
@@ -1010,10 +1025,11 @@ export default function Home() {
   return (
   <>
     <DeferredHomeSEO
-  title="eFruitMandi - Fruit Buyers & Growers Marketplace in India"
-  description="Connect directly with verified fruit growers, buyers, commission agents, wholesalers, exporters and logistics partners across India."
+  title={HOME_TITLE}
+  description={HOME_DESCRIPTION}
   canonical="/"
   schema={homePageSchemas}
+  schemaId="efruitmandi-home-schema"
 />
     <h1 className="sr-only">
   eFruitMandi - Fruit Buyers & Growers Marketplace in India
