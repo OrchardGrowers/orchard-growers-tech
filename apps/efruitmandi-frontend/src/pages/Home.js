@@ -664,7 +664,7 @@ export default function Home() {
         setProfilesError("Unable to load latest public profiles.");
         return { data: { profiles: [] } };
       }),
-      getPublicJson("/mandi-rates/latest?limit=10").catch(() => {
+      getPublicJson("/mandi-rates/latest?limit=50").catch(() => {
         setRatesError("Unable to load offline mandi rates.");
         return { data: { records: [] } };
       }),
@@ -2859,6 +2859,33 @@ decoding="async"
 }
 
 function OfflineMandiRatesCard({ rates = [], loading = false, error = "" }) {
+  const [activeRateIndex, setActiveRateIndex] = useState(0);
+  const uniqueFruitRates = useMemo(() => {
+    const seen = new Set();
+    return rates.filter((rate) => {
+      const commodity = String(
+        rate.commodity || rate.Commodity || rate.commodityName || rate.fruitName || rate.FruitName || ""
+      ).trim().toLowerCase();
+      const key = commodity || String(rate.id || rate._id || "");
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [rates]);
+
+  useEffect(() => {
+    setActiveRateIndex(0);
+    if (uniqueFruitRates.length <= 1) return undefined;
+
+    const timer = window.setInterval(() => {
+      setActiveRateIndex((current) => (current + 1) % uniqueFruitRates.length);
+    }, 5000);
+
+    return () => window.clearInterval(timer);
+  }, [uniqueFruitRates]);
+
+  const visibleRate = uniqueFruitRates[activeRateIndex % Math.max(uniqueFruitRates.length, 1)];
+
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-5">
       <div className="mb-3 flex items-center justify-between">
@@ -2884,9 +2911,9 @@ function OfflineMandiRatesCard({ rates = [], loading = false, error = "" }) {
         <p className="rounded-md border border-red-100 bg-red-50 px-3 py-3 text-sm font-semibold text-red-700">
           {error}
         </p>
-      ) : rates.length ? (
+      ) : visibleRate ? (
         <div className="space-y-3">
-          {rates.map((rate) => (
+          {[visibleRate].map((rate) => (
             <article key={rate.id || rate._id || `${rate.commodity}-${rate.market}-${rate.arrivalDate}`} className="rounded-md border border-gray-100 p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
