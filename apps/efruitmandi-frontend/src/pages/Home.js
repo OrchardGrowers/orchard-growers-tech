@@ -203,6 +203,23 @@ const homePageSchemas = {
       legalName: "Orchard Growers Private Limited",
       url: HOME_URL,
       logo: `${HOME_URL}logo.png`,
+      description: "eFruitMandi is a digital fruit marketplace operated by Orchard Growers Private Limited for public discovery of Fruit Lots, fruit growers, fruit buyers, market information, and related marketplace services in India.",
+      areaServed: {
+        "@type": "Country",
+        name: "India",
+      },
+      knowsAbout: [
+        "Fruit Lots",
+        "Fruit Growers",
+        "Fruit Buyers",
+        "Wholesale Fruit Trading",
+        "Online Fruit Marketplace",
+        "Fruit Grading",
+        "Fruit Packaging",
+        "Fruit Logistics",
+        "Mandi Rates",
+        "Fresh Fruit Supply",
+      ],
     },
     {
       "@type": "WebSite",
@@ -210,6 +227,14 @@ const homePageSchemas = {
       name: "eFruitMandi",
       url: HOME_URL,
       publisher: { "@id": `${HOME_URL}#organization` },
+      potentialAction: {
+        "@type": "SearchAction",
+        target: {
+          "@type": "EntryPoint",
+          urlTemplate: "https://www.efruitmandi.live/search?q={search_term_string}",
+        },
+        "query-input": "required name=search_term_string",
+      },
     },
     {
       "@type": "WebPage",
@@ -515,14 +540,16 @@ function useMouseDragScroll(scrollRef) {
   };
 }
 
-function useArrowKeyScroll(scrollRef) {
+function useArrowKeyScroll(leftScrollRef, centerScrollRef, rightScrollRef) {
   useEffect(() => {
     const onKeyDown = (event) => {
       if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
       if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
       if (isInteractiveDragTarget(event.target)) return;
 
-      const element = scrollRef.current;
+      const element = [leftScrollRef, centerScrollRef, rightScrollRef]
+        .map((ref) => ref.current)
+        .find((candidate) => candidate?.matches(":hover"));
       if (!element || isMobileViewport() || element.getClientRects().length === 0) return;
       if (element.scrollHeight <= element.clientHeight) return;
 
@@ -535,7 +562,7 @@ function useArrowKeyScroll(scrollRef) {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [scrollRef]);
+  }, [centerScrollRef, leftScrollRef, rightScrollRef]);
 }
 
 export default function Home() {
@@ -566,9 +593,11 @@ export default function Home() {
   const [deferredSectionsReady, setDeferredSectionsReady] = useState(false);
   const fullMarketDataRef = useRef({ products: [], auctions: [] });
   const deferredSectionsReadyRef = useRef(false);
+  const leftColumnRef = useRef(null);
   const centerColumnRef = useRef(null);
+  const rightColumnRef = useRef(null);
   const centerColumnDragHandlers = useMouseDragScroll(centerColumnRef);
-  useArrowKeyScroll(centerColumnRef);
+  useArrowKeyScroll(leftColumnRef, centerColumnRef, rightColumnRef);
   const isGrower = isGrowerAccount(user);
   const isPublicVisitor = !hasAccessToken();
   const activeProfileMode = useMemo(
@@ -1103,7 +1132,7 @@ export default function Home() {
     </div>
 
     <div className="hidden h-[calc(100vh-8.4rem)] w-full gap-5 overflow-hidden md:grid md:grid-cols-[218px_minmax(0,1fr)] lg:grid-cols-[218px_minmax(0,1fr)_314px] xl:grid-cols-[240px_minmax(0,1fr)_340px]">
-      <aside className="auto-hide-column-scroll h-full min-h-0 space-y-2.5 overflow-y-auto pr-1 overscroll-contain">
+      <aside ref={leftColumnRef} className="auto-hide-column-scroll h-full min-h-0 space-y-2.5 overflow-y-auto pr-1 overscroll-contain">
         <ProfileCard
           user={user}
           profileMode={activeProfileMode}
@@ -1170,7 +1199,7 @@ export default function Home() {
         />
       </section>
 
-      <aside className="auto-hide-column-scroll hidden h-full min-h-0 space-y-2.5 overflow-y-auto pr-1 overscroll-contain lg:block">
+      <aside ref={rightColumnRef} className="auto-hide-column-scroll hidden h-full min-h-0 space-y-2.5 overflow-y-auto pr-1 overscroll-contain lg:block">
         {deferredSectionsReady && (
           <>
             <OfflineMandiRatesCard
@@ -1706,6 +1735,11 @@ function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile }) {
       safeProfile.logoUrl || safeProfile.profileImage || safeProfile.avatar
     )
   );
+  const bannerImageUrl = resolveProfileMediaUrl(
+    role === "buyer"
+      ? profile.buyerBannerUrl || profile.bannerUrl
+      : profile.bannerUrl
+  );
   const badgeText = role === "grower" ? "Registered Grower" : "Registered Buyer";
   const roleTitle = role === "grower" ? "Fruit Grower Profile" : "Fruit Buyer Profile";
 
@@ -1739,17 +1773,22 @@ function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile }) {
         </div>
       </div>
 
-      <div className="flex h-64 items-center justify-center bg-gradient-to-br from-green-50 via-white to-amber-50 p-4 md:h-80">
+      <div
+        className="relative flex h-64 items-center justify-center bg-gradient-to-br from-green-50 via-white to-amber-50 bg-cover bg-center p-4 md:h-80"
+        style={bannerImageUrl ? { backgroundImage: `url(${bannerImageUrl})` } : undefined}
+      >
         {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={displayName}
-            width="224"
-            height="224"
-            loading="lazy"
-            decoding="async"
-            className="h-full w-full object-contain"
-          />
+          <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-white p-2 shadow-xl md:h-40 md:w-40">
+            <img
+              src={imageUrl}
+              alt={displayName}
+              width="160"
+              height="160"
+              loading="lazy"
+              decoding="async"
+              className="h-full w-full rounded-full object-contain"
+            />
+          </div>
         ) : (
           <Avatar
             name={displayName}

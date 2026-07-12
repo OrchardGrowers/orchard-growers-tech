@@ -4,7 +4,70 @@ const path = require("path");
 const SITE_URL = "https://www.efruitmandi.live";
 const WEBSITE_ID = `${SITE_URL}/#website`;
 const ORGANIZATION_ID = `${SITE_URL}/#organization`;
+const HOMEPAGE_SCHEMA_ID = "efruitmandi-home-schema";
 const PUBLIC_LOCATION_MIN_PROFILES = 2;
+
+function buildHomepageSchema() {
+  const homepageUrl = `${SITE_URL}/`;
+  const title = "eFruitMandi - Fruit Buyers & Growers Marketplace in India";
+  const description = "Connect directly with verified fruit growers, buyers, commission agents, wholesalers, exporters and logistics partners across India.";
+
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": ORGANIZATION_ID,
+        name: "eFruitMandi",
+        legalName: "Orchard Growers Private Limited",
+        url: homepageUrl,
+        logo: `${homepageUrl}logo.png`,
+        description: "eFruitMandi is a digital fruit marketplace operated by Orchard Growers Private Limited for public discovery of Fruit Lots, fruit growers, fruit buyers, market information, and related marketplace services in India.",
+        areaServed: {
+          "@type": "Country",
+          name: "India",
+        },
+        knowsAbout: [
+          "Fruit Lots",
+          "Fruit Growers",
+          "Fruit Buyers",
+          "Wholesale Fruit Trading",
+          "Online Fruit Marketplace",
+          "Fruit Grading",
+          "Fruit Packaging",
+          "Fruit Logistics",
+          "Mandi Rates",
+          "Fresh Fruit Supply",
+        ],
+      },
+      {
+        "@type": "WebSite",
+        "@id": WEBSITE_ID,
+        name: "eFruitMandi",
+        url: homepageUrl,
+        publisher: { "@id": ORGANIZATION_ID },
+        potentialAction: {
+          "@type": "SearchAction",
+          target: {
+            "@type": "EntryPoint",
+            urlTemplate: `${SITE_URL}/search?q={search_term_string}`,
+          },
+          "query-input": "required name=search_term_string",
+        },
+      },
+      {
+        "@type": "WebPage",
+        "@id": `${SITE_URL}/#webpage`,
+        url: homepageUrl,
+        name: title,
+        description,
+        isPartOf: { "@id": WEBSITE_ID },
+        about: { "@id": ORGANIZATION_ID },
+        publisher: { "@id": ORGANIZATION_ID },
+      },
+    ],
+  };
+}
 
 function buildCollectionPageSchema(url, name, description) {
   return {
@@ -232,6 +295,16 @@ function replaceUnique(html, regex, replacement) {
 
   if (found) return nextHtml;
   return nextHtml.replace(/<\/head>/i, `    ${replacement}\n  </head>`);
+}
+
+function synchronizeHomepageSchema(html) {
+  const schema = JSON.stringify(buildHomepageSchema()).replace(/</g, "\\u003c");
+  const markup = `<script id="${HOMEPAGE_SCHEMA_ID}" type="application/ld+json" data-rh="true">${schema}</script>`;
+  return replaceUnique(
+    html,
+    /<script\s+(?=[^>]*\bid=["']efruitmandi-home-schema["'])[^>]*>[\s\S]*?<\/script>\s*/gi,
+    markup
+  );
 }
 
 function replaceHeadTags(html, meta) {
@@ -756,7 +829,8 @@ if (!fs.existsSync(indexPath)) {
   throw new Error(`Missing ${indexPath}. Run vite build before prerender-seo.`);
 }
 
-const baseHtml = fs.readFileSync(indexPath, "utf8");
+const baseHtml = synchronizeHomepageSchema(fs.readFileSync(indexPath, "utf8"));
+fs.writeFileSync(indexPath, baseHtml, "utf8");
 routes.forEach((route) => prerenderRoute(baseHtml, route));
 prerenderPublicProfiles(baseHtml).catch((error) => {
   console.warn(`prerender-seo: public profile generation skipped (${error.message || "unexpected error"})`);

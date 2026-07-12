@@ -202,11 +202,11 @@ export default function DownloadApp() {
           aria-live="polite"
           aria-atomic="true"
         >
-          {isDownloading && (
+          {(isDownloading || isComplete) && (
             <>
               <div className="flex items-center justify-between text-sm font-black text-green-900">
-                <span>Downloading...</span>
-                {totalBytes > 0 && <span>{percentage}%</span>}
+                <span>{isComplete ? "Download Complete" : "Downloading..."}</span>
+                {(isComplete || totalBytes > 0) && <span>{isComplete ? 100 : percentage}%</span>}
               </div>
               <div
                 className="mt-3 h-2.5 overflow-hidden rounded-full bg-green-100"
@@ -214,22 +214,18 @@ export default function DownloadApp() {
                 aria-label="App download progress"
                 aria-valuemin={0}
                 aria-valuemax={totalBytes > 0 ? 100 : undefined}
-                aria-valuenow={totalBytes > 0 ? percentage : undefined}
-                aria-valuetext={totalBytes > 0 ? `${percentage}% downloaded` : "Downloading"}
+                aria-valuenow={isComplete ? 100 : totalBytes > 0 ? percentage : undefined}
+                aria-valuetext={isComplete ? "100% downloaded" : totalBytes > 0 ? `${percentage}% downloaded` : "Downloading"}
               >
                 <div
-                  className={`h-full rounded-full bg-green-700 transition-all duration-300 ${totalBytes > 0 ? "" : "w-1/3 animate-pulse"}`}
-                  style={totalBytes > 0 ? { width: `${percentage}%` } : undefined}
+                  className={`h-full rounded-full bg-green-700 transition-all duration-300 ${isComplete || totalBytes > 0 ? "" : "w-1/3 animate-pulse"}`}
+                  style={isComplete ? { width: "100%" } : totalBytes > 0 ? { width: `${percentage}%` } : undefined}
                 />
               </div>
               <p className="mt-2 text-xs font-semibold text-gray-600">
                 {formatBytes(downloadedBytes)}{totalBytes > 0 ? ` / ${formatBytes(totalBytes)}` : " downloaded"}
               </p>
             </>
-          )}
-
-          {isComplete && (
-            <p className="text-sm font-black text-green-900">Download Complete</p>
           )}
 
           {downloadState === "error" && (

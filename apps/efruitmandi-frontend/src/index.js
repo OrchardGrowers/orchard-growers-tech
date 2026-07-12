@@ -5,6 +5,14 @@ import "./index.css";
 import App from "./App";
 import AppErrorBoundary from "./components/AppErrorBoundary";
 
+function StartupOverlayCleanup() {
+  React.useLayoutEffect(() => {
+    document.getElementById("efruitmandi-startup-overlay")?.remove();
+  }, []);
+
+  return null;
+}
+
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
 root.render(
@@ -12,6 +20,7 @@ root.render(
     <HelmetProvider>
       <AppErrorBoundary>
         <App />
+        <StartupOverlayCleanup />
       </AppErrorBoundary>
     </HelmetProvider>
   </React.StrictMode>

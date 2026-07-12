@@ -1,6 +1,6 @@
 # eFruitMandi
 
-eFruitMandi is an online fresh-fruit marketplace operated by Orchard Growers Private Limited. It connects fruit growers, buyers, and logistics participants through Fruit Lots, public business profiles, buyer and grower discovery, fruit-category discovery, market information, and related marketplace workflows.
+eFruitMandi is India's digital fruit marketplace operated by Orchard Growers Private Limited. It supports public discovery of Fruit Lots, growers, buyers, fruit categories, marketplace guides, and mandi-rate information.
 
 - Primary website: https://www.efruitmandi.live/
 - Public sitemap: https://www.efruitmandi.live/sitemap.xml
@@ -32,16 +32,22 @@ eFruitMandi is an online fresh-fruit marketplace operated by Orchard Growers Pri
 
 ## Dynamic public routes
 
-- `/fruit-lots/:fruitSlug` provides curated Fruit Lot category information.
+- `/fruit-lots/:fruitSlug` provides public Fruit Lot category information.
 - `/growers/:slug` and `/buyers/:slug` provide published public business profiles.
 - `/growers/state/:stateSlug` and `/buyers/state/:stateSlug` provide eligible public profiles grouped by state.
-- `/fruits/:fruitSlug` provides activity-based public fruit discovery.
+- `/fruits/:fruitSlug` provides public fruit discovery.
 
-Public content can change as Fruit Lots become available or close, public business profiles are updated, marketplace activity changes, and mandi-rate information changes.
+Public grower profiles, buyer profiles, Fruit Lot pages, fruit-category pages, guides, and other pages included in the public sitemap are intended for public discovery.
+
+Public marketplace content may change as Fruit Lots open or close, profiles are updated, and mandi-rate information changes.
 
 ## Content-use guidance
 
 - Prefer canonical public URLs and use the public sitemap for discovery.
-- Treat live marketplace availability and market information as time-sensitive.
-- Do not infer private contact details, KYC data, payment information, exact addresses, account information, or other non-public data.
-- Attribute public information to eFruitMandi where appropriate.
+- Treat Fruit Lot availability, prices, offers, and mandi-rate information as time-sensitive.
+- Do not infer private contact details, KYC data, payment information, exact addresses, account information, authentication data, or other non-public information.
+- Private dashboards, account-management pages, escrow workflows, payment pages, login pages, and admin pages are not public knowledge sources.
+- Attribute public information to eFruitMandi and Orchard Growers Private Limited where appropriate.
+
+Version: 1
+Last Updated: 2026-07-12

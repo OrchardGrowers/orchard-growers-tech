@@ -2,6 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <script>
+      document.documentElement.classList.add("js-enabled");
+    </script>
 
     <!-- Favicons -->
     <link rel="icon" href="/favicon.ico?v=20260612-carousel-auth" />
@@ -120,6 +123,71 @@
         min-height: 100%;
         background: #0B6B2F;
       }
+
+      #efruitmandi-startup-overlay {
+        display: none;
+      }
+
+      html.js-enabled #efruitmandi-startup-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(145deg, #f7fff4 0%, #ffffff 55%, #eefbef 100%);
+        color: #123;
+        font-family: Arial, sans-serif;
+      }
+
+      .efruitmandi-startup-card {
+        display: flex;
+        min-width: 220px;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        padding: 28px;
+        text-align: center;
+      }
+
+      .efruitmandi-startup-logo {
+        width: 88px;
+        height: 88px;
+        object-fit: contain;
+      }
+
+      .efruitmandi-startup-name {
+        margin: 0;
+        color: #0b6b2f;
+        font-size: 22px;
+        font-weight: 800;
+      }
+
+      .efruitmandi-startup-text {
+        margin: 0;
+        color: #52615a;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .efruitmandi-startup-loader {
+        width: 34px;
+        height: 34px;
+        border: 3px solid #ccebd5;
+        border-top-color: #0b6b2f;
+        border-radius: 50%;
+        animation: efruitmandi-startup-spin 0.8s linear infinite;
+      }
+
+      @keyframes efruitmandi-startup-spin {
+        to { transform: rotate(360deg); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .efruitmandi-startup-loader {
+          animation-duration: 1.8s;
+        }
+      }
     </style>
         <!-- Microsoft Clarity -->
     <script type="text/javascript">
@@ -132,6 +200,15 @@
   </head>
 
   <body>
+    <div id="efruitmandi-startup-overlay" role="status" aria-live="polite" aria-label="Loading eFruitMandi">
+      <div class="efruitmandi-startup-card">
+        <img class="efruitmandi-startup-logo" src="/logo.png" alt="eFruitMandi" width="88" height="88" />
+        <p class="efruitmandi-startup-name">eFruitMandi</p>
+        <div class="efruitmandi-startup-loader" aria-hidden="true"></div>
+        <p class="efruitmandi-startup-text">Loading eFruitMandi…</p>
+      </div>
+    </div>
+
     <noscript>
       eFruitMandi is a fresh fruit marketplace for Live Deals, Active Deals,
       Completed Deals, Fruit Lots, Buy Lots, Sell Lots and Marketplace access
