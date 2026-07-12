@@ -2,8 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { FaChartLine, FaEye, FaFileAlt, FaSearch, FaSeedling, FaUserCircle } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
+import SEO from "../components/SEO";
 import { staticPages } from "../data/staticPages";
 import { fruitSeoPages } from "../data/fruitSeoPages";
+
+const SITE_URL = "https://www.efruitmandi.live";
 
 const blogCards = [
   {
@@ -99,6 +102,10 @@ export default function SearchResults() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const query = searchParams.get("q") || "";
+  const cleanQuery = useMemo(
+    () => query.trim().replace(/\s+/g, " ").slice(0, 120),
+    [query]
+  );
   const [profiles, setProfiles] = useState([]);
   const [lots, setLots] = useState([]);
   const [mandiRates, setMandiRates] = useState([]);
@@ -106,8 +113,6 @@ export default function SearchResults() {
 
   useEffect(() => {
     const loadSearch = async () => {
-      const cleanQuery = query.trim();
-
       if (!cleanQuery) {
         setProfiles([]);
         setLots([]);
@@ -134,16 +139,16 @@ export default function SearchResults() {
     };
 
     loadSearch();
-  }, [query]);
+  }, [cleanQuery]);
 
   const words = useMemo(
     () =>
-      query
+      cleanQuery
         .toLowerCase()
         .split(/\s+/)
         .map((word) => word.trim())
         .filter(Boolean),
-    [query]
+    [cleanQuery]
   );
 
   const contentResults = useMemo(() => {
@@ -189,14 +194,14 @@ export default function SearchResults() {
 
     const priorityItems = priorityContentCards
       .filter((card) => {
-        const q = query.toLowerCase().trim();
+        const q = cleanQuery.toLowerCase();
         return card.keywords.some((keyword) => q.includes(keyword));
       })
       .map((card) => ({
         type: card.type,
         title: card.title,
         description: card.description,
-        url: card.url === "/search" ? `/search?q=${encodeURIComponent(query)}` : card.url,
+        url: card.url === "/search" ? `/search?q=${encodeURIComponent(cleanQuery)}` : card.url,
         content: flattenText(card),
         priority: true,
       }));
@@ -238,11 +243,97 @@ export default function SearchResults() {
     });
 
     return [...priorityItems, ...normalItems];
-  }, [words]);
+  }, [cleanQuery, words]);
 
   const totalResults = profiles.length + lots.length + mandiRates.length + contentResults.length;
+  const seoTitle = cleanQuery
+    ? `${cleanQuery} Search Results | Fruit Lots, Growers & Buyers | eFruitMandi`
+    : "Search eFruitMandi | Fruit Lots, Growers, Buyers & Mandi Rates";
+  const seoDescription = cleanQuery
+    ? `Search eFruitMandi for ${cleanQuery}. Discover matching fruit lots, growers, buyers, mandi rates, guides and public marketplace pages.`
+    : "Search eFruitMandi for public fruit lots, growers, buyers, mandi rates, guides and marketplace information.";
+  const canonicalPath = cleanQuery ? `/search?q=${encodeURIComponent(cleanQuery)}` : "/search";
+  const canonicalUrl = `${SITE_URL}${canonicalPath}`;
+  const schemaItems = useMemo(() => {
+    const candidates = [
+      ...profiles.map((profile) => ({
+        type: "Organization",
+        name: profile.title || profile.name || "Marketplace Profile",
+        url: getPublicProfileUrl(profile),
+        description: profile.location || (profile.profileTypes || []).join(", ") || "Public eFruitMandi marketplace profile.",
+      })),
+      ...lots.map((product) => ({
+        type: "Product",
+        name: product.title || product.fruitName || "Fruit Lot",
+        url: product._id ? `${SITE_URL}/lots/${product._id}` : "",
+        description: [product.fruitName, product.location, product.quantity ? `${product.quantity} box lot` : ""].filter(Boolean).join(" — "),
+      })),
+      ...mandiRates.map((rate) => ({
+        type: "WebPage",
+        name: rate.title || `${rate.commodity || cleanQuery} Mandi Rates`,
+        url: toAbsolutePublicUrl(`/mandi-rates/${slugify(rate.commodity || cleanQuery)}`),
+        description: rate.subtitle || rate.price || "Public mandi-rate information on eFruitMandi.",
+      })),
+      ...contentResults.map((item) => ({
+        type: "WebPage",
+        name: item.title,
+        url: toAbsolutePublicUrl(item.url),
+        description: item.description,
+      })),
+    ];
+    const seen = new Set();
+    return candidates
+      .filter((item) => item.name && item.url)
+      .filter((item) => {
+        const key = `${item.type}|${item.url}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }, [cleanQuery, contentResults, lots, mandiRates, profiles]);
+  const itemListId = `${canonicalUrl}#results`;
+  const itemListSchema = schemaItems.length
+    ? {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "@id": itemListId,
+        ...(!loading ? { numberOfItems: schemaItems.length } : {}),
+        itemListElement: schemaItems.map((item, index) => ({
+          "@type": "ListItem",
+          position: index + 1,
+          item: {
+            "@type": item.type,
+            name: item.name,
+            url: item.url,
+            ...(item.description ? { description: item.description } : {}),
+          },
+        })),
+      }
+    : null;
+  const searchResultsPageSchema = {
+    "@context": "https://schema.org",
+    "@type": "SearchResultsPage",
+    "@id": `${canonicalUrl}#webpage`,
+    url: canonicalUrl,
+    name: seoTitle,
+    description: seoDescription,
+    isPartOf: { "@id": `${SITE_URL}/#website` },
+    about: { "@id": `${SITE_URL}/#organization` },
+    ...(cleanQuery ? { keywords: cleanQuery } : {}),
+    ...(itemListSchema ? { mainEntity: { "@id": itemListId } } : {}),
+  };
+  const noIndex = !cleanQuery || (!loading && totalResults === 0);
 
   return (
+    <>
+    <SEO
+      title={seoTitle}
+      description={seoDescription}
+      canonical={canonicalPath}
+      noIndex={noIndex}
+      schema={[searchResultsPageSchema, itemListSchema]}
+      schemaId="efruitmandi-search-schema"
+    />
     <div className="w-full max-w-full overflow-x-hidden px-4 pb-20 md:px-0">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="min-w-0">
@@ -434,6 +525,7 @@ export default function SearchResults() {
 
       {!loading && !totalResults && <EmptySearch query={query} />}
     </div>
+    </>
   );
 }
 
@@ -460,6 +552,29 @@ function slugify(value = "") {
     .replace(/&/g, "and")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function toAbsolutePublicUrl(value = "") {
+  const path = String(value || "").trim();
+  if (!path) return "";
+  try {
+    const url = new URL(path, SITE_URL);
+    return url.origin === SITE_URL ? url.toString() : "";
+  } catch {
+    return "";
+  }
+}
+
+function getPublicProfileUrl(profile = {}) {
+  const directUrl = toAbsolutePublicUrl(profile.url || profile.path || profile.profileUrl);
+  if (directUrl) return directUrl;
+
+  const slug = String(profile.slug || "").trim().toLowerCase();
+  const role = String(profile.role || profile.businessType || profile.type || "").trim().toLowerCase();
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) return "";
+  if (role.includes("grower")) return `${SITE_URL}/growers/${slug}`;
+  if (role.includes("buyer")) return `${SITE_URL}/buyers/${slug}`;
+  return "";
 }
 
 function formatDate(value) {
