@@ -3,12 +3,18 @@ const path = require("path");
 
 const SITE_URL = "https://www.efruitmandi.live";
 const PUBLIC_LOCATION_MIN_PROFILES = 2;
-const API_BASE_URL = String(
+const normalizeApiBaseUrl = (value = "") => {
+  const normalized = String(value).trim().replace(/\/+$/, "");
+  if (!normalized) return "https://api.efruitmandi.live/api";
+  return /\/api$/i.test(normalized) ? normalized : `${normalized}/api`;
+};
+
+const API_BASE_URL = normalizeApiBaseUrl(
   process.env.VITE_API_BASE_URL ||
     process.env.VITE_API_URL ||
     process.env.REACT_APP_API_BASE_URL ||
     "https://api.efruitmandi.live"
-).replace(/\/+$/, "");
+);
 const appRoot = path.resolve(__dirname, "..");
 const buildDir = path.join(appRoot, "build");
 const indexPath = path.join(buildDir, "index.html");
