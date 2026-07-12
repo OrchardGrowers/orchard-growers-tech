@@ -78,6 +78,19 @@ const databaseInitialization = (async () => {
   try {
     dbConnected = await connectDB();
     if (dbConnected) {
+      if (process.env.RUN_SLUG_BACKFILL === "true") {
+        console.log("[startup] Public slug backfill starting");
+        try {
+          const { runPublicSlugBackfill } = await import("./scripts/backfillPublicSlugs.js");
+          await runPublicSlugBackfill();
+          console.log("[startup] Public slug backfill completed");
+        } catch (err) {
+          console.error(
+            "[startup] Public slug backfill fatal error; continuing startup:",
+            err?.message || err
+          );
+        }
+      }
       await seedHsnMaster();
       // Seed an initial admin from env vars if configured (safe: creates only if missing)
       try {

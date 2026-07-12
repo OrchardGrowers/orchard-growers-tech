@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import dotenv from "dotenv";
 import mongoose from "mongoose";
+import { fileURLToPath } from "url";
 import User from "../models/User.js";
 
 dotenv.config();
@@ -29,14 +30,7 @@ const PUBLIC_PROFILE_ROLE_FILTER = {
   publicProfileRoles: { $in: ["grower", "buyer", "driver"] },
 };
 
-const counters = {
-  scanned: 0,
-  updated: 0,
-  skipped: 0,
-  failed: 0,
-};
-
-const processUsers = async (filter) => {
+const processUsers = async (filter, counters) => {
   const cursor = User.find(filter).cursor();
 
   for await (const user of cursor) {
@@ -68,7 +62,39 @@ const processUsers = async (filter) => {
   }
 };
 
-const run = async () => {
+export const runPublicSlugBackfill = async () => {
+  const counters = {
+    scanned: 0,
+    updated: 0,
+    skipped: 0,
+    failed: 0,
+  };
+
+  if (mongoose.connection.readyState !== 1) {
+    throw new Error("MongoDB must be connected before running the slug backfill");
+  }
+
+  // Public profiles are processed first; the second pass handles all other
+  // eligible users without revisiting the first group.
+  await processUsers({
+    $and: [ELIGIBLE_USER_FILTER, PUBLIC_PROFILE_ROLE_FILTER],
+  }, counters);
+  await processUsers({
+    $and: [
+      ELIGIBLE_USER_FILTER,
+      { $nor: [PUBLIC_PROFILE_ROLE_FILTER] },
+    ],
+  }, counters);
+
+  console.log(`[backfill-public-slugs] Scanned: ${counters.scanned}`);
+  console.log(`[backfill-public-slugs] Updated: ${counters.updated}`);
+  console.log(`[backfill-public-slugs] Skipped: ${counters.skipped}`);
+  console.log(`[backfill-public-slugs] Failed: ${counters.failed}`);
+
+  return counters;
+};
+
+const runFromCommandLine = async () => {
   let connected = false;
 
   try {
@@ -80,22 +106,7 @@ const run = async () => {
     connected = true;
     console.log("[backfill-public-slugs] MongoDB connected");
 
-    // Public profiles are processed first; the second pass handles all other
-    // eligible users without revisiting the first group.
-    await processUsers({
-      $and: [ELIGIBLE_USER_FILTER, PUBLIC_PROFILE_ROLE_FILTER],
-    });
-    await processUsers({
-      $and: [
-        ELIGIBLE_USER_FILTER,
-        { $nor: [PUBLIC_PROFILE_ROLE_FILTER] },
-      ],
-    });
-
-    console.log(`[backfill-public-slugs] Scanned: ${counters.scanned}`);
-    console.log(`[backfill-public-slugs] Updated: ${counters.updated}`);
-    console.log(`[backfill-public-slugs] Skipped: ${counters.skipped}`);
-    console.log(`[backfill-public-slugs] Failed: ${counters.failed}`);
+    await runPublicSlugBackfill();
     process.exitCode = 0;
   } catch (error) {
     console.error("[backfill-public-slugs] Fatal error:", error?.message || error);
@@ -108,4 +119,9 @@ const run = async () => {
   }
 };
 
-await run();
+const isDirectExecution = process.argv[1]
+  && fileURLToPath(import.meta.url) === process.argv[1];
+
+if (isDirectExecution) {
+  await runFromCommandLine();
+}
