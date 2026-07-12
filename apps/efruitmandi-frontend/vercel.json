@@ -208,6 +208,14 @@
     "destination": "/mandi-rates/index.html"
   },
   {
+    "source": "/growers/:slug",
+    "destination": "/growers/:slug/index.html"
+  },
+  {
+    "source": "/buyers/:slug",
+    "destination": "/buyers/:slug/index.html"
+  },
+  {
     "source": "/(.*)",
     "destination": "/index.html"
   }
