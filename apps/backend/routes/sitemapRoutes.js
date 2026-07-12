@@ -26,6 +26,36 @@ function hasSafePublicSlug(slug = "") {
   return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(slug || ""));
 }
 
+const CURATED_FRUIT_LOT_SLUGS = [...new Set([
+  "apple",
+  "pear",
+  "persimmon",
+  "plum",
+  "peach",
+  "apricot",
+  "cherry",
+  "kiwi",
+  "pomegranate",
+  "mango",
+  "banana",
+  "orange",
+  "kinnow",
+  "guava",
+  "grapes",
+  "papaya",
+  "watermelon",
+  "muskmelon",
+  "pineapple",
+  "litchi",
+  "strawberry",
+  "dragonfruit",
+  "fig",
+  "jamun",
+  "custardapple",
+  "sapota",
+  "amla",
+].filter(hasSafePublicSlug))];
+
 function slugifyPublicLocation(value = "") {
   return String(value || "").trim().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
 }
@@ -116,11 +146,11 @@ router.get("/sitemap.xml", async (req, res) => {
       { loc: "/user-data-deletion", changefreq: "monthly", priority: "0.4" },
 
       // Fruit lot SEO pages
-      { loc: "/fruit-lots/apple", changefreq: "weekly", priority: "0.8" },
-      { loc: "/fruit-lots/pear", changefreq: "weekly", priority: "0.8" },
-      { loc: "/fruit-lots/persimmon", changefreq: "weekly", priority: "0.8" },
-      { loc: "/fruit-lots/plum", changefreq: "weekly", priority: "0.8" },
-      { loc: "/fruit-lots/mango", changefreq: "weekly", priority: "0.8" },
+      ...CURATED_FRUIT_LOT_SLUGS.map((slug) => ({
+        loc: `/fruit-lots/${slug}`,
+        changefreq: "weekly",
+        priority: "0.8",
+      })),
 
       // Mandi rate SEO pages
       { loc: "/mandi-rates", changefreq: "daily", priority: "0.8" },
