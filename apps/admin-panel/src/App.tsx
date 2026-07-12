@@ -1060,6 +1060,7 @@ const adminRoleLabels: Record<AdminRole, string> = {
   EMPLOYEE: 'Admin',
 };
 const ADMIN_THEME_KEY = 'adminThemeMode';
+const PROFILE_DELETE_ADMIN_EMAIL = 'adminho@orchardgrowers.in';
 const adminThemeModes: { mode: AdminThemeMode; label: string }[] = [
   { mode: 'light', label: 'Light' },
   { mode: 'dark', label: 'Dark' },
@@ -2264,6 +2265,25 @@ function App() {
     ].join('\n'));
   };
 
+  const deleteUserProfile = async (user: AdminUser) => {
+    if (normalizeAdminEmail(admin?.email || '') !== PROFILE_DELETE_ADMIN_EMAIL) return;
+    const profileName = user.profileName || user.businessName || user.orchardName || user.name || user.email || 'this profile';
+    if (!confirmTwice(`permanently delete ${profileName}`)) return;
+
+    const res = await fetch(`${API_BASE}/admin/users/${user._id}`, {
+      method: 'DELETE',
+      headers: authHeaders,
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setMessage(data.msg || 'Profile delete failed');
+      return;
+    }
+
+    setMessage(data.message || 'Profile deleted');
+    loadRequests();
+  };
+
   const syncMandiCommodities = async () => {
     if (!confirmTwice('sync AGMARKNET commodity master data')) return;
 
@@ -2673,7 +2693,12 @@ function App() {
       return (
         <section className="space-y-4">
           <ModulePlanPanel plan={modulePlans.users} />
-          <UsersPanel users={searchedUsers} onEdit={editUserInfo} onStatus={setUserStatus} />
+          <UsersPanel
+            users={searchedUsers}
+            onEdit={editUserInfo}
+            onStatus={setUserStatus}
+            onDelete={normalizeAdminEmail(admin?.email || '') === PROFILE_DELETE_ADMIN_EMAIL ? deleteUserProfile : undefined}
+          />
         </section>
       );
     }
@@ -2800,6 +2825,7 @@ function App() {
             users={searchedUsers.filter((user) => user.role === 'grower')}
             onEdit={editUserInfo}
             onStatus={setUserStatus}
+            onDelete={normalizeAdminEmail(admin?.email || '') === PROFILE_DELETE_ADMIN_EMAIL ? deleteUserProfile : undefined}
           />
         </section>
       );
@@ -2815,6 +2841,7 @@ function App() {
             users={searchedUsers.filter((user) => user.role === 'buyer')}
             onEdit={editUserInfo}
             onStatus={setUserStatus}
+            onDelete={normalizeAdminEmail(admin?.email || '') === PROFILE_DELETE_ADMIN_EMAIL ? deleteUserProfile : undefined}
           />
         </section>
       );
@@ -2838,6 +2865,7 @@ function App() {
             users={searchedUsers.filter((user) => ['HOLD', 'SUSPENDED', 'TERMINATED'].includes(user.accountStatus || ''))}
             onEdit={editUserInfo}
             onStatus={setUserStatus}
+            onDelete={normalizeAdminEmail(admin?.email || '') === PROFILE_DELETE_ADMIN_EMAIL ? deleteUserProfile : undefined}
           />
         </section>
       );
@@ -5723,6 +5751,7 @@ function UsersPanel({
   users,
   onEdit,
   onStatus,
+  onDelete,
   title = 'eFruitMandi User Information',
   badge = 'Profile, role, account status',
   emptyLabel = 'No eFruitMandi users found.',
@@ -5730,6 +5759,7 @@ function UsersPanel({
   users: AdminUser[];
   onEdit: (user: AdminUser) => void;
   onStatus: (user: AdminUser, status: string) => void;
+  onDelete?: (user: AdminUser) => void;
   title?: string;
   badge?: string;
   emptyLabel?: string;
@@ -5769,6 +5799,11 @@ function UsersPanel({
                 <button onClick={() => onStatus(user, 'SUSPENDED')} className="rounded-lg bg-red-800 px-3 py-2 text-sm font-bold text-white hover:bg-red-700">
                   Suspend
                 </button>
+                {onDelete && (
+                  <button onClick={() => onDelete(user)} className="rounded-lg bg-rose-700 px-3 py-2 text-sm font-bold text-white hover:bg-rose-600">
+                    Delete Profile
+                  </button>
+                )}
               </div>
             </div>
           </article>

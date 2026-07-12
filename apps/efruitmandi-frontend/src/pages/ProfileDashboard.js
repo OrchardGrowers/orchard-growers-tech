@@ -710,7 +710,11 @@ export default function ProfileDashboard() {
   const avatarUrl =
     profileMode === "buyer"
       ? resolveProfileMediaUrl(user.buyerAvatarUrl) || buyerLogoUrl
-      : resolveProfileMediaUrl(user.avatarUrl);
+      : profileMode === "grower"
+        ? resolveProfileMediaUrl(user.companyLogoUrl) ||
+          resolveProfileMediaUrl(user.avatarUrl) ||
+          organizationLogo
+        : resolveProfileMediaUrl(user.avatarUrl);
   const lockedAmount = Number(user.lockedAmount || 0);
   const lockedAmountLabel = formatCurrency(lockedAmount);
 

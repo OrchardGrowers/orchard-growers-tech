@@ -1563,6 +1563,9 @@ export const setUserStatusByAdmin = async (req, res) => {
 
 export const deleteUserByAdmin = async (req, res) => {
   if (!requireAdmin(req, res)) return;
+  if (normalizeEmail(req.admin?.email) !== "adminho@orchardgrowers.in") {
+    return res.status(403).json({ msg: "Profile deletion is restricted to the authorized head-office admin" });
+  }
 
   const user = await User.findById(req.params.id);
   if (!user) return res.status(404).json({ msg: "User not found" });
