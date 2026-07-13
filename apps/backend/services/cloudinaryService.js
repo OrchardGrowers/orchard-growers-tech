@@ -114,6 +114,41 @@ export const uploadBuffersToCloudinary = async (files = [], options = {}) => {
   return uploaded.filter(Boolean);
 };
 
+const getCloudinaryAssetIdentity = (value = "") => {
+  try {
+    const url = new URL(String(value || ""));
+    if (url.hostname !== "res.cloudinary.com") return null;
+    const match = url.pathname.match(/^\/[^/]+\/(image|video|raw)\/upload\/(?:.*\/)?v\d+\/(.+)$/i);
+    if (!match) return null;
+    const resourceType = match[1].toLowerCase();
+    let publicId = decodeURIComponent(match[2]);
+    if (resourceType !== "raw") publicId = publicId.replace(/\.[a-z0-9]+$/i, "");
+    return publicId ? { publicId, resourceType } : null;
+  } catch {
+    return null;
+  }
+};
+
+export const deleteCloudinaryAssetsByUrls = async (values = []) => {
+  const assets = new Map();
+  values.forEach((value) => {
+    const asset = getCloudinaryAssetIdentity(value);
+    if (asset) assets.set(`${asset.resourceType}:${asset.publicId}`, asset);
+  });
+  if (!assets.size || !isCloudinaryConfigured()) return { deleted: 0, failed: 0 };
+
+  const client = configureCloudinary();
+  const results = await Promise.allSettled(
+    Array.from(assets.values()).map(({ publicId, resourceType }) =>
+      client.uploader.destroy(publicId, { resource_type: resourceType, invalidate: true })
+    )
+  );
+  return {
+    deleted: results.filter((result) => result.status === "fulfilled").length,
+    failed: results.filter((result) => result.status === "rejected").length,
+  };
+};
+
 export const createSignedUploadParams = ({ folder, publicIdPrefix = "" } = {}) => {
   const client = configureCloudinary();
   const timestamp = Math.round(Date.now() / 1000);

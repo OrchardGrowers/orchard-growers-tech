@@ -3,11 +3,15 @@ import User from "../models/User.js";
 import Product from "../models/Product.js";
 import Order from "../models/Order.js";
 import VerificationRequest from "../models/VerificationRequest.js";
+import CaptureSession from "../models/CaptureSession.js";
+import ProfilePublication from "../models/ProfilePublication.js";
+import mongoose from "mongoose";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { sendEmail, sendOtpEmail } from "../services/mailService.js";
 import {
+  deleteCloudinaryAssetsByUrls,
   getAdminProductFolder,
   uploadBufferToCloudinary,
 } from "../services/cloudinaryService.js";
@@ -1562,16 +1566,67 @@ export const setUserStatusByAdmin = async (req, res) => {
 };
 
 export const deleteUserByAdmin = async (req, res) => {
-  if (!requireAdmin(req, res)) return;
+  const authenticatedAdmin = requireAdmin(req, res);
+  if (!authenticatedAdmin) return;
   if (normalizeEmail(req.admin?.email) !== "adminho@orchardgrowers.in") {
     return res.status(403).json({ msg: "Profile deletion is restricted to the authorized head-office admin" });
+  }
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(400).json({ msg: "Invalid user id" });
+  }
+  if (String(req.admin?._id || authenticatedAdmin.id) === String(req.params.id)) {
+    return res.status(403).json({ msg: "An authenticated admin cannot delete their own account" });
   }
 
   const user = await User.findById(req.params.id);
   if (!user) return res.status(404).json({ msg: "User not found" });
 
-  await user.deleteOne();
-  res.json({ message: "User deleted" });
+  const targetEmail = normalizeEmail(user.email || "");
+  const configuredSystemEmails = String(process.env.SYSTEM_ACCOUNT_EMAILS || "")
+    .split(",")
+    .map(normalizeEmail)
+    .filter(Boolean);
+  const protectedEmails = new Set([
+    normalizeEmail(process.env.MASTER_ADMIN_EMAIL || ""),
+    ...CLASS_I_ADMIN_EMAILS,
+    ...CLASS_II_ADMIN_EMAILS,
+    ...CLASS_III_ADMIN_EMAILS,
+    ...configuredSystemEmails,
+  ].filter(Boolean));
+  const matchingAdmin = targetEmail ? await Admin.exists({ email: targetEmail }) : null;
+  if (matchingAdmin || (targetEmail && protectedEmails.has(targetEmail))) {
+    return res.status(403).json({ msg: "Required admin or system accounts cannot be deleted" });
+  }
+
+  const collectUrls = (value, urls = []) => {
+    if (typeof value === "string" && /^https?:\/\//i.test(value)) urls.push(value);
+    else if (Array.isArray(value)) value.forEach((item) => collectUrls(item, urls));
+    else if (value && typeof value === "object") Object.values(value).forEach((item) => collectUrls(item, urls));
+    return urls;
+  };
+  const captureSessions = await CaptureSession.find({ userId: user._id }).lean();
+  const mediaUrls = collectUrls([user.toObject(), captureSessions]);
+
+  const session = await User.startSession();
+  try {
+    await session.withTransaction(async () => {
+      await ProfilePublication.deleteMany({ user: user._id }).session(session);
+      await VerificationRequest.deleteMany({ user: user._id }).session(session);
+      await CaptureSession.deleteMany({ userId: user._id }).session(session);
+      const userDeletion = await User.deleteOne({ _id: user._id }).session(session);
+      if (userDeletion.deletedCount !== 1) throw new Error("Profile deletion did not remove the user record");
+    });
+  } finally {
+    await session.endSession();
+  }
+  const mediaCleanup = await deleteCloudinaryAssetsByUrls(mediaUrls);
+
+  res.json({
+    message: "Profile permanently deleted",
+    deletedUserId: String(user._id),
+    mediaDeleted: mediaCleanup.deleted,
+    mediaDeleteFailures: mediaCleanup.failed,
+  });
 };
 
 const PRODUCT_ADMIN_FIELDS = [
