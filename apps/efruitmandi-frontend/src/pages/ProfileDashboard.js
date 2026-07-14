@@ -894,7 +894,11 @@ export default function ProfileDashboard() {
 
     try {
       setEmailDraft((current) => ({ ...current, loading: true, verifiedEmail: "", verificationToken: "" }));
-      const res = await API.post("/auth/send-otp", { identifier: email, platform: "efruitmandi" });
+      const res = await API.post("/auth/send-otp", {
+        identifier: email,
+        platform: "efruitmandi",
+        mode: "profile",
+      });
       setEmailOtpCooldown(60);
       setNotice(res.data?.message || "OTP sent.");
     } catch (err) {
