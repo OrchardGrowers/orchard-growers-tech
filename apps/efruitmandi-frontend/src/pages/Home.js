@@ -2858,38 +2858,37 @@ decoding="async"
   );
 }
 
+const MANDI_RATE_ROTATION_INTERVAL_MS = 5000;
+
 function OfflineMandiRatesCard({ rates = [], loading = false, error = "" }) {
-  const [activeRateIndex, setActiveRateIndex] = useState(0);
-  const uniqueFruitRates = useMemo(() => {
-    const seen = new Set();
-    return rates.filter((rate) => {
-      const commodity = String(
-        rate.commodity || rate.Commodity || rate.commodityName || rate.fruitName || rate.FruitName || ""
-      ).trim().toLowerCase();
-      const key = commodity || String(rate.id || rate._id || "");
-      if (!key || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }, [rates]);
+  const [rotationSlot, setRotationSlot] = useState(() => Math.floor(Date.now() / MANDI_RATE_ROTATION_INTERVAL_MS));
+  const latestRates = useMemo(() => rates.filter(Boolean), [rates]);
 
   useEffect(() => {
-    setActiveRateIndex(0);
-    if (uniqueFruitRates.length <= 1) return undefined;
+    const updateRotationSlot = () => {
+      setRotationSlot(Math.floor(Date.now() / MANDI_RATE_ROTATION_INTERVAL_MS));
+    };
+    updateRotationSlot();
 
-    const timer = window.setInterval(() => {
-      setActiveRateIndex((current) => (current + 1) % uniqueFruitRates.length);
-    }, 5000);
+    let intervalId;
+    const millisecondsUntilNextSlot = MANDI_RATE_ROTATION_INTERVAL_MS - (Date.now() % MANDI_RATE_ROTATION_INTERVAL_MS);
+    const timeoutId = window.setTimeout(() => {
+      updateRotationSlot();
+      intervalId = window.setInterval(updateRotationSlot, MANDI_RATE_ROTATION_INTERVAL_MS);
+    }, millisecondsUntilNextSlot);
 
-    return () => window.clearInterval(timer);
-  }, [uniqueFruitRates]);
+    return () => {
+      window.clearTimeout(timeoutId);
+      if (intervalId) window.clearInterval(intervalId);
+    };
+  }, []);
 
-  const visibleRate = uniqueFruitRates[activeRateIndex % Math.max(uniqueFruitRates.length, 1)];
+  const visibleRate = latestRates[rotationSlot % Math.max(latestRates.length, 1)];
 
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-5">
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-black">APMC, Govt. Mandi Marketplace and Rates</h2>
+        <h2 className="text-xl font-semibold text-black">APMC, Govt. Fruit and Vegetable Mandi and Marketplace Rates</h2>
         <FaInfoCircle className="text-xs text-gray-600" />
       </div>
 
