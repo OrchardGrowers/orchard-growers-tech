@@ -3,7 +3,7 @@ import User from "../models/User.js";
 import { runSpecifiedDummyAccountCleanup } from "../scripts/permanentlyDeleteSpecifiedDummyAccounts.js";
 
 const AUTHORIZED_EMAIL = "adminho@orchardgrowers.in";
-const CONFIRMATION = "DELETE SIX DUMMY ACCOUNTS PERMANENTLY";
+const CONFIRMATION = "DELETE FIVE DUMMY ACCOUNTS PERMANENTLY";
 let cleanupInProgress = false;
 
 const normalizeEmail = (value = "") => String(value || "").trim().toLowerCase();
