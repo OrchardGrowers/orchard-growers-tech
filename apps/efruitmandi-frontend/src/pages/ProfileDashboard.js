@@ -773,6 +773,7 @@ export default function ProfileDashboard() {
   };
 
   const openEditProfile = () => {
+    setNotice("");
     setProfileDraft(createProfileDraft(user));
     setAddressDraft(createAddressDraft(user));
     setBusinessAddressDraft(createEntityAddressDraft(user, profileMode));
@@ -934,6 +935,7 @@ export default function ProfileDashboard() {
     if (profileSaving) return;
 
     const entityLocation = formatBusinessAddress(businessAddressDraft);
+    const personalLocation = formatProfileAddress(addressDraft);
     const nextPhone = contactDraft.phone.trim();
     const nextEmail = emailDraft.email.trim().toLowerCase();
     const contactChanged = Boolean(
@@ -958,6 +960,11 @@ export default function ProfileDashboard() {
       const profilePayload = {
         name: profileDraft.name,
         designation: profileDraft.designation,
+        addressLine1: addressDraft.addressLine1,
+        addressLine2: addressDraft.addressLine2,
+        addressLine3: addressDraft.addressLine3,
+        pinCode: addressDraft.pinCode,
+        location: personalLocation,
         ...(contactChanged ? { phone: nextPhone } : {}),
         ...(emailChanged ? { email: nextEmail } : {}),
         ...(contactChanged ? { phoneOtpVerificationToken: contactDraft.verificationToken } : {}),
@@ -1633,6 +1640,19 @@ export default function ProfileDashboard() {
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/45 px-4">
           <section className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-5 shadow-xl">
             <h2 className="text-lg font-bold text-gray-950">{editDetailsTitle}</h2>
+            {notice && (
+              <div
+                className={`mt-3 rounded-md px-3 py-2 text-xs font-bold ${
+                  notice.startsWith("Saving")
+                    ? "bg-blue-50 text-blue-800"
+                    : "bg-amber-50 text-amber-900"
+                }`}
+                role="status"
+                aria-live="polite"
+              >
+                {notice}
+              </div>
+            )}
             {!isVisitor && (
             <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3">
               <p className="text-xs font-extrabold text-gray-800">
