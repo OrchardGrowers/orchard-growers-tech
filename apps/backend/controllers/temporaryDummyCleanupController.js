@@ -6,7 +6,7 @@ import {
 } from "../scripts/permanentlyDeleteSpecifiedDummyAccounts.js";
 
 const AUTHORIZED_EMAIL = "adminho@orchardgrowers.in";
-const CONFIRMATION = "DELETE FIVE DUMMY ACCOUNTS PERMANENTLY";
+const CONFIRMATION = "DELETE FOUR DUMMY ACCOUNTS PERMANENTLY";
 let cleanupInProgress = false;
 
 const normalizeEmail = (value = "") => String(value || "").trim().toLowerCase();

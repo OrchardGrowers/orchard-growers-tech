@@ -31,11 +31,20 @@ import { deleteCloudinaryAssetsByUrls } from "../services/cloudinaryService.js";
 dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const MANIFEST_PATH = path.resolve(__dirname, "../.local/permanent-delete-five-dummy-accounts.json");
-const CONFIRMATION = "DELETE FIVE DUMMY ACCOUNTS PERMANENTLY";
+const MANIFEST_PATH = path.resolve(__dirname, "../.local/permanent-delete-four-dummy-accounts.json");
+const CONFIRMATION = "DELETE FOUR DUMMY ACCOUNTS PERMANENTLY";
 const MANIFEST_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const EXPECTED_TARGET_COUNT = 5;
+const EXPECTED_TARGET_COUNT = 4;
+const PAVAN_USER_ID = "6a1a5eb89ece1fcf1369c519";
+const PAWANN_USER_ID = "6a1a5eff9ece1fcf1369c52e";
+const ORCHARD_OG_SHARED_USER_ID = "6a1a5c5f9ece1fcf1369c499";
 const GREEN_VALLEY_USER_ID = "6a2e57e5f61c7f8359c0c459";
+const APPROVED_USER_IDS = new Set([
+  PAVAN_USER_ID,
+  PAWANN_USER_ID,
+  ORCHARD_OG_SHARED_USER_ID,
+  GREEN_VALLEY_USER_ID,
+]);
 const PUBLIC_DNS_SERVERS = ["1.1.1.1", "8.8.8.8"];
 
 const isSrvDnsError = (error) => {
@@ -220,10 +229,10 @@ async function resolveInitialTargetGroups() {
   }).lean();
 
   const groups = {
-    pavan: candidates.filter((user) => normalizeEmail(user.email) === "drx.kutloo@gmail.com"),
-    pawann: candidates.filter((user) => normalizeEmail(user.email) === "orchardgrowers.in@gmail.com"),
-    orchardGrowers: candidates.filter((user) => hasPhone(user, "919418153910") && hasName(user, (name) => name === "orchardgrowersprivatelimited")),
-    ogFruitFarms: candidates.filter((user) => hasPhone(user, "919418153910") && hasName(user, (name) => name.includes("ogfruitfarms"))),
+    pavan: candidates.filter((user) => String(user._id) === PAVAN_USER_ID && normalizeEmail(user.email) === "drx.kutloo@gmail.com"),
+    pawann: candidates.filter((user) => String(user._id) === PAWANN_USER_ID && normalizeEmail(user.email) === "orchardgrowers.in@gmail.com"),
+    orchardGrowers: candidates.filter((user) => String(user._id) === ORCHARD_OG_SHARED_USER_ID && hasPhone(user, "919418153910") && hasName(user, (name) => name === "orchardgrowersprivatelimited")),
+    ogFruitFarms: candidates.filter((user) => String(user._id) === ORCHARD_OG_SHARED_USER_ID && hasPhone(user, "919418153910") && hasName(user, (name) => name.includes("ogfruitfarms"))),
     greenValley: candidates.filter((user) =>
       String(user._id) === GREEN_VALLEY_USER_ID
       && hasPhone(user, "918580660462")
@@ -246,11 +255,16 @@ async function resolveInitialTargets() {
   Object.entries(expectedSizes).forEach(([group, expected]) => {
     if (groups[group].length !== expected) throw new Error(`Refusing manifest generation: ${group} resolved ${groups[group].length}, expected ${expected}`);
   });
-  const targets = [...groups.pavan, ...groups.pawann, ...groups.orchardGrowers, ...groups.ogFruitFarms, ...groups.greenValley];
-  if (new Set(targets.map((user) => String(user._id))).size !== EXPECTED_TARGET_COUNT) {
-    throw new Error("Refusing manifest generation: targets are not five unique users");
+  if (String(groups.orchardGrowers[0]._id) !== String(groups.ogFruitFarms[0]._id) || String(groups.orchardGrowers[0]._id) !== ORCHARD_OG_SHARED_USER_ID) {
+    throw new Error("Refusing manifest generation: Orchard Growers and OG Fruit Farms are not the approved shared User record");
   }
-  return targets;
+  const logicalTargets = [...groups.pavan, ...groups.pawann, ...groups.orchardGrowers, ...groups.ogFruitFarms, ...groups.greenValley];
+  const uniqueTargets = Array.from(new Map(logicalTargets.map((user) => [String(user._id), user])).values());
+  const uniqueTargetIds = new Set(uniqueTargets.map((user) => String(user._id)));
+  if (uniqueTargetIds.size !== EXPECTED_TARGET_COUNT || [...APPROVED_USER_IDS].some((id) => !uniqueTargetIds.has(id))) {
+    throw new Error("Refusing manifest generation: five logical identities are not the four approved unique User records");
+  }
+  return uniqueTargets;
 }
 
 async function assertTargetsAreDeletable(targets) {
@@ -317,7 +331,7 @@ async function createManifest() {
   const createdAt = new Date();
   const manifest = {
     version: 1,
-    purpose: "permanent deletion of five reviewed dummy accounts",
+    purpose: "permanent deletion of four approved User records representing five reviewed dummy identities",
     createdAt: createdAt.toISOString(),
     expiresAt: new Date(createdAt.getTime() + MANIFEST_TTL_MS).toISOString(),
     executedAt: null,
@@ -343,9 +357,11 @@ async function loadManifest() {
 async function loadManifestTargets(manifest, requireAll = false) {
   if (!manifest || manifest.version !== 1 || manifest.targets?.length !== EXPECTED_TARGET_COUNT) throw new Error("Invalid cleanup manifest");
   const targetIds = manifest.targets.map((target) => target._id);
-  if (new Set(targetIds).size !== EXPECTED_TARGET_COUNT || targetIds.some((id) => !mongoose.isValidObjectId(id))) throw new Error("Manifest does not contain five unique valid User ids");
+  const uniqueTargetIds = new Set(targetIds);
+  if (uniqueTargetIds.size !== EXPECTED_TARGET_COUNT || targetIds.some((id) => !mongoose.isValidObjectId(id))) throw new Error("Manifest does not contain four unique valid User ids");
+  if ([...APPROVED_USER_IDS].some((id) => !uniqueTargetIds.has(id))) throw new Error("Manifest does not contain the four approved User ids");
   const targets = await User.find({ _id: { $in: targetIds } }).lean();
-  if (requireAll && targets.length !== EXPECTED_TARGET_COUNT) throw new Error(`Execution refused: only ${targets.length} of five manifest users still exist`);
+  if (requireAll && targets.length !== EXPECTED_TARGET_COUNT) throw new Error(`Execution refused: only ${targets.length} of four manifest users still exist`);
   targets.forEach((user) => {
     const target = manifest.targets.find((entry) => entry._id === String(user._id));
     const snapshot = snapshotFor(user);
@@ -427,7 +443,7 @@ async function executeDeletion(manifest, targets) {
       await Auction.updateMany({ cancelledBy: { $in: graph.userIds }, _id: { $nin: graph.auctionIds } }, { $unset: { cancelledBy: "" } }).session(session);
       await User.updateMany({ _id: { $nin: graph.userIds } }, { $pull: { growerRatings: { rater: { $in: graph.userIds } } } }).session(session);
       const result = await User.deleteMany({ _id: { $in: graph.userIds } }).session(session);
-      if (result.deletedCount !== EXPECTED_TARGET_COUNT) throw new Error(`Transaction removed ${result.deletedCount} users instead of five`);
+      if (result.deletedCount !== EXPECTED_TARGET_COUNT) throw new Error(`Transaction removed ${result.deletedCount} users instead of four`);
     });
   } finally {
     await session.endSession();
@@ -437,7 +453,7 @@ async function executeDeletion(manifest, targets) {
   manifest.executedAt = new Date().toISOString();
   manifest.execution = { database: "committed", cloudinary };
   await fs.writeFile(MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
-  console.log(`[dummy-cleanup] database transaction committed; five users permanently deleted`);
+  console.log(`[dummy-cleanup] database transaction committed; four unique User accounts representing five logical identities permanently deleted`);
   console.log(`[dummy-cleanup] Cloudinary deleted=${cloudinary.deleted} failed=${cloudinary.failed}`);
   return {
     userIds: graph.userIds.map(String),
