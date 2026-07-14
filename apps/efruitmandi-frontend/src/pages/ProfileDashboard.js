@@ -265,16 +265,20 @@ export default function ProfileDashboard() {
     otpReqId: "",
     otpSent: false,
     verifiedPhone: "",
+    verificationToken: "",
     loading: false,
   });
   const [contactOtpCooldown, setContactOtpCooldown] = useState(0);
+  const [showContactVerification, setShowContactVerification] = useState(false);
   const [emailDraft, setEmailDraft] = useState({
     email: "",
     otp: "",
     verifiedEmail: "",
+    verificationToken: "",
     loading: false,
   });
   const [emailOtpCooldown, setEmailOtpCooldown] = useState(0);
+  const [showEmailVerification, setShowEmailVerification] = useState(false);
   const [socialDraft, setSocialDraft] = useState(createSocialDraft());
   const [detectingAddress, setDetectingAddress] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
@@ -616,6 +620,8 @@ export default function ProfileDashboard() {
   const socialLinks = user.socialLinks || {};
   const needsContactUpdate = !profileContactNo;
   const needsEmailUpdate = !profileEmail;
+  const shouldShowContactVerification = needsContactUpdate || showContactVerification;
+  const shouldShowEmailVerification = needsEmailUpdate || showEmailVerification;
   const needsSocialUpdate = !socialLinks.google && !socialLinks.facebook;
   const accountCompletionMessages = [
     needsEmailUpdate ? "Add verified email" : "",
@@ -761,6 +767,8 @@ export default function ProfileDashboard() {
         .forEach((key) => URL.revokeObjectURL(current[key]));
       return createMediaDraft();
     });
+    setShowContactVerification(false);
+    setShowEmailVerification(false);
     setShowEditProfile(false);
   };
 
@@ -774,16 +782,20 @@ export default function ProfileDashboard() {
       otpReqId: "",
       otpSent: false,
       verifiedPhone: "",
+      verificationToken: "",
       loading: false,
     });
     setContactOtpCooldown(0);
+    setShowContactVerification(needsContactUpdate);
     setEmailDraft({
       email: profileEmail,
       otp: "",
       verifiedEmail: "",
+      verificationToken: "",
       loading: false,
     });
     setEmailOtpCooldown(0);
+    setShowEmailVerification(needsEmailUpdate);
     setSocialDraft(createSocialDraft(user));
     setMediaDraft(createMediaDraft(user));
     setShowEditProfile(true);
@@ -804,12 +816,19 @@ export default function ProfileDashboard() {
     }
 
     try {
-      setContactDraft((current) => ({ ...current, loading: true, verifiedPhone: "" }));
+      setContactDraft((current) => ({ ...current, loading: true, verifiedPhone: "", verificationToken: "" }));
       const widgetId = getEfruitMandiWidgetId();
       const tokenAuth = getEfruitMandiTokenAuth();
       const normalizedPhone = normalizeIndianMobile(phone);
       if (!normalizedPhone) {
         setNotice("Enter a valid phone number.");
+        return;
+      }
+      if (
+        profileContactNo &&
+        normalizedPhone === normalizeIndianMobile(profileContactNo)
+      ) {
+        setNotice("This is already your verified contact number. Enter a new number to change it.");
         return;
       }
       const result = contactDraft.otpSent
@@ -842,10 +861,13 @@ export default function ProfileDashboard() {
         setNotice("Request phone OTP first.");
         return;
       }
-      await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp, reqId: contactDraft.otpReqId, phone: normalizeIndianMobile(phone) || phone, mode: "signup" });
+      const result = await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp, reqId: contactDraft.otpReqId, phone: normalizeIndianMobile(phone) || phone, mode: "signup" });
+      const verificationToken = result.data?.otpVerificationToken || "";
+      if (!verificationToken) throw new Error("Phone was verified, but the verification token was not returned. Request OTP again.");
       setContactDraft((current) => ({
         ...current,
         verifiedPhone: phone,
+        verificationToken,
         loading: false,
       }));
       setNotice("Contact number verified.");
@@ -856,7 +878,7 @@ export default function ProfileDashboard() {
   };
 
   const sendEmailOtp = async () => {
-    const email = emailDraft.email.trim();
+    const email = emailDraft.email.trim().toLowerCase();
 
     if (emailOtpCooldown > 0) return;
 
@@ -864,9 +886,13 @@ export default function ProfileDashboard() {
       setNotice("Enter email first.");
       return;
     }
+    if (profileEmail && email === profileEmail.trim().toLowerCase()) {
+      setNotice("This is already your verified email. Enter a new email to change it.");
+      return;
+    }
 
     try {
-      setEmailDraft((current) => ({ ...current, loading: true, verifiedEmail: "" }));
+      setEmailDraft((current) => ({ ...current, loading: true, verifiedEmail: "", verificationToken: "" }));
       const res = await API.post("/auth/send-otp", { identifier: email, platform: "efruitmandi" });
       setEmailOtpCooldown(60);
       setNotice(res.data?.message || "OTP sent.");
@@ -878,7 +904,7 @@ export default function ProfileDashboard() {
   };
 
   const verifyEmailOtp = async () => {
-    const email = emailDraft.email.trim();
+    const email = emailDraft.email.trim().toLowerCase();
     const otp = emailDraft.otp.trim();
 
     if (!email || !otp) {
@@ -888,16 +914,19 @@ export default function ProfileDashboard() {
 
     try {
       setEmailDraft((current) => ({ ...current, loading: true }));
-      await API.post("/auth/verify-otp", { identifier: email, otp, platform: "efruitmandi" });
+      const res = await API.post("/auth/verify-otp", { identifier: email, otp, platform: "efruitmandi" });
+      const verificationToken = res.data?.otpVerificationToken || "";
+      if (!verificationToken) throw new Error("Email was verified, but the verification token was not returned. Request OTP again.");
       setEmailDraft((current) => ({
         ...current,
         verifiedEmail: email,
+        verificationToken,
         loading: false,
       }));
       setNotice("Email verified.");
     } catch (err) {
       setEmailDraft((current) => ({ ...current, loading: false }));
-      setNotice(err.response?.data?.msg || "OTP verification failed.");
+      setNotice(err.response?.data?.msg || err.message || "OTP verification failed.");
     }
   };
 
@@ -906,9 +935,13 @@ export default function ProfileDashboard() {
 
     const entityLocation = formatBusinessAddress(businessAddressDraft);
     const nextPhone = contactDraft.phone.trim();
-    const nextEmail = emailDraft.email.trim();
-    const contactChanged = nextPhone && nextPhone !== profileContactNo;
-    const emailChanged = nextEmail && nextEmail !== profileEmail;
+    const nextEmail = emailDraft.email.trim().toLowerCase();
+    const contactChanged = Boolean(
+      nextPhone && normalizeIndianMobile(nextPhone) !== normalizeIndianMobile(profileContactNo)
+    );
+    const emailChanged = Boolean(
+      nextEmail && nextEmail !== profileEmail.trim().toLowerCase()
+    );
 
     if (contactChanged && contactDraft.verifiedPhone !== nextPhone) {
       setNotice("Verify contact number OTP before saving.");
@@ -927,6 +960,9 @@ export default function ProfileDashboard() {
         designation: profileDraft.designation,
         ...(contactChanged ? { phone: nextPhone } : {}),
         ...(emailChanged ? { email: nextEmail } : {}),
+        ...(contactChanged ? { phoneOtpVerificationToken: contactDraft.verificationToken } : {}),
+        ...(emailChanged ? { emailOtpVerificationToken: emailDraft.verificationToken } : {}),
+        platform: "efruitmandi",
         socialLinks: socialDraft,
       };
 
@@ -965,8 +1001,8 @@ export default function ProfileDashboard() {
       let savedUser = profileUser;
       const mediaFiles = {
         avatarUrl: mediaDraft.avatarUrlFile,
-        bannerUrl: mediaDraft.bannerUrlFile,
-        companyLogoUrl: mediaDraft.companyLogoUrlFile,
+        bannerUrl: isVisitor ? null : mediaDraft.bannerUrlFile,
+        companyLogoUrl: isVisitor ? null : mediaDraft.companyLogoUrlFile,
       };
       const hasMediaChanges = Object.values(mediaFiles).some(Boolean);
 
@@ -1154,17 +1190,19 @@ export default function ProfileDashboard() {
               }
             }}
           >
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                openEditProfile();
-              }}
-              className="absolute right-5 top-5 z-10 inline-flex cursor-pointer items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-xs font-extrabold text-gray-900 shadow hover:bg-white"
-            >
-              <FaPen />
-              Update Banner
-            </button>
+            {!isVisitor && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openEditProfile();
+                }}
+                className="absolute right-5 top-5 z-10 inline-flex cursor-pointer items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-xs font-extrabold text-gray-900 shadow hover:bg-white"
+              >
+                <FaPen />
+                Update Banner
+              </button>
+            )}
           </div>
 
           <div className="relative px-6 pb-6 pt-16 md:px-8 md:pt-20">
@@ -1595,6 +1633,7 @@ export default function ProfileDashboard() {
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/45 px-4">
           <section className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-5 shadow-xl">
             <h2 className="text-lg font-bold text-gray-950">{editDetailsTitle}</h2>
+            {!isVisitor && (
             <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3">
               <p className="text-xs font-extrabold text-gray-800">
                 {profileMode === "buyer"
@@ -1619,13 +1658,16 @@ export default function ProfileDashboard() {
                 />
               </label>
             </div>
+            )}
             <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3">
               <p className="text-xs font-extrabold text-gray-800">
                 {profileMode === "buyer"
                   ? "Buyer profile photo"
                   : profileMode === "grower"
                     ? "Grower profile photo"
-                    : "Logistics profile photo"}
+                    : profileMode === "driver"
+                      ? "Logistics profile photo"
+                      : "User profile photo"}
               </p>
               <div className="mt-3 flex items-center gap-3">
                 <Avatar
@@ -1798,17 +1840,68 @@ export default function ProfileDashboard() {
             )}
             <div className="mt-4 rounded-lg border border-green-100 bg-green-50 p-3">
               <div className="mb-2 flex items-center justify-between">
-                <p className="text-xs font-extrabold text-green-800">Verified contact number</p>
-                {contactDraft.verifiedPhone && (
+                <p className="text-xs font-extrabold text-green-800">
+                  {needsContactUpdate ? "Add and verify contact number" : "Verified contact number"}
+                </p>
+                {(profileContactNo || contactDraft.verifiedPhone) && (
                   <span className="rounded-full bg-white px-2 py-1 text-[10px] font-extrabold text-green-700">
-                    Verified
+                    {contactDraft.verifiedPhone ? "New number verified" : "Verified"}
                   </span>
                 )}
               </div>
-              {needsContactUpdate && (
+              {!shouldShowContactVerification && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-white px-3 py-2">
+                  <span className="text-sm font-bold text-gray-900">{profileContactNo}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setContactDraft({
+                        phone: "",
+                        otp: "",
+                        otpReqId: "",
+                        otpSent: false,
+                        verifiedPhone: "",
+                        verificationToken: "",
+                        loading: false,
+                      });
+                      setContactOtpCooldown(0);
+                      setShowContactVerification(true);
+                    }}
+                    className="rounded-md border border-green-200 px-3 py-2 text-xs font-extrabold text-green-800 hover:bg-green-100"
+                  >
+                    Verify new number
+                  </button>
+                </div>
+              )}
+              {shouldShowContactVerification && (
+                <>
+              {needsContactUpdate ? (
                 <p className="mb-3 text-xs font-semibold leading-5 text-gray-700">
                   You logged in with email. Please add and verify your contact number before registering as Grower, Buyer, or Driver.
                 </p>
+              ) : (
+                <div className="mb-3 flex items-center justify-between gap-3 text-xs font-semibold text-gray-700">
+                  <span>Current verified number: {profileContactNo}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setContactDraft((current) => ({
+                        ...current,
+                        phone: profileContactNo,
+                        otp: "",
+                        otpReqId: "",
+                        otpSent: false,
+                        verifiedPhone: "",
+                        verificationToken: "",
+                      }));
+                      setContactOtpCooldown(0);
+                      setShowContactVerification(false);
+                    }}
+                    className="shrink-0 font-extrabold text-green-800 underline"
+                  >
+                    Keep current
+                  </button>
+                </div>
               )}
               <div className="grid gap-2">
                 <input
@@ -1822,10 +1915,11 @@ export default function ProfileDashboard() {
                       otpReqId: "",
                       otpSent: false,
                       verifiedPhone: "",
+                      verificationToken: "",
                     }));
                     setContactOtpCooldown(0);
                   }}
-                  placeholder="Enter contact number"
+                  placeholder={needsContactUpdate ? "Enter contact number" : "Enter new contact number"}
                   className="min-h-11 w-full rounded-md border border-green-200 bg-white px-3 py-3 text-sm font-semibold outline-none focus:border-green-700"
                 />
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
@@ -1856,20 +1950,63 @@ export default function ProfileDashboard() {
                   </button>
                 </div>
               </div>
+                </>
+              )}
             </div>
             <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-3">
               <div className="mb-2 flex items-center justify-between">
-                <p className="text-xs font-extrabold text-blue-800">Verified email</p>
-                {emailDraft.verifiedEmail && (
+                <p className="text-xs font-extrabold text-blue-800">
+                  {needsEmailUpdate ? "Add and verify email" : "Verified email"}
+                </p>
+                {(profileEmail || emailDraft.verifiedEmail) && (
                   <span className="rounded-full bg-white px-2 py-1 text-[10px] font-extrabold text-blue-700">
-                    Verified
+                    {emailDraft.verifiedEmail ? "New email verified" : "Verified"}
                   </span>
                 )}
               </div>
-              {needsEmailUpdate && (
+              {!shouldShowEmailVerification && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-white px-3 py-2">
+                  <span className="break-all text-sm font-bold text-gray-900">{profileEmail}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmailDraft({ email: "", otp: "", verifiedEmail: "", verificationToken: "", loading: false });
+                      setEmailOtpCooldown(0);
+                      setShowEmailVerification(true);
+                    }}
+                    className="rounded-md border border-blue-200 px-3 py-2 text-xs font-extrabold text-blue-800 hover:bg-blue-100"
+                  >
+                    Verify new email
+                  </button>
+                </div>
+              )}
+              {shouldShowEmailVerification && (
+                <>
+              {needsEmailUpdate ? (
                 <p className="mb-3 text-xs font-semibold leading-5 text-gray-700">
                   You logged in with phone number. Please add and verify your email for account recovery and communication.
                 </p>
+              ) : (
+                <div className="mb-3 flex items-center justify-between gap-3 text-xs font-semibold text-gray-700">
+                  <span className="break-all">Current verified email: {profileEmail}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmailDraft((current) => ({
+                        ...current,
+                        email: profileEmail,
+                        otp: "",
+                        verifiedEmail: "",
+                        verificationToken: "",
+                      }));
+                      setEmailOtpCooldown(0);
+                      setShowEmailVerification(false);
+                    }}
+                    className="shrink-0 font-extrabold text-blue-800 underline"
+                  >
+                    Keep current
+                  </button>
+                </div>
               )}
               <div className="grid gap-2">
                 <input
@@ -1881,10 +2018,11 @@ export default function ProfileDashboard() {
                       email: event.target.value,
                       otp: "",
                       verifiedEmail: "",
+                      verificationToken: "",
                     }));
                     setEmailOtpCooldown(0);
                   }}
-                  placeholder="Enter email address"
+                  placeholder={needsEmailUpdate ? "Enter email address" : "Enter new email address"}
                   className="min-h-11 w-full rounded-md border border-blue-200 bg-white px-3 py-3 text-sm font-semibold outline-none focus:border-blue-700"
                 />
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
@@ -1915,6 +2053,8 @@ export default function ProfileDashboard() {
                   </button>
                 </div>
               </div>
+                </>
+              )}
             </div>
             <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
               <p className="text-xs font-extrabold text-gray-800">Social media accounts</p>

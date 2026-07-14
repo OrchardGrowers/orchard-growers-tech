@@ -1153,9 +1153,14 @@ export const updateProfile = async (req, res) => {
       phone,
       contact,
       email,
+      phoneOtpVerificationToken,
+      emailOtpVerificationToken,
+      platform,
       socialLinks,
     } = req.body;
     let publicNameChanged = false;
+    let verifiedEmailForUpdate = null;
+    let verifiedPhoneForUpdate = null;
     if (typeof orchardName === "string" || typeof businessName === "string" || typeof buyerContactPerson === "string") {
       const currentPublicNames = await User.findById(req.user.id).select("orchardName businessName buyerContactPerson").lean();
       publicNameChanged = Boolean(
@@ -1220,23 +1225,31 @@ export const updateProfile = async (req, res) => {
     if (typeof email === "string" && email.trim()) {
       const parsedEmail = parseIdentifier(email);
 
-      if (!parsedEmail || parsedEmail.type !== "email" || !isOtpVerified(parsedEmail)) {
+      if (
+        !parsedEmail ||
+        parsedEmail.type !== "email" ||
+        !isOtpVerified(parsedEmail, platform || "efruitmandi", "auth", emailOtpVerificationToken)
+      ) {
         return res.status(400).json({ msg: "Verify email OTP before saving" });
       }
 
       updates.email = parsedEmail.value;
-      consumeOtpVerification(parsedEmail);
+      verifiedEmailForUpdate = parsedEmail;
     }
     const contactNumber = typeof phone === "string" ? phone : contact;
     if (typeof contactNumber === "string" && contactNumber.trim()) {
       const parsedPhone = parseIdentifier(contactNumber);
 
-      if (!parsedPhone || parsedPhone.type !== "phone" || !isOtpVerified(parsedPhone)) {
+      if (
+        !parsedPhone ||
+        parsedPhone.type !== "phone" ||
+        !isOtpVerified(parsedPhone, platform || "efruitmandi", "auth", phoneOtpVerificationToken)
+      ) {
         return res.status(400).json({ msg: "Verify contact number OTP before saving" });
       }
 
       updates.phone = parsedPhone.value;
-      consumeOtpVerification(parsedPhone);
+      verifiedPhoneForUpdate = parsedPhone;
     }
     if (socialLinks && typeof socialLinks === "object") {
       const currentUser = await User.findById(req.user.id).select("socialLinks");
@@ -1254,6 +1267,23 @@ export const updateProfile = async (req, res) => {
 
     if (!user) {
       return res.status(404).json({ msg: "User not found" });
+    }
+
+    if (verifiedEmailForUpdate) {
+      consumeOtpVerification(
+        verifiedEmailForUpdate,
+        platform || "efruitmandi",
+        "auth",
+        emailOtpVerificationToken
+      );
+    }
+    if (verifiedPhoneForUpdate) {
+      consumeOtpVerification(
+        verifiedPhoneForUpdate,
+        platform || "efruitmandi",
+        "auth",
+        phoneOtpVerificationToken
+      );
     }
 
     if (publicNameChanged) {
