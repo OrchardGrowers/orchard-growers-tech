@@ -43,7 +43,6 @@ import {
   uploadProductImagesByAdmin,
   verifyAdminOtp,
 } from "../controllers/adminController.js";
-import { runTemporaryDummyCleanup } from "../controllers/temporaryDummyCleanupController.js";
 import protect, { authorize } from "../middleware/authMiddleware.js";
 import { createRateLimiter } from "../middleware/rateLimit.js";
 import {
@@ -210,7 +209,6 @@ router.patch("/users/:id", ...adminOnly, requireRoles(...USER_WRITE_ROLES), wrap
 router.post("/users/:id/feature-profile", ...adminOnly, requireRoles(...USER_WRITE_ROLES), wrapAsync(featureUserProfileByAdmin));
 router.patch("/users/:id/status", ...adminOnly, requireRoles(...USER_WRITE_ROLES), wrapAsync(setUserStatusByAdmin));
 router.delete("/users/:id", ...adminOnly, requireRoles("SUPER_ADMIN", "ADMIN"), wrapAsync(deleteUserByAdmin));
-router.post("/internal/permanent-dummy-cleanup", ...adminOnly, requireRoles("SUPER_ADMIN", "ADMIN"), wrapAsync(runTemporaryDummyCleanup));
 
 router.get("/products", ...adminOnly, requireRoles(...PRODUCT_READ_ROLES), wrapAsync(listProductsByAdmin));
 router.post("/product-images", ...adminOnly, requireRoles(...PRODUCT_WRITE_ROLES), adminProductImageUpload.array("images", 10), wrapAsync(uploadProductImagesByAdmin));
