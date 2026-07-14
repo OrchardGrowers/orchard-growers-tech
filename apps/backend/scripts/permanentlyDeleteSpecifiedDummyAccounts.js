@@ -208,7 +208,7 @@ const hasPhone = (user, countryPhone) => {
 };
 const hasName = (user, predicate) => getNames(user).map(normalizeName).some(predicate);
 
-async function resolveInitialTargets() {
+async function resolveInitialTargetGroups() {
   const candidates = await User.find({
     $or: [
       { email: /^\s*drx\.kutloo@gmail\.com\s*$/i },
@@ -230,6 +230,17 @@ async function resolveInitialTargets() {
       && hasName(user, (name) => name.includes("greenvalley") || name.includes("greenalley"))
     ),
   };
+
+  return groups;
+}
+
+export async function inspectSpecifiedDummyTargetGroups() {
+  if (mongoose.connection.readyState !== 1) throw new Error("Production MongoDB connection is not ready");
+  return resolveInitialTargetGroups();
+}
+
+async function resolveInitialTargets() {
+  const groups = await resolveInitialTargetGroups();
 
   const expectedSizes = { pavan: 1, pawann: 1, orchardGrowers: 1, ogFruitFarms: 1, greenValley: 1 };
   Object.entries(expectedSizes).forEach(([group, expected]) => {

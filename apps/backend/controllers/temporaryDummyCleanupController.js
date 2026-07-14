@@ -1,6 +1,9 @@
 import crypto from "crypto";
 import User from "../models/User.js";
-import { runSpecifiedDummyAccountCleanup } from "../scripts/permanentlyDeleteSpecifiedDummyAccounts.js";
+import {
+  inspectSpecifiedDummyTargetGroups,
+  runSpecifiedDummyAccountCleanup,
+} from "../scripts/permanentlyDeleteSpecifiedDummyAccounts.js";
 
 const AUTHORIZED_EMAIL = "adminho@orchardgrowers.in";
 const CONFIRMATION = "DELETE FIVE DUMMY ACCOUNTS PERMANENTLY";
@@ -129,6 +132,75 @@ const publicTarget = (target = {}) => ({
   paymentAndErpRecords: target.paymentAndErpRecords,
 });
 
+const publicDiagnosticUser = (user = {}, groupNames = []) => ({
+  _id: String(user._id),
+  name: String(user.name || ""),
+  email: maskEmail(user.email),
+  phone: maskPhone(user.phone),
+  contact: maskPhone(user.contact),
+  role: String(user.role || ""),
+  activeRole: String(user.activeRole || ""),
+  orchardName: String(user.orchardName || ""),
+  businessName: String(user.businessName || ""),
+  buyerContactPerson: String(user.buyerContactPerson || ""),
+  createdAt: user.createdAt,
+  groupNames,
+});
+
+const inspectTargetGroupOverlaps = async () => {
+  const matchedGroups = await inspectSpecifiedDummyTargetGroups();
+  const memberships = new Map();
+
+  Object.entries(matchedGroups).forEach(([groupName, users]) => {
+    users.forEach((user) => {
+      const userId = String(user._id);
+      const existing = memberships.get(userId) || { user, groupNames: [] };
+      existing.groupNames.push(groupName);
+      memberships.set(userId, existing);
+    });
+  });
+
+  const groupCounts = Object.fromEntries(
+    Object.entries(matchedGroups).map(([groupName, users]) => [groupName, users.length])
+  );
+  const groups = Object.fromEntries(
+    Object.entries(matchedGroups).map(([groupName, users]) => [
+      groupName,
+      {
+        count: users.length,
+        matches: users.map((user) => {
+          const membership = memberships.get(String(user._id));
+          return publicDiagnosticUser(user, membership?.groupNames || [groupName]);
+        }),
+      },
+    ])
+  );
+  const overlaps = Array.from(memberships.entries())
+    .filter(([, membership]) => membership.groupNames.length > 1)
+    .map(([userId, membership]) => ({ _id: userId, groupNames: membership.groupNames }));
+  const groupCardinalityIssues = Object.entries(groupCounts)
+    .filter(([, count]) => count !== 1)
+    .map(([groupName, count]) => ({
+      groupName,
+      count,
+      issue: count === 0 ? "zero-records" : "multiple-records",
+    }));
+
+  return {
+    groups,
+    groupCounts,
+    totalMatchesBeforeDeduplication: Object.values(groupCounts).reduce((sum, count) => sum + count, 0),
+    uniqueUserCount: memberships.size,
+    duplicateUserIds: overlaps.map((overlap) => overlap._id),
+    groupOverlaps: overlaps,
+    sharedUserRecords: Array.from(memberships.values())
+      .filter((membership) => membership.groupNames.length > 1)
+      .map((membership) => publicDiagnosticUser(membership.user, membership.groupNames)),
+    groupCardinalityIssues,
+    hasZeroOrMultipleGroups: groupCardinalityIssues.length > 0,
+  };
+};
+
 export const runTemporaryDummyCleanup = async (req, res) => {
   const configuredCleanupKey = process.env.INTERNAL_DUMMY_CLEANUP_KEY;
   if (!configuredCleanupKey) {
@@ -145,7 +217,7 @@ export const runTemporaryDummyCleanup = async (req, res) => {
   }
 
   const mode = String(req.body?.mode || "").trim().toLowerCase();
-  if (!["prepare", "execute", "inspect-green-valley"].includes(mode)) {
+  if (!["prepare", "execute", "inspect-green-valley", "inspect-target-groups"].includes(mode)) {
     return res.status(400).json({ success: false, msg: "Unsupported cleanup endpoint mode" });
   }
   if (mode === "inspect-green-valley") {
@@ -153,6 +225,13 @@ export const runTemporaryDummyCleanup = async (req, res) => {
       success: true,
       mode,
       ...(await inspectGreenValleyCandidates()),
+    });
+  }
+  if (mode === "inspect-target-groups") {
+    return res.json({
+      success: true,
+      mode,
+      ...(await inspectTargetGroupOverlaps()),
     });
   }
   if (mode === "execute" && req.body?.confirmation !== CONFIRMATION) {
