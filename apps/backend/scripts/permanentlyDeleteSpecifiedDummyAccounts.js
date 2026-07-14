@@ -282,13 +282,17 @@ async function getImpact(userId) {
 async function printDryRun(targets, manifest) {
   console.log(`[dummy-cleanup] mode=dry-run manifest=${MANIFEST_PATH}`);
   console.log(`[dummy-cleanup] created=${manifest.createdAt} expires=${manifest.expiresAt} executed=${manifest.executedAt || "no"}`);
+  const results = [];
   for (const user of targets) {
     const snapshot = snapshotFor(user);
     const impact = await getImpact(user._id);
-    console.log(JSON.stringify({ ...snapshot, ...impact }, null, 2));
+    const result = { ...snapshot, ...impact };
+    results.push(result);
+    console.log(JSON.stringify(result, null, 2));
   }
   const missing = manifest.targets.filter((target) => !targets.some((user) => String(user._id) === target._id));
   if (missing.length) console.log(`[dummy-cleanup] targets no longer present: ${missing.map((target) => target._id).join(", ")}`);
+  return { results, missing: missing.map((target) => target._id) };
 }
 
 async function createManifest() {
@@ -419,39 +423,82 @@ async function executeDeletion(manifest, targets) {
   await fs.writeFile(MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   console.log(`[dummy-cleanup] database transaction committed; six users permanently deleted`);
   console.log(`[dummy-cleanup] Cloudinary deleted=${cloudinary.deleted} failed=${cloudinary.failed}`);
+  return {
+    userIds: graph.userIds.map(String),
+    deleted: {
+      users: EXPECTED_TARGET_COUNT,
+      products: graph.productIds.length,
+      auctions: graph.auctionIds.length,
+      quotations: graph.quoteIds.length,
+      orders: graph.orderIds.length,
+      deliveries: graph.deliveries.length,
+      logisticsShipments: graph.shipments.length,
+      payments: graph.paymentIds.length,
+      refunds: graph.refundIds.length,
+      settlements: graph.settlementIds.length,
+      commissions: graph.commissions.length,
+      ledgerEntries: graph.ledgerEntries.length,
+      erpDocuments: graph.documents.length,
+      notifications: graph.notifications.length,
+      supportTickets: graph.tickets.length,
+      auditEvents: graph.audits.length,
+      profilePublications: graph.publications.length,
+      verificationRequests: graph.verificationIds.length,
+      captureSessions: graph.captureIds.length,
+    },
+    cloudinary,
+    executedAt: manifest.executedAt,
+  };
+}
+
+export async function runSpecifiedDummyAccountCleanup({ execute = false, confirmation = "", manageConnection = false } = {}) {
+  try {
+    if (manageConnection) await connectToMongo();
+    if (!manageConnection && mongoose.connection.readyState !== 1) throw new Error("Production MongoDB connection is not ready");
+    if (!manageConnection) {
+      const database = String(mongoose.connection.name || "").trim();
+      const host = String(mongoose.connection.host || "").trim().toLowerCase();
+      const allowedOverride = String(process.env.ALLOW_PRODUCTION_DATABASE_NAME || "").trim();
+      if (["localhost", "127.0.0.1", "::1"].includes(host)) throw new Error("Safety refusal: local MongoDB hosts are not allowed");
+      if (database.toLowerCase() === "efruitmandi") throw new Error("Safety refusal: database efruitmandi is not an allowed production target");
+      if (database !== "orchardgrowers" && database !== allowedOverride) throw new Error(`Safety refusal: database ${database || "(unspecified)"} is not the expected production database`);
+    }
+
+    let manifest = await loadManifest();
+    if (!manifest) {
+      if (execute) throw new Error("Execution refused: generate and review the dry-run manifest first");
+      const generated = await createManifest();
+      manifest = generated.manifest;
+      const dryRun = await printDryRun(generated.targets, manifest);
+      console.log("[dummy-cleanup] manifest generated; review it before execution");
+      return { mode: "dry-run", manifestPath: MANIFEST_PATH, manifest, ...dryRun };
+    }
+
+    const targets = await loadManifestTargets(manifest, execute && !manifest.executedAt);
+    if (!execute) {
+      const dryRun = await printDryRun(targets, manifest);
+      return { mode: "dry-run", manifestPath: MANIFEST_PATH, manifest, ...dryRun };
+    }
+    if (confirmation !== CONFIRMATION) throw new Error(`Execution refused: use --confirm="${CONFIRMATION}"`);
+    return { mode: "execute", manifestPath: MANIFEST_PATH, ...(await executeDeletion(manifest, targets)) };
+  } finally {
+    if (manageConnection) await mongoose.disconnect().catch(() => undefined);
+  }
 }
 
 async function main() {
   const execute = process.argv.includes("--execute");
   const confirmArg = process.argv.find((arg) => arg.startsWith("--confirm="));
   const confirmation = confirmArg ? confirmArg.slice("--confirm=".length) : "";
-  await connectToMongo();
-
-  let manifest = await loadManifest();
-  if (!manifest) {
-    if (execute) throw new Error("Execution refused: generate and review the dry-run manifest first");
-    const generated = await createManifest();
-    manifest = generated.manifest;
-    await printDryRun(generated.targets, manifest);
-    console.log("[dummy-cleanup] manifest generated; review it before execution");
-    return;
-  }
-
-  const targets = await loadManifestTargets(manifest, execute && !manifest.executedAt);
-  if (!execute) {
-    await printDryRun(targets, manifest);
-    return;
-  }
-  if (confirmation !== CONFIRMATION) throw new Error(`Execution refused: use --confirm="${CONFIRMATION}"`);
-  await executeDeletion(manifest, targets);
+  await runSpecifiedDummyAccountCleanup({ execute, confirmation, manageConnection: true });
 }
 
-try {
-  await main();
-  process.exitCode = 0;
-} catch (error) {
-  console.error("[dummy-cleanup] fatal:", error?.message || error);
-  process.exitCode = 1;
-} finally {
-  await mongoose.disconnect().catch(() => undefined);
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try {
+    await main();
+    process.exitCode = 0;
+  } catch (error) {
+    console.error("[dummy-cleanup] fatal:", error?.message || error);
+    process.exitCode = 1;
+  }
 }
