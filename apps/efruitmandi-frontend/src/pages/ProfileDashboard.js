@@ -674,20 +674,20 @@ export default function ProfileDashboard() {
           : false;
   const ogStatusLabel =
     roleOgStatus === "PENDING"
-      ? "OG verification pending"
+      ? "OG Trusted Badge pending"
       : roleOgStatus === "UNDER_REVIEW"
-        ? "OG verification under review"
+        ? "OG Trusted Badge under review"
         : roleOgStatus === "REJECTED"
-          ? "OG verification rejected"
+          ? "OG Trusted Badge rejected"
           : roleOgStatus === "CORRECTION_REQUIRED"
-            ? "OG verification correction required"
+            ? "OG Trusted Badge correction required"
             : "";
   const organizationLabel = displayName;
   const trustedLabel = isTrustedAccount
     ? "Orchard Growers Verified"
     : profileMode === "buyer"
-      ? ogStatusLabel || "Apply for OG Verification"
-      : ogStatusLabel || "Apply for OG Verification";
+      ? ogStatusLabel || "Apply for OG Trusted Badge"
+      : ogStatusLabel || "Apply for OG Trusted Badge";
   const trustedActionLabel = profileMode === "buyer" ? "Visit Buyers Space" : "Visit Growers Orchard";
   const editDetailsTitle =
     profileMode === "buyer"
@@ -1390,7 +1390,7 @@ export default function ProfileDashboard() {
                     onClick={requestVerification}
                     className="rounded-full bg-green-700 px-4 py-2 text-xs font-extrabold text-white hover:bg-green-800"
                   >
-                    Apply for OG Verification
+                    Apply for OG Trusted Badge
                   </button>
                 )}
               </div>
