@@ -1431,7 +1431,7 @@ export default function ProfileDashboard() {
           />
         )}
 
-        {needsKycUpdate ? (
+        {!isVisitor && (needsKycUpdate ? (
           <section className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
             <p className="text-sm font-extrabold text-amber-900">
               {kycDashboardCopy.title}
@@ -1486,7 +1486,7 @@ export default function ProfileDashboard() {
               </button>
             )}
           </section>
-        )}
+        ))}
 
         {profileMode === "buyer" && (
           <>
