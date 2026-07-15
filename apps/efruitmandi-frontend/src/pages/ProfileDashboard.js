@@ -42,9 +42,7 @@ import {
 } from "../utils/msg91OtpWidget";
 
 const assetUrl = (path) => `${process.env.PUBLIC_URL || ""}${path}`;
-const logoUrl = assetUrl("/logo-240.png");
 const orchardCover = assetUrl("/profile-banners/efruitmandi-profile-cover.png");
-const buyerLogoUrl = assetUrl("/profile-images/green-valley-fruit-traders-logo.svg");
 const youtubeUrl = "https://www.youtube.com/results?search_query=Efruit+Mandi";
 
 const normalizeKycStatus = (status = "") => {
@@ -699,27 +697,19 @@ export default function ProfileDashboard() {
         : profileMode === "driver"
           ? "Edit Logistics Details"
           : "Edit Profile";
-  const organizationLogo =
-    profileMode === "buyer"
-      ? buyerLogoUrl
-      : profileMode === "grower"
-        ? logoUrl
-        : logoUrl;
   const companyLogoUrl =
     profileMode === "buyer"
-      ? resolveProfileMediaUrl(user.buyerCompanyLogoUrl) || buyerLogoUrl
-      : resolveProfileMediaUrl(user.companyLogoUrl) || organizationLogo;
+      ? resolveProfileMediaUrl(user.buyerCompanyLogoUrl)
+      : resolveProfileMediaUrl(user.companyLogoUrl);
   const bannerUrl =
     profileMode === "buyer"
       ? resolveProfileMediaUrl(user.buyerBannerUrl) || orchardCover
       : resolveProfileMediaUrl(user.bannerUrl) || orchardCover;
   const avatarUrl =
     profileMode === "buyer"
-      ? resolveProfileMediaUrl(user.buyerAvatarUrl) || buyerLogoUrl
+      ? resolveProfileMediaUrl(user.buyerAvatarUrl) || resolveProfileMediaUrl(user.avatarUrl)
       : profileMode === "grower"
-        ? resolveProfileMediaUrl(user.companyLogoUrl) ||
-          resolveProfileMediaUrl(user.avatarUrl) ||
-          organizationLogo
+        ? resolveProfileMediaUrl(user.avatarUrl)
         : resolveProfileMediaUrl(user.avatarUrl);
   const lockedAmount = Number(user.lockedAmount || 0);
   const lockedAmountLabel = formatCurrency(lockedAmount);
@@ -1723,11 +1713,13 @@ export default function ProfileDashboard() {
                 </p>
                 <div className="mt-3 flex items-center gap-3">
                   <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 p-2">
-                    <img
-  src={mediaDraft.companyLogoUrlPreview || companyLogoUrl}
-  alt="Company logo"
-  className="max-h-full max-w-full object-contain"
-/>
+                    {(mediaDraft.companyLogoUrlPreview || companyLogoUrl) && (
+                      <img
+                        src={mediaDraft.companyLogoUrlPreview || companyLogoUrl}
+                        alt="Uploaded organization logo"
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    )}
                   </div>
                   <label className="inline-flex cursor-pointer items-center justify-center rounded-md bg-green-700 px-4 py-2 text-xs font-extrabold text-white hover:bg-green-800">
                     Upload logo
