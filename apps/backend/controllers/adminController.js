@@ -12,6 +12,7 @@ import jwt from "jsonwebtoken";
 import { sendEmail, sendOtpEmail } from "../services/mailService.js";
 import {
   deleteCloudinaryAssetsByUrls,
+  getCloudinaryPrivateDownloadUrls,
   getAdminProductFolder,
   uploadBufferToCloudinary,
 } from "../services/cloudinaryService.js";
@@ -2143,12 +2144,26 @@ export const previewAdminDocument = async (req, res) => {
     return res.status(400).json({ msg: "Document host is not allowed" });
   }
 
-  const upstream = await fetch(documentUrl, {
+  const fetchDocument = (url) => fetch(url, {
     redirect: "follow",
     signal: AbortSignal.timeout(15000),
   });
+  let upstream = await fetchDocument(documentUrl);
   if (!upstream.ok) {
-    return res.status(502).json({ msg: `Document source returned ${upstream.status}` });
+    const signedUrls = getCloudinaryPrivateDownloadUrls(documentUrl.href);
+    for (const signedUrl of signedUrls) {
+      upstream.body?.cancel().catch(() => {});
+      upstream = await fetchDocument(signedUrl);
+      if (upstream.ok) break;
+    }
+  }
+  if (!upstream.ok) {
+    const sourceStatus = upstream.status;
+    return res.status(502).json({
+      msg: sourceStatus === 401
+        ? "Cloudinary PDF delivery is blocked. Enable PDF and ZIP delivery in Cloudinary Security settings."
+        : `Document source returned ${sourceStatus}`,
+    });
   }
 
   const bytes = Buffer.from(await upstream.arrayBuffer());

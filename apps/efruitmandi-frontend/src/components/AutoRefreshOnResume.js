@@ -30,11 +30,34 @@ export default function AutoRefreshOnResume() {
     let wasOffline = !navigator.onLine;
     let pendingRefresh = false;
     let reloadStarted = false;
+    let unsavedFormRoute = "";
+
+    const getCurrentRoute = () => `${window.location.pathname}${window.location.search}`;
+    const hasUnsavedFormChanges = () =>
+      Boolean(unsavedFormRoute && unsavedFormRoute === getCurrentRoute());
+    const isEditableFormControl = (target) =>
+      target instanceof Element &&
+      !target.closest('[data-auto-refresh-ignore="true"]') &&
+      Boolean(
+        target.matches("textarea, select, [contenteditable='true']") ||
+          target.matches("input:not([type='button']):not([type='submit']):not([type='reset'])")
+      );
+    const markFormAsUnsaved = (event) => {
+      if (isEditableFormControl(event.target)) unsavedFormRoute = getCurrentRoute();
+    };
+    const clearUnsavedForm = () => {
+      unsavedFormRoute = "";
+      pendingRefresh = false;
+    };
 
     const refreshPage = () => {
       const now = Date.now();
 
       if (reloadStarted) return;
+      if (hasUnsavedFormChanges()) {
+        pendingRefresh = true;
+        return;
+      }
       if (document.hidden || !navigator.onLine) {
         pendingRefresh = true;
         return;
@@ -111,6 +134,10 @@ export default function AutoRefreshOnResume() {
     window.addEventListener("online", handleOnline);
     window.addEventListener("focus", handleFocus);
     window.addEventListener("pageshow", handlePageShow);
+    window.addEventListener("efruitmandi-form-saved", clearUnsavedForm);
+    document.addEventListener("input", markFormAsUnsaved, true);
+    document.addEventListener("change", markFormAsUnsaved, true);
+    document.addEventListener("reset", clearUnsavedForm, true);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
@@ -122,6 +149,10 @@ export default function AutoRefreshOnResume() {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("focus", handleFocus);
       window.removeEventListener("pageshow", handlePageShow);
+      window.removeEventListener("efruitmandi-form-saved", clearUnsavedForm);
+      document.removeEventListener("input", markFormAsUnsaved, true);
+      document.removeEventListener("change", markFormAsUnsaved, true);
+      document.removeEventListener("reset", clearUnsavedForm, true);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);

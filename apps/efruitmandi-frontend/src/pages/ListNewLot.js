@@ -479,6 +479,14 @@ const formatCalculatedValue = (value) =>
     : "0";
 
 const SAMPLE_IMAGE_SLOTS = [0, 1, 2, 3, 4];
+const formatOrdinal = (value) => {
+  const remainder100 = value % 100;
+  if (remainder100 >= 11 && remainder100 <= 13) return `${value}th`;
+  if (value % 10 === 1) return `${value}st`;
+  if (value % 10 === 2) return `${value}nd`;
+  if (value % 10 === 3) return `${value}rd`;
+  return `${value}th`;
+};
 const SAMPLE_IMAGE_WIDTH = 720;
 const SAMPLE_IMAGE_HEIGHT = 540;
 const SAMPLE_IMAGE_QUALITY = 0.65;
@@ -1572,18 +1580,7 @@ export default function ListNewLot() {
 
           {selectedPacking && packingGroup === "graded" && (
             <div className="rounded-md border border-green-100 bg-green-50 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-sm font-extrabold text-black">Size-wise Packing Details</h2>
-                {packingRows.length < availableSizeOptions.length && (
-                  <button
-                    type="button"
-                    onClick={addPackingRow}
-                    className="text-xs font-extrabold text-green-800"
-                  >
-                    + Add Another Size
-                  </button>
-                )}
-              </div>
+              <h2 className="text-sm font-extrabold text-black">Size-wise Packing Details</h2>
               <div className="mt-3 space-y-3">
                 {packingRows.map((row, rowIndex) => {
                   const usedSizes = new Set(
@@ -1735,15 +1732,28 @@ export default function ListNewLot() {
                           {` · ${formatCalculatedValue(rowTotals.totalWeightKg)} kg`}
                         </div>
                       )}
-                      {packingRows.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removePackingRow(row.id)}
-                          className="mt-3 text-xs font-bold text-red-600"
-                        >
-                          Remove Size
-                        </button>
-                      )}
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                        {packingRows.length > 1 ? (
+                          <button
+                            type="button"
+                            onClick={() => removePackingRow(row.id)}
+                            className="text-xs font-bold text-red-600"
+                          >
+                            Remove Size
+                          </button>
+                        ) : (
+                          <span />
+                        )}
+                        {packingRows.length < availableSizeOptions.length && (
+                          <button
+                            type="button"
+                            onClick={addPackingRow}
+                            className="text-xs font-extrabold text-green-800"
+                          >
+                            + Add Another Size
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -1837,6 +1847,7 @@ export default function ListNewLot() {
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {SAMPLE_IMAGE_SLOTS.map((index) => {
                         const image = gradeLots[grade.key].images?.[index];
+                        const trayLayerLabel = `${grade.label} ${formatOrdinal(index + 1)} layer`;
                         const slotKey = `${grade.key}-${index}`;
                         const isUploading = uploadingImageSlot === slotKey;
                         const captureTargetKey = getCaptureTargetKey({
@@ -1870,8 +1881,12 @@ export default function ListNewLot() {
                                 {isCreatingCapture
                                   ? "Creating camera link..."
                                   : image
-                                  ? `Sample ${grade.label} pic ${index + 1} selected`
-                                  : `Connect mobile camera for pic ${grade.label} ${index + 1}`}
+                                  ? form.packingType === "Tray Packed Carton"
+                                    ? `Sample pic ${trayLayerLabel} selected`
+                                    : `Sample ${grade.label} pic ${index + 1} selected`
+                                  : form.packingType === "Tray Packed Carton"
+                                    ? `Connect mobile camera for pic ${trayLayerLabel}`
+                                    : `Connect mobile camera for pic ${grade.label} ${index + 1}`}
                               </span>
                             </button>
                           );
@@ -1889,8 +1904,12 @@ export default function ListNewLot() {
                                 {isUploading
                                   ? "Processing image..."
                                   : image
-                                  ? `Sample ${grade.label} pic ${index + 1} selected`
-                                  : `Take live sample pic ${grade.label} ${index + 1}`}
+                                  ? form.packingType === "Tray Packed Carton"
+                                    ? `Sample pic ${trayLayerLabel} selected`
+                                    : `Sample ${grade.label} pic ${index + 1} selected`
+                                  : form.packingType === "Tray Packed Carton"
+                                    ? `Take live sample pic ${trayLayerLabel}`
+                                    : `Take live sample pic ${grade.label} ${index + 1}`}
                               </span>
                               <input
                                 type="file"

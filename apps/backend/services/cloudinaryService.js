@@ -118,15 +118,43 @@ const getCloudinaryAssetIdentity = (value = "") => {
   try {
     const url = new URL(String(value || ""));
     if (url.hostname !== "res.cloudinary.com") return null;
-    const match = url.pathname.match(/^\/[^/]+\/(image|video|raw)\/upload\/(?:.*\/)?v\d+\/(.+)$/i);
+    const match = url.pathname.match(
+      /^\/([^/]+)\/(image|video|raw)\/(upload|private|authenticated)\/(?:v\d+\/)?(.+)$/i
+    );
     if (!match) return null;
-    const resourceType = match[1].toLowerCase();
-    let publicId = decodeURIComponent(match[2]);
+    const cloudName = match[1];
+    const resourceType = match[2].toLowerCase();
+    const deliveryType = match[3].toLowerCase();
+    let publicId = decodeURIComponent(match[4]);
+    const formatMatch = publicId.match(/\.([a-z0-9]+)$/i);
+    const format = formatMatch?.[1]?.toLowerCase() || "";
     if (resourceType !== "raw") publicId = publicId.replace(/\.[a-z0-9]+$/i, "");
-    return publicId ? { publicId, resourceType } : null;
+    return publicId ? { cloudName, publicId, resourceType, deliveryType, format } : null;
   } catch {
     return null;
   }
+};
+
+export const getCloudinaryPrivateDownloadUrls = (value = "") => {
+  const asset = getCloudinaryAssetIdentity(value);
+  if (!asset || !isCloudinaryConfigured() || !asset.format) return [];
+
+  const client = configureCloudinary();
+  if (client.config().cloud_name !== asset.cloudName) return [];
+
+  const options = {
+    resource_type: asset.resourceType,
+    type: asset.deliveryType,
+    expires_at: Math.floor(Date.now() / 1000) + 5 * 60,
+    attachment: false,
+  };
+  const publicIds = asset.resourceType === "raw"
+    ? [asset.publicId.replace(new RegExp(`\\.${asset.format}$`, "i"), ""), asset.publicId]
+    : [asset.publicId];
+
+  return Array.from(new Set(publicIds)).map((publicId) =>
+    client.utils.private_download_url(publicId, asset.format, options)
+  );
 };
 
 export const deleteCloudinaryAssetsByUrls = async (values = []) => {
