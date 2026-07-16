@@ -245,6 +245,7 @@ const CLASS_I_ADMIN_EMAILS = [
   "adminho@orchardgrowers.in",
   "komal@orchardgrowers.in",
 ].map(normalizeEmail);
+const HEAD_OFFICE_FINAL_APPROVER_EMAIL = "adminho@orchardgrowers.in";
 const CLASS_II_ADMIN_EMAILS = [
   "testadminclassII@orchardgrowers.in",
   "hr.ho@orchardgrowers.in",
@@ -857,6 +858,9 @@ const hasDualRejection = (reviews = []) => {
 
   return rejectedClasses.has("CLASS1") && rejectedClasses.has("CLASS2");
 };
+
+const canApproveWithoutSecondAdmin = (admin = {}) =>
+  normalizeEmail(admin.email || "") === HEAD_OFFICE_FINAL_APPROVER_EMAIL;
 
 const requireAdmin = (req, res) => {
   if (!req.user || !ADMIN_ROLES.includes(req.user.role)) {
@@ -2311,7 +2315,8 @@ export const reviewKycRequest = async (req, res) => {
     });
   }
 
-  const canFinalizeImmediately = currentAdmin.role === "SUPER_ADMIN";
+  const canApproveImmediately = canApproveWithoutSecondAdmin(currentAdmin);
+  const canRejectImmediately = currentAdmin.role === "SUPER_ADMIN";
   if (action === "UNDER_REVIEW") {
     user.kyc.status = "UNDER_REVIEW";
     user.kyc.reviewedBy = currentAdmin.id;
@@ -2325,7 +2330,7 @@ export const reviewKycRequest = async (req, res) => {
     user.kyc.reviewedAt = new Date();
   }
 
-  if (action === "APPROVE" && (hasDualApproval(user.kyc.adminReviews) || canFinalizeImmediately)) {
+  if (action === "APPROVE" && (hasDualApproval(user.kyc.adminReviews) || canApproveImmediately)) {
     user.kyc.status = "APPROVED";
     user.kyc.decidedBy = currentAdmin.id;
     user.kyc.decidedAt = new Date();
@@ -2338,7 +2343,7 @@ export const reviewKycRequest = async (req, res) => {
     user.accountStatus = "ACTIVE";
   }
 
-  if (action === "REJECT" && (hasDualRejection(user.kyc.adminReviews) || canFinalizeImmediately)) {
+  if (action === "REJECT" && (hasDualRejection(user.kyc.adminReviews) || canRejectImmediately)) {
     user.kyc.status = "REJECTED";
     user.kyc.decidedBy = currentAdmin.id;
     user.kyc.decidedAt = new Date();
@@ -2501,7 +2506,8 @@ export const reviewVerificationRequest = async (req, res) => {
 
   const hasTwoApprovals = hasDualApproval(request.adminReviews);
   const hasTwoRejects = hasDualRejection(request.adminReviews);
-  const canFinalizeImmediately = currentAdmin.role === "SUPER_ADMIN";
+  const canApproveImmediately = canApproveWithoutSecondAdmin(currentAdmin);
+  const canRejectImmediately = currentAdmin.role === "SUPER_ADMIN";
 
   if (action === "UNDER_REVIEW") {
     request.status = "UNDER_REVIEW";
@@ -2518,7 +2524,7 @@ export const reviewVerificationRequest = async (req, res) => {
     });
   }
 
-  if ((action === "APPROVE" && (hasTwoApprovals || canFinalizeImmediately))) {
+  if ((action === "APPROVE" && (hasTwoApprovals || canApproveImmediately))) {
     request.status = "APPROVED";
     request.decidedBy = currentAdmin.id;
     request.decidedAt = new Date();
@@ -2568,7 +2574,7 @@ export const reviewVerificationRequest = async (req, res) => {
     if (roleType === "grower") updates.growerOgVerified = false;
     if (roleType === "driver") updates.driverOgVerified = false;
     await User.findByIdAndUpdate(request.user, updates);
-  } else if (!["APPROVE", "UNDER_REVIEW"].includes(action) && (hasTwoRejects || canFinalizeImmediately)) {
+  } else if (!["APPROVE", "UNDER_REVIEW"].includes(action) && (hasTwoRejects || canRejectImmediately)) {
     request.status = action === "DISAPPROVE" ? "DISAPPROVED" : "REJECTED";
     request.decidedBy = currentAdmin.id;
     request.decidedAt = new Date();
