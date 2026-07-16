@@ -43,9 +43,9 @@ const initialForm = {
 
 const statusMessages = {
   NOT_SUBMITTED: "Submit KYC documents for admin review.",
-  PENDING: "Your KYC has been submitted and is waiting for admin review.",
-  COMPLETED: "Your KYC has been submitted and is waiting for admin review.",
-  UNDER_REVIEW: "Your KYC is currently under review.",
+  PENDING: "Your KYC has been submitted. Please allow up to 24 hours for verification.",
+  COMPLETED: "Your KYC has been submitted. Please allow up to 24 hours for verification.",
+  UNDER_REVIEW: "Your KYC is under review. Please allow up to 24 hours for verification.",
   APPROVED: "Your KYC is approved.",
   REJECTED: "Your KYC was rejected. Please check remarks and submit again.",
   CORRECTION_REQUIRED: "Please update the requested details and resubmit.",
@@ -298,9 +298,10 @@ const uploadToCloudinary = ({ file, signature, onProgress }) =>
     data.append("folder", signature.folder);
 
     const xhr = new XMLHttpRequest();
+    const resourceType = file.type === "application/pdf" ? "raw" : "image";
     xhr.open(
       "POST",
-      `https://api.cloudinary.com/v1_1/${signature.cloudName}/auto/upload`,
+      `https://api.cloudinary.com/v1_1/${signature.cloudName}/${resourceType}/upload`,
     );
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable)
@@ -325,7 +326,6 @@ const uploadToCloudinary = ({ file, signature, onProgress }) =>
 export default function Kyc() {
   const navigate = useNavigate();
   const location = useLocation();
-  const returnTo = location.state?.from || "";
   const isQuoteIntent = location.state?.intent === "quote";
   const intentMessage = location.state?.message || "";
   const routeRoleType = location.state?.roleType || "";
@@ -336,6 +336,8 @@ export default function Kyc() {
   const [kycStatus, setKycStatus] = useState("NOT_SUBMITTED");
   const [adminRemarks, setAdminRemarks] = useState("");
   const [message, setMessage] = useState("");
+  const [messageIsError, setMessageIsError] = useState(false);
+  const [showSubmissionSuccess, setShowSubmissionSuccess] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [uploadingLabel, setUploadingLabel] = useState("");
@@ -392,6 +394,14 @@ export default function Kyc() {
     viewport.addEventListener("resize", updateKeyboardState);
     return () => viewport.removeEventListener("resize", updateKeyboardState);
   }, []);
+
+  useEffect(() => {
+    if (!showSubmissionSuccess) return undefined;
+    const redirectTimer = window.setTimeout(() => {
+      navigate("/", { replace: true });
+    }, 5000);
+    return () => window.clearTimeout(redirectTimer);
+  }, [navigate, showSubmissionSuccess]);
 
   useEffect(() => {
     const loadKyc = async () => {
@@ -464,6 +474,7 @@ export default function Kyc() {
         setDraftReady(true);
       } catch {
         setMessage("Please login to update KYC.");
+        setMessageIsError(true);
         setDraftReady(true);
       }
     };
@@ -669,6 +680,7 @@ export default function Kyc() {
         },
       }));
       setMessage(errorMessage);
+      setMessageIsError(true);
     } finally {
       setUploadingLabel("");
     }
@@ -677,14 +689,16 @@ export default function Kyc() {
   const submitKyc = async (event) => {
     event.preventDefault();
     setMessage("");
+    setMessageIsError(false);
     setFieldErrors({});
 
     if (!canEdit) {
       setMessage(
         kycStatus === "APPROVED"
           ? "KYC already approved."
-          : "Only rejected or correction-required KYC can be edited.",
+          : "KYC has already been submitted and is pending review. Please allow up to 24 hours for verification.",
       );
+      setMessageIsError(true);
       return;
     }
 
@@ -700,6 +714,7 @@ export default function Kyc() {
     if (Object.keys(validationErrors).length) {
       setFieldErrors(validationErrors);
       setMessage(getFirstErrorMessage(validationErrors));
+      setMessageIsError(true);
       return;
     }
 
@@ -735,17 +750,20 @@ export default function Kyc() {
       saveUserToStorage(res.data);
       setKycStatus(res.data?.kyc?.status || "PENDING");
       trackKycSubmitted(form.roleType || "buyer");
-      setMessage(
-        "Your onboarding request has been submitted successfully. Verification and onboarding may take 24 to 48 hours.",
-      );
+      setMessage("");
+      setMessageIsError(false);
+      setShowSubmissionSuccess(true);
       localStorage.removeItem(
         `efruitmandiKycDraft:${currentUserId || getCurrentStoredUserId() || "guest"}:${form.roleType}`,
       );
-      if (returnTo) window.setTimeout(() => navigate(returnTo), 2500);
     } catch (err) {
       const apiFieldErrors = getApiFieldErrors(err);
       setFieldErrors(apiFieldErrors);
-      setMessage(getApiErrorMessage(err, "KYC submission failed."));
+      setMessage(
+        getFirstErrorMessage(apiFieldErrors) ||
+          getApiErrorMessage(err, "KYC submission failed. Please try again."),
+      );
+      setMessageIsError(true);
     } finally {
       setLoading(false);
     }
@@ -781,7 +799,7 @@ export default function Kyc() {
 
         {message && (
           <div
-            className={`mb-4 w-full max-w-full rounded-md px-3 py-2 text-sm font-bold ${message.toLowerCase().includes("failed") || Object.keys(fieldErrors).length ? "bg-red-50 text-red-800" : "bg-green-50 text-green-800"}`}
+            className={`mb-4 w-full max-w-full rounded-md px-3 py-2 text-sm font-bold ${messageIsError || Object.keys(fieldErrors).length ? "bg-red-50 text-red-800" : "bg-green-50 text-green-800"}`}
           >
             {message}
           </div>
@@ -1142,7 +1160,9 @@ export default function Kyc() {
             {loading
               ? "Submitting..."
               : !canEdit
-                ? "KYC Locked"
+                ? kycStatus === "APPROVED"
+                  ? "KYC Approved"
+                  : "KYC Submitted — Under Review"
                 : hasUploadingDocuments
                   ? "Uploading Documents..."
                   : !requiredDocumentsUploaded
@@ -1157,6 +1177,7 @@ export default function Kyc() {
       <MobileSubmitBar
         loading={loading}
         canEdit={canEdit}
+        kycStatus={kycStatus}
         canSubmit={canSubmitWithUploads}
         hasUploading={hasUploadingDocuments}
         requiredUploaded={requiredDocumentsUploaded}
@@ -1164,6 +1185,26 @@ export default function Kyc() {
         isKeyboardOpen={isKeyboardOpen}
         onSubmit={(event) => submitKyc(event)}
       />
+      {showSubmissionSuccess && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4">
+          <div
+            role="status"
+            aria-live="polite"
+            className="w-full max-w-sm rounded-xl bg-white p-5 text-center shadow-2xl"
+          >
+            <FaCheckCircle className="mx-auto text-5xl text-green-700" />
+            <h2 className="mt-3 text-xl font-extrabold text-gray-950">
+              KYC Submitted Successfully
+            </h2>
+            <p className="mt-2 text-sm font-bold leading-relaxed text-gray-700">
+              Your KYC is under review. Please allow up to 24 hours for verification.
+            </p>
+            <p className="mt-3 text-xs font-extrabold text-green-800">
+              Redirecting to Home in 5 seconds...
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1265,6 +1306,7 @@ function KycMobileProgressSummary({
 function MobileSubmitBar({
   loading,
   canEdit,
+  kycStatus,
   canSubmit,
   hasUploading,
   requiredUploaded,
@@ -1275,7 +1317,9 @@ function MobileSubmitBar({
   const label = loading
     ? "Submitting..."
     : !canEdit
-      ? "KYC Locked"
+      ? kycStatus === "APPROVED"
+        ? "KYC Approved"
+        : "KYC Submitted — Under Review"
       : hasUploading
         ? "Uploading documents..."
         : !requiredUploaded

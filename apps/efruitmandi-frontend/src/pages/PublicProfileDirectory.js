@@ -169,7 +169,7 @@ export function DirectoryCard({ profile, role, label }) {
   const name = getProfileName(profile, role);
   const profilePath = getProfilePath(profile, role);
   const location = String(profile.mainLocation || "").trim();
-  const image = resolveProfileImage(profile.logoUrl || profile.profileImage || profile.avatarUrl);
+  const image = resolveProfileImage(profile.logoUrl || profile.buyerCompanyLogoUrl || profile.companyLogoUrl);
   const buyerSubtype = role === "buyer"
     ? String(profile.businessType || "buyer").replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
     : "Fruit Grower";

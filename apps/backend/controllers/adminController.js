@@ -135,50 +135,65 @@ const getRoleKyc = (user = {}, roleType = "") => {
 
   return {};
 };
-const hasSubmittedKyc = (kyc = {}) =>
-  Boolean(
-    normalizeKycStatus(kyc.status) !== "NOT_SUBMITTED" ||
+const hasSubmittedKyc = (kyc = {}) => {
+  const status = normalizeKycStatus(kyc.status);
+  return Boolean(
+    (status && status !== "NOT_SUBMITTED") ||
       kyc.submittedAt ||
       (kyc.fullName && kyc.idProofNumber && (kyc.accountNumber || kyc.bankAccountNo))
   );
+};
+const getKycSubmissionSignature = (kyc = {}) =>
+  [
+    kyc.submittedAt ? new Date(kyc.submittedAt).toISOString() : "",
+    kyc.fullName,
+    kyc.idProofNumber || kyc.aadhaarCardNo,
+    kyc.accountNumber || kyc.bankAccountNo,
+    kyc.idProofImage || kyc.aadhaarCardFileUrl,
+  ]
+    .map((value) => String(value || "").trim().toLowerCase())
+    .join("|");
+
 const flattenKycUsers = (users = []) =>
   users.flatMap((userDoc) => {
     const user = userDoc.toObject?.() || userDoc;
-    const rows = [];
-    const seen = new Set();
+    const legacyKyc = user.kyc?.toObject?.() || user.kyc || {};
+    const candidates = [];
 
-    VALID_KYC_ROLE_TYPES.forEach((roleType) => {
-      const roleKyc = getRoleKyc(user, roleType);
+    // Keep the canonical/legacy submission first. Reading it through getRoleKyc for
+    // every role caused a role-less legacy KYC to appear three times in admin.
+    if (hasSubmittedKyc(legacyKyc)) {
+      candidates.push({ roleType: getKycRoleType(user), kyc: legacyKyc });
+    }
+
+    VALID_KYC_ROLE_TYPES.forEach((storedRoleType) => {
+      const storedKyc = user.kycByRole?.[storedRoleType];
+      const roleKyc = storedKyc?.toObject?.() || storedKyc || {};
       if (!hasSubmittedKyc(roleKyc)) return;
-      seen.add(roleType);
-      rows.push({
+      const embeddedRoleType = String(roleKyc.roleType || "").trim().toLowerCase();
+      candidates.push({
+        roleType: VALID_KYC_ROLE_TYPES.includes(embeddedRoleType) ? embeddedRoleType : storedRoleType,
+        kyc: roleKyc,
+      });
+    });
+
+    const seenSubmissions = new Set();
+    return candidates.flatMap(({ roleType, kyc }) => {
+      if (!VALID_KYC_ROLE_TYPES.includes(roleType)) return [];
+      const signature = getKycSubmissionSignature(kyc);
+      if (seenSubmissions.has(signature)) return [];
+      seenSubmissions.add(signature);
+      return [{
         ...user,
         _id: `${user._id}:${roleType}`,
         originalUserId: user._id,
         kyc: {
-          ...roleKyc,
+          ...kyc,
           roleType,
-          status: normalizeKycStatus(roleKyc.status),
+          status: normalizeKycStatus(kyc.status),
         },
-      });
+      }];
     });
-
-    const legacyKyc = user.kyc || {};
-    const legacyRoleType = getKycRoleType(user);
-    if (legacyRoleType && !seen.has(legacyRoleType) && hasSubmittedKyc(legacyKyc)) {
-      rows.push({
-        ...user,
-        _id: `${user._id}:${legacyRoleType}`,
-        originalUserId: user._id,
-        kyc: {
-          ...legacyKyc,
-          roleType: legacyRoleType,
-          status: normalizeKycStatus(legacyKyc.status),
-        },
-      });
-    }
-
-    return rows;
   });
 
 const hasRoleProfile = (user = {}, roleType = "") => getKycProfileTypes(user).has(roleType);
@@ -2110,6 +2125,50 @@ export const listKycRequests = async (req, res) => {
   res.json(flattenKycUsers(users));
 };
 
+export const previewAdminDocument = async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  let documentUrl;
+  try {
+    documentUrl = new URL(String(req.query.url || ""));
+  } catch {
+    return res.status(400).json({ msg: "Invalid document URL" });
+  }
+
+  if (documentUrl.protocol !== "https:" || documentUrl.hostname !== "res.cloudinary.com") {
+    return res.status(400).json({ msg: "Document host is not allowed" });
+  }
+
+  const upstream = await fetch(documentUrl, {
+    redirect: "follow",
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!upstream.ok) {
+    return res.status(502).json({ msg: `Document source returned ${upstream.status}` });
+  }
+
+  const bytes = Buffer.from(await upstream.arrayBuffer());
+  if (!bytes.length || bytes.length > 15 * 1024 * 1024) {
+    return res.status(422).json({ msg: "Document is empty or exceeds the preview limit" });
+  }
+
+  const isPdf = bytes.subarray(0, 5).toString() === "%PDF-";
+  if (!isPdf) {
+    return res.status(422).json({ msg: "Uploaded file is not a valid PDF. Please download or upload it again." });
+  }
+
+  const sourceName = decodeURIComponent(documentUrl.pathname.split("/").pop() || "kyc-document.pdf");
+  const safeName = sourceName.replace(/[^a-zA-Z0-9._-]/g, "_");
+  res.set({
+    "Content-Type": "application/pdf",
+    "Content-Length": String(bytes.length),
+    "Content-Disposition": `inline; filename="${safeName}"`,
+    "Cache-Control": "private, max-age=300",
+    "X-Content-Type-Options": "nosniff",
+  });
+  return res.send(bytes);
+};
+
 export const getKycRequestByAdmin = async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
@@ -2298,6 +2357,81 @@ export const reviewKycRequest = async (req, res) => {
     .populate("kyc.adminReviews.admin", "name email role");
 
   res.json(populated);
+};
+
+const ADMIN_EDITABLE_KYC_FIELDS = [
+  "fullName",
+  "phone",
+  "email",
+  "address",
+  "district",
+  "state",
+  "pinCode",
+  "idProofType",
+  "idProofNumber",
+  "aadhaarCardNo",
+  "panNumber",
+  "gstNumber",
+  "bankAccountHolderName",
+  "bankName",
+  "accountNumber",
+  "bankAccountNo",
+  "ifscCode",
+  "upiId",
+  "orchardName",
+  "orchardLocation",
+  "vehicleNumber",
+  "drivingLicenseNumber",
+  "udyanCardNo",
+];
+
+export const updateKycRequestByAdmin = async (req, res) => {
+  const currentAdmin = requireAdmin(req, res);
+  if (!currentAdmin) return;
+
+  const [rawUserId, rawRoleType] = String(req.params.userId || "").split(":");
+  const user = await User.findById(rawUserId);
+  if (!user) return res.status(404).json({ msg: "User not found" });
+
+  const requestedRoleType = String(rawRoleType || "").trim().toLowerCase();
+  const kycRoleType = VALID_KYC_ROLE_TYPES.includes(requestedRoleType)
+    ? requestedRoleType
+    : getKycRoleType(user);
+  if (!VALID_KYC_ROLE_TYPES.includes(kycRoleType)) {
+    return res.status(400).json({ msg: "KYC role could not be determined" });
+  }
+
+  const roleKyc = getRoleKyc(user, kycRoleType);
+  if (!hasSubmittedKyc(roleKyc)) return res.status(404).json({ msg: "KYC request not found" });
+
+  const updates = {};
+  ADMIN_EDITABLE_KYC_FIELDS.forEach((field) => {
+    if (!Object.prototype.hasOwnProperty.call(req.body, field)) return;
+    updates[field] = String(req.body[field] ?? "").trim();
+  });
+  if (!Object.keys(updates).length) {
+    return res.status(400).json({ msg: "No editable KYC information supplied" });
+  }
+
+  const updatedKyc = {
+    ...roleKyc,
+    ...updates,
+    roleType: kycRoleType,
+    status: normalizeKycStatus(roleKyc.status),
+    reviewedBy: currentAdmin.id,
+    reviewedAt: new Date(),
+  };
+  user.kyc = updatedKyc;
+  user.set(`kycByRole.${kycRoleType}`, updatedKyc);
+  await user.save();
+
+  const populated = await User.findById(user._id)
+    .select("-password -__v")
+    .populate("kyc.adminReviews.admin", "name email role");
+  const updatedRow = flattenKycUsers([populated]).find(
+    (row) => String(row._id) === `${user._id}:${kycRoleType}`
+  );
+  return res.json(updatedRow || populated);
 };
 
 export const updateKycStatusByAdmin = async (req, res) => {

@@ -136,11 +136,8 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
   const publicLocation = String(profile?.mainLocation || "").trim();
   const profileImage = resolveProfileMediaUrl(
     profile?.logoUrl ||
-      profile?.profileImage ||
-      profile?.profilePic ||
-      profile?.avatar ||
-      profile?.avatarUrl ||
-      profile?.photoURL
+      profile?.buyerCompanyLogoUrl ||
+      profile?.companyLogoUrl
   );
   const publicProfileImage = profileImage || fallbackLogo;
   const publicBannerImage = resolveProfileMediaUrl(profile?.bannerUrl);

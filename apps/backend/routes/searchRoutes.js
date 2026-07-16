@@ -76,7 +76,7 @@ router.get("/", async (req, res) => {
         ],
       })
         .select(
-          "name role activeRole profileTypes orchardName businessName buyerContactPerson buyerLocation logisticsName driverName vehicleNumber location avatarUrl buyerAvatarUrl companyLogoUrl isKycVerified isOgVerified isTrustedBadge createdAt"
+          "name role activeRole profileTypes orchardName businessName buyerContactPerson buyerLocation logisticsName driverName vehicleNumber location companyLogoUrl buyerCompanyLogoUrl isKycVerified isOgVerified isTrustedBadge createdAt"
         )
         .limit(limit)
         .lean(),
@@ -134,7 +134,7 @@ router.get("/", async (req, res) => {
         activeRole: user.activeRole,
         profileTypes: user.profileTypes || [],
         location: user.buyerLocation || user.location || "",
-        image: user.companyLogoUrl || user.buyerAvatarUrl || user.avatarUrl || "",
+        image: user.buyerCompanyLogoUrl || user.companyLogoUrl || "",
         isKycVerified: Boolean(user.isKycVerified),
         isOgVerified: Boolean(user.isOgVerified),
         isTrustedBadge: Boolean(user.isTrustedBadge),

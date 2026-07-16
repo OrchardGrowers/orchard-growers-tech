@@ -271,34 +271,18 @@ export const getSafePublicProfile = (user = {}, fallback = {}) => {
       ? firstText(
           source.logoUrl,
           source.buyerCompanyLogoUrl,
-          source.buyerAvatarUrl,
           source.companyLogoUrl,
-          source.avatarUrl,
-          source.profileImage,
-          source.profilePic,
-          source.avatar,
-          source.photoURL,
           fallback.logoUrl,
-          fallback.profileImage,
-          fallback.profilePic,
-          fallback.avatar,
-          fallback.photoURL
+          fallback.buyerCompanyLogoUrl,
+          fallback.companyLogoUrl
         )
       : firstText(
           source.logoUrl,
           source.companyLogoUrl,
-          source.avatarUrl,
-          source.profileImage,
-          source.profilePic,
-          source.avatar,
-          source.photoURL,
           source.buyerCompanyLogoUrl,
-          source.buyerAvatarUrl,
           fallback.logoUrl,
-          fallback.profileImage,
-          fallback.profilePic,
-          fallback.avatar,
-          fallback.photoURL
+          fallback.companyLogoUrl,
+          fallback.buyerCompanyLogoUrl
         );
 
   return {

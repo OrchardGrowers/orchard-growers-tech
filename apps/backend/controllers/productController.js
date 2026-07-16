@@ -19,7 +19,7 @@ import {
 } from "../services/dealLifecycleService.js";
 
 const PUBLIC_PROFILE_SELECT =
-  "name orchardName businessName buyerContactPerson companyLogoUrl avatarUrl bannerUrl buyerAvatarUrl buyerCompanyLogoUrl role profileTypes growerVerified buyerVerified growerOgVerified buyerOgVerified driverOgVerified ogVerificationByRole growerRatingAverage growerRatingCount mapLatitude mapLongitude createdAt";
+  "name orchardName businessName buyerContactPerson companyLogoUrl bannerUrl buyerCompanyLogoUrl role profileTypes growerVerified buyerVerified growerOgVerified buyerOgVerified driverOgVerified ogVerificationByRole growerRatingAverage growerRatingCount mapLatitude mapLongitude createdAt";
 const CLOSED_PRODUCT_STATUSES = new Set(["SOLD", "QUOTE_ACCEPTED", "DEAL_CONFIRMED", "quote_accepted", "deal_confirmed"]);
 const CLOSED_AUCTION_STATUSES = new Set(["ENDED", "CLOSED", "COMPLETED"]);
 const ACCEPTED_QUOTE_STATUSES = ["accepted", "ACCEPTED"];
@@ -749,7 +749,7 @@ export const getProducts = async (req, res) => {
     }
 
     const products = await Product.find(filters)
-      .populate("createdBy", "name orchardName businessName companyLogoUrl avatarUrl bannerUrl role location growerRatingAverage growerRatingCount growerOgVerified buyerOgVerified driverOgVerified ogVerificationByRole")
+      .populate("createdBy", "name orchardName businessName companyLogoUrl bannerUrl role location growerRatingAverage growerRatingCount growerOgVerified buyerOgVerified driverOgVerified ogVerificationByRole")
       .sort({ createdAt: -1 });
     const productIds = products.map((product) => product._id).filter(Boolean);
     const completedOrders = productIds.length

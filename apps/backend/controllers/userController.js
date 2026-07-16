@@ -75,11 +75,10 @@ const PUBLIC_PROFILE_SELECT = [
   "location",
   "addressLine3",
   "businessAddressLine3",
-  "avatarUrl",
-  "buyerAvatarUrl",
   "companyLogoUrl",
   "buyerCompanyLogoUrl",
   "bannerUrl",
+  "buyerBannerUrl",
   "buyerVerified",
   "growerVerified",
   "driverVerified",
@@ -230,11 +229,8 @@ const toPublicProfile = (user = {}, role = "") => {
   const roleLogo =
     role === "buyer"
       ? cleanPublicText(user.buyerCompanyLogoUrl) ||
-        cleanPublicText(user.companyLogoUrl) ||
-        cleanPublicText(user.buyerAvatarUrl) ||
-        cleanPublicText(user.avatarUrl)
-      : cleanPublicText(user.companyLogoUrl) ||
-        cleanPublicText(user.avatarUrl);
+        cleanPublicText(user.companyLogoUrl)
+      : cleanPublicText(user.companyLogoUrl);
   const registeredAt = user.profileRegisteredAtByRole?.[role] || user.createdAt;
 
   const isKycVerified = Boolean(
@@ -269,7 +265,7 @@ const toPublicProfile = (user = {}, role = "") => {
     logisticsName: role === "driver" ? user.logisticsName || "" : "",
     buyerContactPerson: role === "buyer" ? user.buyerContactPerson || "" : "",
     logoUrl: roleLogo,
-    bannerUrl: cleanPublicText(user.bannerUrl),
+    bannerUrl: cleanPublicText(role === "buyer" ? user.buyerBannerUrl || user.bannerUrl : user.bannerUrl),
     avatarUrl: roleLogo,
     profileImage: roleLogo,
     profilePic: roleLogo,
@@ -1400,7 +1396,9 @@ export const updateKyc = async (req, res) => {
       !["REJECTED", "CORRECTION_REQUIRED"].includes(existingKycStatus) &&
       Object.keys(existingKyc).some((key) => existingKyc[key])
     ) {
-      return res.status(400).json({ msg: "Only rejected or correction-required KYC can be edited." });
+      return res.status(400).json({
+        msg: "KYC has already been submitted and is pending review. Please allow up to 24 hours for verification.",
+      });
     }
 
     const udyanCardFile = req.files?.udyanCardFile?.[0];

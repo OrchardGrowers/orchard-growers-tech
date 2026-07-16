@@ -195,6 +195,7 @@ type KycUser = {
     passbookFileUrl?: string;
     aadhaarCardNo?: string;
     aadhaarCardFileUrl?: string;
+    documents?: UploadedFile[];
     status?: string;
     submittedAt?: string;
     adminReviews?: Review[];
@@ -431,6 +432,18 @@ const toOrchardPartyRecord = (value: unknown): OrchardPartyRecord | null => {
     status: getStoredPartyString(record, 'status') || 'Active',
     productMapping: getStoredPartyString(record, 'productMapping') || undefined,
   };
+};
+
+type KycUpdatePayload = Record<string, string>;
+
+const isSubmittedKycRequest = (user: KycUser) => {
+  const kyc = user.kyc || {};
+  const status = String(kyc.status || '').trim().toUpperCase();
+  return Boolean(
+    (status && status !== 'NOT_SUBMITTED') ||
+      kyc.submittedAt ||
+      (kyc.fullName && kyc.idProofNumber && (kyc.accountNumber || kyc.bankAccountNo))
+  );
 };
 
 const readStoredOrchardParties = ({ activeOnly = false }: { activeOnly?: boolean } = {}) => {
@@ -1794,7 +1807,7 @@ function App() {
       if (!adminsRes.ok) throw new Error(adminsData.msg || 'Could not load admin users');
       if (!quotesRes.ok) throw new Error(quotesData.msg || 'Could not load offers');
       if (!mandiCommodityRes.ok) throw new Error(mandiCommodityData.msg || 'Could not load mandi commodities');
-      setKycRequests(kycData || []);
+      setKycRequests(Array.isArray(kycData) ? kycData.filter(isSubmittedKycRequest) : []);
       setVerificationRequests(verificationData || []);
       setOrders(ordersData || []);
       setUsers(usersData || []);
@@ -2284,6 +2297,22 @@ function App() {
     loadRequests();
   };
 
+  const updateKycInformation = async (id: string, updates: KycUpdatePayload) => {
+    const res = await fetch(`${API_BASE}/admin/kyc-requests/${id}`, {
+      method: 'PATCH',
+      headers: authHeaders,
+      body: JSON.stringify(updates),
+    });
+    const data = await readResponseJson(res);
+    if (!res.ok) {
+      setMessage(data.msg || 'KYC information could not be updated.');
+      return false;
+    }
+    setMessage('KYC information updated successfully.');
+    await loadRequests();
+    return true;
+  };
+
   const syncMandiCommodities = async () => {
     if (!confirmTwice('sync AGMARKNET commodity master data')) return;
 
@@ -2727,6 +2756,7 @@ function App() {
         <KycVerificationPanel
           kycRequests={kycRequests}
           onReview={review}
+          onUpdate={updateKycInformation}
           onViewFile={setViewingFile}
         />
       );
@@ -3075,7 +3105,7 @@ function App() {
             />
           </div>
         </section>
-        {viewingFile && <FilePreviewModal file={viewingFile} onClose={() => setViewingFile(null)} />}
+        {viewingFile && <FilePreviewModal file={viewingFile} authHeaders={authHeaders} onClose={() => setViewingFile(null)} />}
       </div>
     </div>
   );
@@ -4193,10 +4223,12 @@ function RolesPermissionsPanel() {
 function KycVerificationPanel({
   kycRequests,
   onReview,
+  onUpdate,
   onViewFile,
 }: {
   kycRequests: KycUser[];
   onReview: (type: 'kyc' | 'verification', id: string, action: ReviewAction) => void;
+  onUpdate: (id: string, updates: KycUpdatePayload) => Promise<boolean>;
   onViewFile: (file: UploadedFile) => void;
 }) {
   const [filter, setFilter] = useState('all');
@@ -4239,7 +4271,7 @@ function KycVerificationPanel({
       </div>
       <RequestSection title="KYC Verification" count={filteredKycRequests.length}>
         {filteredKycRequests.map((user) => (
-          <KycRequestCard key={user._id} user={user} onReview={onReview} onViewFile={onViewFile} />
+          <KycRequestCard key={user._id} user={user} onReview={onReview} onUpdate={onUpdate} onViewFile={onViewFile} />
         ))}
       </RequestSection>
     </section>
@@ -7980,17 +8012,55 @@ function getKycUserRoleType(user: KycUser) {
   return kycRole || userRole || 'user';
 }
 
+const kycEditableFields: Array<{ key: string; label: string; roles?: string[] }> = [
+  { key: 'fullName', label: 'Full Name' },
+  { key: 'phone', label: 'Phone' },
+  { key: 'email', label: 'Email' },
+  { key: 'address', label: 'Premises Address' },
+  { key: 'district', label: 'District' },
+  { key: 'state', label: 'State' },
+  { key: 'pinCode', label: 'PIN Code' },
+  { key: 'idProofType', label: 'ID Proof Type' },
+  { key: 'idProofNumber', label: 'ID Proof Number' },
+  { key: 'panNumber', label: 'PAN Number' },
+  { key: 'gstNumber', label: 'GST Number' },
+  { key: 'bankAccountHolderName', label: 'Account Holder Name' },
+  { key: 'bankName', label: 'Bank Name' },
+  { key: 'accountNumber', label: 'Bank Account Number' },
+  { key: 'ifscCode', label: 'IFSC Code' },
+  { key: 'upiId', label: 'UPI ID' },
+  { key: 'orchardName', label: 'Orchard Name', roles: ['grower'] },
+  { key: 'orchardLocation', label: 'Orchard Location', roles: ['grower'] },
+  { key: 'udyanCardNo', label: 'Udyan Card Number', roles: ['grower'] },
+  { key: 'vehicleNumber', label: 'Vehicle Number', roles: ['driver'] },
+  { key: 'drivingLicenseNumber', label: 'Driving License Number', roles: ['driver'] },
+];
+
+function getKycEditDraft(kyc: NonNullable<KycUser['kyc']>) {
+  return Object.fromEntries(
+    kycEditableFields.map(({ key }) => [
+      key,
+      String((kyc as Record<string, unknown>)[key] || (key === 'accountNumber' ? kyc.bankAccountNo : '') || ''),
+    ])
+  ) as KycUpdatePayload;
+}
+
 function KycRequestCard({
   user,
   onReview,
+  onUpdate,
   onViewFile,
 }: {
   user: KycUser;
   onReview: (type: 'kyc', id: string, action: ReviewAction) => void;
+  onUpdate: (id: string, updates: KycUpdatePayload) => Promise<boolean>;
   onViewFile: (file: UploadedFile) => void;
 }) {
   const kyc = user.kyc || {};
   const roleType = getKycUserRoleType(user);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editDraft, setEditDraft] = useState<KycUpdatePayload>(() => getKycEditDraft(kyc));
   const kycStatus = String(kyc.status || '').toUpperCase();
   const isApproved = kycStatus === 'APPROVED';
   const premisesAddressLabel =
@@ -7999,6 +8069,39 @@ function KycRequestCard({
       : roleType === 'grower'
         ? 'Grower Premises'
         : 'Premises Address';
+  const visibleEditFields = kycEditableFields.filter((field) => !field.roles || field.roles.includes(roleType));
+  const extraDocuments = (kyc.documents || []).map((file, index) => ({
+    label: file.label || `View Document ${index + 1}`,
+    path: file.path || file.url,
+    fileName: file.fileName,
+  }));
+
+  useEffect(() => {
+    if (!isEditing) setEditDraft(getKycEditDraft(kyc));
+  }, [isEditing, user._id, user.kyc]);
+
+  const saveInformation = async () => {
+    setIsSaving(true);
+    const saved = await onUpdate(user._id, editDraft);
+    setIsSaving(false);
+    if (saved) setIsEditing(false);
+  };
+
+  const downloadInformation = () => {
+    const exportData = {
+      userId: user._id.split(':')[0],
+      roleType,
+      account: { name: user.name, email: user.email, phone: user.phone },
+      kyc,
+    };
+    const blobUrl = URL.createObjectURL(new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = `kyc-${roleType}-${user._id.split(':')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(blobUrl);
+  };
+
   return (
     <article className="rounded-xl border border-slate-800 bg-slate-950 p-4">
       <RequestHeader
@@ -8008,6 +8111,7 @@ function KycRequestCard({
       />
       <div className="mt-4 grid gap-2 text-sm text-slate-300">
         <Info label="Role Type" value={roleType} />
+        <Info label="Full Name" value={kyc.fullName || user.name} />
         <Info label="Phone" value={kyc.phone || user.phone} />
         <Info label="Email" value={kyc.email || user.email} />
         <Info label={premisesAddressLabel} value={kyc.address} />
@@ -8025,6 +8129,8 @@ function KycRequestCard({
         <Info label="Orchard Location" value={kyc.orchardLocation} />
         <Info label="Vehicle Number" value={kyc.vehicleNumber} />
         <Info label="Driving License" value={kyc.drivingLicenseNumber} />
+        <Info label="Udyan Card Number" value={kyc.udyanCardNo} />
+        <Info label="Submitted At" value={formatDate(kyc.submittedAt)} />
         <Info label="Admin Remarks" value={kyc.adminRemarks} />
       </div>
       <UploadedFilesPanel
@@ -8034,9 +8140,65 @@ function KycRequestCard({
           { label: 'View PAN', path: kyc.panImage },
           { label: 'View GST Certificate', path: kyc.gstCertificate },
           { label: 'View Bank Proof / Passbook', path: kyc.passbookFileUrl },
+          { label: 'View Udyan Card', path: kyc.udyanCardFileUrl },
           { label: 'View Driving License', path: kyc.drivingLicenseImage },
+          ...extraDocuments,
         ]}
       />
+      {kyc.adminReviews?.length ? (
+        <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900 p-3">
+          <p className="text-sm font-black text-white">Admin Review History</p>
+          <div className="mt-2 space-y-2">
+            {kyc.adminReviews.map((review, index) => (
+              <p key={`${review.reviewedAt || index}-${review.action}`} className="text-xs font-semibold text-slate-300">
+                {review.action} by {review.admin?.name || review.admin?.email || review.adminClass || 'Admin'} · {formatDate(review.reviewedAt)}
+                {review.note ? ` · ${review.note}` : ''}
+              </p>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={downloadInformation}
+          className="rounded-lg bg-sky-700 px-3 py-2 text-sm font-bold text-white hover:bg-sky-600"
+        >
+          Download Full KYC Information
+        </button>
+        <button
+          type="button"
+          onClick={() => setIsEditing((current) => !current)}
+          className="rounded-lg bg-amber-600 px-3 py-2 text-sm font-bold text-white hover:bg-amber-500"
+        >
+          {isEditing ? 'Cancel Information Change' : 'Change Mismatched Information'}
+        </button>
+      </div>
+      {isEditing ? (
+        <div className="mt-3 rounded-xl border border-amber-800 bg-amber-950/30 p-3">
+          <p className="text-sm font-black text-amber-200">Correct information after matching it with the uploaded documents.</p>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            {visibleEditFields.map((field) => (
+              <label key={field.key} className="block text-sm font-bold text-slate-300">
+                {field.label}
+                <input
+                  value={editDraft[field.key] || ''}
+                  onChange={(event) => setEditDraft((current) => ({ ...current, [field.key]: event.target.value }))}
+                  className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-amber-400"
+                />
+              </label>
+            ))}
+          </div>
+          <button
+            type="button"
+            disabled={isSaving}
+            onClick={saveInformation}
+            className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-500 disabled:opacity-60"
+          >
+            {isSaving ? 'Saving...' : 'Save Corrected Information'}
+          </button>
+        </div>
+      ) : null}
       <div className="mt-4 grid gap-2 md:grid-cols-4">
         <AdminActionButton label="Under Review" onClick={() => onReview('kyc', user._id, 'UNDER_REVIEW')} />
         <AdminActionButton
@@ -8165,17 +8327,25 @@ function UploadedFilesPanel({
   files: UploadedFile[];
   onViewFile: (file: UploadedFile) => void;
 }) {
+  const uploadedFiles = files.filter((file, index, allFiles) => {
+    const href = normalizeFileUrl(file.path || file.url);
+    if (!href) return false;
+    return allFiles.findIndex((candidate) => normalizeFileUrl(candidate.path || candidate.url) === href) === index;
+  });
+
+  if (!uploadedFiles.length) return null;
+
   return (
     <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900 p-3">
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="text-sm font-black text-white">Uploaded Documents / Media</p>
         <span className="rounded-full bg-slate-950 px-2 py-1 text-[10px] font-bold text-slate-400">
-          {files.filter((file) => normalizeFileUrl(file.path)).length}/{files.length}
+          {uploadedFiles.length}
         </span>
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {files.map((file) => (
-          <FileViewButton key={file.label} file={file} onViewFile={onViewFile} />
+        {uploadedFiles.map((file) => (
+          <FileViewButton key={`${file.label}-${file.path || file.url}`} file={file} onViewFile={onViewFile} />
         ))}
       </div>
     </div>
@@ -8189,33 +8359,85 @@ function FileViewButton({
   file: UploadedFile;
   onViewFile: (file: UploadedFile) => void;
 }) {
-  const href = normalizeFileUrl(file.path);
-
-  if (!href) {
-    return (
-      <div className="rounded-lg border border-dashed border-slate-700 px-3 py-2 text-sm font-bold text-slate-500">
-        {file.label}: Not uploaded
-      </div>
-    );
-  }
+  const href = normalizeFileUrl(file.path || file.url);
 
   return (
-    <button
-      type="button"
-      onClick={() => onViewFile(file)}
-      title={file.fileName || file.label}
-      className="rounded-lg bg-emerald-600 px-3 py-2 text-center text-sm font-bold text-white hover:bg-emerald-500"
-    >
-      {file.label}
-    </button>
+    <div className="flex overflow-hidden rounded-lg border border-slate-700">
+      <button
+        type="button"
+        onClick={() => onViewFile(file)}
+        title={file.fileName || file.label}
+        className="min-w-0 flex-1 bg-emerald-600 px-3 py-2 text-center text-sm font-bold text-white hover:bg-emerald-500"
+      >
+        {file.label}
+      </button>
+      <a
+        href={href}
+        download={file.fileName || file.label}
+        target="_blank"
+        rel="noreferrer"
+        className="bg-sky-700 px-3 py-2 text-sm font-bold text-white hover:bg-sky-600"
+      >
+        Download
+      </a>
+    </div>
   );
 }
 
-function FilePreviewModal({ file, onClose }: { file: UploadedFile; onClose: () => void }) {
-  const href = normalizeFileUrl(file.path);
+function FilePreviewModal({
+  file,
+  authHeaders,
+  onClose,
+}: {
+  file: UploadedFile;
+  authHeaders: Record<string, string>;
+  onClose: () => void;
+}) {
+  const href = normalizeFileUrl(file.path || file.url);
   const name = file.fileName || file.label;
   const isPdf = /\.pdf($|\?)/i.test(href) || /\.pdf$/i.test(name);
   const isImage = /\.(png|jpe?g|webp|gif|bmp|svg)($|\?)/i.test(href) || /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(name);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState('');
+  const [pdfPreviewError, setPdfPreviewError] = useState('');
+  const [pdfPreviewLoading, setPdfPreviewLoading] = useState(isPdf);
+
+  useEffect(() => {
+    if (!isPdf) return undefined;
+    let objectUrl = '';
+    let cancelled = false;
+    setPdfPreviewLoading(true);
+    setPdfPreviewError('');
+
+    const loadPdf = async () => {
+      try {
+        const isCloudinaryFile = /^https:\/\/res\.cloudinary\.com\//i.test(href);
+        const previewUrl = isCloudinaryFile
+          ? `${API_BASE}/admin/files/preview?url=${encodeURIComponent(href)}`
+          : href;
+        const response = await fetch(previewUrl, { headers: isCloudinaryFile ? authHeaders : undefined });
+        if (!response.ok) {
+          const errorData = await readResponseJson(response);
+          throw new Error(errorData.msg || `PDF returned ${response.status}`);
+        }
+        const blob = await response.blob();
+        if (blob.type && !blob.type.includes('pdf')) throw new Error('Uploaded file is not a valid PDF.');
+        objectUrl = URL.createObjectURL(blob);
+        if (!cancelled) setPdfPreviewUrl(objectUrl);
+      } catch (error) {
+        if (!cancelled) {
+          setPdfPreviewError(error instanceof Error ? error.message : 'PDF preview could not be loaded.');
+        }
+      } finally {
+        if (!cancelled) setPdfPreviewLoading(false);
+      }
+    };
+    loadPdf();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [authHeaders, href, isPdf]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-4">
@@ -8226,6 +8448,13 @@ function FilePreviewModal({ file, onClose }: { file: UploadedFile; onClose: () =
             <p className="text-xs font-bold text-slate-400">Supports Pic/PDF preview</p>
           </div>
           <div className="flex gap-2">
+            <a
+              href={href}
+              download={name}
+              className="rounded-lg bg-sky-700 px-3 py-2 text-sm font-bold text-white hover:bg-sky-600"
+            >
+              Download
+            </a>
             <a
               href={href}
               target="_blank"
@@ -8246,8 +8475,17 @@ function FilePreviewModal({ file, onClose }: { file: UploadedFile; onClose: () =
         <div className="min-h-[55vh] overflow-auto p-4">
           {isImage ? (
             <img src={href} alt={name} className="mx-auto max-h-[72vh] max-w-full rounded-lg object-contain" />
+          ) : isPdf && pdfPreviewLoading ? (
+            <div className="flex min-h-[55vh] items-center justify-center rounded-xl border border-slate-800 text-sm font-bold text-slate-300">
+              Loading PDF securely...
+            </div>
+          ) : isPdf && pdfPreviewUrl ? (
+            <iframe title={name} src={pdfPreviewUrl} className="h-[72vh] w-full rounded-lg border border-slate-800 bg-white" />
           ) : isPdf ? (
-            <iframe title={name} src={href} className="h-[72vh] w-full rounded-lg border border-slate-800 bg-white" />
+            <div className="rounded-xl border border-rose-900 bg-rose-950/40 p-6 text-center">
+              <p className="text-sm font-bold text-rose-200">{pdfPreviewError || 'PDF preview could not be loaded.'}</p>
+              <p className="mt-2 text-xs font-semibold text-slate-300">Use Download or Open New Tab. If that also fails, the source document must be uploaded again.</p>
+            </div>
           ) : (
             <div className="rounded-xl border border-dashed border-slate-700 p-6 text-center">
               <p className="text-sm font-bold text-slate-300">

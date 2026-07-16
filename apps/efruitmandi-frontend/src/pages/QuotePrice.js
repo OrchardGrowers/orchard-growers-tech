@@ -456,7 +456,7 @@ function LotMediaPanel({ product, images, activeImage, onSelectImage }) {
 function GrowerIdentity({ product }) {
   const grower = product?.createdBy || {};
   const name = grower.orchardName || grower.businessName || grower.name || "Grower's Orchard";
-  const logo = resolveProfileMediaUrl(grower.companyLogoUrl || grower.avatarUrl);
+  const logo = resolveProfileMediaUrl(grower.companyLogoUrl);
 
   if (!product) return null;
 

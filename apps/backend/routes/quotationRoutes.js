@@ -211,8 +211,8 @@ const formatPublicProfile = (user = {}, role = "", fallback = {}) => {
     name: pickText(user.name, user.buyerContactPerson, fallback.name),
     companyName: pickText(user.orchardName, user.businessName, fallback.companyName),
     logoUrl: isBuyer
-      ? pickText(user.buyerCompanyLogoUrl, user.buyerAvatarUrl, user.companyLogoUrl, user.avatarUrl)
-      : pickText(user.companyLogoUrl, user.avatarUrl),
+      ? pickText(user.buyerCompanyLogoUrl, user.companyLogoUrl)
+      : pickText(user.companyLogoUrl),
     mainLocation: getSafeMainLocation(user, role),
     isKycVerified,
     isOgVerified,
@@ -367,8 +367,8 @@ const formatQuote = (quotation = {}, visibility = "admin") => {
 const populateQuoteQuery = (query) =>
   query
     .populate("lot", "title fruitName variety quality quantity unit lotNo packingType totalWeightKg location status acceptedQuoteId acceptedBuyerId finalPrice finalDealValue createdBy")
-    .populate("buyer", "name businessName buyerContactPerson buyerLocation location buyerAvatarUrl buyerCompanyLogoUrl companyLogoUrl avatarUrl role profileTypes createdAt buyerVerified buyerOgVerified kycByRole ogVerificationByRole")
-    .populate("grower", "name orchardName businessName location companyLogoUrl avatarUrl role profileTypes createdAt growerVerified growerOgVerified kycByRole ogVerificationByRole");
+    .populate("buyer", "name businessName buyerContactPerson buyerLocation location buyerCompanyLogoUrl companyLogoUrl role profileTypes createdAt buyerVerified buyerOgVerified kycByRole ogVerificationByRole")
+    .populate("grower", "name orchardName businessName location companyLogoUrl role profileTypes createdAt growerVerified growerOgVerified kycByRole ogVerificationByRole");
 
 const normalizeId = (value) => {
   if (!value) return "";
