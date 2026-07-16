@@ -140,3 +140,6 @@ logs/
 
 # Turbo cache
 .turbo/
+
+# Local production environment
+apps/efruitmandi-frontend/.env.production
