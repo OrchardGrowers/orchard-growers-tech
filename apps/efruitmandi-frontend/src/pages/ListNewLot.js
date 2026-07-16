@@ -15,9 +15,32 @@ import {
 } from "react-icons/fa";
 import API, { getApiErrorMessage } from "../services/api";
 import { trackLotCreated } from "../services/analytics";
-import { getCurrentUser } from "../utils/auth";
+import {
+  CUSTOM_OPTION_CODE,
+  getPackingSpecification,
+} from "../config/packingSpecifications";
+import {
+  APPLE_LOOSE_PACKAGE_COUNT_OPTIONS,
+  APPLE_SIZE_GRADING,
+  APPLE_TRAY_PIECE_COUNT_OPTIONS,
+  ORGANIC_CERTIFIED_QUALITIES,
+  OTHER_CUSTOM_SIZE_CODE,
+  QUALITY_OPTIONS,
+  SIZE_OPTIONS,
+  formatAppleDiameterRange,
+  getAppleSizeFromDiameter,
+  getAppleSizePreset,
+  getSizeLabel,
+  isAppleFruitValue,
+} from "../config/appleGrading";
+import {
+  getCurrentUser,
+  hasCompletedKycForRole,
+  hasGrowerProfile,
+} from "../utils/auth";
 import { isMobileDevice, prepareUploadFile } from "../utils/mobileMedia";
 import { requestMediaPermission } from "../utils/mobilePermissions";
+import { calculatePackingTotals } from "../utils/packingCalculations";
 
 let fruitRecognitionModulePromise;
 
@@ -295,63 +318,165 @@ const DRY_FRUIT_NAMES = new Set([
   "White Raisin",
 ]);
 
-const QUALITY_OPTIONS = [
-  "Premium Certified Organic Export Quality",
-  "Premium Export Quality",
-  "Export Quality",
-  "Certified Organic",
-  "Premium Quality",
-  "A Grade Fresh",
-  "Natural / Farm Fresh",
+const requiresQualityCertificate = (quality = "") =>
+  ORGANIC_CERTIFIED_QUALITIES.has(String(quality || "").trim());
+
+const UNGRADED_QUALITY = "Ungraded / Farm Fresh";
+
+const getQualityPackingGroup = (quality = "") => {
+  if (!quality) return "";
+  return quality === UNGRADED_QUALITY ? "ungraded" : "graded";
+};
+
+const PACKING_TYPES_BY_QUALITY = {
+  ungraded: [
+    { label: "Crate", value: "Crate", kg: 18, unpacked: true, unit: "crates" },
+    { label: "Loose Carton", value: "Loose Carton", kg: 20, unit: "cartons" },
+    { label: "Loose Wooden Box", value: "Loose Wooden Box", kg: 20, unit: "boxes" },
+  ],
+  graded: [
+    { label: "Loose Crate", value: "Loose Crate", kg: 18, unit: "crates" },
+    { label: "Loose Carton", value: "Loose Carton", kg: 20, unit: "cartons" },
+    { label: "Loose Wooden Box", value: "Loose Wooden Box", kg: 20, unit: "boxes" },
+    { label: "Tray Packed Carton", value: "Tray Packed Carton", kg: 20, unit: "cartons" },
+  ],
+};
+
+const getPackingTypesForQuality = (quality = "") =>
+  PACKING_TYPES_BY_QUALITY[getQualityPackingGroup(quality)] || [];
+
+const PACKING_MEDIA_ROWS = [
+  ...SIZE_OPTIONS.map((size) => ({ label: size.label, key: size.value })),
+  { label: "Other / Custom", key: OTHER_CUSTOM_SIZE_CODE },
+  { label: "Ungraded", key: "UN_GRADED" },
 ];
 
-const ORGANIC_CERTIFIED_QUALITIES = new Set([
-  "Premium Certified Organic Export Quality",
-  "Certified Organic",
-]);
-
-const PACKING_TYPES = [
-  { label: "Unpacked / Crates / 18KG", kg: 18, unpacked: true, unit: "crates" },
-  { label: "Unpacked / Crates / 20KG", kg: 20, unpacked: true, unit: "crates" },
-  { label: "Unpacked / Crates / 25KG", kg: 25, unpacked: true, unit: "crates" },
-  { label: "400gms carton", kg: 0.4, unit: "cartons" },
-  { label: "500gms carton", kg: 0.5, unit: "cartons" },
-  { label: "800gms carton", kg: 0.8, unit: "cartons" },
-  { label: "1 KG carton", kg: 1, unit: "cartons" },
-  { label: "4 KG carton", kg: 4, unit: "cartons" },
-  { label: "5 KG carton", kg: 5, unit: "cartons" },
-  { label: "10 KG carton", kg: 10, unit: "cartons" },
-  { label: "15 KG carton", kg: 15, unit: "cartons" },
-  { label: "Universal Carton 20KG Aprox", kg: 20, unit: "cartons" },
-  { label: "25 KG Carton Aprox", kg: 25, unit: "cartons" },
-  { label: "30 KG Carton Aprox", kg: 30, unit: "cartons" },
-  { label: "28 KG Carton Aprox", kg: 28, unit: "cartons" },
-  { label: "14 KG Crates Aprox", kg: 14, unit: "crates" },
-  { label: "18 KG Crates Aprox", kg: 18, unit: "crates" },
-  { label: "20 KG Crates Aprox", kg: 20, unit: "crates" },
-  { label: "22 KG Crate Aprox", kg: 22, unit: "crates" },
-  { label: "25 KG Crate Aprox", kg: 25, unit: "crates" },
-  { label: "28 KG Crate Aprox", kg: 28, unit: "crates" },
-  { label: "30 KG Crate Aprox", kg: 30, unit: "crates" },
-  { label: "32 KG Crate Aprox", kg: 32, unit: "crates" },
-  { label: "35 KG Crate Aprox", kg: 35, unit: "crates" },
-];
-
-const GRADES = [
-  { label: "A+", key: "A_PLUS" },
-  { label: "A", key: "A" },
-  { label: "B+", key: "B_PLUS" },
-  { label: "B", key: "B" },
-  { label: "C+", key: "C_PLUS" },
-  { label: "C", key: "C" },
-  { label: "D", key: "D" },
-  { label: "Ungraded", key: "UN_GRADED", unpackedOnly: true },
-];
-
-const initialGradeLots = GRADES.reduce((lots, grade) => {
-  lots[grade.key] = { boxes: "", images: Array(5).fill(null) };
+const initialGradeLots = PACKING_MEDIA_ROWS.reduce((lots, row) => {
+  lots[row.key] = { images: Array(5).fill(null) };
   return lots;
 }, {});
+
+let packingRowSequence = 0;
+const createPackingRow = () => ({
+  id: `packing-row-${++packingRowSequence}`,
+  size: "",
+  packageCount: "",
+  piecesPerPackage: "",
+  traysPerPackage: "",
+  piecesPerTray: "",
+  weightPerPackageKg: "",
+  packageCapacityCode: "",
+  packageTypeCode: "",
+  packageSizeCode: "",
+  trayCountCode: "",
+  customPackageTypeSpecification: "",
+  customPackageSizeSpecification: "",
+  diameterPresetCode: "",
+  diameterMinMm: "",
+  diameterMaxMm: "",
+  countPreset: "",
+});
+
+const EMPTY_UNGRADED_PACKING = {
+  packageCount: "",
+  weightPerPackageKg: "",
+  packageCapacityCode: "",
+  packageTypeCode: "",
+  packageSizeCode: "",
+  trayCountCode: "",
+  customPackageTypeSpecification: "",
+  customPackageSizeSpecification: "",
+};
+
+const applyPackingSpecificationChange = (current, specification, field, value) => {
+  if (field === "packageCapacityCode") {
+    const capacity = specification?.capacityOptions?.find((item) => item.code === value);
+    return {
+      ...current,
+      packageCapacityCode: value,
+      weightPerPackageKg:
+        value === CUSTOM_OPTION_CODE ? "" : String(capacity?.valueKg ?? ""),
+    };
+  }
+  if (field === "packageTypeCode") {
+    return {
+      ...current,
+      packageTypeCode: value,
+      customPackageTypeSpecification:
+        value === CUSTOM_OPTION_CODE ? current.customPackageTypeSpecification : "",
+    };
+  }
+  if (field === "packageSizeCode") {
+    return {
+      ...current,
+      packageSizeCode: value,
+      customPackageSizeSpecification:
+        value === CUSTOM_OPTION_CODE ? current.customPackageSizeSpecification : "",
+    };
+  }
+  if (field === "trayCountCode") {
+    const trayCount = specification?.trayCountOptions?.find((item) => item.code === value);
+    return {
+      ...current,
+      trayCountCode: value,
+      traysPerPackage:
+        value === CUSTOM_OPTION_CODE ? "" : String(trayCount?.valueKg ?? ""),
+    };
+  }
+  return { ...current, [field]: value };
+};
+
+const getPackingSpecificationError = (details, specification) => {
+  if (!details.packageCapacityCode || Number(details.weightPerPackageKg) <= 0) {
+    return "Select a Package Capacity greater than 0.";
+  }
+  if (specification?.typeOptions && !details.packageTypeCode) {
+    return `Select ${specification.typeLabel}.`;
+  }
+  if (
+    details.packageTypeCode === CUSTOM_OPTION_CODE &&
+    !details.customPackageTypeSpecification.trim()
+  ) {
+    return `Enter ${specification.customTypeLabel}.`;
+  }
+  if (specification?.sizeOptions && !details.packageSizeCode) {
+    return `Select ${specification.sizeLabel}.`;
+  }
+  if (
+    details.packageSizeCode === CUSTOM_OPTION_CODE &&
+    !details.customPackageSizeSpecification.trim()
+  ) {
+    return `Enter ${specification.customSizeLabel}.`;
+  }
+  if (specification?.trayCountOptions && !details.trayCountCode) {
+    return `Select ${specification.trayCountLabel}.`;
+  }
+  if (details.trayCountCode === CUSTOM_OPTION_CODE && Number(details.traysPerPackage) <= 0) {
+    return `${specification.customTrayCountLabel} must be greater than 0.`;
+  }
+  return "";
+};
+
+const getPackageCountLabel = (packingType = "") => ({
+  Crate: "Number of Crates",
+  "Loose Crate": "Number of Crates",
+  "Loose Carton": "Number of Cartons",
+  "Loose Wooden Box": "Number of Wooden Boxes",
+  "Tray Packed Carton": "Number of Cartons",
+}[packingType] || "Number of Packages");
+
+const getPackageUnitLabel = (packingType = "") => ({
+  Crate: "Crates",
+  "Loose Crate": "Crates",
+  "Loose Carton": "Cartons",
+  "Loose Wooden Box": "Wooden Boxes",
+  "Tray Packed Carton": "Cartons",
+}[packingType] || "Packages");
+
+const formatCalculatedValue = (value) =>
+  Number.isFinite(Number(value))
+    ? Number(Number(value).toFixed(2)).toLocaleString("en-IN")
+    : "0";
 
 const SAMPLE_IMAGE_SLOTS = [0, 1, 2, 3, 4];
 const SAMPLE_IMAGE_WIDTH = 720;
@@ -414,6 +539,18 @@ const getLotNoPreview = () => {
   return `${makeFirmPrefix(getCurrentUser())}/${year}/001`;
 };
 
+const isLocalKycTestAccount = (user = {}) => {
+  if (process.env.NODE_ENV === "production") return false;
+
+  const email = String(user.email || "").trim().toLowerCase();
+  const phone = String(user.phone || user.contact || "").trim();
+
+  return (
+    ["testbuyer@efruitmandi.live", "testgrower@efruitmandi.live", "testdriver@efruitmandi.live"].includes(email) ||
+    ["1234567890", "1234567891", "1234567892"].includes(phone)
+  );
+};
+
 const getVarietiesForFruit = (fruitName) => {
   const mappedOptions = FRUIT_VARIETY_OPTIONS[fruitName] || [];
   const fallbackOptions = DRY_FRUIT_NAMES.has(fruitName)
@@ -440,6 +577,17 @@ const cropImageToPlatformFrame = async (file) => {
 
 export default function ListNewLot() {
   const navigate = useNavigate();
+  const currentUser = useMemo(() => getCurrentUser(), []);
+  const isAdminAccount = ["admin", "super_admin"].includes(
+    String(currentUser.role || "").trim().toLowerCase()
+  );
+  const isGrowerKycExempt =
+    isAdminAccount || Boolean(currentUser.growerVerified) || isLocalKycTestAccount(currentUser);
+  const requiresGrowerKycCheck = hasGrowerProfile(currentUser) && !isGrowerKycExempt;
+  const hasStoredGrowerKyc = hasCompletedKycForRole(currentUser, "grower");
+  const [kycAccessResolved, setKycAccessResolved] = useState(
+    !requiresGrowerKycCheck || hasStoredGrowerKyc
+  );
   const [fruits, setFruits] = useState(DEFAULT_FRUITS);
   const [varieties, setVarieties] = useState(DEFAULT_VARIETIES);
   const [customPanel, setCustomPanel] = useState(null);
@@ -452,9 +600,11 @@ export default function ListNewLot() {
     description: "",
     basePrice: "",
     location: "",
-    packingIndex: "0",
+    packingType: "",
   });
   const [gradeLots, setGradeLots] = useState(initialGradeLots);
+  const [packingRows, setPackingRows] = useState([]);
+  const [ungradedPacking, setUngradedPacking] = useState(EMPTY_UNGRADED_PACKING);
   const [sampleVideo, setSampleVideo] = useState(null);
   const [organicCertificate, setOrganicCertificate] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -468,32 +618,96 @@ export default function ListNewLot() {
   const localLotNoPreview = useMemo(() => getLotNoPreview(), []);
   const [lotNoPreview, setLotNoPreview] = useState(localLotNoPreview);
 
-  const selectedPacking = PACKING_TYPES[Number(form.packingIndex)] || PACKING_TYPES[0];
-  const packingUnit = selectedPacking.unit || "units";
-  const visibleGrades = useMemo(
-    () =>
-      GRADES.filter(
-        (grade) => !grade.unpackedOnly || selectedPacking.unpacked
-      ),
-    [selectedPacking]
+  const availablePackingTypes = useMemo(
+    () => getPackingTypesForQuality(form.quality),
+    [form.quality]
+  );
+  const selectedPacking =
+    availablePackingTypes.find((packing) => packing.value === form.packingType) || null;
+  const selectedPackingSpecification = getPackingSpecification(form.packingType);
+  const packingGroup = getQualityPackingGroup(form.quality);
+  const isAppleFruit = isAppleFruitValue(form.fruitName);
+  const availableSizeOptions = isAppleFruit
+    ? APPLE_SIZE_GRADING.map((preset) => ({ label: preset.label, value: preset.code }))
+    : SIZE_OPTIONS;
+  const currentPackingBreakdown = useMemo(
+    () => packingGroup === "graded"
+      ? packingRows.map((row) => ({
+          size: row.size,
+          packageCount: Number(row.packageCount),
+          piecesPerPackage: Number(row.piecesPerPackage),
+          traysPerPackage: form.packingType === "Tray Packed Carton"
+            ? Number(row.traysPerPackage)
+            : undefined,
+          piecesPerTray: form.packingType === "Tray Packed Carton"
+            ? Number(row.piecesPerTray)
+            : undefined,
+          weightPerPackageKg: Number(row.weightPerPackageKg),
+          packageCapacityCode: row.packageCapacityCode,
+          packageTypeCode: row.packageTypeCode || undefined,
+          packageSizeCode: row.packageSizeCode || undefined,
+          customPackageTypeSpecification:
+            row.customPackageTypeSpecification.trim() || undefined,
+          customPackageSizeSpecification:
+            row.customPackageSizeSpecification.trim() || undefined,
+          diameterPresetCode: isAppleFruit ? row.diameterPresetCode || undefined : undefined,
+          diameterMinMm: isAppleFruit && row.diameterMinMm !== ""
+            ? Number(row.diameterMinMm)
+            : undefined,
+          diameterMaxMm: isAppleFruit && row.diameterMaxMm !== ""
+            ? Number(row.diameterMaxMm)
+            : undefined,
+          countPreset: isAppleFruit ? row.countPreset || undefined : undefined,
+        }))
+      : selectedPacking
+        ? [{
+            packageCount: Number(ungradedPacking.packageCount),
+            weightPerPackageKg: Number(ungradedPacking.weightPerPackageKg),
+            packageCapacityCode: ungradedPacking.packageCapacityCode,
+            packageTypeCode: ungradedPacking.packageTypeCode || undefined,
+            packageSizeCode: ungradedPacking.packageSizeCode || undefined,
+            customPackageTypeSpecification:
+              ungradedPacking.customPackageTypeSpecification.trim() || undefined,
+            customPackageSizeSpecification:
+              ungradedPacking.customPackageSizeSpecification.trim() || undefined,
+          }]
+        : [],
+    [form.packingType, isAppleFruit, packingGroup, packingRows, selectedPacking, ungradedPacking]
+  );
+  const isApplePackingFlow =
+    isAppleFruit && selectedPacking && currentPackingBreakdown.length > 0;
+  const packingTotals = useMemo(
+    () => calculatePackingTotals(currentPackingBreakdown, form.packingType),
+    [currentPackingBreakdown, form.packingType]
   );
   const calculations = useMemo(() => {
-    const gradeRows = visibleGrades.map((grade) => {
-      const boxes = Number(gradeLots[grade.key].boxes || 0);
-      return {
-        ...grade,
-        boxes,
-        weightKg: boxes * selectedPacking.kg,
-      };
-    });
+    const rows = packingGroup === "graded"
+      ? packingRows
+      : selectedPacking
+        ? [{ ...ungradedPacking, size: "", piecesPerPackage: "" }]
+        : [];
 
     return {
-      gradeRows,
-      totalBoxes: gradeRows.reduce((total, row) => total + row.boxes, 0),
-      totalWeightKg: gradeRows.reduce((total, row) => total + row.weightKg, 0),
+      totalBoxes: rows.reduce((total, row) => total + Number(row.packageCount || 0), 0),
+      totalWeightKg: rows.reduce(
+        (total, row) =>
+          total + Number(row.packageCount || 0) * Number(row.weightPerPackageKg || 0),
+        0
+      ),
     };
-  }, [gradeLots, selectedPacking, visibleGrades]);
-  const needsOrganicCertificate = ORGANIC_CERTIFIED_QUALITIES.has(form.quality);
+  }, [packingGroup, packingRows, selectedPacking, ungradedPacking]);
+  const activeMediaRows = packingGroup === "graded"
+    ? packingRows
+        .filter((row) => row.size && Number(row.packageCount) > 0)
+        .map((row) => ({
+          key: row.size,
+          label: getSizeLabel(row.size) || row.size,
+          packageCount: Number(row.packageCount),
+        }))
+    : selectedPacking && Number(ungradedPacking.packageCount) > 0
+      ? [{ key: "UN_GRADED", label: "Ungraded", packageCount: Number(ungradedPacking.packageCount) }]
+      : [];
+  const needsOrganicCertificate = requiresQualityCertificate(form.quality);
   const isDesktopLotDevice = !isMobileLotDevice;
 
   useEffect(() => {
@@ -501,6 +715,42 @@ export default function ListNewLot() {
   }, []);
 
   useEffect(() => {
+    if (!requiresGrowerKycCheck || hasStoredGrowerKyc) return;
+
+    let active = true;
+    const kycMessage =
+      "Complete your Grower KYC before listing a Live Fruit Lot and receiving offers from fruit buyers.";
+
+    API.get("/kyc/me", { params: { roleType: "grower" } })
+      .then((res) => {
+        if (!active) return;
+        const user = res.data?.user || {};
+        const status = String(res.data?.kyc?.status || "").trim().toUpperCase();
+        if (Boolean(user.growerVerified) || status === "APPROVED") {
+          setKycAccessResolved(true);
+          return;
+        }
+        navigate("/kyc", {
+          replace: true,
+          state: { from: "/list-new-lot", roleType: "grower", message: kycMessage },
+        });
+      })
+      .catch(() => {
+        if (!active) return;
+        navigate("/kyc", {
+          replace: true,
+          state: { from: "/list-new-lot", roleType: "grower", message: kycMessage },
+        });
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [hasStoredGrowerKyc, navigate, requiresGrowerKycCheck]);
+
+  useEffect(() => {
+    if (!kycAccessResolved) return undefined;
+
     let active = true;
 
     API.get("/products/next-lot-no")
@@ -516,7 +766,7 @@ export default function ListNewLot() {
     return () => {
       active = false;
     };
-  }, [localLotNoPreview]);
+  }, [kycAccessResolved, localLotNoPreview]);
 
   useEffect(() => {
     if (!captureModal?.sessionId) return undefined;
@@ -571,19 +821,87 @@ export default function ListNewLot() {
     };
   }, [captureModal?.sessionId]);
 
+  const resetPackingDetails = (quality, packingType) => {
+    const group = getQualityPackingGroup(quality);
+    setGradeLots(initialGradeLots);
+    setUngradedPacking(EMPTY_UNGRADED_PACKING);
+    setPackingRows(group === "graded" && packingType ? [createPackingRow()] : []);
+  };
+
   const updateForm = (field, value) => {
-    setForm((current) => {
-      if (field === "quality" && !ORGANIC_CERTIFIED_QUALITIES.has(value)) {
+    if (field === "quality") {
+      const nextPackingTypes = getPackingTypesForQuality(value);
+      const keepPackingType = nextPackingTypes.some(
+        (packing) => packing.value === form.packingType
+      );
+      const nextPackingType = keepPackingType ? form.packingType : "";
+      const packingGroupChanged =
+        getQualityPackingGroup(form.quality) !== getQualityPackingGroup(value);
+
+      if (!keepPackingType || packingGroupChanged) {
+        resetPackingDetails(value, nextPackingType);
+      }
+      if (!requiresQualityCertificate(value)) {
         setOrganicCertificate(null);
-        return { ...current, [field]: value, organicCertificationNo: "" };
       }
 
+      setForm((current) => ({
+        ...current,
+        quality: value,
+        packingType: nextPackingType,
+        organicCertificationNo: requiresQualityCertificate(value)
+          ? current.organicCertificationNo
+          : "",
+      }));
+      return;
+    }
+
+    if (field === "packingType") {
+      resetPackingDetails(form.quality, value);
+    }
+
+    setForm((current) => {
       return { ...current, [field]: value };
     });
   };
 
   const updateFruit = (value) => {
     setVarieties(getVarietiesForFruit(value));
+    const nextIsApple = isAppleFruitValue(value);
+    if (nextIsApple !== isAppleFruit) {
+      setPackingRows((current) =>
+        current.map((row) => {
+          if (!nextIsApple) {
+            return {
+              ...row,
+              size: row.size === OTHER_CUSTOM_SIZE_CODE ? "" : row.size,
+              diameterPresetCode: "",
+              diameterMinMm: "",
+              diameterMaxMm: "",
+              countPreset: "",
+            };
+          }
+          const preset = getAppleSizePreset(row.size);
+          const countValue = form.packingType === "Tray Packed Carton"
+            ? Number(row.piecesPerTray)
+            : Number(row.piecesPerPackage);
+          const countOptions = form.packingType === "Tray Packed Carton"
+            ? APPLE_TRAY_PIECE_COUNT_OPTIONS
+            : APPLE_LOOSE_PACKAGE_COUNT_OPTIONS;
+          return {
+            ...row,
+            diameterPresetCode: preset?.code || "",
+            diameterMinMm: preset?.diameterMinMm ?? "",
+            diameterMaxMm: preset?.diameterMaxMm ?? "",
+            countPreset: countValue > 0
+              ? countOptions.includes(countValue)
+                ? String(countValue)
+                : CUSTOM_OPTION_CODE
+              : "",
+          };
+        })
+      );
+    }
     setForm((current) => ({
       ...current,
       fruitName: value,
@@ -591,11 +909,84 @@ export default function ListNewLot() {
     }));
   };
 
-  const updateGradeBoxes = (gradeKey, boxes) => {
-    setGradeLots({
-      ...gradeLots,
-      [gradeKey]: { ...gradeLots[gradeKey], boxes },
-    });
+  const updatePackingRow = (rowId, field, value) => {
+    const currentRow = packingRows.find((row) => row.id === rowId);
+    if (field === "size" && currentRow?.size !== value) {
+      setGradeLots((lots) => ({
+        ...lots,
+        ...(currentRow?.size ? { [currentRow.size]: { images: Array(5).fill(null) } } : {}),
+        ...(value ? { [value]: { images: Array(5).fill(null) } } : {}),
+      }));
+    }
+    setPackingRows((current) =>
+      current.map((row) =>
+        row.id === rowId
+          ? (() => {
+              const nextRow = applyPackingSpecificationChange(
+                row,
+                selectedPackingSpecification,
+                field,
+                value
+              );
+              if (field !== "size" || !isAppleFruit) return nextRow;
+              const preset = getAppleSizePreset(value);
+              return {
+                ...nextRow,
+                diameterPresetCode: preset?.code || "",
+                diameterMinMm: preset?.code === OTHER_CUSTOM_SIZE_CODE
+                  ? ""
+                  : preset?.diameterMinMm ?? "",
+                diameterMaxMm: preset?.code === OTHER_CUSTOM_SIZE_CODE
+                  ? ""
+                  : preset?.diameterMaxMm ?? "",
+              };
+            })()
+          : row
+      )
+    );
+  };
+
+  const updateAppleCountPreset = (rowId, countPreset, field) => {
+    setPackingRows((current) =>
+      current.map((row) =>
+        row.id === rowId
+          ? {
+              ...row,
+              countPreset,
+              [field]: countPreset === CUSTOM_OPTION_CODE ? "" : countPreset,
+            }
+          : row
+      )
+    );
+  };
+
+  const updateUngradedPacking = (field, value) => {
+    setUngradedPacking((current) =>
+      applyPackingSpecificationChange(
+        current,
+        selectedPackingSpecification,
+        field,
+        value
+      )
+    );
+  };
+
+  const addPackingRow = () => {
+    setPackingRows((current) =>
+      current.length < availableSizeOptions.length ? [...current, createPackingRow()] : current
+    );
+  };
+
+  const removePackingRow = (rowId) => {
+    if (packingRows.length <= 1) return;
+    const removed = packingRows.find((row) => row.id === rowId);
+    if (removed?.size) {
+      setGradeLots((lots) => ({
+        ...lots,
+        [removed.size]: { images: Array(5).fill(null) },
+      }));
+    }
+    setPackingRows((current) => current.filter((row) => row.id !== rowId));
   };
 
   const openMobileCaptureSession = async ({ mediaType, gradeKey = "", slotIndex = null }) => {
@@ -768,13 +1159,6 @@ export default function ListNewLot() {
     event.preventDefault();
     setMessage("");
 
-    const preparedGradeLots = visibleGrades.map((grade) => ({
-      grade: grade.label,
-      gradeKey: grade.key,
-      fieldName: `gradeImages_${grade.key}`,
-      boxes: Number(gradeLots[grade.key].boxes || 0),
-      weightKg: Number(gradeLots[grade.key].boxes || 0) * selectedPacking.kg,
-    }));
     const captureMediaRefs = [];
 
     if (!form.fruitName || !form.variety || !form.quality || !form.basePrice) {
@@ -782,18 +1166,129 @@ export default function ListNewLot() {
       return;
     }
 
-    if (calculations.totalBoxes <= 0) {
-      setMessage(`Add ${packingUnit} for at least one grade.`);
+    if (!selectedPacking) {
+      setMessage("Select a Packing Type.");
       return;
     }
 
-    if (needsOrganicCertificate && !form.organicCertificationNo.trim()) {
-      setMessage("Organic certification number is required for this quality.");
-      return;
+    if (packingGroup === "graded") {
+      const specificationError = packingRows
+        .map((row) => getPackingSpecificationError(row, selectedPackingSpecification))
+        .find(Boolean);
+      if (specificationError) {
+        setMessage(specificationError);
+        return;
+      }
+      const selectedSizes = packingRows.map((row) => row.size).filter(Boolean);
+      if (packingRows.some((row) => !row.size) || new Set(selectedSizes).size !== packingRows.length) {
+        setMessage("Select a unique Size for every packing row.");
+        return;
+      }
+      if (isAppleFruit) {
+        const invalidDiameterRow = packingRows.find((row) => {
+          const minimum = Number(row.diameterMinMm);
+          const hasMaximum = row.diameterMaxMm !== "" && row.diameterMaxMm !== null;
+          const maximum = hasMaximum ? Number(row.diameterMaxMm) : null;
+          return (
+            !row.diameterPresetCode ||
+            !Number.isFinite(minimum) ||
+            minimum <= 0 ||
+            (hasMaximum && (!Number.isFinite(maximum) || maximum <= minimum))
+          );
+        });
+        if (invalidDiameterRow) {
+          setMessage("Enter a valid Apple diameter range for every Size.");
+          return;
+        }
+        const countField = form.packingType === "Tray Packed Carton"
+          ? "piecesPerTray"
+          : "piecesPerPackage";
+        if (
+          packingRows.some(
+            (row) =>
+              !row.countPreset ||
+              !Number.isInteger(Number(row[countField])) ||
+              Number(row[countField]) <= 0
+          )
+        ) {
+          setMessage(
+            form.packingType === "Tray Packed Carton"
+              ? "Select a valid whole-number Pieces per Tray option for every Size."
+              : "Select a valid whole-number Pieces per Package option for every Size."
+          );
+          return;
+        }
+      }
+      if (packingRows.some((row) => Number(row.packageCount) <= 0)) {
+        setMessage("Number of Packages must be greater than 0 for every Size.");
+        return;
+      }
+      if (packingRows.some((row) => Number(row.weightPerPackageKg) <= 0)) {
+        setMessage("Weight per Package must be greater than 0 for every Size.");
+        return;
+      }
+      if (form.packingType === "Tray Packed Carton") {
+        if (packingRows.some((row) => Number(row.traysPerPackage) <= 0)) {
+          setMessage("Number of Trays per Carton must be greater than 0 for every Size.");
+          return;
+        }
+        if (packingRows.some((row) => Number(row.piecesPerTray) <= 0)) {
+          setMessage("Pieces per Tray must be greater than 0 for every Size.");
+          return;
+        }
+      } else if (packingRows.some((row) => Number(row.piecesPerPackage) <= 0)) {
+        setMessage("Pieces per Package must be greater than 0 for every Size.");
+        return;
+      }
+    } else {
+      const specificationError = getPackingSpecificationError(
+        ungradedPacking,
+        selectedPackingSpecification
+      );
+      if (specificationError) {
+        setMessage(specificationError);
+        return;
+      }
+      if (Number(ungradedPacking.packageCount) <= 0) {
+        setMessage(`${getPackageCountLabel(form.packingType)} must be greater than 0.`);
+        return;
+      }
+      if (Number(ungradedPacking.weightPerPackageKg) <= 0) {
+        setMessage("Capacity / Weight per Package must be greater than 0.");
+        return;
+      }
     }
 
     if (needsOrganicCertificate && !organicCertificate) {
-      setMessage("Upload organic certificate for this certified organic lot.");
+      setMessage("Upload a valid certificate before listing this certified-quality Fruit Lot.");
+      return;
+    }
+
+    const latestPackingTotals = calculatePackingTotals(
+      currentPackingBreakdown,
+      form.packingType
+    );
+    const packingBreakdown = currentPackingBreakdown.map((row, index) => ({
+      ...row,
+      piecesPerPackage: latestPackingTotals.rows[index]?.piecesPerPackage ?? undefined,
+    }));
+    const submittedTotals = isApplePackingFlow ? latestPackingTotals : calculations;
+    const preparedGradeLots = packingBreakdown.map((row, rowIndex) => {
+      const gradeKey = row.size || "UN_GRADED";
+      const gradeLabel = getSizeLabel(row.size) || "Ungraded";
+      return {
+        grade: gradeLabel,
+        gradeKey,
+        fieldName: `gradeImages_${gradeKey}`,
+        boxes: row.packageCount,
+        weightKg: isApplePackingFlow
+          ? latestPackingTotals.rows[rowIndex]?.totalWeightKg || 0
+          : row.packageCount * row.weightPerPackageKg,
+      };
+    });
+
+    if (needsOrganicCertificate && !form.organicCertificationNo.trim()) {
+      setMessage("Certificate number is required for this quality.");
       return;
     }
 
@@ -811,23 +1306,33 @@ export default function ListNewLot() {
       data.append("description", form.description);
       data.append("basePrice", form.basePrice);
       data.append("location", form.location);
-      data.append("packingType", selectedPacking.label);
-      data.append("packingWeightKg", selectedPacking.kg);
-      data.append("totalWeightKg", calculations.totalWeightKg);
-      data.append("quantity", calculations.totalBoxes);
+      data.append("packingType", selectedPacking.value);
+      data.append("packingWeightKg", packingBreakdown[0].weightPerPackageKg);
+      data.append("totalWeightKg", submittedTotals.totalWeightKg);
+      data.append("quantity", submittedTotals.totalPackages ?? submittedTotals.totalBoxes);
       data.append("gradeLots", JSON.stringify(preparedGradeLots));
+      data.append("packingBreakdown", JSON.stringify(packingBreakdown));
+      if (isApplePackingFlow) {
+        data.append("packingSummary", JSON.stringify({
+          totalPackages: latestPackingTotals.totalPackages,
+          totalPieces: latestPackingTotals.totalPieces ?? undefined,
+          totalWeightKg: latestPackingTotals.totalWeightKg,
+          averageFruitWeightGrams:
+            latestPackingTotals.averageFruitWeightGrams ?? undefined,
+        }));
+      }
 
-      visibleGrades.forEach((grade) => {
-        gradeLots[grade.key].images.forEach((image, slotIndex) => {
+      preparedGradeLots.forEach((grade) => {
+        gradeLots[grade.gradeKey].images.forEach((image, slotIndex) => {
           if (isFileUpload(image)) {
-            data.append(`gradeImages_${grade.key}`, image);
+            data.append(`gradeImages_${grade.gradeKey}`, image);
           }
 
           if (isRemoteCaptureMedia(image)) {
             captureMediaRefs.push({
               sessionId: image.captureSessionId,
               mediaType: "image",
-              gradeKey: grade.key,
+              gradeKey: grade.gradeKey,
               slotIndex,
             });
           }
@@ -874,9 +1379,17 @@ export default function ListNewLot() {
     }
   };
 
+  if (!kycAccessResolved) {
+    return (
+      <div className="mx-auto min-h-[calc(100vh-132px)] w-full max-w-4xl bg-white px-4 py-8 text-center text-sm font-bold text-green-800 md:min-h-[calc(100vh-94px)]">
+        Checking Grower KYC...
+      </div>
+    );
+  }
+
   return (
-    <div className="mx-auto max-w-md border-t-4 border-green-600 bg-white pb-20">
-      <form onSubmit={handleSubmit} className="px-4 py-5">
+    <div className="mx-auto w-full max-w-4xl border-t-4 border-green-600 bg-white pb-20 md:my-6 md:rounded-xl md:border md:border-gray-200 md:border-t-4 md:shadow-sm">
+      <form onSubmit={handleSubmit} className="px-4 py-5 sm:px-6 md:px-10 md:py-8">
         <div className="mb-5 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border-2 border-black text-2xl font-bold">
             <FaPlus />
@@ -914,7 +1427,7 @@ export default function ListNewLot() {
           </div>
         )}
 
-        <div className="space-y-4">
+        <div className="space-y-4 md:space-y-5">
           <SelectorWithAdd
             label="Select Fruit"
             value={form.fruitName}
@@ -966,14 +1479,17 @@ export default function ListNewLot() {
           {needsOrganicCertificate && (
             <div className="rounded-md border border-green-200 bg-green-50 p-3">
               <p className="text-sm font-extrabold text-green-900">
-                Organic certification required
+                Organic / Natural Quality Certificate
+              </p>
+              <p className="mt-1 text-xs font-semibold text-gray-600">
+                Upload a valid certificate for the selected certified quality.
               </p>
               <div className="mt-3">
                 <Field
                   icon={<FaCertificate />}
-                  label="Certification No."
+                  label="Certificate No."
                   value={form.organicCertificationNo}
-                  placeholder="Enter organic certification number"
+                  placeholder="Enter certificate number"
                   onChange={(value) => updateForm("organicCertificationNo", value)}
                 />
               </div>
@@ -981,14 +1497,14 @@ export default function ListNewLot() {
                 <span>
                   {organicCertificate
                     ? organicCertificate.name
-                    : "Upload organic certificate"}
+                    : "Upload Certificate"}
                 </span>
                 <span className="text-[10px] font-semibold text-gray-500">
-                  Image or PDF accepted
+                  PDF, JPG/JPEG, or PNG accepted
                 </span>
                 <input
                   type="file"
-                  accept="image/*,.pdf,application/pdf"
+                  accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
                   className="hidden"
                   onChange={(event) =>
                     setOrganicCertificate(event.target.files?.[0] || null)
@@ -1008,58 +1524,263 @@ export default function ListNewLot() {
           <div>
             <div className="mb-2 flex items-center gap-2 text-sm font-bold text-gray-700">
               <FaWeightHanging className="text-gray-400" />
-              Packing type and weight calculation
+              Packing Type
             </div>
             <div className="rounded-md border border-gray-200 bg-white p-3">
-              <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto pr-1">
-                {PACKING_TYPES.map((packing, index) => (
+              {!form.quality ? (
+                <p className="text-xs font-semibold text-gray-500">
+                  Select Quality first to view available Packing Types.
+                </p>
+              ) : (
+                <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto pr-1">
+                {availablePackingTypes.map((packing) => (
                   <label
-                    key={packing.label}
+                    key={packing.value}
                     className="flex items-center gap-2 text-xs font-semibold text-gray-700"
                   >
                     <input
                       type="radio"
                       name="packingType"
-                      checked={form.packingIndex === String(index)}
-                      onChange={() => updateForm("packingIndex", String(index))}
+                      checked={form.packingType === packing.value}
+                      onChange={() => updateForm("packingType", packing.value)}
                     />
                     <span>{packing.label}</span>
                   </label>
                 ))}
-              </div>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="rounded-md border border-green-100 bg-green-50 p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-sm font-extrabold text-black">Grades</h2>
-              <span className="text-[10px] font-bold text-gray-500">Qty</span>
+          {selectedPacking && packingGroup === "ungraded" && (
+            <div className="rounded-md border border-green-100 bg-green-50 p-3">
+              <h2 className="text-sm font-extrabold text-black">Packing Details</h2>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <NumericPackingField
+                  label={getPackageCountLabel(form.packingType)}
+                  value={ungradedPacking.packageCount}
+                  onChange={(value) => updateUngradedPacking("packageCount", value)}
+                />
+                <PackingSpecificationFields
+                  specification={selectedPackingSpecification}
+                  details={ungradedPacking}
+                  onChange={updateUngradedPacking}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              {calculations.gradeRows.map((grade) => (
-                <div
-                  key={grade.key}
-                  className="grid grid-cols-[1fr_76px_72px] items-center gap-2 text-xs"
-                >
-                  <label className="font-bold text-gray-700">{grade.label}</label>
-                  <input
-                    value={gradeLots[grade.key].boxes}
-                    inputMode="numeric"
-                    placeholder={`0 ${singularizeUnit(packingUnit)}`}
-                    onChange={(e) => updateGradeBoxes(grade.key, e.target.value)}
-                    className="rounded bg-white px-2 py-1 text-right text-[10px] font-bold outline-none"
+          )}
+
+          {selectedPacking && packingGroup === "graded" && (
+            <div className="rounded-md border border-green-100 bg-green-50 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-sm font-extrabold text-black">Size-wise Packing Details</h2>
+                {packingRows.length < availableSizeOptions.length && (
+                  <button
+                    type="button"
+                    onClick={addPackingRow}
+                    className="text-xs font-extrabold text-green-800"
+                  >
+                    + Add Another Size
+                  </button>
+                )}
+              </div>
+              <div className="mt-3 space-y-3">
+                {packingRows.map((row, rowIndex) => {
+                  const usedSizes = new Set(
+                    packingRows.filter((item) => item.id !== row.id).map((item) => item.size)
+                  );
+                  const trayPacked = form.packingType === "Tray Packed Carton";
+                  const piecesPerCarton =
+                    Number(row.traysPerPackage || 0) * Number(row.piecesPerTray || 0);
+                  const rowTotals = packingTotals.rows[rowIndex];
+                  const suggestedSize = isAppleFruit
+                    ? getAppleSizeFromDiameter(row.diameterMinMm)
+                    : null;
+                  const diameterMismatch =
+                    suggestedSize &&
+                    suggestedSize !== OTHER_CUSTOM_SIZE_CODE &&
+                    row.size &&
+                    suggestedSize !== row.size;
+                  const trayPieceMismatch =
+                    trayPacked &&
+                    Number(row.piecesPerPackage) > 0 &&
+                    Number(row.piecesPerPackage) !== piecesPerCarton;
+
+                  return (
+                    <div key={row.id} className="rounded-md border border-green-200 bg-white p-3">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <label className="block text-xs font-bold text-gray-700">
+                          Size
+                          <select
+                            value={row.size}
+                            onChange={(event) => updatePackingRow(row.id, "size", event.target.value)}
+                            className="mt-1 w-full rounded-md bg-gray-100 px-3 py-2 text-sm font-semibold outline-none"
+                          >
+                            <option value="">Select Size</option>
+                            {availableSizeOptions.map((size) => (
+                              <option
+                                key={size.value}
+                                value={size.value}
+                                disabled={usedSizes.has(size.value)}
+                              >
+                                {size.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        {isAppleFruit && row.size !== OTHER_CUSTOM_SIZE_CODE && (
+                          <div className="rounded-md bg-gray-50 px-3 py-2 text-xs font-bold text-gray-700">
+                            <span className="block text-[10px] text-gray-500">Diameter Range</span>
+                            {formatAppleDiameterRange(row) || "Select Size"}
+                          </div>
+                        )}
+                        {isAppleFruit && row.size === OTHER_CUSTOM_SIZE_CODE && (
+                          <>
+                            <NumericPackingField
+                              label="Minimum Diameter (mm)"
+                              value={row.diameterMinMm}
+                              step="0.01"
+                              onChange={(value) => updatePackingRow(row.id, "diameterMinMm", value)}
+                            />
+                            <div>
+                              <NumericPackingField
+                                label="Maximum Diameter (mm)"
+                                value={row.diameterMaxMm}
+                                step="0.01"
+                                onChange={(value) => updatePackingRow(row.id, "diameterMaxMm", value)}
+                              />
+                              <p className="mt-1 text-[9px] font-semibold text-gray-500">
+                                Leave maximum blank to represent “and above”.
+                              </p>
+                            </div>
+                          </>
+                        )}
+                        <NumericPackingField
+                          label={getPackageCountLabel(form.packingType)}
+                          value={row.packageCount}
+                          onChange={(value) => updatePackingRow(row.id, "packageCount", value)}
+                        />
+                        <PackingSpecificationFields
+                          specification={selectedPackingSpecification}
+                          details={row}
+                          onChange={(field, value) => updatePackingRow(row.id, field, value)}
+                        />
+                        {trayPacked ? (
+                          <>
+                            {isAppleFruit ? (
+                              <AppleCountPresetField
+                                label="Pieces per Tray"
+                                options={APPLE_TRAY_PIECE_COUNT_OPTIONS}
+                                value={row.countPreset}
+                                customValue={row.piecesPerTray}
+                                customLabel="Custom Pieces per Tray"
+                                onPresetChange={(value) =>
+                                  updateAppleCountPreset(row.id, value, "piecesPerTray")
+                                }
+                                onCustomChange={(value) =>
+                                  updatePackingRow(row.id, "piecesPerTray", value)
+                                }
+                              />
+                            ) : (
+                              <NumericPackingField
+                                label="Pieces per Tray"
+                                value={row.piecesPerTray}
+                                onChange={(value) => updatePackingRow(row.id, "piecesPerTray", value)}
+                              />
+                            )}
+                            <div className="rounded-md bg-gray-50 px-3 py-2 text-xs font-bold text-gray-600">
+                              Pieces per Carton: {piecesPerCarton || 0}
+                            </div>
+                          </>
+                        ) : (
+                          isAppleFruit ? (
+                            <AppleCountPresetField
+                              label="Pieces per Package"
+                              options={APPLE_LOOSE_PACKAGE_COUNT_OPTIONS}
+                              value={row.countPreset}
+                              customValue={row.piecesPerPackage}
+                              customLabel="Custom Pieces per Package"
+                              onPresetChange={(value) =>
+                                updateAppleCountPreset(row.id, value, "piecesPerPackage")
+                              }
+                              onCustomChange={(value) =>
+                                updatePackingRow(row.id, "piecesPerPackage", value)
+                              }
+                            />
+                          ) : (
+                            <NumericPackingField
+                              label="Pieces per Package"
+                              value={row.piecesPerPackage}
+                              onChange={(value) => updatePackingRow(row.id, "piecesPerPackage", value)}
+                            />
+                          )
+                        )}
+                      </div>
+                      {diameterMismatch && (
+                        <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-800">
+                          The entered diameter range normally matches “{getSizeLabel(suggestedSize)}”, while this row is marked “{getSizeLabel(row.size)}”.
+                        </p>
+                      )}
+                      {trayPieceMismatch && (
+                        <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-800">
+                          The saved pieces-per-carton value differs from trays per carton × pieces per tray; the calculated value will be used.
+                        </p>
+                      )}
+                      {isApplePackingFlow && rowTotals && (
+                        <div className="mt-3 rounded-md bg-green-50 px-3 py-2 text-xs font-bold text-green-900">
+                          Row Total: {formatCalculatedValue(rowTotals.totalPackages)} {getPackageUnitLabel(form.packingType)}
+                          {rowTotals.totalPieces !== null
+                            ? ` · ${formatCalculatedValue(rowTotals.totalPieces)} Pieces`
+                            : ""}
+                          {` · ${formatCalculatedValue(rowTotals.totalWeightKg)} kg`}
+                        </div>
+                      )}
+                      {packingRows.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removePackingRow(row.id)}
+                          className="mt-3 text-xs font-bold text-red-600"
+                        >
+                          Remove Size
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {isApplePackingFlow && (
+            <div className="rounded-md border border-green-200 bg-green-50 p-3">
+              <h2 className="text-sm font-extrabold text-black">Calculated Lot Summary</h2>
+              <p className="mt-1 text-[10px] font-semibold text-gray-500">
+                Calculated from the current packing details.
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <SummaryTile
+                  label="Total Packages"
+                  value={`${formatCalculatedValue(packingTotals.totalPackages)} Packages`}
+                />
+                {packingTotals.totalPieces !== null && (
+                  <SummaryTile
+                    label="Total Fruit Pieces"
+                    value={`${formatCalculatedValue(packingTotals.totalPieces)} Pieces`}
                   />
-                  <span className="truncate rounded bg-white px-2 py-1 text-right text-[10px] font-bold text-gray-500">
-                    {formatWeight(grade.weightKg)}
-                  </span>
-                </div>
-              ))}
+                )}
+                <SummaryTile
+                  label="Total Net Weight"
+                  value={`${formatCalculatedValue(packingTotals.totalWeightKg)} kg`}
+                />
+                {packingTotals.averageFruitWeightGrams !== null && (
+                  <SummaryTile
+                    label="Average Fruit Weight"
+                    value={`${formatCalculatedValue(packingTotals.averageFruitWeightGrams)} g`}
+                  />
+                )}
+              </div>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <SummaryTile label="Total Qty" value={`${calculations.totalBoxes} ${packingUnit}`} />
-              <SummaryTile label="Total Weight" value={formatWeight(calculations.totalWeightKg)} />
-            </div>
-          </div>
+          )}
 
           <Field
             icon={<FaMoneyBillWave />}
@@ -1092,7 +1813,7 @@ export default function ListNewLot() {
           <div>
             <div className="mb-2 flex items-center gap-2 text-sm font-bold text-gray-700">
               <FaImage className="text-gray-400" />
-              Grade-wise sample pictures
+              {packingGroup === "graded" ? "Size-wise sample pictures" : "Fruit Lot sample pictures"}
             </div>
             {isDesktopLotDevice && (
               <div className="mb-2 rounded-md bg-green-50 px-3 py-2 text-xs font-bold text-green-800">
@@ -1100,16 +1821,14 @@ export default function ListNewLot() {
               </div>
             )}
             <div className="space-y-2">
-              {visibleGrades.map((grade) => {
-                const boxes = Number(gradeLots[grade.key].boxes || 0);
-                if (boxes <= 0) return null;
+              {activeMediaRows.map((grade) => {
                 const selectedCount = gradeLots[grade.key].images.filter(Boolean).length;
 
                 return (
                   <div key={grade.key} className="rounded-md border border-gray-200 bg-white p-3">
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <span className="text-xs font-extrabold text-black">
-                        Grade {grade.label}
+                        {grade.label}
                       </span>
                       <span className="text-[10px] font-bold text-gray-500">
                         {selectedCount}/5 pics
@@ -1318,7 +2037,7 @@ function SelectorWithAdd({ label, value, placeholder, options, onChange, onAdd }
             }
             onChange(e.target.value);
           }}
-          className="rounded bg-gray-100 px-3 py-2 text-sm font-semibold outline-none"
+          className="w-full rounded-md bg-gray-100 px-3 py-3 text-sm font-semibold outline-none transition focus:ring-2 focus:ring-green-100"
         >
           <option value="">{placeholder}</option>
           {options.map((option) => (
@@ -1340,7 +2059,7 @@ function SimpleSelect({ label, value, placeholder, options, onChange }) {
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-1 w-full rounded bg-gray-100 px-3 py-2 text-sm font-semibold outline-none"
+        className="mt-1 w-full rounded-md bg-gray-100 px-3 py-3 text-sm font-semibold outline-none transition focus:ring-2 focus:ring-green-100"
       >
         <option value="">{placeholder}</option>
         {options.map((option) => (
@@ -1349,6 +2068,172 @@ function SimpleSelect({ label, value, placeholder, options, onChange }) {
           </option>
         ))}
       </select>
+    </label>
+  );
+}
+
+function PackingSpecificationFields({ specification, details, onChange }) {
+  if (!specification) return null;
+
+  return (
+    <>
+      {specification.typeOptions && (
+        <>
+          <PackingOptionSelect
+            label={specification.typeLabel}
+            value={details.packageTypeCode}
+            options={specification.typeOptions}
+            onChange={(value) => onChange("packageTypeCode", value)}
+          />
+          {details.packageTypeCode === CUSTOM_OPTION_CODE && (
+            <TextPackingField
+              label={specification.customTypeLabel}
+              value={details.customPackageTypeSpecification}
+              onChange={(value) => onChange("customPackageTypeSpecification", value)}
+            />
+          )}
+        </>
+      )}
+
+      {specification.sizeOptions && (
+        <>
+          <PackingOptionSelect
+            label={specification.sizeLabel}
+            value={details.packageSizeCode}
+            options={specification.sizeOptions}
+            onChange={(value) => onChange("packageSizeCode", value)}
+          />
+          {details.packageSizeCode === CUSTOM_OPTION_CODE && (
+            <TextPackingField
+              label={specification.customSizeLabel}
+              value={details.customPackageSizeSpecification}
+              onChange={(value) => onChange("customPackageSizeSpecification", value)}
+            />
+          )}
+        </>
+      )}
+
+      <PackingOptionSelect
+        label={specification.capacityLabel || "Package Capacity"}
+        value={details.packageCapacityCode}
+        options={specification.capacityOptions}
+        onChange={(value) => onChange("packageCapacityCode", value)}
+      />
+      {details.packageCapacityCode === CUSTOM_OPTION_CODE && (
+        <NumericPackingField
+          label={specification.customCapacityLabel || "Custom Capacity per Package (kg)"}
+          value={details.weightPerPackageKg}
+          step="0.01"
+          onChange={(value) => onChange("weightPerPackageKg", value)}
+        />
+      )}
+
+      {specification.trayCountOptions && (
+        <>
+          <PackingOptionSelect
+            label={specification.trayCountLabel}
+            value={details.trayCountCode}
+            options={specification.trayCountOptions}
+            onChange={(value) => onChange("trayCountCode", value)}
+          />
+          {details.trayCountCode === CUSTOM_OPTION_CODE && (
+            <NumericPackingField
+              label={specification.customTrayCountLabel}
+              value={details.traysPerPackage}
+              onChange={(value) => onChange("traysPerPackage", value)}
+            />
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+function PackingOptionSelect({ label, value, options = [], onChange }) {
+  return (
+    <label className="block text-xs font-bold text-gray-700">
+      {label}
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-1 w-full rounded-md bg-gray-100 px-3 py-2 text-sm font-semibold outline-none"
+      >
+        <option value="">Select {label}</option>
+        {options.map((item) => (
+          <option key={item.code} value={item.code}>
+            {item.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function TextPackingField({ label, value, onChange }) {
+  return (
+    <label className="block text-xs font-bold text-gray-700">
+      {label}
+      <input
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-1 w-full rounded-md bg-gray-100 px-3 py-2 text-sm font-semibold outline-none"
+      />
+    </label>
+  );
+}
+
+function AppleCountPresetField({
+  label,
+  options,
+  value,
+  customValue,
+  customLabel,
+  onPresetChange,
+  onCustomChange,
+}) {
+  return (
+    <>
+      <label className="block text-xs font-bold text-gray-700">
+        {label}
+        <select
+          value={value}
+          onChange={(event) => onPresetChange(event.target.value)}
+          className="mt-1 w-full rounded-md bg-gray-100 px-3 py-2 text-sm font-semibold outline-none"
+        >
+          <option value="">Select {label}</option>
+          {options.map((count) => (
+            <option key={count} value={String(count)}>
+              {count} pieces
+            </option>
+          ))}
+          <option value={CUSTOM_OPTION_CODE}>Other / Custom</option>
+        </select>
+      </label>
+      {value === CUSTOM_OPTION_CODE && (
+        <NumericPackingField
+          label={customLabel}
+          value={customValue}
+          onChange={onCustomChange}
+        />
+      )}
+    </>
+  );
+}
+
+function NumericPackingField({ label, value, onChange, step = "1" }) {
+  return (
+    <label className="block text-xs font-bold text-gray-700">
+      {label}
+      <input
+        type="number"
+        min="0"
+        step={step}
+        inputMode="decimal"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-1 w-full rounded-md bg-gray-100 px-3 py-2 text-sm font-semibold outline-none"
+      />
     </label>
   );
 }

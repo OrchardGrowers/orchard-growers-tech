@@ -19,6 +19,8 @@ import {
   FaYoutube,
 } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
+import { getQualityLabel } from "../config/appleGrading";
+import { getPackingTypeLabel } from "../config/packingSpecifications";
 import LimitedPublicProfileCard from "../components/LimitedPublicProfileCard";
 import {
   hasBuyerProfile,
@@ -1536,7 +1538,6 @@ export default function ProfileDashboard() {
               onViewQuoteDetails={(quoteId) => navigate(`/quotes/${quoteId}?view=grower`)}
               onAcceptQuote={acceptBuyerQuote}
             />
-            <GrowerLogisticsAssignments orders={orders} onSubmit={submitLogisticsAssignment} />
           </>
         )}
 
@@ -2594,6 +2595,8 @@ function MarketLotCard({ item, onUpdateLot, onDeleteLot }) {
       : `${FILE_BASE_URL}/${normalizedImage}`
     : "";
   const amount = item.currentBid || product.basePrice || item.auctionPrice || 0;
+  const hasApplePackingBreakdown =
+    product.fruitName === "Apple" && Array.isArray(product.packingBreakdown) && product.packingBreakdown.length > 0;
 
   useEffect(() => {
     if (!product._id || !onUpdateLot) return undefined;
@@ -2625,8 +2628,18 @@ function MarketLotCard({ item, onUpdateLot, onDeleteLot }) {
         {product.location || "Fruit Mandi"}
       </p>
       <p className="text-[10px] font-bold text-black">
-        {product.quantity || 0} Box Lot
+        {product.quantity || 0} {hasApplePackingBreakdown ? "Package" : "Box"} Lot
       </p>
+      {product.quality && (
+        <p className="line-clamp-2 text-[9px] font-bold text-gray-600">
+          Quality: {getQualityLabel(product.quality)}
+        </p>
+      )}
+      {product.packingType && (
+        <p className="truncate text-[9px] font-bold text-gray-600">
+          Packing: {getPackingTypeLabel(product.packingType)}
+        </p>
+      )}
       <p className="text-[10px] font-bold text-green-800">Rs. {amount}</p>
       {sellerQuote && (
         <p className="mt-1 rounded bg-green-50 px-2 py-1 text-[10px] font-extrabold text-green-900">

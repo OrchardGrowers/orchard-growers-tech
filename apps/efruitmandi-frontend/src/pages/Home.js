@@ -35,6 +35,8 @@ import {
   normalizeDealStatus,
 } from "../utils/marketplaceVisibility";
 import SEO from "../components/SEO";
+import { getQualityLabel } from "../config/appleGrading";
+import { getPackingTypeLabel } from "../config/packingSpecifications";
 
 const categories = [
   { name: "Apple", icon: "🍎" },
@@ -3480,6 +3482,8 @@ function getLotStatusBadgeClass(deal = {}) {
 }
 
 function getLotDetails(product = {}) {
+  const hasApplePackingBreakdown =
+    product.fruitName === "Apple" && Array.isArray(product.packingBreakdown) && product.packingBreakdown.length > 0;
   const gradeSummary = Array.isArray(product.gradeLots)
     ? product.gradeLots
         .filter((lot) => lot?.grade || lot?.boxes || lot?.weightKg)
@@ -3503,11 +3507,11 @@ function getLotDetails(product = {}) {
   return [
     { label: "Fruit", value: product.fruitName },
     { label: "Variety", value: product.variety },
-    { label: "Quality", value: product.quality },
+    { label: "Quality", value: getQualityLabel(product.quality) },
     { label: "Grower", value: growerName },
     { label: "Lot No.", value: product.lotNo },
-    { label: "Packing", value: product.packingType },
-    { label: "Total quantity", value: product.quantity ? `${product.quantity} boxes` : "" },
+    { label: "Packing", value: getPackingTypeLabel(product.packingType) },
+    { label: "Total quantity", value: product.quantity ? `${product.quantity} ${hasApplePackingBreakdown ? "packages" : "boxes"}` : "" },
     { label: "Total weight", value: product.totalWeightKg ? `${product.totalWeightKg} kg` : "" },
     { label: "Packing weight", value: product.packingWeightKg ? `${product.packingWeightKg} kg each` : "" },
     { label: "Base price", value: product.basePrice ? `Rs. ${product.basePrice} per box` : "" },

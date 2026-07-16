@@ -48,6 +48,12 @@ const canSeeBasePrice = (product, user) =>
   product?.createdBy &&
   (product.createdBy._id || product.createdBy)?.toString() === user.id?.toString();
 
+const canSeePrivateCertificate = (product, user) => {
+  if (["admin", "super_admin"].includes(String(user?.role || "").toLowerCase())) return true;
+  const ownerId = product?.createdBy?._id || product?.createdBy;
+  return Boolean(ownerId && user?.id && ownerId.toString() === user.id.toString());
+};
+
 const serializeProduct = (product, user, completedOrder = null) => {
   const data = product.toObject ? product.toObject() : { ...product };
   if (completedOrder) {
@@ -56,6 +62,15 @@ const serializeProduct = (product, user, completedOrder = null) => {
 
   if (!canSeeBasePrice(data, user) && data.createdSource !== "admin-panel") {
     delete data.basePrice;
+  }
+
+  data.hasOrganicCertificateProof = Boolean(
+    data.organicCertificationNo || data.organicCertificateUrl
+  );
+  if (!canSeePrivateCertificate(data, user)) {
+    delete data.organicCertificationNo;
+    delete data.organicCertificateUrl;
+    delete data.organicCertificatePublicId;
   }
 
   return data;
@@ -203,6 +218,12 @@ const uploadLotFiles = async (files = [], resourceType = "image") => {
 };
 
 const ORGANIC_CERTIFIED_QUALITIES = new Set([
+  "grade a+ premium certified organic / natural quality",
+  "grade a premium certified organic / natural quality",
+  "grade b+ certified organic / natural quality",
+  "grade b certified organic / natural quality",
+  "grade c certified organic / natural quality",
+  // Preserve certificate enforcement for Fruit Lots saved with legacy quality values.
   "premium certified organic export quality",
   "certified organic",
 ]);
@@ -449,6 +470,7 @@ export const createProduct = async (req, res) => {
 
     const title = String(req.body.title || "").trim();
     const fruitName = String(req.body.fruitName || "").trim();
+    const isAppleProduct = fruitName.toLowerCase() === "apple";
     const variety = String(req.body.variety || "").trim();
     const quality = String(req.body.quality || "").trim();
     const organicCertificationNo = String(req.body.organicCertificationNo || "").trim();
@@ -478,12 +500,12 @@ export const createProduct = async (req, res) => {
 
     const organicCertificateFile = getUploadedFiles(req, "organicCertificate")[0];
     if (requiresOrganicCertificate(quality)) {
-      if (!organicCertificationNo) {
-        return res.status(400).json({ msg: "Organic certification number is required for certified organic lots" });
+      if (!organicCertificateFile) {
+        return res.status(400).json({ msg: "Upload a valid certificate before listing this certified-quality Fruit Lot." });
       }
 
-      if (!organicCertificateFile) {
-        return res.status(400).json({ msg: "Organic certificate upload is required for certified organic lots" });
+      if (!organicCertificationNo) {
+        return res.status(400).json({ msg: "Certificate number is required for this quality" });
       }
     }
 
@@ -496,6 +518,66 @@ export const createProduct = async (req, res) => {
     }
     if (!Array.isArray(requestedGradeLots)) {
       return res.status(400).json({ msg: "Invalid grade lot details" });
+    }
+
+    let packingBreakdown;
+    if (req.body.packingBreakdown) {
+      try {
+        const requestedPackingBreakdown = JSON.parse(req.body.packingBreakdown);
+        if (!Array.isArray(requestedPackingBreakdown) || requestedPackingBreakdown.length === 0) {
+          return res.status(400).json({ msg: "Invalid packing details" });
+        }
+
+        packingBreakdown = requestedPackingBreakdown.map((row) => ({
+          size: String(row.size || "").trim(),
+          packageCount: Number(row.packageCount || 0),
+          piecesPerPackage: Number(row.piecesPerPackage || 0),
+          traysPerPackage: Number(row.traysPerPackage || 0) || undefined,
+          piecesPerTray: Number(row.piecesPerTray || 0) || undefined,
+          weightPerPackageKg: Number(row.weightPerPackageKg || 0),
+          packageCapacityCode: String(row.packageCapacityCode || "").trim() || undefined,
+          packageTypeCode: String(row.packageTypeCode || "").trim() || undefined,
+          packageSizeCode: String(row.packageSizeCode || "").trim() || undefined,
+          customPackageTypeSpecification:
+            String(row.customPackageTypeSpecification || "").trim() || undefined,
+          customPackageSizeSpecification:
+            String(row.customPackageSizeSpecification || "").trim() || undefined,
+          diameterPresetCode: isAppleProduct
+            ? String(row.diameterPresetCode || "").trim() || undefined
+            : undefined,
+          diameterMinMm: isAppleProduct && row.diameterMinMm !== undefined
+            ? Number(row.diameterMinMm)
+            : undefined,
+          diameterMaxMm: isAppleProduct && row.diameterMaxMm !== undefined
+            ? Number(row.diameterMaxMm)
+            : undefined,
+          countPreset: isAppleProduct
+            ? String(row.countPreset || "").trim() || undefined
+            : undefined,
+        }));
+      } catch {
+        return res.status(400).json({ msg: "Invalid packing details" });
+      }
+    }
+
+    let packingSummary;
+    if (isAppleProduct && req.body.packingSummary) {
+      try {
+        const requestedPackingSummary = JSON.parse(req.body.packingSummary);
+        packingSummary = {
+          totalPackages: Number(requestedPackingSummary.totalPackages || 0),
+          totalPieces: requestedPackingSummary.totalPieces === undefined
+            ? undefined
+            : Number(requestedPackingSummary.totalPieces),
+          totalWeightKg: Number(requestedPackingSummary.totalWeightKg || 0),
+          averageFruitWeightGrams:
+            requestedPackingSummary.averageFruitWeightGrams === undefined
+              ? undefined
+              : Number(requestedPackingSummary.averageFruitWeightGrams),
+        };
+      } catch {
+        return res.status(400).json({ msg: "Invalid calculated packing summary" });
+      }
     }
 
     let captureMediaRefs = [];
@@ -596,6 +678,8 @@ export const createProduct = async (req, res) => {
       packingType,
       packingWeightKg,
       totalWeightKg,
+      packingBreakdown,
+      packingSummary,
       basePrice,
       auctionStartTime: auctionStartAt,
       auctionEndTime: auctionEndAt,

@@ -16,6 +16,9 @@ import CountdownTimer from "../components/CountdownTimer";
 import SEO from "../components/SEO";
 import { buildProductSchema, publisherReference } from "../utils/schemaGenerators";
 import LimitedPublicProfileCard from "../components/LimitedPublicProfileCard";
+import FruitLotPackingSummary from "../components/FruitLotPackingSummary";
+import { getQualityLabel, isCertifiedQuality } from "../config/appleGrading";
+import { getPackingTypeLabel } from "../config/packingSpecifications";
 import { canQuote, getCurrentUser, hasBuyerProfile } from "../utils/auth";
 import { trackLotContact, trackLotView } from "../services/analytics";
 import { saveUserToStorage } from "../utils/userStorage";
@@ -111,7 +114,17 @@ export default function LotDetails() {
   const ownerId = createdBy._id || createdBy.id;
   const currentUserId = user?._id || user?.id;
   const canSeeBasePrice = ownerId && currentUserId && ownerId === currentUserId;
-  const isOrganicCertified = isOrganicCertifiedProduct(product);
+  const isOrganicCertified =
+    isCertifiedQuality(product?.quality) &&
+    Boolean(
+      product?.hasOrganicCertificateProof ||
+      product?.organicCertificationNo ||
+      product?.organicCertificateUrl
+    );
+  const hasApplePackingBreakdown =
+    product?.fruitName === "Apple" &&
+    Array.isArray(product?.packingBreakdown) &&
+    product.packingBreakdown.length > 0;
   const growerName = createdBy.orchardName || createdBy.businessName || createdBy.name || "Grower's Orchard";
   const growerRating = Number(createdBy.growerRatingAverage || createdBy.rating || product?.growerRating || 0);
   const growerRatingCount = Number(createdBy.growerRatingCount || 0);
@@ -415,23 +428,8 @@ export default function LotDetails() {
           <div className="mt-3 rounded-md border border-green-200 bg-green-50 p-3">
             <div className="flex items-center gap-2 text-xs font-extrabold text-green-900">
               <FaCertificate />
-              <span>Organic Certified</span>
+              <span>Organic / Natural Certificate Provided</span>
             </div>
-            {product.organicCertificationNo && (
-              <p className="mt-1 text-[10px] font-bold text-green-800">
-                Certificate No: {product.organicCertificationNo}
-              </p>
-            )}
-            {product.organicCertificateUrl && (
-              <a
-                href={toAssetUrl(product.organicCertificateUrl)}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-2 inline-flex rounded-full bg-green-700 px-3 py-1 text-[10px] font-extrabold text-white"
-              >
-                View Certificate
-              </a>
-            )}
           </div>
         )}
 
@@ -449,11 +447,11 @@ export default function LotDetails() {
         <div className="mt-3 grid w-full max-w-full grid-cols-2 gap-2">
           <InfoTile label="Fruit" value={product.fruitName || product.title} />
           <InfoTile label="Variety" value={product.variety || "Not set"} />
-          <InfoTile label="Quality" value={product.quality || "Not set"} />
+          <InfoTile label="Quality" value={getQualityLabel(product.quality) || "Not set"} />
           <InfoTile label="Lot No." value={product.lotNo || "Not set"} />
-          <InfoTile label="Total boxes" value={product.quantity || 0} />
-          <InfoTile label="Packing" value={product.packingType || "Not set"} />
-          <InfoTile label="Total weight" value={formatWeight(product.totalWeightKg)} />
+          {!hasApplePackingBreakdown && <InfoTile label="Total boxes" value={product.quantity || 0} />}
+          <InfoTile label="Packing" value={getPackingTypeLabel(product.packingType) || "Not set"} />
+          {!hasApplePackingBreakdown && <InfoTile label="Total weight" value={formatWeight(product.totalWeightKg)} />}
           <InfoTile label="Deal status" value={isClosedLot ? "Deal Closed" : formatDealStatus(auction?.status || "Not started")} />
           {canSeeBasePrice && (
             <InfoTile label="Base price" value={`Rs. ${product.basePrice || 0}`} />
@@ -470,6 +468,8 @@ export default function LotDetails() {
           </p>
         )}
       </section>
+
+      <FruitLotPackingSummary product={product} />
 
       <AuctionPanel auction={auction} product={product} closedDeal={closedDeal} isClosed={isClosedLot} />
       <GradeLots lots={product.gradeLots || []} />
@@ -826,15 +826,6 @@ function getImageGradeLabel(product = {}, imageUrl = "") {
     : null;
   const grade = gradeLot?.grade || product.grade || "";
   return grade ? `Grade ${grade}` : "";
-}
-
-function isOrganicCertifiedProduct(product = {}) {
-  product = product || {};
-  const quality = String(product.quality || "").toLowerCase();
-  return (
-    quality.includes("certified organic") ||
-    Boolean(product.organicCertificationNo || product.organicCertificateUrl)
-  );
 }
 
 function isClosedLotStatus(product = {}, auction = {}, closedDeal = null) {

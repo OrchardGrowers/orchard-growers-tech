@@ -20,6 +20,8 @@ import { canQuote, getCurrentUser, isBuyerAccount } from "../utils/auth";
 import { getEfruitMandiProducts } from "../utils/marketProducts";
 import CountdownTimer from "../components/CountdownTimer";
 import SEO from "../components/SEO";
+import { getQualityLabel, isCertifiedQuality } from "../config/appleGrading";
+import { getPackingTypeLabel } from "../config/packingSpecifications";
 import {
   PAYMENT_PARTNER_ENABLED,
   PAYMENT_UNAVAILABLE_MESSAGE,
@@ -450,10 +452,17 @@ function LiveLotCard({
   const product = auction.product || {};
   const imageUrl = getImageUrl(product);
   const quantity = product.quantity || 0;
+  const hasApplePackingBreakdown =
+    product.fruitName === "Apple" && Array.isArray(product.packingBreakdown) && product.packingBreakdown.length > 0;
   const currentBid = getCurrentPrice(auction);
   const highestGrade = auction.highestGrade || dealPreview?.highestGrade || getHighestGrade(product);
-  const isOrganicCertified = isOrganicCertifiedProduct(product);
-  const certificateUrl = product.organicCertificateUrl ? toAssetUrl(product.organicCertificateUrl) : "";
+  const isOrganicCertified =
+    isCertifiedQuality(product.quality) &&
+    Boolean(
+      product.hasOrganicCertificateProof ||
+      product.organicCertificationNo ||
+      product.organicCertificateUrl
+    );
   const grower = product.createdBy || {};
 
   return (
@@ -497,8 +506,13 @@ function LiveLotCard({
         </span>
       </div>
 
+      <div className="mt-2 space-y-1 text-[10px] font-bold text-gray-600">
+        {product.quality && <p className="line-clamp-2">Quality: {getQualityLabel(product.quality)}</p>}
+        {product.packingType && <p className="truncate">Packing: {getPackingTypeLabel(product.packingType)}</p>}
+      </div>
+
       <div className="mt-3 grid grid-cols-3 gap-2">
-        <InfoPill label="Boxes" value={quantity} />
+        <InfoPill label={hasApplePackingBreakdown ? "Packages" : "Boxes"} value={quantity} />
         <InfoPill label="Deal" value={`Rs. ${currentBid}`} />
         <InfoPill label="Grade" value={highestGrade || "Lot"} />
       </div>
@@ -511,7 +525,7 @@ function LiveLotCard({
         {isOrganicCertified && (
           <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-1 text-green-800 ring-1 ring-green-100">
             <FaCertificate />
-            Organic
+            Certificate Provided
           </span>
         )}
       </div>
@@ -527,12 +541,6 @@ function LiveLotCard({
           <FaEye />
           View Listing
         </button>
-        {certificateUrl && (
-          <a href={certificateUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full bg-green-100 px-3 py-1.5 text-[10px] font-extrabold text-green-800">
-            <FaCertificate />
-            Certificate
-          </a>
-        )}
       </div>
 
       {canDeal ? (
@@ -727,12 +735,4 @@ function optimizeImageUrl(url = "", width = 640) {
     return url;
   }
   return url.replace("/image/upload/", `/image/upload/f_auto,q_auto,dpr_auto,c_limit,w_${width}/`);
-}
-
-function isOrganicCertifiedProduct(product = {}) {
-  const quality = String(product.quality || "").toLowerCase();
-  return (
-    quality.includes("certified organic") ||
-    Boolean(product.organicCertificationNo || product.organicCertificateUrl)
-  );
 }
