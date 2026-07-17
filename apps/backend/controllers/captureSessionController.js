@@ -1,9 +1,48 @@
 import crypto from "crypto";
 import CaptureSession from "../models/CaptureSession.js";
-import { uploadBufferToCloudinary } from "../services/cloudinaryService.js";
+import ScanRecord from "../models/ScanRecord.js";
+import {
+  deleteCloudinaryAssetsByUrls,
+  uploadBufferToCloudinary,
+} from "../services/cloudinaryService.js";
+import { createScanRecord } from "../utils/createScanRecord.js";
+import {
+  CAPTURE_IMAGE_MIME_TYPES,
+  CAPTURE_VIDEO_MIME_TYPES,
+  isAllowedCaptureMimeType,
+} from "../middleware/captureUpload.js";
 
 const SESSION_TTL_MS = 15 * 60 * 1000;
+const MAX_SCAN_METADATA_BYTES = 16 * 1024;
 const VALID_MEDIA_TYPES = new Set(["image", "video"]);
+
+const boundedText = (value, maxLength = 256) =>
+  String(value || "").trim().slice(0, maxLength);
+
+const parseClientScanMetadata = (value) => {
+  if (!value) return {};
+  if (typeof value === "object") {
+    if (Array.isArray(value)) return {};
+    try {
+      if (Buffer.byteLength(JSON.stringify(value), "utf8") > MAX_SCAN_METADATA_BYTES) {
+        throw createHttpError(400, "Scan metadata is too large");
+      }
+    } catch (error) {
+      if (error?.statusCode) throw error;
+      return {};
+    }
+    return value;
+  }
+  if (Buffer.byteLength(String(value), "utf8") > MAX_SCAN_METADATA_BYTES) {
+    throw createHttpError(400, "Scan metadata is too large");
+  }
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+};
 
 const createHttpError = (statusCode, message) => {
   const error = new Error(message);
@@ -24,11 +63,21 @@ const assertSessionUsable = (session) => {
   }
 };
 
+const assertSessionUploadable = (session) => {
+  assertSessionUsable(session);
+
+  if (session.status === "attached") {
+    throw createHttpError(409, "Capture session is already finalized");
+  }
+};
+
 const serializeSession = (session) => ({
   sessionId: session.sessionId,
   mediaType: session.mediaType,
   gradeKey: session.gradeKey,
   slotIndex: session.slotIndex,
+  fruitType: session.fruitType || "",
+  fruitVariety: session.fruitVariety || "",
   status: session.status,
   expiresAt: session.expiresAt,
 });
@@ -39,7 +88,6 @@ const serializeMedia = (session) => ({
     ? {
         url: session.media.url,
         secure_url: session.media.secure_url || session.media.url,
-        publicId: session.media.publicId,
         resourceType: session.media.resourceType,
         mimeType: session.media.mimeType,
         originalName: session.media.originalName,
@@ -62,11 +110,15 @@ const validateUploadedFileType = (session, file) => {
 
   const mimeType = String(file.mimetype || "").toLowerCase();
 
-  if (session.mediaType === "image" && !mimeType.startsWith("image/")) {
+  if (!isAllowedCaptureMimeType(mimeType)) {
+    throw createHttpError(400, "Unsupported capture media type");
+  }
+
+  if (session.mediaType === "image" && !CAPTURE_IMAGE_MIME_TYPES.has(mimeType)) {
     throw createHttpError(400, "Only image files are allowed for this capture slot");
   }
 
-  if (session.mediaType === "video" && !mimeType.startsWith("video/")) {
+  if (session.mediaType === "video" && !CAPTURE_VIDEO_MIME_TYPES.has(mimeType)) {
     throw createHttpError(400, "Only video files are allowed for this capture slot");
   }
 };
@@ -75,6 +127,8 @@ export const createCaptureSession = async (req, res, next) => {
   try {
     const mediaType = String(req.body.mediaType || "").trim().toLowerCase();
     const gradeKey = String(req.body.gradeKey || "").trim();
+    const fruitType = boundedText(req.body.fruitType, 100);
+    const fruitVariety = boundedText(req.body.fruitVariety, 100);
     const slotIndex =
       req.body.slotIndex === undefined || req.body.slotIndex === null || req.body.slotIndex === ""
         ? null
@@ -94,6 +148,8 @@ export const createCaptureSession = async (req, res, next) => {
       mediaType,
       gradeKey: mediaType === "image" ? gradeKey : "",
       slotIndex: mediaType === "image" ? slotIndex : null,
+      fruitType,
+      fruitVariety,
       expiresAt: new Date(Date.now() + SESSION_TTL_MS),
     });
 
@@ -115,15 +171,45 @@ export const getCaptureSession = async (req, res, next) => {
 };
 
 export const uploadCaptureSessionMedia = async (req, res, next) => {
+  let uploaded = null;
+  let createdScanRecord = null;
+  let previousCurrentIds = [];
+  let committed = false;
   try {
     const session = await CaptureSession.findOne({ sessionId: req.params.sessionId });
-    assertSessionUsable(session);
+    assertSessionUploadable(session);
     validateUploadedFileType(session, req.file);
+    const clientMetadata = parseClientScanMetadata(req.body?.scanMetadata);
+    const explicitRetake = clientMetadata.retakeRequested === true;
+    if (session.status === "uploaded" && !explicitRetake) {
+      throw createHttpError(409, "Capture session already has an uploaded frame; explicit retake is required");
+    }
 
-    const uploaded = await uploadBufferToCloudinary(req.file, {
+    uploaded = await uploadBufferToCloudinary(req.file, {
       folder: process.env.CLOUDINARY_LOT_FOLDER || "efruitmandi/lots",
       resourceType: session.mediaType,
     });
+    const now = new Date();
+    const scanRecord = createScanRecord({
+      scanId: crypto.randomUUID(),
+      session,
+      file: req.file,
+      uploadResult: uploaded,
+      clientMetadata,
+      now,
+    });
+    previousCurrentIds = await ScanRecord.find({
+      captureSessionId: session.sessionId,
+      growerId: session.userId,
+      status: "UPLOADED",
+    }).distinct("_id");
+    createdScanRecord = await ScanRecord.create(scanRecord);
+    if (previousCurrentIds.length) {
+      await ScanRecord.updateMany(
+        { _id: { $in: previousCurrentIds } },
+        { $set: { status: "SUPERSEDED", supersededAt: now } }
+      );
+    }
 
     session.media = {
       url: uploaded.secure_url,
@@ -138,9 +224,26 @@ export const uploadCaptureSessionMedia = async (req, res, next) => {
     };
     session.status = "uploaded";
     await session.save();
+    committed = true;
 
     res.json(serializeMedia(session));
   } catch (error) {
+    if (!committed) {
+      await Promise.allSettled([
+        createdScanRecord
+          ? ScanRecord.deleteOne({ _id: createdScanRecord._id })
+          : Promise.resolve(),
+        previousCurrentIds.length
+          ? ScanRecord.updateMany(
+              { _id: { $in: previousCurrentIds }, status: "SUPERSEDED" },
+              { $set: { status: "UPLOADED" }, $unset: { supersededAt: 1 } }
+            )
+          : Promise.resolve(),
+        uploaded?.secure_url
+          ? deleteCloudinaryAssetsByUrls([uploaded.secure_url])
+          : Promise.resolve(),
+      ]);
+    }
     next(error);
   }
 };

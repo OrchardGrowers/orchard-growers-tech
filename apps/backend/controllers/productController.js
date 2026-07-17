@@ -4,6 +4,7 @@ import Quotation from "../models/Quotation.js";
 import Order from "../models/Order.js";
 import User from "../models/User.js";
 import CaptureSession from "../models/CaptureSession.js";
+import ScanRecord from "../models/ScanRecord.js";
 import {
   getResourceType,
   uploadBufferToCloudinary,
@@ -706,6 +707,41 @@ export const createProduct = async (req, res) => {
       await CaptureSession.updateMany(
         { sessionId: { $in: resolvedCaptureMedia.sessionIds }, userId: req.user.id },
         { $set: { status: "attached", attachedProduct: product._id } }
+      );
+      await CaptureSession.updateMany(
+        {
+          sessionId: { $in: resolvedCaptureMedia.sessionIds },
+          userId: req.user.id,
+          "scans.0": { $exists: true },
+        },
+        {
+          $set: {
+            "scans.$[].fruitLotId": product._id,
+            "scans.$[].fruitType": product.fruitName,
+            "scans.$[].fruitVariety": product.variety,
+          },
+        }
+      );
+      await ScanRecord.updateMany(
+        {
+          captureSessionId: { $in: resolvedCaptureMedia.sessionIds },
+          growerId: req.user.id,
+        },
+        {
+          $set: {
+            fruitLotId: product._id,
+            fruitType: product.fruitName,
+            fruitVariety: product.variety,
+          },
+        }
+      );
+      await ScanRecord.updateMany(
+        {
+          captureSessionId: { $in: resolvedCaptureMedia.sessionIds },
+          growerId: req.user.id,
+          status: "UPLOADED",
+        },
+        { $set: { status: "ATTACHED" } }
       );
     }
 

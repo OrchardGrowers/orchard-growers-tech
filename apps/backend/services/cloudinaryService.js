@@ -95,6 +95,8 @@ export const uploadBufferToCloudinary = (file, options = {}) =>
           folder: result.folder || options.folder,
           resourceType: result.resource_type,
           resource_type: result.resource_type,
+          width: Number(result.width) || null,
+          height: Number(result.height) || null,
         });
       }
     );

@@ -1008,6 +1008,8 @@ export default function ListNewLot() {
         mediaType,
         gradeKey,
         slotIndex,
+        fruitType: form.fruitName,
+        fruitVariety: form.variety,
       });
       const captureUrl = `${window.location.origin}/mobile-capture/${res.data.sessionId}`;
       const qrDataUrl = await QRCode.toDataURL(captureUrl, {

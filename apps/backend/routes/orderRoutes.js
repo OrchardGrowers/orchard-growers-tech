@@ -2,7 +2,7 @@ import express from "express";
 import Order from "../models/Order.js";
 import Product from "../models/Product.js";
 import User from "../models/User.js";
-import protect, { optionalProtect } from "../middleware/authMiddleware.js";
+import protect, { isAdminRole, optionalProtect } from "../middleware/authMiddleware.js";
 import { sendMobileMessage } from "../services/mobileOtpService.js";
 import { requirePaymentPartnerEnabled } from "../utils/paymentFeatureFlag.js";
 import {
@@ -21,6 +21,8 @@ const router = express.Router();
 const hasProfile = (user, profileType) =>
   user?.role === profileType ||
   (Array.isArray(user?.profileTypes) && user.profileTypes.includes(profileType));
+
+const getReferenceId = (value) => (value?._id || value)?.toString?.() || "";
 
 const getOrderVisibilityFilter = (user) => {
   const filters = [];
@@ -220,10 +222,29 @@ router.get("/:id/tracking", async (req, res) => {
   }
 });
 
-router.get("/:id/invoice", async (req, res) => {
+router.get("/:id/invoice", protect, async (req, res) => {
   try {
     const order = await populateOrder(Order.findById(req.params.id));
     if (!order) return res.status(404).json({ msg: "Order not found" });
+
+    const userId = getReferenceId(req.user?.id);
+    const isBuyer =
+      hasProfile(req.user, "buyer") && getReferenceId(order.buyer) === userId;
+    const isGrower =
+      hasProfile(req.user, "grower") &&
+      [order.grower, order.product?.createdBy].some(
+        (owner) => getReferenceId(owner) === userId
+      );
+    const isAssignedLogistics =
+      hasProfile(req.user, "driver") &&
+      [order.driver, order.logisticsAssignment?.assignedLogisticsAccount].some(
+        (driver) => getReferenceId(driver) === userId
+      );
+
+    if (!isBuyer && !isGrower && !isAssignedLogistics && !isAdminRole(req.user?.role)) {
+      return res.status(403).json({ msg: "Access denied" });
+    }
+
     res.json(order);
   } catch (err) {
     res.status(500).json({ msg: err.message });
