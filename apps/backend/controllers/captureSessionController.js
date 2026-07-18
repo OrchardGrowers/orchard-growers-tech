@@ -5,6 +5,7 @@ import {
   deleteCloudinaryAssetsByUrls,
   uploadBufferToCloudinary,
 } from "../services/cloudinaryService.js";
+import { preprocessFruitImage } from "../services/imagePreprocessingService.js";
 import { createScanRecord } from "../utils/createScanRecord.js";
 import {
   CAPTURE_IMAGE_MIME_TYPES,
@@ -18,6 +19,58 @@ const VALID_MEDIA_TYPES = new Set(["image", "video"]);
 
 const boundedText = (value, maxLength = 256) =>
   String(value || "").trim().slice(0, maxLength);
+
+const logOptionalProcessingFailure = (stage, error) => {
+  const detail = boundedText(error?.message || error?.name || "Unknown error", 200);
+  console.error(
+    `[capture-upload] Optional processed image ${stage} failed; original upload preserved: ${detail}`
+  );
+};
+
+const getProcessedOriginalName = (value) => {
+  const baseName = boundedText(value, 240).replace(/\.[^.]+$/, "") || "capture";
+  return `${baseName}-processed.jpg`;
+};
+
+const createProcessedMediaData = ({ preprocessing, uploaded, originalName, uploadedAt }) => {
+  const audit = {
+    processingVersion: preprocessing.processingVersion,
+    processingSteps: [...preprocessing.processingSteps],
+    processingDurationMs: preprocessing.processingDurationMs,
+    originalChecksum: preprocessing.originalChecksum,
+    processedChecksum: preprocessing.processedChecksum,
+    originalMetadata: { ...preprocessing.original },
+    processedMetadata: { ...preprocessing.processed },
+  };
+
+  return {
+    captureSession: {
+      url: uploaded.secure_url,
+      secure_url: uploaded.secure_url,
+      publicId: uploaded.publicId,
+      folder: uploaded.folder,
+      resourceType: uploaded.resourceType,
+      mimeType: preprocessing.contentType,
+      originalName,
+      size: preprocessing.byteSize,
+      uploadedAt,
+      ...audit,
+    },
+    scanRecord: {
+      secureUrl: uploaded.secure_url,
+      cloudinaryPublicId: uploaded.publicId,
+      cloudinaryFolder: uploaded.folder,
+      resourceType: uploaded.resourceType,
+      mimeType: preprocessing.contentType,
+      originalName,
+      fileSizeBytes: preprocessing.byteSize,
+      imageWidth: preprocessing.processed.width,
+      imageHeight: preprocessing.processed.height,
+      uploadedAt,
+      ...audit,
+    },
+  };
+};
 
 const parseClientScanMetadata = (value) => {
   if (!value) return {};
@@ -172,6 +225,7 @@ export const getCaptureSession = async (req, res, next) => {
 
 export const uploadCaptureSessionMedia = async (req, res, next) => {
   let uploaded = null;
+  let processedUploaded = null;
   let createdScanRecord = null;
   let previousCurrentIds = [];
   let committed = false;
@@ -185,11 +239,50 @@ export const uploadCaptureSessionMedia = async (req, res, next) => {
       throw createHttpError(409, "Capture session already has an uploaded frame; explicit retake is required");
     }
 
+    const uploadFolder = process.env.CLOUDINARY_LOT_FOLDER || "efruitmandi/lots";
     uploaded = await uploadBufferToCloudinary(req.file, {
-      folder: process.env.CLOUDINARY_LOT_FOLDER || "efruitmandi/lots",
+      folder: uploadFolder,
       resourceType: session.mediaType,
     });
     const now = new Date();
+    let processedMedia = null;
+    if (session.mediaType === "image") {
+      let preprocessing = null;
+      try {
+        preprocessing = await preprocessFruitImage(req.file.buffer);
+      } catch (error) {
+        logOptionalProcessingFailure("preprocessing", error);
+      }
+
+      if (preprocessing) {
+        const processedOriginalName = getProcessedOriginalName(req.file.originalname);
+        try {
+          processedUploaded = await uploadBufferToCloudinary(
+            {
+              buffer: preprocessing.buffer,
+              mimetype: preprocessing.contentType,
+              originalname: processedOriginalName,
+              size: preprocessing.byteSize,
+            },
+            {
+              folder: uploadFolder,
+              resourceType: "image",
+            }
+          );
+          if (processedUploaded) {
+            processedMedia = createProcessedMediaData({
+              preprocessing,
+              uploaded: processedUploaded,
+              originalName: processedOriginalName,
+              uploadedAt: now,
+            });
+          }
+        } catch (error) {
+          logOptionalProcessingFailure("upload", error);
+        }
+      }
+    }
+
     const scanRecord = createScanRecord({
       scanId: crypto.randomUUID(),
       session,
@@ -198,6 +291,9 @@ export const uploadCaptureSessionMedia = async (req, res, next) => {
       clientMetadata,
       now,
     });
+    if (processedMedia) {
+      scanRecord.image.processed = processedMedia.scanRecord;
+    }
     previousCurrentIds = await ScanRecord.find({
       captureSessionId: session.sessionId,
       growerId: session.userId,
@@ -211,7 +307,7 @@ export const uploadCaptureSessionMedia = async (req, res, next) => {
       );
     }
 
-    session.media = {
+    const sessionMedia = {
       url: uploaded.secure_url,
       secure_url: uploaded.secure_url,
       publicId: uploaded.publicId,
@@ -222,6 +318,10 @@ export const uploadCaptureSessionMedia = async (req, res, next) => {
       size: req.file.size,
       uploadedAt: new Date(),
     };
+    if (processedMedia) {
+      sessionMedia.processed = processedMedia.captureSession;
+    }
+    session.media = sessionMedia;
     session.status = "uploaded";
     await session.save();
     committed = true;
@@ -239,8 +339,10 @@ export const uploadCaptureSessionMedia = async (req, res, next) => {
               { $set: { status: "UPLOADED" }, $unset: { supersededAt: 1 } }
             )
           : Promise.resolve(),
-        uploaded?.secure_url
-          ? deleteCloudinaryAssetsByUrls([uploaded.secure_url])
+        uploaded?.secure_url || processedUploaded?.secure_url
+          ? deleteCloudinaryAssetsByUrls(
+              [uploaded?.secure_url, processedUploaded?.secure_url].filter(Boolean)
+            )
           : Promise.resolve(),
       ]);
     }
