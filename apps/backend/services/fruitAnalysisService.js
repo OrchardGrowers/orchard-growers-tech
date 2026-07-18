@@ -1,4 +1,5 @@
 import { segmentFruit } from "./fruitSegmentationService.js";
+import { createFruitScanResult } from "./fruitScanResultService.js";
 
 const ANALYSIS_VERSION = "fruit-analysis-v1";
 const NOT_RUN = "NOT_RUN";
@@ -65,6 +66,7 @@ const normalizeCapture = (input) => {
     growerId: optionalText(capture.growerId, 128),
     fruitType: optionalText(capture.fruitType, 100),
     fruitVariety: optionalText(capture.fruitVariety, 100),
+    scanPurpose: optionalText(capture.scanPurpose || input.scanPurpose, 50),
     scanMode: optionalText(capture.scanMode, 50),
     captureSource: optionalText(capture.captureSource, 30),
     capturedAt: optionalDate(capture.capturedAt),
@@ -139,6 +141,47 @@ const createFailedSegmentation = () => ({
   },
 });
 
+const createUnavailableScanResult = (status, warning, message, errorCode) => ({
+  status,
+  scanPurpose: "",
+  scanVersion: "camera-fruit-scan-result-v1",
+  fruitType: "",
+  visibleFruitCount: 0,
+  detectedFruitRegions: [],
+  colorSummary: {
+    available: false,
+    colors: [],
+  },
+  approximateSize: {
+    available: false,
+    value: null,
+    unit: "",
+  },
+  visibleDefectIndicators: [],
+  imageQuality: {
+    status: "NOT_ASSESSED",
+    score: null,
+    warnings: [],
+  },
+  confidence: {
+    overall: null,
+    level: "NOT_ASSESSED",
+  },
+  warnings: [warning],
+  diagnostics: {
+    messages: [message],
+    metrics: {},
+    errors: errorCode ? [{ code: errorCode }] : [],
+  },
+  execution: {
+    invoked: status === "FAILED",
+    performed: false,
+    startedAt: "",
+    completedAt: "",
+    durationMs: 0,
+  },
+});
+
 export const analyzeFruitCapture = async (input) => {
   const startedAtMs = Date.now();
   const analysisStartedAt = new Date(startedAtMs).toISOString();
@@ -177,6 +220,27 @@ export const analyzeFruitCapture = async (input) => {
     segmentation = createFailedSegmentation();
   }
 
+  let scanResult;
+  if (segmentation.status === "FAILED") {
+    scanResult = createUnavailableScanResult(
+      "SKIPPED",
+      "Camera scan result was skipped because segmentation failed",
+      "Camera scan result requires a non-failed segmentation result",
+      ""
+    );
+  } else {
+    try {
+      scanResult = await createFruitScanResult(context, { segmentation });
+    } catch {
+      scanResult = createUnavailableScanResult(
+        "FAILED",
+        "Camera scan result creation failed",
+        "Camera scan result failed without stopping the analysis response",
+        "SCAN_RESULT_FAILED"
+      );
+    }
+  }
+
   const completedAtMs = Date.now();
   return {
     analysisVersion: ANALYSIS_VERSION,
@@ -191,6 +255,7 @@ export const analyzeFruitCapture = async (input) => {
       pendingStages: PIPELINE_ORDER.slice(1),
     },
     segmentation,
+    scanResult,
     detection: {
       status: NOT_RUN,
       objects: [],
