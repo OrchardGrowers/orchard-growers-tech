@@ -1,8 +1,20 @@
-﻿import sharp from "sharp";
+import crypto from "crypto";
+import { readFile } from "node:fs/promises";
+import sharp from "sharp";
 
 const DEFAULT_MAX_WIDTH = 1920;
 const DEFAULT_MAX_HEIGHT = 1920;
 const DEFAULT_JPEG_QUALITY = 88;
+const PREPROCESSING_VERSION = "fruit-image-preprocessing-v1";
+
+const PREPROCESSING_STEPS = Object.freeze([
+  "exif-auto-rotate",
+  "resize-inside-without-enlargement",
+  "convert-srgb",
+  "contrast-normalise",
+  "light-sharpen",
+  "encode-jpeg",
+]);
 
 const MIN_DIMENSION = 320;
 const MAX_DIMENSION = 4096;
@@ -69,12 +81,20 @@ const sanitizeMetadata = (metadata = {}, byteSize = null) => ({
   byteSize: Number(byteSize) || null,
 });
 
+const createSha256Checksum = (buffer) =>
+  crypto.createHash("sha256").update(buffer).digest("hex");
+
 export const preprocessFruitImage = async (input, options = {}) => {
+  const processingStartedAt = Date.now();
   const validatedInput = validateInput(input);
   const { maxWidth, maxHeight, quality } = normalizeOptions(options);
 
   try {
-    const source = sharp(validatedInput, {
+    const originalBuffer = Buffer.isBuffer(validatedInput)
+      ? validatedInput
+      : await readFile(validatedInput);
+
+    const source = sharp(originalBuffer, {
       failOn: "error",
       limitInputPixels: 80_000_000,
       sequentialRead: true,
@@ -94,11 +114,10 @@ export const preprocessFruitImage = async (input, options = {}) => {
       throw error;
     }
 
-    const originalByteSize = Buffer.isBuffer(validatedInput)
-      ? validatedInput.length
-      : null;
+    const originalByteSize = originalBuffer.length;
+    const originalChecksum = createSha256Checksum(originalBuffer);
 
-    const processedBuffer = await sharp(validatedInput, {
+    const processedBuffer = await sharp(originalBuffer, {
       failOn: "error",
       limitInputPixels: 80_000_000,
       sequentialRead: true,
@@ -128,12 +147,19 @@ export const preprocessFruitImage = async (input, options = {}) => {
       .toBuffer();
 
     const processedMetadata = await sharp(processedBuffer).metadata();
+    const processedChecksum = createSha256Checksum(processedBuffer);
+    const processingDurationMs = Date.now() - processingStartedAt;
 
     return {
       buffer: processedBuffer,
       contentType: "image/jpeg",
       extension: "jpg",
       byteSize: processedBuffer.length,
+      processingVersion: PREPROCESSING_VERSION,
+      processingSteps: [...PREPROCESSING_STEPS],
+      processingDurationMs,
+      originalChecksum,
+      processedChecksum,
       original: sanitizeMetadata(originalMetadata, originalByteSize),
       processed: {
         ...sanitizeMetadata(processedMetadata, processedBuffer.length),
