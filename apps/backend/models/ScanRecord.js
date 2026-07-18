@@ -25,6 +25,87 @@ const verificationRecordSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const originalMetadataSchema = new mongoose.Schema(
+  {
+    format: optionalText(30),
+    width: optionalNumber(1),
+    height: optionalNumber(1),
+    orientation: optionalNumber(1),
+    space: optionalText(30),
+    channels: optionalNumber(1),
+    byteSize: optionalNumber(0),
+  },
+  { _id: false }
+);
+
+const processedMetadataSchema = new mongoose.Schema(
+  {
+    format: optionalText(30),
+    width: optionalNumber(1),
+    height: optionalNumber(1),
+    orientation: optionalNumber(1),
+    space: optionalText(30),
+    channels: optionalNumber(1),
+    byteSize: optionalNumber(0),
+    maxWidth: optionalNumber(1),
+    maxHeight: optionalNumber(1),
+    quality: optionalNumber(1, 100),
+  },
+  { _id: false }
+);
+
+const processedImageSchema = new mongoose.Schema(
+  {
+    secureUrl: optionalText(2000),
+    cloudinaryPublicId: {
+      type: String,
+      trim: true,
+      default: undefined,
+      select: false,
+    },
+    cloudinaryFolder: {
+      type: String,
+      trim: true,
+      default: undefined,
+      select: false,
+    },
+    resourceType: optionalText(30),
+    mimeType: optionalText(100),
+    originalName: optionalText(255),
+    fileSizeBytes: optionalNumber(0),
+    imageWidth: optionalNumber(1, 20000),
+    imageHeight: optionalNumber(1, 20000),
+    thumbnailUrl: optionalText(2000),
+    uploadedAt: { type: Date, default: undefined },
+    processingVersion: optionalText(100),
+    processingSteps: { type: [String], default: undefined },
+    processingDurationMs: optionalNumber(0),
+    originalChecksum: {
+      type: String,
+      trim: true,
+      maxlength: 128,
+      default: undefined,
+      select: false,
+    },
+    processedChecksum: {
+      type: String,
+      trim: true,
+      maxlength: 128,
+      default: undefined,
+      select: false,
+    },
+    originalMetadata: {
+      type: originalMetadataSchema,
+      default: undefined,
+    },
+    processedMetadata: {
+      type: processedMetadataSchema,
+      default: undefined,
+    },
+  },
+  { _id: false }
+);
+
 const scanRecordSchema = new mongoose.Schema(
   {
     scanId: { type: String, required: true, unique: true, index: true, maxlength: 128 },
@@ -62,6 +143,7 @@ const scanRecordSchema = new mongoose.Schema(
       thumbnailUrl: optionalText(2000),
       contentHash: { type: String, trim: true, maxlength: 128, select: false },
       uploadedAt: { type: Date, required: true },
+      processed: { type: processedImageSchema, default: undefined },
     },
     deviceMetadata: {
       platform: optionalText(100),

@@ -1,6 +1,63 @@
 import mongoose from "mongoose";
 import { INSPECTION_STATUS_VALUES } from "../utils/inspectionState.js";
 
+const originalMetadataSchema = new mongoose.Schema(
+  {
+    format: { type: String, trim: true },
+    width: Number,
+    height: Number,
+    orientation: Number,
+    space: { type: String, trim: true },
+    channels: Number,
+    byteSize: Number,
+  },
+  { _id: false }
+);
+
+const processedMetadataSchema = new mongoose.Schema(
+  {
+    format: { type: String, trim: true },
+    width: Number,
+    height: Number,
+    orientation: Number,
+    space: { type: String, trim: true },
+    channels: Number,
+    byteSize: Number,
+    maxWidth: Number,
+    maxHeight: Number,
+    quality: Number,
+  },
+  { _id: false }
+);
+
+const processedMediaSchema = new mongoose.Schema(
+  {
+    url: { type: String, trim: true },
+    secure_url: { type: String, trim: true },
+    publicId: { type: String, trim: true },
+    folder: { type: String, trim: true },
+    resourceType: { type: String, trim: true },
+    mimeType: { type: String, trim: true },
+    originalName: { type: String, trim: true },
+    size: Number,
+    uploadedAt: Date,
+    processingVersion: { type: String, trim: true },
+    processingSteps: { type: [String], default: undefined },
+    processingDurationMs: Number,
+    originalChecksum: { type: String, trim: true },
+    processedChecksum: { type: String, trim: true },
+    originalMetadata: {
+      type: originalMetadataSchema,
+      default: undefined,
+    },
+    processedMetadata: {
+      type: processedMetadataSchema,
+      default: undefined,
+    },
+  },
+  { _id: false }
+);
+
 const captureMediaSchema = new mongoose.Schema(
   {
     url: { type: String, trim: true, default: "" },
@@ -12,6 +69,7 @@ const captureMediaSchema = new mongoose.Schema(
     originalName: { type: String, trim: true, default: "" },
     size: { type: Number, default: 0 },
     uploadedAt: Date,
+    processed: { type: processedMediaSchema, default: undefined },
   },
   { _id: false }
 );
