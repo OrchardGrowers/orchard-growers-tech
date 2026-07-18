@@ -1,5 +1,16 @@
+import { segmentFruit } from "./fruitSegmentationService.js";
+
 const ANALYSIS_VERSION = "fruit-analysis-v1";
 const NOT_RUN = "NOT_RUN";
+const PIPELINE_ORDER = Object.freeze([
+  "segmentation",
+  "detection",
+  "colorAnalysis",
+  "diameterEstimation",
+  "surfaceInspection",
+  "textureAnalysis",
+  "grading",
+]);
 
 const createValidationError = (message) => {
   const error = new Error(message);
@@ -95,6 +106,39 @@ const normalizeOptions = (value = {}) => ({
     : [],
 });
 
+const createFailedSegmentation = () => ({
+  status: "FAILED",
+  engine: "UNCONFIGURED",
+  version: "fruit-segmentation-contract-v1",
+  fruitMask: {
+    available: false,
+    encoding: "",
+    width: 0,
+    height: 0,
+    data: [],
+  },
+  regions: [],
+  boundingBoxes: [],
+  fruitCount: 0,
+  confidence: {
+    overall: 0,
+    level: "NONE",
+  },
+  warnings: ["Segmentation module failed; analysis placeholders remain available"],
+  diagnostics: {
+    messages: ["Segmentation failed without stopping the analysis pipeline"],
+    metrics: {},
+    errors: [{ code: "SEGMENTATION_FAILED" }],
+  },
+  execution: {
+    invoked: true,
+    performed: false,
+    startedAt: "",
+    completedAt: "",
+    durationMs: 0,
+  },
+});
+
 export const analyzeFruitCapture = async (input) => {
   const startedAtMs = Date.now();
   const analysisStartedAt = new Date(startedAtMs).toISOString();
@@ -126,6 +170,13 @@ export const analyzeFruitCapture = async (input) => {
     options: normalizeOptions(input.options),
   };
 
+  let segmentation;
+  try {
+    segmentation = await segmentFruit(context);
+  } catch {
+    segmentation = createFailedSegmentation();
+  }
+
   const completedAtMs = Date.now();
   return {
     analysisVersion: ANALYSIS_VERSION,
@@ -134,11 +185,12 @@ export const analyzeFruitCapture = async (input) => {
     analysisDurationMs: Math.max(0, completedAtMs - startedAtMs),
     status: "PLACEHOLDER",
     context,
-    segmentation: {
-      status: NOT_RUN,
-      regions: [],
-      masks: [],
+    pipeline: {
+      order: [...PIPELINE_ORDER],
+      invokedStages: ["segmentation"],
+      pendingStages: PIPELINE_ORDER.slice(1),
     },
+    segmentation,
     detection: {
       status: NOT_RUN,
       objects: [],
@@ -176,10 +228,13 @@ export const analyzeFruitCapture = async (input) => {
     },
     diagnostics: {
       status: "PLACEHOLDER",
-      warnings: [],
+      warnings:
+        segmentation.status === "FAILED"
+          ? ["Segmentation failed; no downstream module was executed"]
+          : [],
       errors: [],
       timings: {},
-      messages: ["No fruit analysis modules were executed"],
+      messages: ["Only the segmentation contract was invoked"],
     },
   };
 };
