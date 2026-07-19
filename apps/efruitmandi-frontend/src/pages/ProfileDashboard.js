@@ -45,7 +45,7 @@ import {
 
 const assetUrl = (path) => `${process.env.PUBLIC_URL || ""}${path}`;
 const orchardCover = assetUrl("/profile-banners/efruitmandi-profile-cover.png");
-const youtubeUrl = "https://www.youtube.com/results?search_query=Efruit+Mandi";
+const youtubeUrl = "https://www.youtube.com/@eFruitMandi";
 
 const normalizeKycStatus = (status = "") => {
   const normalized = String(status || "").trim().toUpperCase();

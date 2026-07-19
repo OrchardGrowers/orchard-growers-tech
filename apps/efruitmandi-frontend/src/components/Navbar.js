@@ -290,7 +290,7 @@ export default function Navbar() {
             )}
 
             <a
-              href="https://www.youtube.com/results?search_query=Efruit+Mandi"
+              href="https://www.youtube.com/@eFruitMandi"
               target="_blank"
               rel="noreferrer"
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-red-600"
@@ -366,7 +366,7 @@ export default function Navbar() {
             )}
 
             <a
-              href="https://www.youtube.com/results?search_query=Efruit+Mandi"
+              href="https://www.youtube.com/@eFruitMandi"
               target="_blank"
               rel="noreferrer"
               className="flex h-full flex-col items-center justify-center text-[10px] font-semibold text-white"
