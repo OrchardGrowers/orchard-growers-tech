@@ -161,6 +161,11 @@ const captureSessionSchema = new mongoose.Schema(
     slotIndex: { type: Number, default: null },
     fruitType: { type: String, trim: true, default: "" },
     fruitVariety: { type: String, trim: true, default: "" },
+    scanPurpose: {
+      type: String,
+      enum: ["GROWER_LOT_SCAN", "BUYER_RECEIVING_SCAN"],
+      default: undefined,
+    },
     status: {
       type: String,
       enum: ["pending", "uploaded", "attached"],
@@ -174,6 +179,11 @@ const captureSessionSchema = new mongoose.Schema(
     attachedProduct: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Product",
+      default: null,
+    },
+    attachedOrder: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Order",
       default: null,
     },
   },

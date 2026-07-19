@@ -809,7 +809,11 @@ export default function ListNewLot() {
           setSampleVideo(capturedMedia);
         }
 
-        setMessage("");
+        setMessage(
+          res.data.mediaType === "image"
+            ? "Scan captured. Analysis not yet available."
+            : "Live media captured."
+        );
         setCaptureModal(null);
       } catch (error) {
         if (!active) return;
@@ -1010,6 +1014,7 @@ export default function ListNewLot() {
         slotIndex,
         fruitType: form.fruitName,
         fruitVariety: form.variety,
+        scanPurpose: mediaType === "image" ? "GROWER_LOT_SCAN" : undefined,
       });
       const captureUrl = `${window.location.origin}/mobile-capture/${res.data.sessionId}`;
       const qrDataUrl = await QRCode.toDataURL(captureUrl, {

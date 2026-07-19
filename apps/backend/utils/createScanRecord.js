@@ -81,6 +81,7 @@ export const createScanRecord = ({
     fruitLotId: session.attachedProduct || null,
     fruitType: boundedText(session.fruitType, 100),
     fruitVariety: boundedText(session.fruitVariety, 100),
+    scanPurpose: boundedText(session.scanPurpose, 50),
     capturedAt,
     uploadedAt: createdAt,
     status: "UPLOADED",

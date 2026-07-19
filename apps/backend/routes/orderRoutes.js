@@ -1,7 +1,10 @@
 import express from "express";
+import mongoose from "mongoose";
 import Order from "../models/Order.js";
 import Product from "../models/Product.js";
 import User from "../models/User.js";
+import CaptureSession from "../models/CaptureSession.js";
+import ScanRecord from "../models/ScanRecord.js";
 import protect, { isAdminRole, optionalProtect } from "../middleware/authMiddleware.js";
 import { sendMobileMessage } from "../services/mobileOtpService.js";
 import { requirePaymentPartnerEnabled } from "../utils/paymentFeatureFlag.js";
@@ -23,6 +26,19 @@ const hasProfile = (user, profileType) =>
   (Array.isArray(user?.profileTypes) && user.profileTypes.includes(profileType));
 
 const getReferenceId = (value) => (value?._id || value)?.toString?.() || "";
+
+// Receiving is available only for the paired lifecycle states set by delivery routes.
+const isReceivingEligible = (order) =>
+  (order?.deliveryStatus === "IN_TRANSIT" &&
+    order?.escrowStatus === "CONSIGNMENT_IN_TRANSIT") ||
+  (order?.deliveryStatus === "DELIVERED" &&
+    order?.escrowStatus === "BUYER_CONFIRMED");
+
+const getReceivingNotes = (value) => {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string" || /[<>]/.test(value)) return null;
+  return value.replace(/[\u0000-\u001F\u007F]/g, " ").trim().slice(0, 1000) || undefined;
+};
 
 const getOrderVisibilityFilter = (user) => {
   const filters = [];
@@ -412,6 +428,137 @@ router.patch("/:id/logistics-assignment/reject", protect, async (req, res) => {
     res.json({ msg: "Logistics assignment rejected", order: await populateOrder(Order.findById(order._id)) });
   } catch (err) {
     res.status(500).json({ msg: err.message || "Could not reject logistics assignment" });
+  }
+});
+
+router.post("/:id/receiving-scans", protect, async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ msg: "Invalid Order identifier" });
+    }
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ msg: "Order not found" });
+    if (
+      !hasProfile(req.user, "buyer") ||
+      order.buyer?.toString() !== req.user.id?.toString()
+    ) {
+      return res.status(403).json({ msg: "Only this order's Buyer can attach receiving scans" });
+    }
+    if (!isReceivingEligible(order)) {
+      return res.status(400).json({ msg: "This consignment is not eligible for receiving scans" });
+    }
+
+    const captureSessionId = String(req.body?.captureSessionId || "").trim();
+    if (!captureSessionId) {
+      return res.status(400).json({ msg: "captureSessionId is required" });
+    }
+
+    const session = await CaptureSession.findOne({
+      sessionId: captureSessionId,
+      userId: req.user.id,
+    });
+    if (!session) {
+      return res.status(400).json({ msg: "Invalid Buyer capture session" });
+    }
+    if (session.scanPurpose !== "BUYER_RECEIVING_SCAN") {
+      return res.status(400).json({ msg: "Buyer receiving scan purpose is required" });
+    }
+    if (!session.media?.url || !["uploaded", "attached"].includes(session.status)) {
+      return res.status(400).json({ msg: "Buyer receiving scan is not uploaded yet" });
+    }
+    if (session.attachedOrder && session.attachedOrder.toString() !== order._id.toString()) {
+      return res.status(409).json({ msg: "Buyer receiving scan is already attached elsewhere" });
+    }
+
+    const scan = await ScanRecord.findOne({
+      captureSessionId,
+      growerId: req.user.id,
+      scanPurpose: "BUYER_RECEIVING_SCAN",
+      status: { $in: ["UPLOADED", "ATTACHED"] },
+    }).sort({ createdAt: -1 });
+    if (!scan) {
+      return res.status(400).json({ msg: "Buyer receiving scan record is unavailable" });
+    }
+    if (scan.receivingOrderId && scan.receivingOrderId.toString() !== order._id.toString()) {
+      return res.status(409).json({ msg: "Buyer receiving scan is already attached elsewhere" });
+    }
+
+    const alreadyAttached = (order.receivingScans || []).some(
+      (item) => item.scanRecordId.toString() === scan._id.toString()
+    );
+    if (!alreadyAttached) {
+      order.receivingScans = [
+        ...(order.receivingScans || []),
+        {
+          scanPurpose: "BUYER_RECEIVING_SCAN",
+          captureSessionId,
+          scanRecordId: scan._id,
+          scanStatus: "ATTACHED",
+          scannedAt: scan.capturedAt,
+          scannedBy: req.user.id,
+        },
+      ];
+    }
+    if (!order.receivingStatus) order.receivingStatus = "PENDING";
+    await order.save();
+
+    session.status = "attached";
+    session.attachedOrder = order._id;
+    await session.save();
+    scan.status = "ATTACHED";
+    scan.receivingOrderId = order._id;
+    await scan.save();
+
+    res.json({
+      msg: alreadyAttached ? "Receiving scan already attached" : "Receiving scan attached",
+      order: await populateOrder(Order.findById(order._id)),
+    });
+  } catch {
+    res.status(500).json({ msg: "Could not attach Buyer receiving scan" });
+  }
+});
+
+router.patch("/:id/receiving-decision", protect, async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ msg: "Invalid Order identifier" });
+    }
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ msg: "Order not found" });
+    if (
+      !hasProfile(req.user, "buyer") ||
+      order.buyer?.toString() !== req.user.id?.toString()
+    ) {
+      return res.status(403).json({ msg: "Only this order's Buyer can record receiving decisions" });
+    }
+    if (!isReceivingEligible(order)) {
+      return res.status(400).json({ msg: "This consignment is not eligible for receiving decisions" });
+    }
+    if (!order.receivingScans?.length) {
+      return res.status(400).json({ msg: "Attach a receiving scan before recording a decision" });
+    }
+
+    const decision = String(req.body?.decision || "").trim().toUpperCase();
+    if (!["ACCEPTED", "DISCREPANCY_RAISED"].includes(decision)) {
+      return res.status(400).json({ msg: "Receiving decision must be ACCEPTED or DISCREPANCY_RAISED" });
+    }
+
+    const receivingNotes = getReceivingNotes(req.body?.notes);
+    if (receivingNotes === null) {
+      return res.status(400).json({ msg: "Receiving notes must be plain text" });
+    }
+
+    order.receivingStatus = decision;
+    order.receivingDecisionAt = new Date();
+    order.receivingNotes = receivingNotes;
+    await order.save();
+
+    res.json({
+      msg: decision === "ACCEPTED" ? "Consignment receiving accepted" : "Receiving discrepancy raised",
+      order: await populateOrder(Order.findById(order._id)),
+    });
+  } catch {
+    res.status(500).json({ msg: "Could not record Buyer receiving decision" });
   }
 });
 

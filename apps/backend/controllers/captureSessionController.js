@@ -131,6 +131,7 @@ const serializeSession = (session) => ({
   slotIndex: session.slotIndex,
   fruitType: session.fruitType || "",
   fruitVariety: session.fruitVariety || "",
+  scanPurpose: session.scanPurpose || "",
   status: session.status,
   expiresAt: session.expiresAt,
 });
@@ -176,12 +177,22 @@ const validateUploadedFileType = (session, file) => {
   }
 };
 
+const SUPPORTED_SCAN_PURPOSES = new Set([
+  "GROWER_LOT_SCAN",
+  "BUYER_RECEIVING_SCAN",
+]);
+
+const hasProfile = (user, profileType) =>
+  user?.role === profileType ||
+  (Array.isArray(user?.profileTypes) && user.profileTypes.includes(profileType));
+
 export const createCaptureSession = async (req, res, next) => {
   try {
     const mediaType = String(req.body.mediaType || "").trim().toLowerCase();
     const gradeKey = String(req.body.gradeKey || "").trim();
     const fruitType = boundedText(req.body.fruitType, 100);
     const fruitVariety = boundedText(req.body.fruitVariety, 100);
+    const scanPurpose = boundedText(req.body.scanPurpose, 50);
     const slotIndex =
       req.body.slotIndex === undefined || req.body.slotIndex === null || req.body.slotIndex === ""
         ? null
@@ -195,6 +206,25 @@ export const createCaptureSession = async (req, res, next) => {
       return res.status(400).json({ msg: "gradeKey and slotIndex are required for image capture" });
     }
 
+    if (scanPurpose && !SUPPORTED_SCAN_PURPOSES.has(scanPurpose)) {
+      return res.status(400).json({ msg: "Unsupported scan purpose" });
+    }
+
+    if (!scanPurpose && !hasProfile(req.user, "grower")) {
+      return res.status(400).json({ msg: "Scan purpose is required" });
+    }
+
+    if (
+      (scanPurpose === "GROWER_LOT_SCAN" && !hasProfile(req.user, "grower")) ||
+      (scanPurpose === "BUYER_RECEIVING_SCAN" && !hasProfile(req.user, "buyer"))
+    ) {
+      return res.status(403).json({ msg: "Scan purpose is not allowed for this profile" });
+    }
+
+    if (scanPurpose === "BUYER_RECEIVING_SCAN" && mediaType !== "image") {
+      return res.status(400).json({ msg: "Buyer receiving scans must use image capture" });
+    }
+
     const session = await CaptureSession.create({
       sessionId: crypto.randomBytes(32).toString("base64url"),
       userId: req.user.id,
@@ -203,6 +233,7 @@ export const createCaptureSession = async (req, res, next) => {
       slotIndex: mediaType === "image" ? slotIndex : null,
       fruitType,
       fruitVariety,
+      scanPurpose,
       expiresAt: new Date(Date.now() + SESSION_TTL_MS),
     });
 

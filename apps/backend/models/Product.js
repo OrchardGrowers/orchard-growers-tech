@@ -65,6 +65,27 @@ const productSchema = new mongoose.Schema(
       },
     ],
     sampleVideo: String,
+    fruitScans: {
+      type: [
+        {
+          _id: false,
+          scanPurpose: {
+            type: String,
+            enum: ["GROWER_LOT_SCAN"],
+            required: true,
+          },
+          captureSessionId: { type: String, trim: true, required: true },
+          scanRecordId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "ScanRecord",
+            required: true,
+          },
+          scanStatus: { type: String, trim: true, default: "ATTACHED" },
+          scannedAt: { type: Date, default: null },
+        },
+      ],
+      default: undefined,
+    },
 
     quantity: { type: Number, min: 0 }, // in boxes
     lotNo: String,

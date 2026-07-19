@@ -112,8 +112,20 @@ const scanRecordSchema = new mongoose.Schema(
     captureSessionId: { type: String, required: true, index: true, maxlength: 128 },
     growerId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
     fruitLotId: { type: mongoose.Schema.Types.ObjectId, ref: "Product", default: null, index: true },
+    receivingOrderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Order",
+      default: null,
+      index: true,
+    },
     fruitType: optionalText(100),
     fruitVariety: optionalText(100),
+    scanPurpose: {
+      type: String,
+      enum: ["GROWER_LOT_SCAN", "BUYER_RECEIVING_SCAN"],
+      default: undefined,
+      index: true,
+    },
     capturedAt: { type: Date, required: true },
     uploadedAt: { type: Date, required: true },
     status: {
