@@ -177,6 +177,35 @@ const orderSchema = new mongoose.Schema(
 
     buyerApproved: { type: Boolean, default: false },
     growerApproved: { type: Boolean, default: false },
+    receivingScans: {
+      type: [
+        {
+          _id: false,
+          scanPurpose: {
+            type: String,
+            enum: ["BUYER_RECEIVING_SCAN"],
+            required: true,
+          },
+          captureSessionId: { type: String, trim: true, required: true },
+          scanRecordId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "ScanRecord",
+            required: true,
+          },
+          scanStatus: { type: String, trim: true, default: "ATTACHED" },
+          scannedAt: { type: Date, default: null },
+          scannedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+        },
+      ],
+      default: undefined,
+    },
+    receivingStatus: {
+      type: String,
+      enum: ["PENDING", "ACCEPTED", "DISCREPANCY_RAISED"],
+      default: undefined,
+    },
+    receivingDecisionAt: { type: Date, default: undefined },
+    receivingNotes: { type: String, trim: true, maxlength: 1000, default: undefined },
 
   },
   { timestamps: true }

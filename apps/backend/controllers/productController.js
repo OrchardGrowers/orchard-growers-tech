@@ -4,6 +4,7 @@ import Quotation from "../models/Quotation.js";
 import Order from "../models/Order.js";
 import User from "../models/User.js";
 import CaptureSession from "../models/CaptureSession.js";
+import ScanRecord from "../models/ScanRecord.js";
 import {
   getResourceType,
   uploadBufferToCloudinary,
@@ -321,6 +322,7 @@ const resolveCaptureMediaRefs = async (refs = [], userId) => {
     imagesByGradeKey: new Map(),
     sampleVideo: null,
     sessionIds: [],
+    scanLinks: [],
   };
 
   if (!normalizedRefs.length) {
@@ -333,6 +335,17 @@ const resolveCaptureMediaRefs = async (refs = [], userId) => {
     userId,
   });
   const sessionById = new Map(sessions.map((session) => [session.sessionId, session]));
+  const currentScans = await ScanRecord.find({
+    captureSessionId: { $in: sessionIds },
+    growerId: userId,
+    status: "UPLOADED",
+  }).sort({ createdAt: -1 });
+  const scanBySessionId = new Map();
+  for (const scan of currentScans) {
+    if (!scanBySessionId.has(scan.captureSessionId)) {
+      scanBySessionId.set(scan.captureSessionId, scan);
+    }
+  }
 
   for (const ref of normalizedRefs) {
     const session = sessionById.get(ref.sessionId);
@@ -351,6 +364,26 @@ const resolveCaptureMediaRefs = async (refs = [], userId) => {
 
     if (ref.mediaType && ref.mediaType !== session.mediaType) {
       throw createRequestError(400, "Mobile capture media type mismatch");
+    }
+
+    if (session.scanPurpose === "BUYER_RECEIVING_SCAN") {
+      throw createRequestError(400, "Buyer receiving scans cannot be attached to a Fruit Lot");
+    }
+
+    if (session.scanPurpose === "GROWER_LOT_SCAN" && session.mediaType === "image") {
+      const scan = scanBySessionId.get(session.sessionId);
+      if (!scan || scan.scanPurpose !== "GROWER_LOT_SCAN") {
+        throw createRequestError(400, "Grower Fruit Lot scan record is unavailable");
+      }
+      if (!result.scanLinks.some((link) => link.scanRecordId.equals(scan._id))) {
+        result.scanLinks.push({
+          scanPurpose: "GROWER_LOT_SCAN",
+          captureSessionId: session.sessionId,
+          scanRecordId: scan._id,
+          scanStatus: "ATTACHED",
+          scannedAt: scan.capturedAt,
+        });
+      }
     }
 
     result.sessionIds.push(session.sessionId);
@@ -689,6 +722,9 @@ export const createProduct = async (req, res) => {
       imagePublicIds: uploadedPublicIds,
       gradeLots,
       sampleVideo,
+      fruitScans: resolvedCaptureMedia.scanLinks.length
+        ? resolvedCaptureMedia.scanLinks
+        : undefined,
       createdBy: req.user.id,
       status: dealSchedule.isLiveNow ? "IN_AUCTION" : "SCHEDULED",
     });
@@ -706,6 +742,41 @@ export const createProduct = async (req, res) => {
       await CaptureSession.updateMany(
         { sessionId: { $in: resolvedCaptureMedia.sessionIds }, userId: req.user.id },
         { $set: { status: "attached", attachedProduct: product._id } }
+      );
+      await CaptureSession.updateMany(
+        {
+          sessionId: { $in: resolvedCaptureMedia.sessionIds },
+          userId: req.user.id,
+          "scans.0": { $exists: true },
+        },
+        {
+          $set: {
+            "scans.$[].fruitLotId": product._id,
+            "scans.$[].fruitType": product.fruitName,
+            "scans.$[].fruitVariety": product.variety,
+          },
+        }
+      );
+      await ScanRecord.updateMany(
+        {
+          captureSessionId: { $in: resolvedCaptureMedia.sessionIds },
+          growerId: req.user.id,
+        },
+        {
+          $set: {
+            fruitLotId: product._id,
+            fruitType: product.fruitName,
+            fruitVariety: product.variety,
+          },
+        }
+      );
+      await ScanRecord.updateMany(
+        {
+          captureSessionId: { $in: resolvedCaptureMedia.sessionIds },
+          growerId: req.user.id,
+          status: "UPLOADED",
+        },
+        { $set: { status: "ATTACHED" } }
       );
     }
 
@@ -968,7 +1039,66 @@ export const updateProduct = async (req, res) => {
     product.location = location;
     product.gradeLots = gradeLots;
 
+    let resolvedCaptureMedia = null;
+    if (req.body.captureMediaRefs !== undefined) {
+      let captureMediaRefs;
+      try {
+        captureMediaRefs = parseCaptureMediaRefs(req.body.captureMediaRefs);
+      } catch {
+        return res.status(400).json({ msg: "Invalid mobile capture media details" });
+      }
+      resolvedCaptureMedia = await resolveCaptureMediaRefs(captureMediaRefs, req.user.id);
+      if (resolvedCaptureMedia.scanLinks.length) {
+        const existingScanIds = new Set(
+          (product.fruitScans || []).map((scan) => scan.scanRecordId.toString())
+        );
+        product.fruitScans = [
+          ...(product.fruitScans || []),
+          ...resolvedCaptureMedia.scanLinks.filter(
+            (scan) => !existingScanIds.has(scan.scanRecordId.toString())
+          ),
+        ];
+      }
+    }
+
     await product.save();
+
+    if (resolvedCaptureMedia?.sessionIds.length) {
+      await CaptureSession.updateMany(
+        { sessionId: { $in: resolvedCaptureMedia.sessionIds }, userId: req.user.id },
+        { $set: { status: "attached", attachedProduct: product._id } }
+      );
+      await CaptureSession.updateMany(
+        {
+          sessionId: { $in: resolvedCaptureMedia.sessionIds },
+          userId: req.user.id,
+          "scans.0": { $exists: true },
+        },
+        {
+          $set: {
+            "scans.$[].fruitLotId": product._id,
+            "scans.$[].fruitType": product.fruitName,
+            "scans.$[].fruitVariety": product.variety,
+          },
+        }
+      );
+      await ScanRecord.updateMany(
+        {
+          captureSessionId: { $in: resolvedCaptureMedia.sessionIds },
+          growerId: req.user.id,
+          scanPurpose: "GROWER_LOT_SCAN",
+          status: "UPLOADED",
+        },
+        {
+          $set: {
+            fruitLotId: product._id,
+            fruitType: product.fruitName,
+            fruitVariety: product.variety,
+            status: "ATTACHED",
+          },
+        }
+      );
+    }
 
     const linkedAuction = await Auction.findOne({ product: product._id, status: "SCHEDULED" });
     if (linkedAuction) {

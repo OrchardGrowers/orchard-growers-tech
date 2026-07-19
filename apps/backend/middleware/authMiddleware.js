@@ -15,6 +15,8 @@ const ADMIN_ROLES = new Set([
   "EMPLOYEE",
 ]);
 
+export const isAdminRole = (role) => ADMIN_ROLES.has(role);
+
 const getTokenFromHeader = (authHeader = "") =>
   authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : authHeader;
 
@@ -48,7 +50,7 @@ const protect = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    if (decoded.id && ADMIN_ROLES.has(decoded.role)) {
+    if (decoded.id && isAdminRole(decoded.role)) {
       req.user = {
         id: decoded.id,
         role: decoded.role,
@@ -90,7 +92,7 @@ export const optionalProtect = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    if (decoded.id && ADMIN_ROLES.has(decoded.role)) {
+    if (decoded.id && isAdminRole(decoded.role)) {
       req.user = {
         id: decoded.id,
         role: decoded.role,

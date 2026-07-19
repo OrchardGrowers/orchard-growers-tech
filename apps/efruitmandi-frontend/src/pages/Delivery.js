@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import QRCode from "qrcode";
 import {
+  FaCamera,
   FaCheck,
   FaClock,
   FaCompass,
@@ -10,6 +12,7 @@ import {
   FaRoute,
   FaSeedling,
   FaTruck,
+  FaTimes,
 } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import API from "../services/api";
@@ -31,6 +34,10 @@ const statusSteps = [
   { key: "DELIVERED", label: "Unloaded / Delivered" },
 ];
 
+const isBuyerReceivingEligible = (order) =>
+  ["IN_TRANSIT", "DELIVERED"].includes(order?.deliveryStatus) &&
+  ["CONSIGNMENT_IN_TRANSIT", "BUYER_CONFIRMED"].includes(order?.escrowStatus);
+
 export default function Delivery() {
   const navigate = useNavigate();
   const user = getCurrentUser();
@@ -48,10 +55,17 @@ export default function Delivery() {
   const [settlementOtp, setSettlementOtp] = useState("");
   const [negotiationAmount, setNegotiationAmount] = useState("");
   const [manualLocation, setManualLocation] = useState({ stationName: "", lat: "", lng: "" });
+  const [receivingCapture, setReceivingCapture] = useState(null);
+  const [receivingCaptureStarting, setReceivingCaptureStarting] = useState(false);
 
   const selectedOrder = useMemo(
     () => orders.find((order) => order._id === selectedOrderId) || null,
     [orders, selectedOrderId]
+  );
+  const currentUserId = String(user?._id || user?.id || "");
+  const selectedBuyerId = String(selectedOrder?.buyer?._id || selectedOrder?.buyer || "");
+  const isSelectedOrderBuyer = Boolean(
+    isBuyer && currentUserId && selectedBuyerId === currentUserId
   );
 
   const metrics = useMemo(() => {
@@ -100,6 +114,48 @@ export default function Delivery() {
     loadTracking(selectedOrderId);
   }, [selectedOrderId]);
 
+  useEffect(() => {
+    if (!receivingCapture?.sessionId || !receivingCapture?.orderId) return undefined;
+
+    let active = true;
+    let attaching = false;
+    const pollReceivingScan = async () => {
+      if (attaching) return;
+      try {
+        const mediaRes = await API.get(
+          `/capture-sessions/${receivingCapture.sessionId}/media`
+        );
+        if (!active || !mediaRes.data?.media) return;
+        attaching = true;
+        await API.post(`/orders/${receivingCapture.orderId}/receiving-scans`, {
+          captureSessionId: receivingCapture.sessionId,
+        });
+        if (!active) return;
+        setMessage("Scan captured. Analysis not yet available.");
+        setReceivingCapture(null);
+        await loadOrders();
+      } catch (err) {
+        if (!active) return;
+        if (err.response?.status === 410) {
+          setMessage("Receiving camera session expired. Start a new scan and try again.");
+          setReceivingCapture(null);
+          return;
+        }
+        if (attaching) {
+          attaching = false;
+          setMessage(err.response?.data?.msg || "Could not attach the receiving scan. Try again.");
+        }
+      }
+    };
+
+    pollReceivingScan();
+    const intervalId = window.setInterval(pollReceivingScan, 2500);
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [receivingCapture?.orderId, receivingCapture?.sessionId]);
+
   const runAction = async (action, successMessage) => {
     if (!selectedOrderId) {
       setMessage("Select an order first.");
@@ -132,6 +188,53 @@ export default function Delivery() {
     runAction(
       () => API.post("/delivery/confirm-delivery", { orderId: selectedOrderId, otp: deliveryOtp }),
       () => "Delivery confirmed. Negotiation is now unlocked."
+    );
+
+  const openBuyerReceivingCapture = async () => {
+    if (!isSelectedOrderBuyer) {
+      setMessage("Only this consignment's Buyer can capture receiving evidence.");
+      return;
+    }
+    if (!isBuyerReceivingEligible(selectedOrder)) {
+      setMessage("Receiving scans are available when the consignment is in transit or delivered.");
+      return;
+    }
+
+    try {
+      setReceivingCaptureStarting(true);
+      setMessage("");
+      const res = await API.post("/capture-sessions", {
+        mediaType: "image",
+        gradeKey: "BUYER_SAMPLE",
+        slotIndex: selectedOrder.receivingScans?.length || 0,
+        fruitType: selectedOrder.product?.fruitName || "",
+        fruitVariety: selectedOrder.product?.variety || "",
+        scanPurpose: "BUYER_RECEIVING_SCAN",
+      });
+      const sessionId = String(res.data?.sessionId || "").trim();
+      if (!sessionId) throw new Error("Invalid capture session response");
+      const captureUrl = `${window.location.origin}/mobile-capture/${sessionId}`;
+      const qrDataUrl = await QRCode.toDataURL(captureUrl, { width: 220, margin: 1 });
+      setReceivingCapture({
+        orderId: selectedOrder._id,
+        sessionId,
+        captureUrl,
+        qrDataUrl,
+      });
+    } catch (err) {
+      setMessage(err.response?.data?.msg || "Could not start the Buyer receiving camera.");
+    } finally {
+      setReceivingCaptureStarting(false);
+    }
+  };
+
+  const recordReceivingDecision = (decision) =>
+    runAction(
+      () => API.patch(`/orders/${selectedOrderId}/receiving-decision`, { decision }),
+      () =>
+        decision === "ACCEPTED"
+          ? "Consignment receiving accepted."
+          : "Receiving discrepancy raised."
     );
 
   const negotiate = () =>
@@ -299,6 +402,8 @@ export default function Delivery() {
             isBuyer={isBuyer}
             isGrower={isGrower}
             selectedOrderId={selectedOrderId}
+            selectedOrder={selectedOrder}
+            isSelectedOrderBuyer={isSelectedOrderBuyer}
             deliveryOtp={deliveryOtp}
             setDeliveryOtp={setDeliveryOtp}
             settlementOtp={settlementOtp}
@@ -315,6 +420,9 @@ export default function Delivery() {
             requestAutoLocation={requestAutoLocation}
             saveManualLocation={saveManualLocation}
             markUnloadedDelivered={markUnloadedDelivered}
+            openBuyerReceivingCapture={openBuyerReceivingCapture}
+            receivingCaptureStarting={receivingCaptureStarting}
+            recordReceivingDecision={recordReceivingDecision}
           />
         </section>
       </div>
@@ -322,6 +430,45 @@ export default function Delivery() {
       <div className="mt-6 flex justify-center">
         <BackHomeButton />
       </div>
+
+      {receivingCapture && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-black text-gray-950">Buyer Receiving Scan</h2>
+                <p className="mt-1 text-xs font-bold text-gray-600">
+                  Scan this code with the existing mobile camera. This captures preliminary scan evidence only.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReceivingCapture(null)}
+                aria-label="Close Buyer receiving camera"
+                className="rounded-full p-2 text-gray-600 hover:bg-gray-100"
+              >
+                <FaTimes />
+              </button>
+            </div>
+            <img
+              src={receivingCapture.qrDataUrl}
+              alt="Buyer receiving camera QR code"
+              className="mx-auto mt-4 h-56 w-56"
+            />
+            <a
+              href={receivingCapture.captureUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 block rounded-md bg-green-700 px-3 py-2 text-center text-sm font-extrabold text-white"
+            >
+              Open Camera on This Device
+            </a>
+            <p className="mt-3 text-center text-xs font-bold text-green-800">
+              Waiting for scan upload...
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -479,6 +626,8 @@ function RoleActionPanel(props) {
     isBuyer,
     isGrower,
     selectedOrderId,
+    selectedOrder,
+    isSelectedOrderBuyer,
     deliveryOtp,
     setDeliveryOtp,
     settlementOtp,
@@ -495,6 +644,9 @@ function RoleActionPanel(props) {
     requestAutoLocation,
     saveManualLocation,
     markUnloadedDelivered,
+    openBuyerReceivingCapture,
+    receivingCaptureStarting,
+    recordReceivingDecision,
   } = props;
 
   return (
@@ -528,6 +680,48 @@ function RoleActionPanel(props) {
 
         {isBuyer && (
           <ActionBox icon={<FaMoneyBillWave />} title="Buyer actions">
+            {isSelectedOrderBuyer && (
+              <>
+                <button
+                  type="button"
+                  onClick={openBuyerReceivingCapture}
+                  disabled={
+                    !selectedOrderId ||
+                    receivingCaptureStarting ||
+                    !isBuyerReceivingEligible(selectedOrder)
+                  }
+                  className={primaryButtonClass}
+                >
+                  <span className="inline-flex items-center justify-center gap-2">
+                    <FaCamera />
+                    {receivingCaptureStarting ? "Starting Camera..." : "Capture Random Sample"}
+                  </span>
+                </button>
+                <p className="rounded-md bg-white px-3 py-2 text-xs font-bold text-gray-700">
+                  {selectedOrder?.receivingScans?.length
+                    ? "Receiving scan captured. Analysis not yet available."
+                    : "No receiving scan attached. Scan evidence is optional until receiving."}
+                </p>
+                {selectedOrder?.receivingScans?.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => recordReceivingDecision("ACCEPTED")}
+                      className={secondaryButtonClass}
+                    >
+                      Accept
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => recordReceivingDecision("DISCREPANCY_RAISED")}
+                      className={secondaryButtonClass}
+                    >
+                      Raise Discrepancy
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
             <TextInput value={deliveryOtp} placeholder="Delivery OTP" onChange={setDeliveryOtp} />
             <button type="button" onClick={confirmDelivery} disabled={!selectedOrderId} className={primaryButtonClass}>
               Confirm Delivery
