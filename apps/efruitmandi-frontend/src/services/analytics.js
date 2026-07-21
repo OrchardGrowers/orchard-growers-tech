@@ -2,13 +2,88 @@
 
 export const GA_ID = analyticsConfig.gaMeasurementId;
 
+const usesDirectGa = () =>
+  analyticsConfig.deliveryMode === "direct" ||
+  analyticsConfig.deliveryMode === "dual";
+
+const usesGtm = () =>
+  analyticsConfig.deliveryMode === "gtm" ||
+  analyticsConfig.deliveryMode === "dual";
+
+const SENSITIVE_PARAM_FRAGMENTS = [
+  "email",
+  "phone",
+  "mobile",
+  "telephone",
+  "address",
+  "aadhaar",
+  "aadhar",
+  "passport",
+  "license",
+  "licence",
+  "identity",
+  "document",
+  "otp",
+  "password",
+  "passcode",
+  "cvv",
+  "cardnumber",
+  "accountnumber",
+  "paymentcredential",
+  "accesstoken",
+  "refreshtoken",
+  "authorization",
+  "cookie",
+  "sessionid",
+  "sessiontoken",
+];
+
+const isSensitiveParam = (key) => {
+  const normalizedKey = String(key).replace(/[^a-z0-9]/gi, "").toLowerCase();
+
+  return (
+    ["pan", "pin", "card", "session"].includes(normalizedKey) ||
+    SENSITIVE_PARAM_FRAGMENTS.some((fragment) =>
+      normalizedKey.includes(fragment)
+    )
+  );
+};
+
+const serializeSafeObject = (value) =>
+  JSON.stringify(value, (key, nestedValue) =>
+    key && isSensitiveParam(key) ? undefined : nestedValue
+  );
+
+let initialGtmPagePath = null;
+let initialGtmPageViewPending = false;
+
+const getInitialDocumentPath = () => {
+  try {
+    const navigationEntry = window.performance?.getEntriesByType?.(
+      "navigation"
+    )?.[0];
+
+    if (navigationEntry?.name) {
+      const initialUrl = new URL(navigationEntry.name);
+      return initialUrl.pathname + initialUrl.search;
+    }
+  } catch {
+    // Fall back to the current URL when navigation timing is unavailable.
+  }
+
+  return window.location.pathname + window.location.search;
+};
+
 const normalizeEventParams = (params = {}) => {
   const safeParams = {};
 
   Object.entries(params).forEach(([key, value]) => {
+    if (key === "event") return;
+    if (isSensitiveParam(key)) return;
     if (value === undefined || value === null || value === "") return;
     if (typeof value === "object") {
-      safeParams[key] = JSON.stringify(value);
+      const serializedValue = serializeSafeObject(value);
+      if (serializedValue !== undefined) safeParams[key] = serializedValue;
       return;
     }
     safeParams[key] = value;
@@ -23,7 +98,12 @@ const trackMarketplaceEvent = (eventName, params = {}) => {
   const safeParams = normalizeEventParams(params);
 
   try {
-    if (GA_ID && typeof window.gtag === "function") {
+    if (usesGtm()) {
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({ event: eventName, ...safeParams });
+    }
+
+    if (usesDirectGa() && GA_ID && typeof window.gtag === "function") {
       window.gtag("event", eventName, safeParams);
     }
 
@@ -39,7 +119,19 @@ const trackMarketplaceEvent = (eventName, params = {}) => {
 };
 
 export const initAnalytics = (options = {}) => {
-  if (!canUseAnalytics() || !GA_ID) return;
+  if (!canUseAnalytics()) return;
+
+  if (usesGtm()) {
+    window.dataLayer = window.dataLayer || [];
+  }
+
+  if (analyticsConfig.deliveryMode === "gtm") {
+    initialGtmPagePath = getInitialDocumentPath();
+    initialGtmPageViewPending = true;
+    return;
+  }
+
+  if (!GA_ID) return;
 
   const sendPageView =
     options.sendPageView ?? analyticsConfig.automaticPageViews;
@@ -73,8 +165,26 @@ export const trackPageView = (path) => {
   if (!canUseAnalytics()) return;
 
   try {
+    if (analyticsConfig.spaPageViews && usesGtm()) {
+      const isInitialGtmPageView =
+        initialGtmPageViewPending && path === initialGtmPagePath;
+
+      initialGtmPageViewPending = false;
+
+      if (!isInitialGtmPageView) {
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({
+          event: "virtual_page_view",
+          page_path: path,
+          page_location: window.location.href,
+          page_title: document.title,
+        });
+      }
+    }
+
     if (
       analyticsConfig.spaPageViews &&
+      usesDirectGa() &&
       GA_ID &&
       typeof window.gtag === "function"
     ) {

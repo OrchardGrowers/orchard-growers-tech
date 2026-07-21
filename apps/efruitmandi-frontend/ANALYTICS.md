@@ -1,44 +1,76 @@
 # Analytics architecture
 
-## Configuration and production policy
+## Production policy and delivery mode
 
-`src/config/analytics.js` is the application analytics configuration source. It owns the GA measurement ID, the automatic-page-view switch, the SPA-page-view switch, and the production hostname allowlist.
+`src/config/analytics.js` is the single application analytics configuration source. Analytics runs only in a production build on an allowed public hostname. The measurement ID, hostname allowlist, page-view switches, and delivery mode remain centralized there.
 
-The application analytics service is enabled only when all of the following are true:
+`VITE_ANALYTICS_DELIVERY_MODE` supports `direct`, `dual`, and `gtm`. Missing or invalid values default to `gtm`, making Google Tag Manager the production owner of GA4. The existing measurement ID is unchanged.
 
-- Vite built the application in production mode.
-- The browser hostname is not localhost, a loopback address, a private/link-local IP address, or a `.local` hostname.
-- The browser hostname matches `VITE_ANALYTICS_PRODUCTION_HOSTS`.
+| Mode | Application loads/configures `gtag.js` | Application pushes `dataLayer` events | Intended use |
+| --- | --- | --- | --- |
+| `gtm` | No | Yes | Production default |
+| `direct` | Yes | No | Rollback |
+| `dual` | Yes | Yes | Short-lived migration diagnostics only; it can duplicate GA4 data if GTM tags are active |
 
-The hostname variable is a comma-separated list and supports exact names or entries such as `*.example.com`. When it is omitted, the current eFruitMandi production hostnames are used. This policy controls the application-owned GA initialization, page views, custom GA/Clarity event calls, and the existing direct Clarity loader. The GTM bootstrap remains unchanged in this preparation phase and must not contain analytics tags until the migration phase.
+The GTM bootstrap in `index.html` owns loading container `GTM-N85CGPXP` and is not modified by the application analytics service. The direct Microsoft Clarity loader and all existing Clarity calls remain independent of GA4 delivery mode.
 
-## Initialization flow
+## Event ownership
 
-1. `AnalyticsTracker` in `src/App.js` waits for the existing idle/mobile-home delay.
-2. It dynamically imports `src/services/analytics.js`.
-3. `initAnalytics()` checks the centralized production policy.
-4. When allowed and a measurement ID is configured, it reuses or loads `gtag.js`, initializes `dataLayer`, and runs the GA config command.
-5. `VITE_GA_AUTOMATIC_PAGE_VIEWS` independently controls `send_page_view`. Its default is `true`, preserving current production behavior.
+| Signal | Application responsibility | Delivery/owner in `gtm` mode |
+| --- | --- | --- |
+| Initial page view | None after GTM initialization; the first matching router callback is suppressed | GTM Google Tag |
+| SPA page view | Push one `virtual_page_view` after a route change | GTM maps the data-layer event to GA4 |
+| Marketplace event | Preserve its existing name, normalize permitted parameters, and push one object | GTM maps the same event name to GA4 |
+| Clarity event | Call `clarity("event", name)` and set the same permitted properties as before | Application/direct Clarity integration |
 
-`initAnalytics()` remains callable without arguments. A caller may also temporarily override the configured automatic-page-view setting with `initAnalytics({ sendPageView: false })` during migration validation.
+Existing analytics exports, signatures, imports, and page callers remain unchanged. Event names are unchanged: `lot_view`, `lot_contact`, `buyer_registration`, `grower_registration`, `logistics_registration`, `kyc_submitted`, `lot_created`, `deal_created`, `payment_initiated`, `payment_success`, `payment_failed`, `search_performed`, `registration_started`, and `auth_step`. `trackUserAction` continues to use its caller-supplied event name.
 
-## Page-view flow
+Analytics parameters whose keys indicate email, phone/mobile, address, identity documents, payment credentials, OTP/password/PIN, access or refresh tokens, authorization, cookies, or sessions are discarded before any GA4/dataLayer or Clarity delivery. Callers must continue to pass only non-sensitive business metadata.
 
-`AnalyticsTracker` observes React Router's `location` and calls `trackPageView(pathname + search)`. `VITE_GA_SPA_PAGE_VIEWS` independently controls whether that call sends the GA config command. Clarity continues to receive its existing `page_path` property update while application analytics are enabled.
+## dataLayer event contract
 
-Both page-view switches default to `true`, so the known initial-page duplication is intentionally preserved in this phase. During migration, disable one owner before enabling an equivalent GTM page-view tag.
+Marketplace events are plain objects. The `event` property is the existing analytics event name; the remaining properties are the existing normalized, non-empty, non-sensitive event parameters.
 
-## Event flow
+```js
+window.dataLayer.push({
+  event: "payment_success",
+  payment_status: "success",
+  value: 1200,
+  currency: "INR",
+});
+```
 
-Existing page components continue to import the same functions from `src/services/analytics.js`. The service normalizes parameters once and sends the unchanged event name and parameters to direct GA4 and the unchanged event name/properties to Clarity. Calls become safe no-ops when the centralized production policy rejects the current environment or GA/Clarity is unavailable.
+SPA navigation uses exactly this contract and no additional fields:
 
-The install-prompt telemetry in `src/utils/installAnalytics.js` remains separate and local-storage-only.
+```js
+window.dataLayer.push({
+  event: "virtual_page_view",
+  page_path: "/auctions?fruit=apple",
+  page_location: window.location.href,
+  page_title: document.title,
+});
+```
 
-## GTM migration points
+`page_path` is the React Router pathname plus query string. `page_location` is the current absolute URL. `page_title` is the current document title. The application suppresses the initial router callback in `gtm` mode so the GTM-owned initial page view and application-owned SPA page views do not overlap.
 
-- Set `VITE_GA_AUTOMATIC_PAGE_VIEWS=false` before GTM becomes the initial page-view owner.
-- Set `VITE_GA_SPA_PAGE_VIEWS=false` before GTM becomes the React Router/history page-view owner.
-- Move custom events behind the internal `trackMarketplaceEvent` boundary, preserving every existing exported function and event name.
-- Remove direct `gtag.js` initialization only after GTM Preview and GA4 DebugView confirm equivalent single-fire behavior.
-- Keep direct Clarity until its GTM replacement is independently validated.
-- Do not enable overlapping GA4 configuration, page-view, or custom-event tags in GTM while the corresponding direct switch/path remains active.
+## Rollback
+
+1. Set `VITE_ANALYTICS_DELIVERY_MODE=direct` in the production build environment.
+2. Build and deploy the frontend. Direct mode restores dynamic `gtag.js` loading, `gtag("config")`, direct custom events, and the prior SPA config calls.
+3. In GTM, pause the GA4 Google Tag/page-view/custom-event tags before or at the same release boundary to prevent duplicate tracking. Keep the GTM container bootstrap installed.
+4. Verify one initial page view, one page view per SPA navigation, unchanged marketplace event names, and active Clarity events.
+
+Do not use `dual` as a steady-state rollback mode. It intentionally emits through both application delivery paths and is only safe when the corresponding GTM GA4 event tags are disabled or isolated for diagnostics.
+
+## Validation checklist
+
+- Build with the production environment and confirm `npm run build` succeeds.
+- Confirm `git diff --check` succeeds.
+- Confirm the GTM bootstrap and measurement ID values are unchanged.
+- In GTM Preview, confirm the Google Tag owns the initial page view.
+- Navigate between routes and confirm exactly one `virtual_page_view` object per SPA navigation, containing only `page_path`, `page_location`, and `page_title` in addition to `event`.
+- Trigger every marketplace flow and confirm its existing event name appears once in `dataLayer` and once in GA4 DebugView.
+- Confirm no application request loads `gtag/js`, and no application `gtag("config")` or `gtag("event")` call runs in `gtm` mode.
+- Confirm `email`, phone/mobile, address, identity documents, payment credentials, OTP, tokens, authorization values, and cookies are absent from Preview and DebugView.
+- Confirm Microsoft Clarity loads and receives the existing event names and page-path updates.
+- Confirm SEO output, routing, APIs, and application business flows are unchanged.

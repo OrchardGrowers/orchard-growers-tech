@@ -1,4 +1,5 @@
 const DEFAULT_PRODUCTION_HOSTS = ["efruitmandi.live", "www.efruitmandi.live"];
+const ANALYTICS_DELIVERY_MODES = new Set(["direct", "dual", "gtm"]);
 
 const parseBoolean = (value, fallback) => {
   if (value === undefined || value === null || value === "") return fallback;
@@ -12,6 +13,14 @@ const parseProductionHosts = (value) => {
     .filter(Boolean);
 
   return hosts.length ? hosts : DEFAULT_PRODUCTION_HOSTS;
+};
+
+const parseDeliveryMode = (value) => {
+  const mode = String(value || "")
+    .trim()
+    .toLowerCase();
+
+  return ANALYTICS_DELIVERY_MODES.has(mode) ? mode : "gtm";
 };
 
 const isPrivateIpv4 = (hostname) => {
@@ -37,6 +46,9 @@ const isPrivateIpv4 = (hostname) => {
 
 export const analyticsConfig = Object.freeze({
   gaMeasurementId: import.meta.env.VITE_GA_MEASUREMENT_ID,
+  deliveryMode: parseDeliveryMode(
+    import.meta.env.VITE_ANALYTICS_DELIVERY_MODE
+  ),
   automaticPageViews: parseBoolean(
     import.meta.env.VITE_GA_AUTOMATIC_PAGE_VIEWS,
     true
