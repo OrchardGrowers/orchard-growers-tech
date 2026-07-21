@@ -4,7 +4,6 @@ import { HelmetProvider } from "react-helmet-async";
 import "./index.css";
 import App from "./App";
 import AppErrorBoundary from "./components/AppErrorBoundary";
-import AutoRefreshOnResume from "./components/AutoRefreshOnResume";
 
 function StartupOverlayCleanup() {
   React.useLayoutEffect(() => {
@@ -21,7 +20,6 @@ root.render(
     <HelmetProvider>
       <AppErrorBoundary>
         <App />
-        <AutoRefreshOnResume />
         <StartupOverlayCleanup />
       </AppErrorBoundary>
     </HelmetProvider>
