@@ -1,4 +1,6 @@
-﻿export const GA_ID = import.meta.env.VITE_GA_MEASUREMENT_ID;
+﻿import { analyticsConfig, canUseAnalytics } from "../config/analytics";
+
+export const GA_ID = analyticsConfig.gaMeasurementId;
 
 const normalizeEventParams = (params = {}) => {
   const safeParams = {};
@@ -16,7 +18,7 @@ const normalizeEventParams = (params = {}) => {
 };
 
 const trackMarketplaceEvent = (eventName, params = {}) => {
-  if (typeof window === "undefined") return;
+  if (!canUseAnalytics()) return;
 
   const safeParams = normalizeEventParams(params);
 
@@ -36,8 +38,11 @@ const trackMarketplaceEvent = (eventName, params = {}) => {
   }
 };
 
-export const initAnalytics = () => {
-  if (typeof window === "undefined" || !GA_ID) return;
+export const initAnalytics = (options = {}) => {
+  if (!canUseAnalytics() || !GA_ID) return;
+
+  const sendPageView =
+    options.sendPageView ?? analyticsConfig.automaticPageViews;
 
   const existingScript = document.querySelector(
     `script[src*="googletagmanager.com/gtag/js?id=${GA_ID}"]`
@@ -60,15 +65,19 @@ export const initAnalytics = () => {
 
   window.gtag("js", new Date());
   window.gtag("config", GA_ID, {
-    send_page_view: true,
+    send_page_view: sendPageView,
   });
 };
 
 export const trackPageView = (path) => {
-  if (typeof window === "undefined") return;
+  if (!canUseAnalytics()) return;
 
   try {
-    if (GA_ID && typeof window.gtag === "function") {
+    if (
+      analyticsConfig.spaPageViews &&
+      GA_ID &&
+      typeof window.gtag === "function"
+    ) {
       window.gtag("config", GA_ID, {
         page_path: path,
       });
