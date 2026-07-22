@@ -57,6 +57,7 @@ import {
   mergeDealSettings,
 } from "../services/dealCalculationService.js";
 import { syncCommodityMaster } from "../services/mandiRateService.js";
+import adminBusinessMailRoutes from "./adminBusinessMailRoutes.js";
 import {
   getAdminErpDashboard,
   listAdminErpAuditEvents,
@@ -88,7 +89,7 @@ const adminOtpVerifyLimiter = createRateLimiter({
   message: "Too many OTP requests. Please try again later.",
 });
 
-const ensureActiveAdmin = async (req, res, next) => {
+export const ensureActiveAdmin = async (req, res, next) => {
   const admin = await Admin.findById(req.user.id).select("_id email status role adminClass canManageClassIII");
 
   const validClasses = new Set(["CLASS_I", "CLASS_II", "CLASS_III"]);
@@ -181,6 +182,8 @@ router.post("/send-otp", adminOtpLimiter, wrapAsync(sendAdminOtp));
 router.post("/verify-otp", adminOtpVerifyLimiter, wrapAsync(verifyAdminOtp));
 router.post("/forgot-password", wrapAsync(requestAdminPasswordReset));
 router.post("/reset-password", wrapAsync(resetAdminPassword));
+
+router.use("/business-mail", ...adminOnly, adminBusinessMailRoutes);
 
 router.get("/analytics", ...adminOnly, requireRoles(...ANALYTICS_ROLES), wrapAsync(getAdminAnalytics));
 router.get("/erp/dashboard", ...adminOnly, requireRoles(...ERP_READ_ROLES), wrapAsync(getAdminErpDashboard));

@@ -1,0 +1,297 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  sendBusinessMail: vi.fn(),
+  getBusinessMailProviderStatus: vi.fn(),
+  createLog: vi.fn(),
+  findOneLog: vi.fn(),
+  findByIdAndUpdate: vi.fn(),
+  findLogs: vi.fn(),
+  countLogs: vi.fn(),
+  updateAdmin: vi.fn(),
+}));
+
+vi.mock("../services/businessMail/BusinessMailService.js", () => ({
+  sendBusinessMail: mocks.sendBusinessMail,
+  getBusinessMailProviderStatus: mocks.getBusinessMailProviderStatus,
+}));
+
+vi.mock("../models/EmailDeliveryLog.js", () => ({
+  default: {
+    create: mocks.createLog,
+    findOne: mocks.findOneLog,
+    findByIdAndUpdate: mocks.findByIdAndUpdate,
+    find: mocks.findLogs,
+    countDocuments: mocks.countLogs,
+  },
+}));
+
+vi.mock("../models/Admin.js", () => ({ default: { updateOne: mocks.updateAdmin } }));
+
+import {
+  getBusinessMailLogById,
+  listBusinessMailLogs,
+  sendBusinessMailMessage,
+  validateBusinessMailRequestPayload,
+} from "./adminBusinessMailController.js";
+import { BusinessMailError } from "../services/businessMail/businessMailErrors.js";
+
+const ADMIN_ONE = "507f1f77bcf86cd799439011";
+const ADMIN_TWO = "507f191e810c19729de860ea";
+const LOG_ID = "507f1f77bcf86cd799439012";
+
+const basePayload = () => ({
+  senderProfileKey: "EFRUITMANDI_NO_REPLY",
+  to: "recipient@example.test",
+  subject: "Controlled test",
+  text: "Plain-text content",
+  category: "GENERAL",
+  metadata: { source: "ADMIN_PANEL", correlationId: "reference-1" },
+});
+
+const createRequest = (body = basePayload(), overrides = {}) => ({
+  body,
+  query: {},
+  params: {},
+  user: { id: ADMIN_ONE, role: "ADMIN" },
+  admin: { _id: ADMIN_ONE, email: "admin@example.test", role: "ADMIN", status: "ACTIVE", adminClass: "CLASS_I" },
+  ...overrides,
+});
+
+const createResponse = () => ({
+  statusCode: 200,
+  body: null,
+  status(code) { this.statusCode = code; return this; },
+  json(body) { this.body = body; return this; },
+});
+
+const queryResult = (value) => ({
+  select: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(value) }),
+  lean: vi.fn().mockResolvedValue(value),
+});
+
+const makeLog = (overrides = {}) => ({
+  _id: LOG_ID,
+  category: "GENERAL",
+  senderProfileKey: "EFRUITMANDI_NO_REPLY",
+  senderName: "eFruitMandi",
+  senderEmail: "no-reply@efruitmandi.live",
+  replyTo: "support@efruitmandi.live",
+  recipient: "recipient@example.test",
+  subject: "Controlled test",
+  provider: "brevo_api",
+  providerMessageId: "",
+  status: "PROCESSING",
+  requestedByAdmin: ADMIN_ONE,
+  requestedByAdminEmail: "admin@example.test",
+  requestedByAdminRole: "ADMIN",
+  metadata: { source: "ADMIN_PANEL", correlationId: "reference-1" },
+  createdAt: new Date("2026-07-22T00:00:00.000Z"),
+  sentAt: null,
+  failedAt: null,
+  ...overrides,
+});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  process.env.BUSINESS_MAIL_EFRUITMANDI_NO_REPLY_ENABLED = "true";
+  mocks.getBusinessMailProviderStatus.mockReturnValue({
+    provider: "brevo_api",
+    configured: true,
+    enabledSenderProfileKeys: ["EFRUITMANDI_NO_REPLY"],
+  });
+  mocks.findOneLog.mockImplementation(() => queryResult(null));
+  mocks.createLog.mockImplementation(async (record) => makeLog(record));
+  mocks.findByIdAndUpdate.mockResolvedValue(null);
+  mocks.updateAdmin.mockResolvedValue({ acknowledged: true });
+  mocks.sendBusinessMail.mockResolvedValue({
+    success: true,
+    provider: "brevo_api",
+    providerMessageId: "provider-id",
+    accepted: ["recipient@example.test"],
+    rejected: [],
+    status: "SENT",
+    sentAt: "2026-07-22T00:00:01.000Z",
+  });
+});
+
+describe("Admin Business Mail payload validation", () => {
+  it.each([
+    ["missing recipient", (body) => { delete body.to; }],
+    ["invalid recipient", (body) => { body.to = "invalid"; }],
+    ["recipient array", (body) => { body.to = ["one@example.test"]; }],
+    ["comma recipients", (body) => { body.to = "one@example.test,two@example.test"; }],
+    ["arbitrary from", (body) => { body.from = "other@example.test"; }],
+    ["sender object", (body) => { body.sender = { email: "other@example.test" }; }],
+    ["provider", (body) => { body.provider = "smtp"; }],
+    ["SMTP credentials", (body) => { body.smtpPass = "not-accepted"; }],
+    ["CC", (body) => { body.cc = "other@example.test"; }],
+    ["BCC", (body) => { body.bcc = "other@example.test"; }],
+    ["attachments", (body) => { body.attachments = []; }],
+    ["missing sender profile", (body) => { delete body.senderProfileKey; }],
+    ["empty subject", (body) => { body.subject = ""; }],
+    ["CRLF subject", (body) => { body.subject = "Hello\r\nBcc: bad@example.test"; }],
+    ["missing content", (body) => { delete body.text; delete body.html; }],
+    ["oversized subject", (body) => { body.subject = "x".repeat(201); }],
+    ["unsupported category", (body) => { body.category = "CAMPAIGN"; }],
+    ["uncontrolled metadata", (body) => { body.metadata = { arbitrary: "value" }; }],
+    ["nested metadata", (body) => { body.metadata = { source: { nested: true } }; }],
+  ])("rejects %s", (_label, mutate) => {
+    const body = basePayload();
+    mutate(body);
+    expect(() => validateBusinessMailRequestPayload(body)).toThrow();
+  });
+
+  it("accepts the documented bounded payload", () => {
+    expect(validateBusinessMailRequestPayload(basePayload())).toMatchObject({
+      senderProfileKey: "EFRUITMANDI_NO_REPLY",
+      to: "recipient@example.test",
+      category: "GENERAL",
+    });
+  });
+});
+
+describe("Admin Business Mail delivery logging", () => {
+  it("creates PROCESSING before provider delivery and records SENT without bodies", async () => {
+    const request = createRequest({ ...basePayload(), html: "<p>Safe content</p>" });
+    const response = createResponse();
+    await sendBusinessMailMessage(request, response);
+
+    expect(response.statusCode).toBe(200);
+    expect(mocks.createLog).toHaveBeenCalledWith(expect.objectContaining({
+      status: "PROCESSING",
+      requestedByAdmin: ADMIN_ONE,
+      requestedByAdminEmail: "admin@example.test",
+    }));
+    const stored = mocks.createLog.mock.calls[0][0];
+    expect(stored).not.toHaveProperty("text");
+    expect(stored).not.toHaveProperty("html");
+    expect(stored).not.toHaveProperty("credentials");
+    expect(mocks.createLog.mock.invocationCallOrder[0]).toBeLessThan(mocks.sendBusinessMail.mock.invocationCallOrder[0]);
+    expect(mocks.sendBusinessMail).toHaveBeenCalledWith(expect.any(Object), { skipDeliveryLog: true });
+    expect(mocks.findByIdAndUpdate).toHaveBeenCalledWith(LOG_ID, {
+      $set: expect.objectContaining({ status: "SENT", providerMessageId: "provider-id" }),
+    });
+  });
+
+  it("records FAILED with a bounded safe failure message", async () => {
+    const longMessage = "Provider send failed. ".repeat(50);
+    mocks.sendBusinessMail.mockRejectedValue(
+      new BusinessMailError("BUSINESS_MAIL_SEND_FAILED", longMessage)
+    );
+    const response = createResponse();
+    await sendBusinessMailMessage(createRequest(), response);
+
+    expect(response.statusCode).toBe(502);
+    const failedUpdate = mocks.findByIdAndUpdate.mock.calls[0][1].$set;
+    expect(failedUpdate.status).toBe("FAILED");
+    expect(failedUpdate.failureMessage.length).toBeLessThanOrEqual(500);
+    expect(failedUpdate.failedAt).toBeInstanceOf(Date);
+  });
+});
+
+describe("Admin Business Mail idempotency", () => {
+  it("replays SENT without another provider call", async () => {
+    mocks.findOneLog.mockImplementation(() => queryResult(makeLog({ status: "SENT", providerMessageId: "existing" })));
+    const response = createResponse();
+    await sendBusinessMailMessage(
+      createRequest({ ...basePayload(), idempotencyKey: "same-key" }),
+      response
+    );
+    expect(response.statusCode).toBe(200);
+    expect(response.body.idempotentReplay).toBe(true);
+    expect(mocks.sendBusinessMail).not.toHaveBeenCalled();
+  });
+
+  it("returns conflict for PROCESSING or FAILED keys", async () => {
+    for (const status of ["PROCESSING", "FAILED"]) {
+      mocks.findOneLog.mockImplementation(() => queryResult(makeLog({ status })));
+      const response = createResponse();
+      await sendBusinessMailMessage(createRequest({ ...basePayload(), idempotencyKey: "same-key" }), response);
+      expect(response.statusCode).toBe(409);
+    }
+    expect(mocks.sendBusinessMail).not.toHaveBeenCalled();
+  });
+
+  it("scopes identical keys to the authenticated admin", async () => {
+    const responseOne = createResponse();
+    const responseTwo = createResponse();
+    await sendBusinessMailMessage(createRequest({ ...basePayload(), idempotencyKey: "shared-key" }), responseOne);
+    await sendBusinessMailMessage(
+      createRequest(
+        { ...basePayload(), idempotencyKey: "shared-key" },
+        {
+          user: { id: ADMIN_TWO, role: "ADMIN" },
+          admin: { _id: ADMIN_TWO, email: "admin2@example.test", role: "ADMIN", status: "ACTIVE", adminClass: "CLASS_I" },
+        }
+      ),
+      responseTwo
+    );
+    expect(mocks.findOneLog.mock.calls[0][0].requestedByAdmin).toBe(ADMIN_ONE);
+    expect(mocks.findOneLog.mock.calls[1][0].requestedByAdmin).toBe(ADMIN_TWO);
+    expect(mocks.sendBusinessMail).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps no-key requests independent", async () => {
+    await sendBusinessMailMessage(createRequest(), createResponse());
+    await sendBusinessMailMessage(createRequest(), createResponse());
+    expect(mocks.findOneLog).not.toHaveBeenCalled();
+    expect(mocks.createLog).toHaveBeenCalledTimes(2);
+    expect(mocks.sendBusinessMail).toHaveBeenCalledTimes(2);
+  });
+
+  it("handles a duplicate-key creation race without resending", async () => {
+    let lookup = 0;
+    mocks.findOneLog.mockImplementation(() => queryResult(lookup++ === 0 ? null : makeLog({ status: "SENT" })));
+    mocks.createLog.mockRejectedValue(Object.assign(new Error("duplicate"), { code: 11000 }));
+    const response = createResponse();
+    await sendBusinessMailMessage(createRequest({ ...basePayload(), idempotencyKey: "race-key" }), response);
+    expect(response.statusCode).toBe(200);
+    expect(response.body.idempotentReplay).toBe(true);
+    expect(mocks.sendBusinessMail).not.toHaveBeenCalled();
+  });
+});
+
+describe("Admin Business Mail log queries", () => {
+  it("bounds pagination and filters sales logs by ownership", async () => {
+    const lean = vi.fn().mockResolvedValue([makeLog()]);
+    const limit = vi.fn().mockReturnValue({ lean });
+    const skip = vi.fn().mockReturnValue({ limit });
+    const sort = vi.fn().mockReturnValue({ skip });
+    mocks.findLogs.mockReturnValue({ sort });
+    mocks.countLogs.mockResolvedValue(1);
+    const request = createRequest(undefined, {
+      query: { page: "1", limit: "1000", status: "SENT" },
+      admin: { _id: ADMIN_ONE, email: "sales@example.test", role: "SALES_EXECUTIVE" },
+      user: { id: ADMIN_ONE, role: "SALES_EXECUTIVE" },
+    });
+    const response = createResponse();
+    await listBusinessMailLogs(request, response);
+    expect(limit).toHaveBeenCalledWith(100);
+    expect(mocks.findLogs).toHaveBeenCalledWith({ status: "SENT", requestedByAdmin: ADMIN_ONE });
+    expect(response.body.logs[0]).not.toHaveProperty("idempotencyKeyHash");
+    expect(response.body.logs[0]).not.toHaveProperty("text");
+  });
+
+  it("rejects invalid filters", async () => {
+    const response = createResponse();
+    await listBusinessMailLogs(createRequest(undefined, { query: { status: "$ne" } }), response);
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("uses ownership in sales log detail lookup and hides unavailable records", async () => {
+    mocks.findOneLog.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
+    const response = createResponse();
+    await getBusinessMailLogById(
+      createRequest(undefined, {
+        params: { id: LOG_ID },
+        admin: { _id: ADMIN_ONE, email: "sales@example.test", role: "SALES_EXECUTIVE" },
+        user: { id: ADMIN_ONE, role: "SALES_EXECUTIVE" },
+      }),
+      response
+    );
+    expect(mocks.findOneLog).toHaveBeenCalledWith({ _id: LOG_ID, requestedByAdmin: ADMIN_ONE });
+    expect(response.statusCode).toBe(404);
+  });
+});
+

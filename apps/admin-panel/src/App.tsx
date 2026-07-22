@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import InstallAppPrompt, { openAdminInstallPrompt } from './components/InstallAppPrompt';
+import BusinessMail, { canUseBusinessMail } from './components/BusinessMail';
 import OrchardAiLeadDatabase from './components/OrchardAiLeadDatabase';
 import OrchardAiPlaceholder from './components/OrchardAiPlaceholder';
 
@@ -300,7 +301,7 @@ type FileMeta = {
   mimetype?: string;
 };
 
-type AdminPlatform = 'main' | 'orchard' | 'orchardAi' | 'efruitmandi' | 'userManagement' | 'notifications' | 'system' | 'download' | 'logout';
+type AdminPlatform = 'main' | 'orchard' | 'orchardAi' | 'efruitmandi' | 'userManagement' | 'notifications' | 'businessMail' | 'system' | 'download' | 'logout';
 type AdminThemeMode = 'light' | 'dark' | 'system';
 type AdminTab =
   | 'dashboard'
@@ -342,6 +343,7 @@ type AdminTab =
   | 'rolesPermissions'
   | 'suspendedUsers'
   | 'notifications'
+  | 'businessMail'
   | 'systemSettings'
   | 'downloadApp';
 type OrchardModulePages = Partial<Record<AdminTab, string>>;
@@ -963,6 +965,7 @@ const adminRoutePaths: Record<AdminTab, string> = {
   rolesPermissions: '/users/roles-permissions',
   suspendedUsers: '/users/suspended',
   notifications: '/notifications',
+  businessMail: '/business-mail',
   systemSettings: '/system-settings',
   downloadApp: '/download-app',
 };
@@ -1007,6 +1010,7 @@ const adminTabPlatforms: Record<AdminTab, AdminPlatform> = {
   rolesPermissions: 'userManagement',
   suspendedUsers: 'userManagement',
   notifications: 'notifications',
+  businessMail: 'businessMail',
   systemSettings: 'system',
   downloadApp: 'download',
 };
@@ -1053,6 +1057,7 @@ const platformTabs: Record<AdminPlatform, AdminTabButton[]> = {
     { id: 'suspendedUsers', label: 'Suspended Users' },
   ],
   notifications: [{ id: 'notifications', label: 'Notifications' }],
+  businessMail: [{ id: 'businessMail', label: 'Business Mail' }],
   system: [{ id: 'systemSettings', label: 'System Settings' }],
   download: [{ id: 'downloadApp', label: 'Download App' }],
   logout: [{ id: 'dashboard', label: 'Dashboard' }],
@@ -1099,14 +1104,14 @@ const classIIIAdminEmails = new Set([
 const adminRolePermissions: Record<AdminRole, AdminTab[]> = {
   SUPER_ADMIN: allAdminTabs,
   ADMIN: allAdminTabs.filter((tab) => tab !== 'systemSettings'),
-  EMPLOYEE: allAdminTabs.filter((tab) => tab !== 'systemSettings'),
+  EMPLOYEE: allAdminTabs.filter((tab) => tab !== 'systemSettings' && tab !== 'businessMail'),
   UNIT_MANAGER: ['dashboard', 'master', 'inventory', 'productAdmin', 'billing', 'sales', 'logistics', 'unitsOutlets', 'expenses', 'reports', 'orchardSettings', 'notifications', 'downloadApp'],
   INVENTORY_MANAGER: ['dashboard', 'master', 'inventory', 'productAdmin', 'purchase', 'reports', 'notifications', 'downloadApp'],
-  SALES_EXECUTIVE: ['dashboard', 'billing', 'sales', 'logistics', 'customers', 'reports', 'notifications', 'downloadApp'],
+  SALES_EXECUTIVE: ['dashboard', 'billing', 'sales', 'logistics', 'customers', 'reports', 'notifications', 'businessMail', 'downloadApp'],
   PURCHASE_MANAGER: ['dashboard', 'master', 'inventory', 'purchase', 'reports', 'notifications', 'downloadApp'],
   FINANCE_MANAGER: ['dashboard', 'billing', 'expenses', 'financials', 'transactions', 'efruitInvoices', 'reports', 'analytics', 'notifications', 'downloadApp'],
   VERIFICATION_OFFICER: ['dashboard', 'efruitDashboard', 'users', 'kyc', 'ogVerified', 'produceLots', 'efruitInvoices', 'sellers', 'buyers', 'suspendedUsers', 'notifications', 'downloadApp'],
-  SUPPORT_EXECUTIVE: ['dashboard', 'users', 'customers', 'sellers', 'buyers', 'supportDisputes', 'efruitInvoices', 'suspendedUsers', 'notifications', 'downloadApp'],
+  SUPPORT_EXECUTIVE: ['dashboard', 'users', 'customers', 'sellers', 'buyers', 'supportDisputes', 'efruitInvoices', 'suspendedUsers', 'notifications', 'businessMail', 'downloadApp'],
   VIEWER: ['dashboard', 'reports', 'efruitDashboard', 'efruitInvoices', 'analytics', 'notifications', 'downloadApp'],
 };
 const adminRolePermissionSets = Object.fromEntries(
@@ -1115,7 +1120,9 @@ const adminRolePermissionSets = Object.fromEntries(
 const normalizeAdminRole = (role?: string): AdminRole =>
   role && Object.prototype.hasOwnProperty.call(adminRoleLabels, role) ? (role as AdminRole) : 'VIEWER';
 const canAccessAdminTab = (role: AdminRole, tab: AdminTab) =>
-  adminRolePermissionSets[role]?.has(tab) || false;
+  tab === 'businessMail'
+    ? canUseBusinessMail(role)
+    : adminRolePermissionSets[role]?.has(tab) || false;
 const getAccessibleTabsForRole = (role: AdminRole) =>
   allAdminTabs.filter((tab) => canAccessAdminTab(role, tab));
 const getDefaultAdminTab = (role: AdminRole) =>
@@ -2922,6 +2929,9 @@ function App() {
         />
       );
     }
+    if (tab === 'businessMail') {
+      return <BusinessMail apiBase={API_BASE} authHeaders={authHeaders} />;
+    }
     if (tab === 'orchardAiLeadCollection') {
       return (
         <OrchardAiPlaceholder
@@ -3356,6 +3366,12 @@ function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: (
       title: 'Notifications',
       subtitle: 'Alerts and updates',
       items: [{ label: 'Notifications', icon: 'notification', tab: 'notifications', count: counts.notifications }],
+    },
+    {
+      platform: 'businessMail',
+      title: 'Business Mail',
+      subtitle: 'Compose and delivery history',
+      items: [{ label: 'Business Mail', icon: 'notification', tab: 'businessMail' }],
     },
     {
       platform: 'system',
@@ -3946,6 +3962,7 @@ function getAdminTabTitle(activeTab: AdminTab, activePlatform: AdminPlatform) {
   if (activeTab === 'efruitDashboard') return 'eFruitMandi Dashboard';
   if (activeTab === 'users') return 'eFruitMandi Users';
   if (activeTab === 'notifications') return 'Admin Notifications';
+  if (activeTab === 'businessMail') return 'Business Mail';
   if (activeTab === 'kyc') return 'eFruitMandi KYC Verification';
   if (activeTab === 'ogVerified') return 'eFruitMandi OG Verification';
   if (activeTab === 'produceLots') return 'eFruitMandi Produce Lots';
@@ -8625,6 +8642,7 @@ function getDefaultTabForPlatform(platform: AdminPlatform, role: AdminRole): Adm
     efruitmandi: 'efruitDashboard',
     userManagement: 'staffUsers',
     notifications: 'notifications',
+    businessMail: 'businessMail',
     system: 'systemSettings',
     download: 'downloadApp',
     logout: 'dashboard',
