@@ -13,8 +13,18 @@ import {
 } from "../services/businessMail/businessMailErrors.js";
 import {
   getBusinessMailSenderProfile,
-  listBusinessMailSenderProfiles,
 } from "../services/businessMail/senderProfiles.js";
+import {
+  assertBusinessMailSenderAccess,
+  BUSINESS_MAIL_ACCESS_ROLES,
+  getAuthorizedBusinessMailSenderProfiles,
+  getBusinessMailMasterAdminEmail,
+  getGloballyEnabledBusinessMailSenderProfiles,
+  isBusinessMailMasterAdmin,
+  BUSINESS_MAIL_COMMON_SENDER_PROFILE_KEYS,
+  normalizeBusinessMailRestrictedSenderProfileKeys,
+  normalizeBusinessMailSenderProfileKeys,
+} from "../services/businessMail/businessMailSenderAccess.js";
 import { validateBusinessMailHtml } from "../utils/businessMailContentValidation.js";
 
 export const BUSINESS_MAIL_CATEGORIES = Object.freeze([
@@ -269,10 +279,15 @@ const createProcessingLog = async ({ mail, profile, provider, admin, idempotency
   }
 };
 
-export const getBusinessMailStatus = async (_req, res) => {
+export const getBusinessMailStatus = async (req, res) => {
   try {
+    const admin = getAdminContext(req);
+    const providerStatus = getBusinessMailProviderStatus();
+    const authorizedProfiles = await getAuthorizedBusinessMailSenderProfiles(admin);
     return res.json({
-      ...getBusinessMailProviderStatus(),
+      ...providerStatus,
+      enabledSenderProfileKeys: authorizedProfiles.map((profile) => profile.key),
+      canManageSenderAccess: isBusinessMailMasterAdmin(admin),
       capabilities: {
         singleRecipient: true,
         plainText: true,
@@ -290,18 +305,165 @@ export const getBusinessMailStatus = async (_req, res) => {
 };
 
 export const getBusinessMailSenderProfiles = async (req, res) => {
-  const admin = getAdminContext(req);
-  const profiles = listBusinessMailSenderProfiles()
-    .filter((profile) => admin.role === "SUPER_ADMIN" || profile.enabled)
-    .map((profile) => ({
+  try {
+    const profiles = (await getAuthorizedBusinessMailSenderProfiles(getAdminContext(req)))
+      .map((profile) => ({
+        key: profile.key,
+        name: profile.sender.name,
+        email: profile.sender.email,
+        replyTo: profile.replyTo?.email || "",
+        enabled: true,
+        replyCapable: profile.replyCapable,
+      }));
+    return res.json({ profiles });
+  } catch (error) {
+    return sendMappedError(res, error);
+  }
+};
+
+const safeBusinessMailAccess = (admin = {}) => {
+  const allowedRestrictedSenderProfiles = normalizeBusinessMailSenderProfileKeys(
+    admin.businessMailAccess?.allowedRestrictedSenderProfiles
+      || admin.businessMailAccess?.allowedSenderProfiles
+      || [],
+    { rejectUnknown: false }
+  ).filter((key) => !BUSINESS_MAIL_COMMON_SENDER_PROFILE_KEYS.includes(key));
+  return {
+    enabled: admin.businessMailAccess?.enabled === true,
+    allowedRestrictedSenderProfiles,
+    allowedSenderProfiles: allowedRestrictedSenderProfiles,
+    approvedBy: String(admin.businessMailAccess?.approvedBy?._id || admin.businessMailAccess?.approvedBy || ""),
+    approvedAt: admin.businessMailAccess?.approvedAt || null,
+  };
+};
+
+export const getBusinessMailSenderAccessManagement = async (req, res) => {
+  try {
+    const masterEmail = getBusinessMailMasterAdminEmail();
+    const adminFilter = {
+      role: { $in: BUSINESS_MAIL_ACCESS_ROLES },
+      ...(masterEmail ? { email: { $ne: masterEmail } } : {}),
+    };
+    const admins = await Admin.find(adminFilter)
+      .select("_id name email role status businessMailAccess")
+      .sort({ name: 1, email: 1 })
+      .lean();
+    const globallyEnabledProfiles = getGloballyEnabledBusinessMailSenderProfiles();
+    const commonSenderProfiles = globallyEnabledProfiles
+      .filter((profile) => BUSINESS_MAIL_COMMON_SENDER_PROFILE_KEYS.includes(profile.key))
+      .map((profile) => ({
+        key: profile.key,
+        name: profile.sender.name,
+        email: profile.sender.email,
+      }));
+    const restrictedSenderProfiles = globallyEnabledProfiles
+      .filter((profile) => !BUSINESS_MAIL_COMMON_SENDER_PROFILE_KEYS.includes(profile.key))
+      .map((profile) => ({
       key: profile.key,
       name: profile.sender.name,
       email: profile.sender.email,
-      replyTo: profile.replyTo?.email || "",
-      enabled: profile.enabled,
-      replyCapable: profile.replyCapable,
-    }));
-  return res.json({ profiles });
+      }));
+    return res.json({
+      commonSenderProfiles,
+      restrictedSenderProfiles,
+      senderProfiles: restrictedSenderProfiles,
+      admins: admins.map((admin) => ({
+        id: String(admin._id),
+        name: admin.name || "",
+        email: admin.email || "",
+        role: admin.role || "",
+        status: admin.status || "",
+        businessMailAccess: safeBusinessMailAccess(admin),
+      })),
+    });
+  } catch (error) {
+    return sendMappedError(res, error);
+  }
+};
+
+export const updateBusinessMailSenderAccess = async (req, res) => {
+  try {
+    const body = req.body;
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      throw requestError(BUSINESS_MAIL_ERROR_CODES.INVALID_REQUEST, "Request body must be an object.");
+    }
+    if (Object.keys(body).some((key) => ![
+      "enabled",
+      "allowedRestrictedSenderProfiles",
+      "allowedSenderProfiles",
+    ].includes(key))) {
+      throw requestError(BUSINESS_MAIL_ERROR_CODES.INVALID_REQUEST, "Request contains unsupported fields.");
+    }
+    if (typeof body.enabled !== "boolean") {
+      throw requestError(BUSINESS_MAIL_ERROR_CODES.INVALID_REQUEST, "enabled must be a boolean.");
+    }
+    if (body.allowedRestrictedSenderProfiles !== undefined && body.allowedSenderProfiles !== undefined) {
+      throw requestError(BUSINESS_MAIL_ERROR_CODES.INVALID_REQUEST, "Provide only one sender profile allowlist field.");
+    }
+    const requestedProfiles = normalizeBusinessMailRestrictedSenderProfileKeys(
+      body.allowedRestrictedSenderProfiles ?? body.allowedSenderProfiles
+    );
+    const allowedRestrictedSenderProfiles = body.enabled ? requestedProfiles : [];
+    const targetId = String(req.params.adminId || "").trim();
+    if (!mongoose.isValidObjectId(targetId)) {
+      return res.status(404).json({ msg: "Admin account not found." });
+    }
+
+    const actor = getAdminContext(req);
+    const target = await Admin.findById(targetId);
+    if (!target) return res.status(404).json({ msg: "Admin account not found." });
+    if (!BUSINESS_MAIL_ACCESS_ROLES.includes(String(target.role || "").trim().toUpperCase())) {
+      throw requestError(
+        BUSINESS_MAIL_ERROR_CODES.INVALID_REQUEST,
+        "This admin role does not have Business Mail module access."
+      );
+    }
+    if (isBusinessMailMasterAdmin(target)) {
+      throw requestError(BUSINESS_MAIL_ERROR_CODES.INVALID_REQUEST, "Master Business Mail access cannot be changed.");
+    }
+
+    const previous = safeBusinessMailAccess(target);
+    const approvedAt = new Date();
+    target.businessMailAccess = {
+      enabled: body.enabled,
+      allowedRestrictedSenderProfiles,
+      approvedBy: actor.id,
+      approvedAt,
+    };
+    target.auditLogs = target.auditLogs || [];
+    target.auditLogs.push({
+      action: body.enabled ? "BUSINESS_MAIL_ACCESS_ASSIGNED" : "BUSINESS_MAIL_ACCESS_REVOKED",
+      by: actor.id,
+      at: approvedAt,
+      from: {
+        targetAdminId: targetId,
+        enabled: previous.enabled,
+        allowedRestrictedSenderProfiles: previous.allowedRestrictedSenderProfiles,
+      },
+      to: {
+        targetAdminId: targetId,
+        enabled: body.enabled,
+        allowedRestrictedSenderProfiles,
+      },
+      note: "Business Mail sender access updated by configured master admin",
+    });
+    if (target.auditLogs.length > MAX_AUDIT_ENTRIES) {
+      target.auditLogs = target.auditLogs.slice(-MAX_AUDIT_ENTRIES);
+    }
+    await target.save();
+
+    return res.json({
+      success: true,
+      admin: {
+        id: String(target._id),
+        name: target.name || "",
+        email: target.email || "",
+        businessMailAccess: safeBusinessMailAccess(target),
+      },
+    });
+  } catch (error) {
+    return sendMappedError(res, error);
+  }
 };
 
 export const sendBusinessMailMessage = async (req, res) => {
@@ -309,13 +471,11 @@ export const sendBusinessMailMessage = async (req, res) => {
   const admin = getAdminContext(req);
   try {
     const mail = validateBusinessMailRequestPayload(req.body);
-    const profile = getBusinessMailSenderProfile(mail.senderProfileKey);
-    if (!profile) {
+    const configuredProfile = getBusinessMailSenderProfile(mail.senderProfileKey);
+    if (!configuredProfile) {
       throw requestError(BUSINESS_MAIL_ERROR_CODES.UNKNOWN_SENDER_PROFILE, "Unknown Business Mail sender profile.");
     }
-    if (!profile.enabled) {
-      throw requestError(BUSINESS_MAIL_ERROR_CODES.SENDER_DISABLED, "Business Mail sender profile is disabled.");
-    }
+    const profile = await assertBusinessMailSenderAccess(admin, mail.senderProfileKey);
     const providerStatus = getBusinessMailProviderStatus();
     const idempotencyKeyHash = mail.idempotencyKey ? hashIdempotencyKey(mail.idempotencyKey) : "";
     if (idempotencyKeyHash) {

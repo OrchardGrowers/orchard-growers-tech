@@ -530,6 +530,11 @@ export default function BusinessMail({ apiBase, authHeaders }: {
 
       {activeArea === 'compose' && (
         <form onSubmit={openConfirmation} className="space-y-4" noValidate>
+          {!overviewLoading && !overviewError && enabledProfiles.length === 0 && (
+            <p role="status" className="rounded-lg border border-amber-800 bg-amber-950 p-3 text-sm font-bold text-amber-100">
+              No Business Mail sender profile is currently available. Restricted profiles require a master assignment.
+            </p>
+          )}
           {sendError && <p role="alert" className="rounded-lg border border-red-800 bg-red-950 p-3 text-sm font-bold text-red-200">{sendError}</p>}
           {sendResult && (
             <article className="rounded-xl border border-emerald-700 bg-emerald-950 p-4 text-emerald-100" aria-live="polite">

@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   findLogs: vi.fn(),
   countLogs: vi.fn(),
   updateAdmin: vi.fn(),
+  assertSenderAccess: vi.fn(),
+  getAuthorizedProfiles: vi.fn(),
 }));
 
 vi.mock("../services/businessMail/BusinessMailService.js", () => ({
@@ -27,6 +29,18 @@ vi.mock("../models/EmailDeliveryLog.js", () => ({
 }));
 
 vi.mock("../models/Admin.js", () => ({ default: { updateOne: mocks.updateAdmin } }));
+
+vi.mock("../services/businessMail/businessMailSenderAccess.js", () => ({
+  BUSINESS_MAIL_ACCESS_ROLES: ["SUPER_ADMIN", "ADMIN", "SUPPORT_EXECUTIVE", "SALES_EXECUTIVE"],
+  BUSINESS_MAIL_COMMON_SENDER_PROFILE_KEYS: ["EFRUITMANDI_NO_REPLY", "ORCHARD_NO_REPLY"],
+  assertBusinessMailSenderAccess: mocks.assertSenderAccess,
+  getAuthorizedBusinessMailSenderProfiles: mocks.getAuthorizedProfiles,
+  getBusinessMailMasterAdminEmail: vi.fn(() => "master@example.test"),
+  getGloballyEnabledBusinessMailSenderProfiles: vi.fn(() => []),
+  isBusinessMailMasterAdmin: vi.fn(() => false),
+  normalizeBusinessMailRestrictedSenderProfileKeys: vi.fn((values) => Array.isArray(values) ? values : []),
+  normalizeBusinessMailSenderProfileKeys: vi.fn((values) => Array.isArray(values) ? values : []),
+}));
 
 import {
   getBusinessMailLogById,
@@ -104,6 +118,14 @@ beforeEach(() => {
   mocks.createLog.mockImplementation(async (record) => makeLog(record));
   mocks.findByIdAndUpdate.mockResolvedValue(null);
   mocks.updateAdmin.mockResolvedValue({ acknowledged: true });
+  mocks.assertSenderAccess.mockResolvedValue({
+    key: "EFRUITMANDI_NO_REPLY",
+    enabled: true,
+    sender: { name: "eFruitMandi", email: "no-reply@efruitmandi.live" },
+    replyTo: { email: "support@efruitmandi.live" },
+    replyCapable: false,
+  });
+  mocks.getAuthorizedProfiles.mockResolvedValue([]);
   mocks.sendBusinessMail.mockResolvedValue({
     success: true,
     provider: "brevo_api",
@@ -152,6 +174,59 @@ describe("Admin Business Mail payload validation", () => {
 });
 
 describe("Admin Business Mail delivery logging", () => {
+  it("returns 403 before logging or provider delivery for an unauthorized sender", async () => {
+    mocks.assertSenderAccess.mockRejectedValue(
+      new BusinessMailError(
+        "BUSINESS_MAIL_SENDER_ACCESS_DENIED",
+        "You are not authorized to use this Business Mail sender profile.",
+        { statusCode: 403 }
+      )
+    );
+    const response = createResponse();
+    await sendBusinessMailMessage(
+      createRequest({ ...basePayload(), senderProfileKey: "EFRUITMANDI_CAREER" }),
+      response
+    );
+
+    expect(response.statusCode).toBe(403);
+    expect(mocks.createLog).not.toHaveBeenCalled();
+    expect(mocks.sendBusinessMail).not.toHaveBeenCalled();
+  });
+
+  it("delivers with an assigned restricted career profile", async () => {
+    mocks.assertSenderAccess.mockResolvedValueOnce({
+      key: "EFRUITMANDI_CAREER",
+      enabled: true,
+      sender: { name: "eFruitMandi Careers", email: "career@efruitmandi.live" },
+      replyTo: { email: "career@efruitmandi.live" },
+      replyCapable: true,
+    });
+    const response = createResponse();
+    await sendBusinessMailMessage(
+      createRequest({ ...basePayload(), senderProfileKey: "EFRUITMANDI_CAREER", category: "CAREER" }),
+      response
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(mocks.assertSenderAccess).toHaveBeenCalledWith(
+      expect.objectContaining({ id: ADMIN_ONE }),
+      "EFRUITMANDI_CAREER"
+    );
+    expect(mocks.sendBusinessMail).toHaveBeenCalledOnce();
+  });
+
+  it("rejects an arbitrary sender profile key before authorization or delivery", async () => {
+    const response = createResponse();
+    await sendBusinessMailMessage(
+      createRequest({ ...basePayload(), senderProfileKey: "ARBITRARY_FROM_ADDRESS" }),
+      response
+    );
+
+    expect(response.statusCode).toBe(400);
+    expect(mocks.assertSenderAccess).not.toHaveBeenCalled();
+    expect(mocks.sendBusinessMail).not.toHaveBeenCalled();
+  });
+
   it("creates PROCESSING before provider delivery and records SENT without bodies", async () => {
     const request = createRequest({ ...basePayload(), html: "<p>Safe content</p>" });
     const response = createResponse();
@@ -169,6 +244,10 @@ describe("Admin Business Mail delivery logging", () => {
     expect(stored).not.toHaveProperty("credentials");
     expect(mocks.createLog.mock.invocationCallOrder[0]).toBeLessThan(mocks.sendBusinessMail.mock.invocationCallOrder[0]);
     expect(mocks.sendBusinessMail).toHaveBeenCalledWith(expect.any(Object), { skipDeliveryLog: true });
+    expect(mocks.assertSenderAccess).toHaveBeenCalledWith(
+      expect.objectContaining({ id: ADMIN_ONE, email: "admin@example.test" }),
+      "EFRUITMANDI_NO_REPLY"
+    );
     expect(mocks.findByIdAndUpdate).toHaveBeenCalledWith(LOG_ID, {
       $set: expect.objectContaining({ status: "SENT", providerMessageId: "provider-id" }),
     });
@@ -294,4 +373,3 @@ describe("Admin Business Mail log queries", () => {
     expect(response.statusCode).toBe(404);
   });
 });
-

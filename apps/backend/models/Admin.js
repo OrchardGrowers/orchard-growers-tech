@@ -40,6 +40,21 @@ const adminSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  businessMailAccess: {
+    enabled: {
+      type: Boolean,
+      default: false,
+    },
+    allowedRestrictedSenderProfiles: [
+      {
+        type: String,
+        trim: true,
+        uppercase: true,
+      },
+    ],
+    approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin" },
+    approvedAt: Date,
+  },
   role: {
     type: String,
     enum: [

@@ -675,6 +675,25 @@ type AdminAccount = {
   createdBy?: { name?: string; email?: string } | string;
   auditLogs?: { action?: string; at?: string; note?: string }[];
 };
+type BusinessMailAccessAssignment = {
+  enabled: boolean;
+  allowedRestrictedSenderProfiles: string[];
+  approvedBy?: string;
+  approvedAt?: string | null;
+};
+type BusinessMailAccessAdmin = {
+  id: string;
+  name?: string;
+  email?: string;
+  role?: string;
+  status?: string;
+  businessMailAccess: BusinessMailAccessAssignment;
+};
+type BusinessMailAccessManagement = {
+  commonSenderProfiles: { key: string; name: string; email: string }[];
+  restrictedSenderProfiles: { key: string; name: string; email: string }[];
+  admins: BusinessMailAccessAdmin[];
+};
 type ProductDraft = {
   title: string;
   slug: string;
@@ -2742,6 +2761,8 @@ function App() {
       const activeAdminUsersPage = getOrchardModulePage('adminUsers');
       return (
         <AdminUsersPanel
+          apiBase={API_BASE}
+          authHeaders={authHeaders}
           activePage={activeAdminUsersPage}
           admins={adminUsers.filter((item) => {
             const search = adminSearch.trim().toLowerCase();
@@ -5864,6 +5885,8 @@ function UsersPanel({
 }
 
 function AdminUsersPanel({
+  apiBase,
+  authHeaders,
   activePage,
   admins,
   onCreate,
@@ -5871,6 +5894,8 @@ function AdminUsersPanel({
   onChangeClass,
   onView,
 }: {
+  apiBase: string;
+  authHeaders: Record<string, string>;
   activePage: string;
   admins: AdminAccount[];
   onCreate: (payload: { name: string; email: string; phone: string; adminClass: string; role: string; status: string }) => void;
@@ -5936,7 +5961,9 @@ function AdminUsersPanel({
   }
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+    <div className="space-y-4">
+      <BusinessMailSenderAccessManager apiBase={apiBase} authHeaders={authHeaders} />
+      <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-white">{activePage === 'Approved Admins' ? 'Approved Admins' : 'Admin Users / Admin Management'}</h2>
@@ -5985,7 +6012,8 @@ function AdminUsersPanel({
         </table>
         {!admins.length && <EmptyState label="No admin users found." />}
       </div>
-    </section>
+      </section>
+    </div>
   );
 }
 
@@ -6032,6 +6060,172 @@ function EfruitErpDashboardPanel({ dashboard }: { dashboard: AdminErpDashboard |
       {!dashboard && (
         <div className="mt-4">
           <EmptyState label="ERP metrics will appear after the admin ERP API is available." />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function BusinessMailSenderAccessManager({ apiBase, authHeaders }: {
+  apiBase: string;
+  authHeaders: Record<string, string>;
+}) {
+  const [management, setManagement] = useState<BusinessMailAccessManagement | null>(null);
+  const [available, setAvailable] = useState<boolean | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const [selectedAdminId, setSelectedAdminId] = useState('');
+  const [enabled, setEnabled] = useState(false);
+  const [selectedRestrictedProfiles, setSelectedRestrictedProfiles] = useState<string[]>([]);
+
+  const selectAdmin = (adminId: string, source = management) => {
+    setSelectedAdminId(adminId);
+    const selected = source?.admins.find((admin) => admin.id === adminId);
+    setEnabled(selected?.businessMailAccess.enabled === true);
+    setSelectedRestrictedProfiles(selected?.businessMailAccess.allowedRestrictedSenderProfiles || []);
+    setMessage('');
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadManagement = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`${apiBase}/admin/business-mail/sender-access`, { headers: authHeaders });
+        const body = await readResponseJson(response);
+        if (cancelled) return;
+        if (response.status === 403) {
+          setAvailable(false);
+          return;
+        }
+        if (!response.ok) {
+          setAvailable(true);
+          setMessage(body.msg || 'Business Mail sender access could not be loaded.');
+          return;
+        }
+        const nextManagement = body as BusinessMailAccessManagement;
+        setManagement(nextManagement);
+        setAvailable(true);
+        const firstAdminId = nextManagement.admins[0]?.id || '';
+        if (firstAdminId) {
+          setSelectedAdminId(firstAdminId);
+          setEnabled(nextManagement.admins[0].businessMailAccess.enabled === true);
+          setSelectedRestrictedProfiles(nextManagement.admins[0].businessMailAccess.allowedRestrictedSenderProfiles || []);
+        }
+      } catch {
+        if (!cancelled) {
+          setAvailable(true);
+          setMessage('Business Mail sender access could not be loaded.');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void loadManagement();
+    return () => { cancelled = true; };
+  }, [apiBase, authHeaders]);
+
+  if (available === false) return null;
+  if (loading && available === null) {
+    return <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4 text-sm font-semibold text-slate-400">Checking Business Mail sender-access permissions...</section>;
+  }
+  if (!management) {
+    return available ? <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4"><p role="alert" className="text-sm font-bold text-amber-200">{message}</p></section> : null;
+  }
+
+  const selectedAdmin = management.admins.find((admin) => admin.id === selectedAdminId);
+  const toggleProfile = (key: string) => {
+    setSelectedRestrictedProfiles((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
+    setMessage('');
+  };
+  const saveAccess = async (nextEnabled: boolean, nextProfiles: string[]) => {
+    if (!selectedAdminId || saving) return;
+    const action = nextEnabled ? 'save this Business Mail sender assignment' : 'revoke Business Mail sender access';
+    if (!window.confirm(`Confirm: ${action} for ${selectedAdmin?.email || selectedAdmin?.name || 'this admin'}?`)) return;
+    setSaving(true);
+    setMessage('');
+    try {
+      const response = await fetch(`${apiBase}/admin/business-mail/sender-access/${encodeURIComponent(selectedAdminId)}`, {
+        method: 'PATCH',
+        headers: authHeaders,
+        body: JSON.stringify({ enabled: nextEnabled, allowedRestrictedSenderProfiles: nextProfiles }),
+      });
+      const body = await readResponseJson(response);
+      if (!response.ok) {
+        setMessage(body.msg || 'Business Mail sender access update failed.');
+        return;
+      }
+      const updated = body.admin as { id: string; businessMailAccess: BusinessMailAccessAssignment };
+      const nextManagement = {
+        ...management,
+        admins: management.admins.map((admin) => admin.id === updated.id
+          ? { ...admin, businessMailAccess: updated.businessMailAccess }
+          : admin),
+      };
+      setManagement(nextManagement);
+      setEnabled(updated.businessMailAccess.enabled);
+      setSelectedRestrictedProfiles(updated.businessMailAccess.allowedRestrictedSenderProfiles);
+      setMessage(nextEnabled ? 'Restricted sender access saved.' : 'Restricted sender access revoked.');
+    } catch {
+      setMessage('Business Mail sender access update could not be completed.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+      <div className="mb-4">
+        <h2 className="text-lg font-bold text-white">Business Mail Sender Access</h2>
+        <p className="mt-1 text-sm font-semibold text-slate-400">Common no-reply senders are automatic. Assign only restricted sender profiles here.</p>
+      </div>
+      {message && <p role="status" className="mb-4 rounded-lg border border-slate-700 bg-slate-950 p-3 text-sm font-bold text-slate-200">{message}</p>}
+      {management.admins.length === 0 ? <EmptyState label="No administrator accounts are available for assignment." /> : (
+        <div className="grid gap-4 lg:grid-cols-[minmax(240px,0.8fr)_minmax(0,1.2fr)]">
+          <label className="text-sm font-bold text-slate-300">
+            Administrator
+            <select value={selectedAdminId} onChange={(event) => selectAdmin(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400">
+              {management.admins.map((admin) => <option key={admin.id} value={admin.id}>{admin.name || admin.email} - {admin.email}</option>)}
+            </select>
+            {selectedAdmin && <span className="mt-2 block text-xs text-slate-500">{selectedAdmin.role || 'Admin'} - {selectedAdmin.status || 'Unknown status'}</span>}
+          </label>
+          <div className="space-y-3">
+            <section className="rounded-xl border border-slate-800 bg-slate-950 p-3">
+              <h3 className="text-sm font-bold text-slate-300">Common senders: automatically available</h3>
+              <p className="mt-1 text-xs font-semibold text-slate-500">Available to every administrator who already has a Business Mail role while each profile is globally enabled.</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {management.commonSenderProfiles.map((profile) => (
+                  <div key={profile.key} className="rounded-lg border border-slate-800 p-3 text-sm text-slate-300">
+                    <strong className="block">{profile.name}</strong><span className="break-all text-xs">{profile.email}</span>
+                  </div>
+                ))}
+              </div>
+              {management.commonSenderProfiles.length === 0 && <p className="mt-2 text-sm font-semibold text-amber-200">No common sender profile is globally enabled.</p>}
+            </section>
+            <fieldset className="rounded-xl border border-slate-800 bg-slate-950 p-3">
+            <legend className="px-1 text-sm font-bold text-slate-300">Restricted sender assignments</legend>
+            <label className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-200">
+              <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} className="h-4 w-4 accent-emerald-500" />
+              Enable restricted sender access
+            </label>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {management.restrictedSenderProfiles.map((profile) => (
+                <label key={profile.key} className={`rounded-lg border p-3 text-sm ${enabled ? 'border-slate-700 text-slate-200' : 'border-slate-800 text-slate-500'}`}>
+                  <span className="flex items-start gap-2">
+                    <input type="checkbox" disabled={!enabled} checked={selectedRestrictedProfiles.includes(profile.key)} onChange={() => toggleProfile(profile.key)} className="mt-0.5 h-4 w-4 accent-emerald-500" />
+                    <span><strong className="block">{profile.name}</strong><span className="break-all text-xs">{profile.email}</span></span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            {management.restrictedSenderProfiles.length === 0 && <p className="text-sm font-semibold text-amber-200">No restricted sender profile is globally enabled.</p>}
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => void saveAccess(false, [])} disabled={saving || !selectedAdminId} className="rounded-lg bg-rose-800 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-50">Revoke Access</button>
+              <button type="button" onClick={() => void saveAccess(enabled, selectedRestrictedProfiles)} disabled={saving || !selectedAdminId || (enabled && selectedRestrictedProfiles.length === 0)} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-500 disabled:opacity-50">{saving ? 'Saving...' : 'Save Restricted Access'}</button>
+            </div>
+            </fieldset>
+          </div>
         </div>
       )}
     </section>
