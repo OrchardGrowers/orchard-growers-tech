@@ -678,9 +678,11 @@ type AdminAccount = {
 type BusinessMailAccessAssignment = {
   enabled: boolean;
   allowedRestrictedSenderProfiles: string[];
+  authoritative?: boolean;
   approvedBy?: string;
   approvedAt?: string | null;
 };
+type BusinessMailSenderSummary = { key: string; name: string; email: string; enabled?: boolean };
 type BusinessMailAccessAdmin = {
   id: string;
   name?: string;
@@ -688,10 +690,17 @@ type BusinessMailAccessAdmin = {
   role?: string;
   status?: string;
   businessMailAccess: BusinessMailAccessAssignment;
+  businessMailEligible: boolean;
+  matchingPersonalSenderProfile: BusinessMailSenderSummary | null;
+  personalSenderAvailable: boolean;
+  personalSenderReason: string;
+  effectiveSenderProfiles: BusinessMailSenderSummary[];
+  effectiveSenderCount: number;
 };
 type BusinessMailAccessManagement = {
-  commonSenderProfiles: { key: string; name: string; email: string }[];
-  restrictedSenderProfiles: { key: string; name: string; email: string }[];
+  commonSenderProfiles: BusinessMailSenderSummary[];
+  masterSenderProfiles: BusinessMailSenderSummary[];
+  assignmentPolicy: string;
   admins: BusinessMailAccessAdmin[];
 };
 type ProductDraft = {
@@ -6073,19 +6082,7 @@ function BusinessMailSenderAccessManager({ apiBase, authHeaders }: {
   const [management, setManagement] = useState<BusinessMailAccessManagement | null>(null);
   const [available, setAvailable] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
-  const [selectedAdminId, setSelectedAdminId] = useState('');
-  const [enabled, setEnabled] = useState(false);
-  const [selectedRestrictedProfiles, setSelectedRestrictedProfiles] = useState<string[]>([]);
-
-  const selectAdmin = (adminId: string, source = management) => {
-    setSelectedAdminId(adminId);
-    const selected = source?.admins.find((admin) => admin.id === adminId);
-    setEnabled(selected?.businessMailAccess.enabled === true);
-    setSelectedRestrictedProfiles(selected?.businessMailAccess.allowedRestrictedSenderProfiles || []);
-    setMessage('');
-  };
 
   useEffect(() => {
     let cancelled = false;
@@ -6107,12 +6104,6 @@ function BusinessMailSenderAccessManager({ apiBase, authHeaders }: {
         const nextManagement = body as BusinessMailAccessManagement;
         setManagement(nextManagement);
         setAvailable(true);
-        const firstAdminId = nextManagement.admins[0]?.id || '';
-        if (firstAdminId) {
-          setSelectedAdminId(firstAdminId);
-          setEnabled(nextManagement.admins[0].businessMailAccess.enabled === true);
-          setSelectedRestrictedProfiles(nextManagement.admins[0].businessMailAccess.allowedRestrictedSenderProfiles || []);
-        }
       } catch {
         if (!cancelled) {
           setAvailable(true);
@@ -6134,98 +6125,33 @@ function BusinessMailSenderAccessManager({ apiBase, authHeaders }: {
     return available ? <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4"><p role="alert" className="text-sm font-bold text-amber-200">{message}</p></section> : null;
   }
 
-  const selectedAdmin = management.admins.find((admin) => admin.id === selectedAdminId);
-  const toggleProfile = (key: string) => {
-    setSelectedRestrictedProfiles((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
-    setMessage('');
-  };
-  const saveAccess = async (nextEnabled: boolean, nextProfiles: string[]) => {
-    if (!selectedAdminId || saving) return;
-    const action = nextEnabled ? 'save this Business Mail sender assignment' : 'revoke Business Mail sender access';
-    if (!window.confirm(`Confirm: ${action} for ${selectedAdmin?.email || selectedAdmin?.name || 'this admin'}?`)) return;
-    setSaving(true);
-    setMessage('');
-    try {
-      const response = await fetch(`${apiBase}/admin/business-mail/sender-access/${encodeURIComponent(selectedAdminId)}`, {
-        method: 'PATCH',
-        headers: authHeaders,
-        body: JSON.stringify({ enabled: nextEnabled, allowedRestrictedSenderProfiles: nextProfiles }),
-      });
-      const body = await readResponseJson(response);
-      if (!response.ok) {
-        setMessage(body.msg || 'Business Mail sender access update failed.');
-        return;
-      }
-      const updated = body.admin as { id: string; businessMailAccess: BusinessMailAccessAssignment };
-      const nextManagement = {
-        ...management,
-        admins: management.admins.map((admin) => admin.id === updated.id
-          ? { ...admin, businessMailAccess: updated.businessMailAccess }
-          : admin),
-      };
-      setManagement(nextManagement);
-      setEnabled(updated.businessMailAccess.enabled);
-      setSelectedRestrictedProfiles(updated.businessMailAccess.allowedRestrictedSenderProfiles);
-      setMessage(nextEnabled ? 'Restricted sender access saved.' : 'Restricted sender access revoked.');
-    } catch {
-      setMessage('Business Mail sender access update could not be completed.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
       <div className="mb-4">
         <h2 className="text-lg font-bold text-white">Business Mail Sender Access</h2>
-        <p className="mt-1 text-sm font-semibold text-slate-400">Common no-reply senders are automatic. Assign only restricted sender profiles here.</p>
+        <p className="mt-1 text-sm font-semibold text-slate-400">Read-only effective access derived from Business Mail roles, controlled profiles, and exact login-email matching.</p>
       </div>
       {message && <p role="status" className="mb-4 rounded-lg border border-slate-700 bg-slate-950 p-3 text-sm font-bold text-slate-200">{message}</p>}
-      {management.admins.length === 0 ? <EmptyState label="No administrator accounts are available for assignment." /> : (
-        <div className="grid gap-4 lg:grid-cols-[minmax(240px,0.8fr)_minmax(0,1.2fr)]">
-          <label className="text-sm font-bold text-slate-300">
-            Administrator
-            <select value={selectedAdminId} onChange={(event) => selectAdmin(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400">
-              {management.admins.map((admin) => <option key={admin.id} value={admin.id}>{admin.name || admin.email} - {admin.email}</option>)}
-            </select>
-            {selectedAdmin && <span className="mt-2 block text-xs text-slate-500">{selectedAdmin.role || 'Admin'} - {selectedAdmin.status || 'Unknown status'}</span>}
-          </label>
-          <div className="space-y-3">
-            <section className="rounded-xl border border-slate-800 bg-slate-950 p-3">
-              <h3 className="text-sm font-bold text-slate-300">Common senders: automatically available</h3>
-              <p className="mt-1 text-xs font-semibold text-slate-500">Available to every administrator who already has a Business Mail role while each profile is globally enabled.</p>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {management.commonSenderProfiles.map((profile) => (
-                  <div key={profile.key} className="rounded-lg border border-slate-800 p-3 text-sm text-slate-300">
-                    <strong className="block">{profile.name}</strong><span className="break-all text-xs">{profile.email}</span>
-                  </div>
-                ))}
-              </div>
-              {management.commonSenderProfiles.length === 0 && <p className="mt-2 text-sm font-semibold text-amber-200">No common sender profile is globally enabled.</p>}
-            </section>
-            <fieldset className="rounded-xl border border-slate-800 bg-slate-950 p-3">
-            <legend className="px-1 text-sm font-bold text-slate-300">Restricted sender assignments</legend>
-            <label className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-200">
-              <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} className="h-4 w-4 accent-emerald-500" />
-              Enable restricted sender access
-            </label>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {management.restrictedSenderProfiles.map((profile) => (
-                <label key={profile.key} className={`rounded-lg border p-3 text-sm ${enabled ? 'border-slate-700 text-slate-200' : 'border-slate-800 text-slate-500'}`}>
-                  <span className="flex items-start gap-2">
-                    <input type="checkbox" disabled={!enabled} checked={selectedRestrictedProfiles.includes(profile.key)} onChange={() => toggleProfile(profile.key)} className="mt-0.5 h-4 w-4 accent-emerald-500" />
-                    <span><strong className="block">{profile.name}</strong><span className="break-all text-xs">{profile.email}</span></span>
-                  </span>
-                </label>
-              ))}
-            </div>
-            {management.restrictedSenderProfiles.length === 0 && <p className="text-sm font-semibold text-amber-200">No restricted sender profile is globally enabled.</p>}
-            <div className="mt-4 flex flex-wrap justify-end gap-2">
-              <button type="button" onClick={() => void saveAccess(false, [])} disabled={saving || !selectedAdminId} className="rounded-lg bg-rose-800 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700 disabled:opacity-50">Revoke Access</button>
-              <button type="button" onClick={() => void saveAccess(enabled, selectedRestrictedProfiles)} disabled={saving || !selectedAdminId || (enabled && selectedRestrictedProfiles.length === 0)} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-500 disabled:opacity-50">{saving ? 'Saving...' : 'Save Restricted Access'}</button>
-            </div>
-            </fieldset>
-          </div>
+      <div className="grid gap-3 lg:grid-cols-3">
+        <div className="rounded-xl border border-slate-800 bg-slate-950 p-3"><h3 className="text-sm font-bold text-white">Common senders</h3><p className="mt-1 text-xs font-semibold text-slate-400">Automatically available to every eligible Business Mail admin.</p><p className="mt-2 text-sm text-slate-300">{management.commonSenderProfiles.map((profile) => profile.email).join(', ') || 'None globally enabled'}</p></div>
+        <div className="rounded-xl border border-slate-800 bg-slate-950 p-3"><h3 className="text-sm font-bold text-white">Personal sender</h3><p className="mt-1 text-xs font-semibold text-slate-400">Available only when one enabled controlled profile exactly matches the authenticated login email.</p></div>
+        <div className="rounded-xl border border-slate-800 bg-slate-950 p-3"><h3 className="text-sm font-bold text-white">Master access</h3><p className="mt-1 text-xs font-semibold text-slate-400">All globally enabled controlled profiles ({management.masterSenderProfiles.length}).</p></div>
+      </div>
+      {management.admins.length === 0 ? <div className="mt-4"><EmptyState label="No administrator accounts are available." /></div> : (
+        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800">
+          <table className="min-w-[980px] w-full text-left text-sm">
+            <thead className="bg-slate-950 text-xs uppercase text-slate-400"><tr>{['Administrator', 'Role / Status', 'Eligible', 'Matching Personal Sender', 'Effective Senders', 'Reason'].map((heading) => <th key={heading} className="px-3 py-3 font-black">{heading}</th>)}</tr></thead>
+            <tbody className="divide-y divide-slate-800 bg-slate-900">
+              {management.admins.map((admin) => <tr key={admin.id} className="align-top">
+                <td className="px-3 py-3"><span className="block font-bold text-white">{admin.name || 'Unnamed admin'}</span><span className="break-all text-xs text-slate-400">{admin.email}</span></td>
+                <td className="px-3 py-3 text-slate-300">{admin.role || 'Unknown'}<span className="block text-xs text-slate-500">{admin.status || 'Unknown status'}</span></td>
+                <td className="px-3 py-3 font-bold text-slate-200">{admin.businessMailEligible ? 'Yes' : 'No'}</td>
+                <td className="px-3 py-3">{admin.matchingPersonalSenderProfile ? <><span className="block font-bold text-white">{admin.matchingPersonalSenderProfile.name}</span><span className="break-all text-xs text-slate-400">{admin.matchingPersonalSenderProfile.email}</span><span className={`mt-1 block text-xs font-bold ${admin.personalSenderAvailable ? 'text-emerald-300' : 'text-amber-300'}`}>{admin.personalSenderAvailable ? 'Globally enabled' : 'Globally disabled'}</span></> : <span className="text-slate-500">No controlled match</span>}</td>
+                <td className="px-3 py-3"><span className="font-black text-white">{admin.effectiveSenderCount}</span><span className="mt-1 block text-xs text-slate-500">{admin.effectiveSenderProfiles.map((profile) => profile.email).join(', ') || 'No access'}</span></td>
+                <td className="max-w-[280px] px-3 py-3 text-xs font-semibold text-slate-400">{admin.personalSenderReason}</td>
+              </tr>)}
+            </tbody>
+          </table>
         </div>
       )}
     </section>

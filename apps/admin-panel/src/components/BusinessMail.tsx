@@ -62,7 +62,7 @@ type DeliveryLog = {
   provider: string;
   providerMessageId: string;
   status: string;
-  requestedByAdmin: { id: string; email: string; role: string };
+  requestedByAdmin: { id: string; name: string; email: string; role: string };
   failureCode: string;
   failureMessage: string;
   metadata: { source: string; correlationId: string };
@@ -76,6 +76,7 @@ type Filters = {
   status: string;
   provider: string;
   senderProfileKey: string;
+  recipient: string;
   category: string;
   fromDate: string;
   toDate: string;
@@ -161,6 +162,7 @@ const emptyFilters: Filters = {
   status: '',
   provider: '',
   senderProfileKey: '',
+  recipient: '',
   category: '',
   fromDate: '',
   toDate: '',
@@ -236,9 +238,28 @@ const statusClasses: Record<string, string> = {
   FAILED: 'border-red-700 bg-red-950 text-red-200',
 };
 
-function StatusBadge({ status }: { status: string }) {
+export const getBusinessMailStatusClass = (status: string) =>
+  statusClasses[status] || 'border-slate-700 bg-slate-900 text-slate-300';
+
+export const buildBusinessMailPreviewPayload = (form: ComposeForm) => ({
+  senderProfileKey: form.senderProfileKey,
+  ...(form.mode === 'text' ? { text: form.text } : { html: form.html }),
+});
+
+export const buildBusinessMailLogParams = (page: number, filters: Filters) => {
+  const params = new URLSearchParams({ page: String(page), limit: '20' });
+  Object.entries(filters).forEach(([key, value]) => {
+    if (!value) return;
+    if (key === 'fromDate') params.set(key, `${value}T00:00:00.000Z`);
+    else if (key === 'toDate') params.set(key, `${value}T23:59:59.999Z`);
+    else params.set(key, value);
+  });
+  return params;
+};
+
+export function StatusBadge({ status }: { status: string }) {
   return (
-    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${statusClasses[status] || 'border-slate-700 bg-slate-900 text-slate-300'}`}>
+    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${getBusinessMailStatusClass(status)}`}>
       {status || 'UNKNOWN'}
     </span>
   );
@@ -293,6 +314,9 @@ export default function BusinessMail({ apiBase, authHeaders }: {
   const [form, setForm] = useState<ComposeForm>(emptyCompose);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState('');
+  const [previewContent, setPreviewContent] = useState<{ text: string; html: string } | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [sendError, setSendError] = useState('');
@@ -342,13 +366,7 @@ export default function BusinessMail({ apiBase, authHeaders }: {
     const requestId = ++logsRequestId.current;
     setLogsLoading(true);
     setLogsError('');
-    const params = new URLSearchParams({ page: String(page), limit: '20' });
-    Object.entries(filters).forEach(([key, value]) => {
-      if (!value) return;
-      if (key === 'fromDate') params.set(key, `${value}T00:00:00.000Z`);
-      else if (key === 'toDate') params.set(key, `${value}T23:59:59.999Z`);
-      else params.set(key, value);
-    });
+    const params = buildBusinessMailLogParams(page, filters);
     try {
       const body = await requestBusinessMailJson<{ logs: DeliveryLog[]; pagination: Pagination }>(`${endpoint}/logs?${params}`, authHeaders);
       if (requestId !== logsRequestId.current) return;
@@ -370,6 +388,29 @@ export default function BusinessMail({ apiBase, authHeaders }: {
     if (idempotencyKey) setIdempotencyKey('');
     setSendError('');
     setSendResult(null);
+    setPreviewContent(null);
+    setPreviewError('');
+  };
+
+  const showPreview = async () => {
+    if (!form.senderProfileKey || !activeBody.trim() || previewLoading) return;
+    setPreviewOpen(true);
+    setPreviewLoading(true);
+    setPreviewError('');
+    setPreviewContent(null);
+    try {
+      const body = await requestBusinessMailJson<{
+        preview: { text: string; html: string };
+      }>(`${endpoint}/preview`, authHeaders, {
+        method: 'POST',
+        body: JSON.stringify(buildBusinessMailPreviewPayload(form)),
+      });
+      setPreviewContent(body.preview);
+    } catch (error) {
+      setPreviewError(getBusinessMailErrorMessage(error));
+    } finally {
+      setPreviewLoading(false);
+    }
   };
 
   const openConfirmation = (event: FormEvent) => {
@@ -439,6 +480,8 @@ export default function BusinessMail({ apiBase, authHeaders }: {
     setForm((current) => ({ ...emptyCompose, senderProfileKey: current.senderProfileKey, category: current.category }));
     setFieldErrors({});
     setPreviewOpen(false);
+    setPreviewContent(null);
+    setPreviewError('');
     setConfirmOpen(false);
     setSendError('');
     setSendResult(null);
@@ -532,7 +575,7 @@ export default function BusinessMail({ apiBase, authHeaders }: {
         <form onSubmit={openConfirmation} className="space-y-4" noValidate>
           {!overviewLoading && !overviewError && enabledProfiles.length === 0 && (
             <p role="status" className="rounded-lg border border-amber-800 bg-amber-950 p-3 text-sm font-bold text-amber-100">
-              No Business Mail sender profile is currently available. Restricted profiles require a master assignment.
+              No Business Mail sender profile is currently available. Personal senders require an enabled controlled profile that exactly matches your login email.
             </p>
           )}
           {sendError && <p role="alert" className="rounded-lg border border-red-800 bg-red-950 p-3 text-sm font-bold text-red-200">{sendError}</p>}
@@ -596,7 +639,7 @@ export default function BusinessMail({ apiBase, authHeaders }: {
 
           <div className="flex flex-wrap justify-end gap-2">
             <button type="button" onClick={resetForm} disabled={submitting} className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-black text-white hover:bg-slate-700 disabled:opacity-60">Reset</button>
-            <button type="button" onClick={() => setPreviewOpen(true)} disabled={!activeBody.trim()} className="rounded-lg bg-sky-700 px-4 py-2 text-sm font-black text-white hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-50">Preview</button>
+            <button type="button" onClick={() => void showPreview()} disabled={!form.senderProfileKey || !activeBody.trim() || previewLoading} className="rounded-lg bg-sky-700 px-4 py-2 text-sm font-black text-white hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-50">{previewLoading ? 'Preparing Preview...' : 'Preview'}</button>
             <button type="submit" disabled={!canSend} className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-black text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50">{submitting ? 'Sending...' : 'Review & Send'}</button>
           </div>
         </form>
@@ -609,6 +652,7 @@ export default function BusinessMail({ apiBase, authHeaders }: {
               <FilterSelect label="Status" value={draftFilters.status} onChange={(value) => setDraftFilters((current) => ({ ...current, status: value }))} options={STATUSES} />
               <FilterSelect label="Provider" value={draftFilters.provider} onChange={(value) => setDraftFilters((current) => ({ ...current, provider: value }))} options={PROVIDERS} format={formatProvider} />
               <FilterSelect label="Sender Profile" value={draftFilters.senderProfileKey} onChange={(value) => setDraftFilters((current) => ({ ...current, senderProfileKey: value }))} options={profiles.map((profile) => profile.key)} />
+              <FilterText label="Recipient contains" value={draftFilters.recipient} onChange={(value) => setDraftFilters((current) => ({ ...current, recipient: value }))} />
               <FilterSelect label="Category" value={draftFilters.category} onChange={(value) => setDraftFilters((current) => ({ ...current, category: value }))} options={CATEGORIES} />
               <FilterDate label="From date" value={draftFilters.fromDate} onChange={(value) => setDraftFilters((current) => ({ ...current, fromDate: value }))} />
               <FilterDate label="To date" value={draftFilters.toDate} onChange={(value) => setDraftFilters((current) => ({ ...current, toDate: value }))} />
@@ -623,21 +667,7 @@ export default function BusinessMail({ apiBase, authHeaders }: {
           <div className="overflow-x-auto rounded-xl border border-slate-700">
             <table className="min-w-[1120px] w-full text-left text-sm">
               <thead className="bg-slate-900 text-xs uppercase text-slate-400"><tr>{['Date / Time', 'Sender', 'Recipient', 'Category', 'Subject', 'Provider', 'Status', 'Requested By', 'Actions'].map((heading) => <th key={heading} className="px-3 py-3 font-black">{heading}</th>)}</tr></thead>
-              <tbody className="divide-y divide-slate-800 bg-slate-950">
-                {logsLoading ? <tr><td colSpan={9} className="px-4 py-10 text-center font-bold text-slate-400">Loading delivery history...</td></tr> : logs.length === 0 ? <tr><td colSpan={9} className="px-4 py-10 text-center font-bold text-slate-400">No Business Mail deliveries found.</td></tr> : logs.map((log) => (
-                  <tr key={log.id} className="align-top hover:bg-slate-900/70">
-                    <td className="whitespace-nowrap px-3 py-3 text-slate-300">{formatDateTime(log.createdAt)}</td>
-                    <td className="px-3 py-3"><span className="block font-bold text-white">{log.senderName || log.senderProfileKey}</span><span className="block text-xs text-slate-500">{log.senderEmail}</span></td>
-                    <td className="px-3 py-3 text-slate-300">{log.recipient}</td>
-                    <td className="px-3 py-3 text-slate-300">{log.category}</td>
-                    <td className="max-w-[240px] px-3 py-3 text-slate-300"><span className="line-clamp-2">{log.subject}</span></td>
-                    <td className="px-3 py-3 text-slate-300">{formatProvider(log.provider)}</td>
-                    <td className="px-3 py-3"><StatusBadge status={log.status} /></td>
-                    <td className="px-3 py-3"><span className="block text-slate-300">{log.requestedByAdmin?.email || 'Not available'}</span><span className="text-xs text-slate-500">{log.requestedByAdmin?.role}</span></td>
-                    <td className="px-3 py-3"><button type="button" onClick={() => void showLogDetail(log.id)} className="rounded-lg bg-slate-800 px-3 py-2 text-xs font-black text-white hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400">View</button></td>
-                  </tr>
-                ))}
-              </tbody>
+              <BusinessMailHistoryRows logs={logs} loading={logsLoading} onView={(id) => void showLogDetail(id)} />
             </table>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm font-bold text-slate-400">
@@ -652,8 +682,8 @@ export default function BusinessMail({ apiBase, authHeaders }: {
 
       {previewOpen && (
         <Modal title={`${form.mode === 'text' ? 'Plain-text' : 'Basic HTML'} preview`} onClose={() => setPreviewOpen(false)}>
-          <p className="mb-3 text-xs font-bold text-slate-400">Preview is visual assistance only. Backend validation remains authoritative.</p>
-          {form.mode === 'text' ? <pre className="max-h-[65vh] overflow-auto whitespace-pre-wrap break-words rounded-xl border border-slate-700 bg-white p-4 font-sans text-sm text-slate-950">{form.text}</pre> : <iframe title="Sandboxed Business Mail HTML preview" sandbox="" referrerPolicy="no-referrer" srcDoc={`<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: https:; style-src 'unsafe-inline'"><base target="_self"></head><body>${form.html}</body></html>`} className="h-[60vh] w-full rounded-xl border border-slate-700 bg-white" />}
+          <p className="mb-3 text-xs font-bold text-slate-400">Final backend-generated preview. The controlled signature is added automatically and is not editable.</p>
+          {previewLoading ? <p className="py-10 text-center font-bold text-slate-400">Preparing signed preview...</p> : previewError ? <p role="alert" className="rounded-lg border border-red-800 bg-red-950 p-3 text-sm font-bold text-red-200">{previewError}</p> : previewContent && (form.mode === 'text' ? <pre className="max-h-[65vh] overflow-auto whitespace-pre-wrap break-words rounded-xl border border-slate-700 bg-white p-4 font-sans text-sm text-slate-950">{previewContent.text}</pre> : <iframe title="Sandboxed signed Business Mail HTML preview" sandbox="" referrerPolicy="no-referrer" srcDoc={`<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'"></head><body>${previewContent.html}</body></html>`} className="h-[60vh] w-full rounded-xl border border-slate-700 bg-white" />)}
         </Modal>
       )}
 
@@ -685,7 +715,7 @@ export default function BusinessMail({ apiBase, authHeaders }: {
                 <Detail label="Sender name" value={selectedLog.senderName} /><Detail label="Sender email" value={selectedLog.senderEmail} />
                 <Detail label="Reply-To" value={selectedLog.replyTo} /><Detail label="Recipient" value={selectedLog.recipient} />
                 <Detail label="Subject" value={selectedLog.subject} /><Detail label="Provider" value={formatProvider(selectedLog.provider)} />
-                <Detail label="Provider message ID" value={selectedLog.providerMessageId} /><Detail label="Requested by" value={`${selectedLog.requestedByAdmin?.email || 'Not available'}${selectedLog.requestedByAdmin?.role ? ` (${selectedLog.requestedByAdmin.role})` : ''}`} />
+                <Detail label="Provider message ID" value={selectedLog.providerMessageId} /><Detail label="Requested by" value={`${selectedLog.requestedByAdmin?.name || selectedLog.requestedByAdmin?.email || 'Not available'}${selectedLog.requestedByAdmin?.email && selectedLog.requestedByAdmin?.name ? ` <${selectedLog.requestedByAdmin.email}>` : ''}${selectedLog.requestedByAdmin?.role ? ` (${selectedLog.requestedByAdmin.role})` : ''}`} />
                 <Detail label="Metadata source" value={selectedLog.metadata?.source} /><Detail label="Correlation ID" value={selectedLog.metadata?.correlationId} />
                 <Detail label="Failure code" value={selectedLog.failureCode} /><Detail label="Safe failure message" value={selectedLog.failureMessage} />
                 <Detail label="Created" value={formatDateTime(selectedLog.createdAt)} /><Detail label="Sent" value={formatDateTime(selectedLog.sentAt)} />
@@ -709,8 +739,36 @@ function FilterSelect({ label, value, onChange, options, format = (item: string)
   return <label className="text-sm font-bold text-slate-300">{label}<select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"><option value="">All</option>{options.map((option) => <option key={option} value={option}>{format(option)}</option>)}</select></label>;
 }
 
+export function BusinessMailHistoryRows({ logs, loading, onView }: {
+  logs: DeliveryLog[];
+  loading: boolean;
+  onView: (id: string) => void;
+}) {
+  return (
+    <tbody className="divide-y divide-slate-800 bg-slate-950">
+      {loading ? <tr><td colSpan={9} className="px-4 py-10 text-center font-bold text-slate-400">Loading delivery history...</td></tr> : logs.length === 0 ? <tr><td colSpan={9} className="px-4 py-10 text-center font-bold text-slate-400">No Business Mail deliveries found.</td></tr> : logs.map((log) => (
+        <tr key={log.id} className="align-top hover:bg-slate-900/70">
+          <td className="whitespace-nowrap px-3 py-3 text-slate-300">{formatDateTime(log.createdAt)}</td>
+          <td className="px-3 py-3"><span className="block font-bold text-white">{log.senderName || log.senderProfileKey}</span><span className="block text-xs text-slate-500">{log.senderEmail}</span></td>
+          <td className="px-3 py-3 text-slate-300">{log.recipient}</td>
+          <td className="px-3 py-3 text-slate-300">{log.category}</td>
+          <td className="max-w-[240px] px-3 py-3 text-slate-300"><span className="line-clamp-2">{log.subject}</span></td>
+          <td className="px-3 py-3 text-slate-300"><span className="block">{formatProvider(log.provider)}</span><span className="block max-w-[180px] truncate text-xs text-slate-500" title={log.providerMessageId}>{log.providerMessageId || 'No reference'}</span></td>
+          <td className="px-3 py-3"><StatusBadge status={log.status} /></td>
+          <td className="px-3 py-3"><span className="block text-slate-300">{log.requestedByAdmin?.name || log.requestedByAdmin?.email || 'Not available'}</span><span className="text-xs text-slate-500">{log.requestedByAdmin?.email || log.requestedByAdmin?.role}</span></td>
+          <td className="px-3 py-3"><button type="button" onClick={() => onView(log.id)} className="rounded-lg bg-slate-800 px-3 py-2 text-xs font-black text-white hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400">View</button></td>
+        </tr>
+      ))}
+    </tbody>
+  );
+}
+
 function FilterDate({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return <label className="text-sm font-bold text-slate-300">{label}<input type="date" value={value} onChange={(event) => onChange(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400" /></label>;
+}
+
+function FilterText({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return <label className="text-sm font-bold text-slate-300">{label}<input type="search" value={value} maxLength={320} onChange={(event) => onChange(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-white outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400" /></label>;
 }
 
 function Detail({ label, value }: { label: string; value?: string | number | null }) {

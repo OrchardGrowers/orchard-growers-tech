@@ -1,5 +1,3 @@
-import mongoose from "mongoose";
-import Admin from "../../models/Admin.js";
 import {
   BUSINESS_MAIL_ERROR_CODES,
   BusinessMailError,
@@ -67,32 +65,64 @@ export const normalizeBusinessMailRestrictedSenderProfileKeys = (values) => {
 export const getGloballyEnabledBusinessMailSenderProfiles = () =>
   listBusinessMailSenderProfiles().filter((profile) => profile.enabled);
 
-const loadAdminAccessRecord = async (admin = {}) => {
-  if (Object.prototype.hasOwnProperty.call(admin, "businessMailAccess")) return admin;
-  const id = String(admin._id || admin.id || "").trim();
-  if (!mongoose.isValidObjectId(id)) return null;
-  return Admin.findById(id).select("_id email businessMailAccess").lean();
-};
-
 export const getAuthorizedBusinessMailSenderProfiles = async (admin = {}) => {
   if (!BUSINESS_MAIL_ACCESS_ROLE_SET.has(String(admin.role || "").trim().toUpperCase())) return [];
   const globallyEnabled = getGloballyEnabledBusinessMailSenderProfiles();
   if (isBusinessMailMasterAdmin(admin)) return globallyEnabled;
 
   const commonProfiles = globallyEnabled.filter((profile) => COMMON_PROFILE_KEY_SET.has(profile.key));
-  const storedAdmin = await loadAdminAccessRecord(admin);
-  if (!storedAdmin?.businessMailAccess?.enabled) return commonProfiles;
-  const assignedKeys = new Set(
-    normalizeBusinessMailSenderProfileKeys(
-      storedAdmin.businessMailAccess.allowedRestrictedSenderProfiles
-        || storedAdmin.businessMailAccess.allowedSenderProfiles
-        || [],
-      { rejectUnknown: false }
-    ).filter((key) => !COMMON_PROFILE_KEY_SET.has(key))
+  const adminEmail = normalizeEmail(admin.email);
+  const matchingPersonalProfile = globallyEnabled.find(
+    (profile) => !COMMON_PROFILE_KEY_SET.has(profile.key)
+      && normalizeEmail(profile.sender?.email) === adminEmail
   );
-  return globallyEnabled.filter(
-    (profile) => COMMON_PROFILE_KEY_SET.has(profile.key) || assignedKeys.has(profile.key)
+  const effectiveProfiles = matchingPersonalProfile
+    ? [...commonProfiles, matchingPersonalProfile]
+    : commonProfiles;
+  return [...new Map(effectiveProfiles.map((profile) => [profile.key, profile])).values()];
+};
+
+export const getBusinessMailSenderAccessSummary = (admin = {}) => {
+  const role = String(admin.role || "").trim().toUpperCase();
+  const businessMailEligible = BUSINESS_MAIL_ACCESS_ROLE_SET.has(role);
+  const allProfiles = listBusinessMailSenderProfiles();
+  const globallyEnabledProfiles = allProfiles.filter((profile) => profile.enabled);
+  const master = businessMailEligible && isBusinessMailMasterAdmin(admin);
+  const commonProfiles = businessMailEligible
+    ? globallyEnabledProfiles.filter((profile) => COMMON_PROFILE_KEY_SET.has(profile.key))
+    : [];
+  const adminEmail = normalizeEmail(admin.email);
+  const matchingEnabledProfile = globallyEnabledProfiles.find(
+    (profile) => !COMMON_PROFILE_KEY_SET.has(profile.key)
+      && normalizeEmail(profile.sender?.email) === adminEmail
   );
+  const matchingConfiguredProfile = matchingEnabledProfile || allProfiles.find(
+    (profile) => !COMMON_PROFILE_KEY_SET.has(profile.key)
+      && normalizeEmail(profile.sender?.email) === adminEmail
+  );
+  const effectiveProfiles = !businessMailEligible
+    ? []
+    : master
+      ? globallyEnabledProfiles
+      : matchingEnabledProfile
+        ? [...commonProfiles, matchingEnabledProfile]
+        : commonProfiles;
+  const deduplicatedProfiles = [...new Map(effectiveProfiles.map((profile) => [profile.key, profile])).values()];
+  return {
+    businessMailEligible,
+    isMaster: master,
+    matchingPersonalSenderProfile: matchingConfiguredProfile || null,
+    personalSenderAvailable: Boolean(businessMailEligible && matchingEnabledProfile),
+    personalSenderReason: !businessMailEligible
+      ? "Admin role is not authorized for Business Mail."
+      : matchingEnabledProfile
+        ? "A globally enabled controlled profile exactly matches the login email."
+        : matchingConfiguredProfile
+          ? "The controlled profile matching the login email is globally disabled."
+          : "No controlled sender profile matches the login email.",
+    effectiveSenderProfiles: deduplicatedProfiles,
+    effectiveSenderCount: deduplicatedProfiles.length,
+  };
 };
 
 export const assertBusinessMailSenderAccess = async (admin, senderProfileKey) => {

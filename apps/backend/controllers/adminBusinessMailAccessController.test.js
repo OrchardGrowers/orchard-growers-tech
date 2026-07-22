@@ -1,21 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const adminMocks = vi.hoisted(() => ({
-  findById: vi.fn(),
-  updateOne: vi.fn(),
-}));
-
+const adminMocks = vi.hoisted(() => ({ find: vi.fn(), findById: vi.fn(), updateOne: vi.fn() }));
 vi.mock("../models/Admin.js", () => ({
   default: {
+    find: adminMocks.find,
     findById: adminMocks.findById,
     updateOne: adminMocks.updateOne,
   },
 }));
 
-import { updateBusinessMailSenderAccess } from "./adminBusinessMailController.js";
-
-const MASTER_ID = "507f1f77bcf86cd799439011";
-const TARGET_ID = "507f191e810c19729de860ea";
+import {
+  getBusinessMailSenderAccessManagement,
+  updateBusinessMailSenderAccess,
+} from "./adminBusinessMailController.js";
 
 const createResponse = () => ({
   statusCode: 200,
@@ -24,116 +21,81 @@ const createResponse = () => ({
   json(body) { this.body = body; return this; },
 });
 
-const createRequest = (body) => ({
-  body,
-  params: { adminId: TARGET_ID },
-  user: { id: MASTER_ID, role: "ADMIN" },
-  admin: { _id: MASTER_ID, email: "MASTER@EXAMPLE.TEST", role: "ADMIN" },
-});
-
-let target;
-
 beforeEach(() => {
   vi.clearAllMocks();
-  process.env.BUSINESS_MAIL_MASTER_ADMIN_EMAIL = "master@example.test";
-  target = {
-    _id: TARGET_ID,
-    name: "Assigned Admin",
-    email: "assigned@example.test",
-    role: "ADMIN",
-    businessMailAccess: undefined,
-    auditLogs: [],
-    save: vi.fn().mockResolvedValue(undefined),
-  };
-  adminMocks.findById.mockResolvedValue(target);
+  process.env.BUSINESS_MAIL_MASTER_ADMIN_EMAIL = "adminho@orchardgrowers.in";
+  process.env.BUSINESS_MAIL_EFRUITMANDI_NO_REPLY_ENABLED = "true";
+  process.env.BUSINESS_MAIL_ORCHARD_NO_REPLY_ENABLED = "true";
+  process.env.BUSINESS_MAIL_EFRUITMANDI_CAREER_ENABLED = "false";
+  process.env.BUSINESS_MAIL_ORCHARD_CAREER_ENABLED = "false";
+  process.env.BUSINESS_MAIL_ADMINHO_ORCHARD_ENABLED = "false";
+  process.env.BUSINESS_MAIL_SALES_ORCHARD_ENABLED = "true";
+  process.env.BUSINESS_MAIL_SALES_ORCHARD_EMAIL = "sales@orchardgrowers.in";
+  process.env.BUSINESS_MAIL_SUPPORT_EFRUITMANDI_ENABLED = "false";
 });
 
-describe("Business Mail sender-access management", () => {
-  it("lets the configured master assign restricted profile keys with server-owned approval data", async () => {
-    const response = createResponse();
-    await updateBusinessMailSenderAccess(
-      createRequest({
-        enabled: true,
-        allowedRestrictedSenderProfiles: ["efruitmandi_career", "ORCHARD_CAREER"],
-      }),
-      response
-    );
-
-    expect(response.statusCode).toBe(200);
-    expect(target.businessMailAccess).toMatchObject({
-      enabled: true,
-      allowedRestrictedSenderProfiles: ["EFRUITMANDI_CAREER", "ORCHARD_CAREER"],
-      approvedBy: MASTER_ID,
-    });
-    expect(target.businessMailAccess.approvedAt).toBeInstanceOf(Date);
-    expect(target.auditLogs.at(-1)).toMatchObject({
-      action: "BUSINESS_MAIL_ACCESS_ASSIGNED",
-      by: MASTER_ID,
-      to: {
-        targetAdminId: TARGET_ID,
-        enabled: true,
-        allowedRestrictedSenderProfiles: ["EFRUITMANDI_CAREER", "ORCHARD_CAREER"],
+describe("Business Mail effective sender-access management", () => {
+  it("reports master-all profiles and two-or-three effective senders without using legacy assignments", async () => {
+    const admins = [
+      {
+        _id: "507f191e810c19729de860ea",
+        name: "Sales Admin",
+        email: "sales@orchardgrowers.in",
+        role: "SALES_EXECUTIVE",
+        status: "ACTIVE",
+        businessMailAccess: {
+          enabled: true,
+          allowedRestrictedSenderProfiles: ["EFRUITMANDI_CAREER"],
+        },
       },
-    });
-    expect(target.save).toHaveBeenCalledOnce();
-  });
-
-  it("lets the configured master revoke access and clears stored sender assignments", async () => {
-    target.businessMailAccess = {
-      enabled: true,
-      allowedRestrictedSenderProfiles: ["EFRUITMANDI_CAREER"],
-      approvedBy: MASTER_ID,
-      approvedAt: new Date("2026-07-20T00:00:00.000Z"),
-    };
+      {
+        _id: "507f1f77bcf86cd799439011",
+        name: "Viewer",
+        email: "viewer@orchardgrowers.in",
+        role: "VIEWER",
+        status: "ACTIVE",
+      },
+    ];
+    const lean = vi.fn().mockResolvedValue(admins);
+    const sort = vi.fn().mockReturnValue({ lean });
+    adminMocks.find.mockReturnValue({ select: vi.fn().mockReturnValue({ sort }) });
     const response = createResponse();
-    await updateBusinessMailSenderAccess(
-      createRequest({ enabled: false, allowedRestrictedSenderProfiles: ["EFRUITMANDI_CAREER"] }),
-      response
-    );
+
+    await getBusinessMailSenderAccessManagement({}, response);
 
     expect(response.statusCode).toBe(200);
-    expect(target.businessMailAccess.enabled).toBe(false);
-    expect(target.businessMailAccess.allowedRestrictedSenderProfiles).toEqual([]);
-    expect(target.auditLogs.at(-1).action).toBe("BUSINESS_MAIL_ACCESS_REVOKED");
+    expect(response.body.assignmentPolicy).toBe("LOGIN_EMAIL_MATCH");
+    expect(response.body.restrictedSenderProfiles).toEqual([]);
+    expect(response.body.masterSenderProfiles.map((profile) => profile.key)).toEqual([
+      "EFRUITMANDI_NO_REPLY",
+      "ORCHARD_NO_REPLY",
+      "SALES_ORCHARD",
+    ]);
+    expect(response.body.admins[0]).toMatchObject({
+      businessMailEligible: true,
+      personalSenderAvailable: true,
+      effectiveSenderCount: 3,
+      matchingPersonalSenderProfile: { key: "SALES_ORCHARD" },
+      businessMailAccess: { authoritative: false },
+    });
+    expect(response.body.admins[0].effectiveSenderProfiles.map((profile) => profile.key))
+      .not.toContain("EFRUITMANDI_CAREER");
+    expect(response.body.admins[1]).toMatchObject({
+      businessMailEligible: false,
+      effectiveSenderCount: 0,
+    });
   });
 
-  it("rejects arbitrary sender keys without changing the target admin", async () => {
+  it("keeps the legacy mutation route but rejects obsolete assignments without database writes", () => {
     const response = createResponse();
-    await updateBusinessMailSenderAccess(
-      createRequest({ enabled: true, allowedRestrictedSenderProfiles: ["CUSTOM_FROM_ADDRESS"] }),
-      response
-    );
+    updateBusinessMailSenderAccess({
+      body: { enabled: true, allowedRestrictedSenderProfiles: ["EFRUITMANDI_CAREER"] },
+      params: { adminId: "507f191e810c19729de860ea" },
+    }, response);
 
-    expect(response.statusCode).toBe(400);
+    expect(response.statusCode).toBe(409);
+    expect(response.body.msg).toContain("deprecated");
     expect(adminMocks.findById).not.toHaveBeenCalled();
-    expect(target.save).not.toHaveBeenCalled();
-  });
-
-  it("rejects common no-reply profiles because they are automatic", async () => {
-    const response = createResponse();
-    await updateBusinessMailSenderAccess(
-      createRequest({ enabled: true, allowedRestrictedSenderProfiles: ["EFRUITMANDI_NO_REPLY"] }),
-      response
-    );
-
-    expect(response.statusCode).toBe(400);
-    expect(adminMocks.findById).not.toHaveBeenCalled();
-    expect(target.save).not.toHaveBeenCalled();
-  });
-
-  it("rejects client-supplied approval or master fields", async () => {
-    const response = createResponse();
-    await updateBusinessMailSenderAccess(
-      createRequest({
-        enabled: true,
-        allowedRestrictedSenderProfiles: ["EFRUITMANDI_CAREER"],
-        approvedBy: TARGET_ID,
-        isMaster: true,
-      }),
-      response
-    );
-
-    expect(response.statusCode).toBe(400);
-    expect(target.save).not.toHaveBeenCalled();
+    expect(adminMocks.updateOne).not.toHaveBeenCalled();
   });
 });

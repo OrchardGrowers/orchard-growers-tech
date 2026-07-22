@@ -35,6 +35,14 @@ vi.mock("../services/businessMail/businessMailSenderAccess.js", () => ({
   BUSINESS_MAIL_COMMON_SENDER_PROFILE_KEYS: ["EFRUITMANDI_NO_REPLY", "ORCHARD_NO_REPLY"],
   assertBusinessMailSenderAccess: mocks.assertSenderAccess,
   getAuthorizedBusinessMailSenderProfiles: mocks.getAuthorizedProfiles,
+  getBusinessMailSenderAccessSummary: vi.fn(() => ({
+    businessMailEligible: true,
+    matchingPersonalSenderProfile: null,
+    personalSenderAvailable: false,
+    personalSenderReason: "No controlled sender profile matches the login email.",
+    effectiveSenderProfiles: [],
+    effectiveSenderCount: 0,
+  })),
   getBusinessMailMasterAdminEmail: vi.fn(() => "master@example.test"),
   getGloballyEnabledBusinessMailSenderProfiles: vi.fn(() => []),
   isBusinessMailMasterAdmin: vi.fn(() => false),
@@ -45,6 +53,7 @@ vi.mock("../services/businessMail/businessMailSenderAccess.js", () => ({
 import {
   getBusinessMailLogById,
   listBusinessMailLogs,
+  previewBusinessMailMessage,
   sendBusinessMailMessage,
   validateBusinessMailRequestPayload,
 } from "./adminBusinessMailController.js";
@@ -68,7 +77,7 @@ const createRequest = (body = basePayload(), overrides = {}) => ({
   query: {},
   params: {},
   user: { id: ADMIN_ONE, role: "ADMIN" },
-  admin: { _id: ADMIN_ONE, email: "admin@example.test", role: "ADMIN", status: "ACTIVE", adminClass: "CLASS_I" },
+  admin: { _id: ADMIN_ONE, name: "Admin One", email: "admin@example.test", role: "ADMIN", status: "ACTIVE", adminClass: "CLASS_I" },
   ...overrides,
 });
 
@@ -150,6 +159,7 @@ describe("Admin Business Mail payload validation", () => {
     ["CC", (body) => { body.cc = "other@example.test"; }],
     ["BCC", (body) => { body.bcc = "other@example.test"; }],
     ["attachments", (body) => { body.attachments = []; }],
+    ["client signature", (body) => { body.signature = "replace footer"; }],
     ["missing sender profile", (body) => { delete body.senderProfileKey; }],
     ["empty subject", (body) => { body.subject = ""; }],
     ["CRLF subject", (body) => { body.subject = "Hello\r\nBcc: bad@example.test"; }],
@@ -173,6 +183,37 @@ describe("Admin Business Mail payload validation", () => {
   });
 });
 
+describe("Admin Business Mail controlled preview", () => {
+  it("uses the same signed content as send without creating a preview log", async () => {
+    const previewResponse = createResponse();
+    await previewBusinessMailMessage(
+      createRequest({ senderProfileKey: "EFRUITMANDI_NO_REPLY", text: "Hello" }),
+      previewResponse
+    );
+
+    expect(previewResponse.statusCode).toBe(200);
+    expect(previewResponse.body.preview.text).toContain("eFruitMandi");
+    expect(mocks.createLog).not.toHaveBeenCalled();
+
+    await sendBusinessMailMessage(createRequest({ ...basePayload(), text: "Hello" }), createResponse());
+    const sentRequest = mocks.sendBusinessMail.mock.calls[0][0];
+    expect(sentRequest.text).toBe(previewResponse.body.preview.text);
+  });
+
+  it("rejects a client-injected controlled signature marker", async () => {
+    const response = createResponse();
+    await previewBusinessMailMessage(
+      createRequest({
+        senderProfileKey: "EFRUITMANDI_NO_REPLY",
+        text: "Hello\n-- \neFruitMandi\nOrchard Growers Private Limited",
+      }),
+      response
+    );
+    expect(response.statusCode).toBe(400);
+    expect(mocks.createLog).not.toHaveBeenCalled();
+  });
+});
+
 describe("Admin Business Mail delivery logging", () => {
   it("returns 403 before logging or provider delivery for an unauthorized sender", async () => {
     mocks.assertSenderAccess.mockRejectedValue(
@@ -193,24 +234,24 @@ describe("Admin Business Mail delivery logging", () => {
     expect(mocks.sendBusinessMail).not.toHaveBeenCalled();
   });
 
-  it("delivers with an assigned restricted career profile", async () => {
+  it("delivers with an authorized login-matched personal profile", async () => {
     mocks.assertSenderAccess.mockResolvedValueOnce({
-      key: "EFRUITMANDI_CAREER",
+      key: "SALES_ORCHARD",
       enabled: true,
-      sender: { name: "eFruitMandi Careers", email: "career@efruitmandi.live" },
-      replyTo: { email: "career@efruitmandi.live" },
+      sender: { name: "Orchard Growers Sales", email: "sales@orchardgrowers.in" },
+      replyTo: { email: "sales@orchardgrowers.in" },
       replyCapable: true,
     });
     const response = createResponse();
     await sendBusinessMailMessage(
-      createRequest({ ...basePayload(), senderProfileKey: "EFRUITMANDI_CAREER", category: "CAREER" }),
+      createRequest({ ...basePayload(), senderProfileKey: "SALES_ORCHARD" }),
       response
     );
 
     expect(response.statusCode).toBe(200);
     expect(mocks.assertSenderAccess).toHaveBeenCalledWith(
       expect.objectContaining({ id: ADMIN_ONE }),
-      "EFRUITMANDI_CAREER"
+      "SALES_ORCHARD"
     );
     expect(mocks.sendBusinessMail).toHaveBeenCalledOnce();
   });
@@ -236,6 +277,7 @@ describe("Admin Business Mail delivery logging", () => {
     expect(mocks.createLog).toHaveBeenCalledWith(expect.objectContaining({
       status: "PROCESSING",
       requestedByAdmin: ADMIN_ONE,
+      requestedByAdminName: "Admin One",
       requestedByAdminEmail: "admin@example.test",
     }));
     const stored = mocks.createLog.mock.calls[0][0];
@@ -356,6 +398,21 @@ describe("Admin Business Mail log queries", () => {
     const response = createResponse();
     await listBusinessMailLogs(createRequest(undefined, { query: { status: "$ne" } }), response);
     expect(response.statusCode).toBe(400);
+  });
+
+  it("escapes recipient search before applying a case-insensitive filter", async () => {
+    const lean = vi.fn().mockResolvedValue([]);
+    const limit = vi.fn().mockReturnValue({ lean });
+    const skip = vi.fn().mockReturnValue({ limit });
+    const sort = vi.fn().mockReturnValue({ skip });
+    mocks.findLogs.mockReturnValue({ sort });
+    mocks.countLogs.mockResolvedValue(0);
+    const response = createResponse();
+    await listBusinessMailLogs(createRequest(undefined, { query: { recipient: "person+tag@example.test" } }), response);
+    expect(mocks.findLogs).toHaveBeenCalledWith({
+      recipient: { $regex: "person\\+tag@example\\.test", $options: "i" },
+    });
+    expect(response.body.items).toEqual(response.body.logs);
   });
 
   it("uses ownership in sales log detail lookup and hides unavailable records", async () => {

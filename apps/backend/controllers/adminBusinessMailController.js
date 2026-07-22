@@ -15,14 +15,17 @@ import {
   getBusinessMailSenderProfile,
 } from "../services/businessMail/senderProfiles.js";
 import {
+  appendBusinessMailSignature,
+  hasControlledSignature,
+} from "../services/businessMail/businessMailSignatures.js";
+import {
   assertBusinessMailSenderAccess,
-  BUSINESS_MAIL_ACCESS_ROLES,
   getAuthorizedBusinessMailSenderProfiles,
+  getBusinessMailSenderAccessSummary,
   getBusinessMailMasterAdminEmail,
   getGloballyEnabledBusinessMailSenderProfiles,
   isBusinessMailMasterAdmin,
   BUSINESS_MAIL_COMMON_SENDER_PROFILE_KEYS,
-  normalizeBusinessMailRestrictedSenderProfileKeys,
   normalizeBusinessMailSenderProfileKeys,
 } from "../services/businessMail/businessMailSenderAccess.js";
 import { validateBusinessMailHtml } from "../utils/businessMailContentValidation.js";
@@ -42,6 +45,7 @@ const PROVIDER_SET = new Set(["brevo_api", "smtp"]);
 const SEND_FIELDS = new Set([
   "senderProfileKey", "to", "subject", "text", "html", "category", "metadata", "idempotencyKey",
 ]);
+const PREVIEW_FIELDS = new Set(["senderProfileKey", "text", "html"]);
 const METADATA_FIELDS = new Set(["source", "correlationId"]);
 const HEADER_BREAK_PATTERN = /[\r\n]/;
 const EMAIL_PATTERN = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
@@ -112,6 +116,12 @@ export const validateBusinessMailRequestPayload = (body) => {
     throw requestError(BUSINESS_MAIL_ERROR_CODES.INVALID_CONTENT, "Plain-text or HTML content is required.");
   }
   if (html) validateBusinessMailHtml(html);
+  if (hasControlledSignature(text) || hasControlledSignature(html)) {
+    throw requestError(
+      BUSINESS_MAIL_ERROR_CODES.INVALID_CONTENT,
+      "The controlled Business Mail signature cannot be supplied by the client."
+    );
+  }
 
   const category = boundedString(body.category || "GENERAL", "category", 50, { required: true, headerSafe: true }).toUpperCase();
   if (!CATEGORY_SET.has(category)) {
@@ -129,6 +139,34 @@ export const validateBusinessMailRequestPayload = (body) => {
     metadata: validateMetadata(body.metadata),
     idempotencyKey,
   };
+};
+
+export const validateBusinessMailPreviewPayload = (body) => {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw requestError(BUSINESS_MAIL_ERROR_CODES.INVALID_REQUEST, "Request body must be an object.");
+  }
+  if (Object.keys(body).some((key) => !PREVIEW_FIELDS.has(key))) {
+    throw requestError(BUSINESS_MAIL_ERROR_CODES.INVALID_REQUEST, "Preview contains unsupported fields.");
+  }
+  const senderProfileKey = boundedString(
+    body.senderProfileKey,
+    "senderProfileKey",
+    80,
+    { required: true, headerSafe: true }
+  ).toUpperCase();
+  const text = boundedString(body.text, "text", 100000);
+  const html = boundedString(body.html, "html", 150000);
+  if (!text && !html) {
+    throw requestError(BUSINESS_MAIL_ERROR_CODES.INVALID_CONTENT, "Plain-text or HTML content is required.");
+  }
+  if (html) validateBusinessMailHtml(html);
+  if (hasControlledSignature(text) || hasControlledSignature(html)) {
+    throw requestError(
+      BUSINESS_MAIL_ERROR_CODES.INVALID_CONTENT,
+      "The controlled Business Mail signature cannot be supplied by the client."
+    );
+  }
+  return { senderProfileKey, text, html };
 };
 
 const mapBusinessMailError = (error) => {
@@ -151,6 +189,7 @@ const sendMappedError = (res, error) => {
 
 const getAdminContext = (req) => ({
   id: String(req.admin?._id || req.admin?.id || req.user?.id || ""),
+  name: String(req.admin?.name || "").trim().slice(0, 100),
   email: String(req.admin?.email || "").trim().toLowerCase(),
   role: String(req.admin?.role || req.user?.role || "").trim().toUpperCase(),
 });
@@ -201,6 +240,7 @@ const safeLog = (log) => {
     status: record.status || "",
     requestedByAdmin: {
       id: String(record.requestedByAdmin?._id || record.requestedByAdmin || ""),
+      name: record.requestedByAdminName || record.requestedByAdmin?.name || "",
       email: record.requestedByAdminEmail || "",
       role: record.requestedByAdminRole || "",
     },
@@ -264,6 +304,7 @@ const createProcessingLog = async ({ mail, profile, provider, admin, idempotency
       provider,
       status: "PROCESSING",
       requestedByAdmin: admin.id,
+      requestedByAdminName: admin.name,
       requestedByAdminEmail: admin.email,
       requestedByAdminRole: admin.role,
       metadata: mail.metadata,
@@ -276,6 +317,27 @@ const createProcessingLog = async ({ mail, profile, provider, admin, idempotency
       if (existing) return { log: null, existing };
     }
     throw error;
+  }
+};
+
+export const previewBusinessMailMessage = async (req, res) => {
+  try {
+    const mail = validateBusinessMailPreviewPayload(req.body);
+    if (!getBusinessMailSenderProfile(mail.senderProfileKey)) {
+      throw requestError(BUSINESS_MAIL_ERROR_CODES.UNKNOWN_SENDER_PROFILE, "Unknown Business Mail sender profile.");
+    }
+    await assertBusinessMailSenderAccess(getAdminContext(req), mail.senderProfileKey);
+    const finalContent = appendBusinessMailSignature(mail);
+    return res.json({
+      preview: {
+        senderProfileKey: mail.senderProfileKey,
+        text: finalContent.text,
+        html: finalContent.html,
+        signatureGroup: finalContent.signature?.group || "",
+      },
+    });
+  } catch (error) {
+    return sendMappedError(res, error);
   }
 };
 
@@ -340,10 +402,7 @@ const safeBusinessMailAccess = (admin = {}) => {
 export const getBusinessMailSenderAccessManagement = async (req, res) => {
   try {
     const masterEmail = getBusinessMailMasterAdminEmail();
-    const adminFilter = {
-      role: { $in: BUSINESS_MAIL_ACCESS_ROLES },
-      ...(masterEmail ? { email: { $ne: masterEmail } } : {}),
-    };
+    const adminFilter = masterEmail ? { email: { $ne: masterEmail } } : {};
     const admins = await Admin.find(adminFilter)
       .select("_id name email role status businessMailAccess")
       .sort({ name: 1, email: 1 })
@@ -356,114 +415,53 @@ export const getBusinessMailSenderAccessManagement = async (req, res) => {
         name: profile.sender.name,
         email: profile.sender.email,
       }));
-    const restrictedSenderProfiles = globallyEnabledProfiles
-      .filter((profile) => !BUSINESS_MAIL_COMMON_SENDER_PROFILE_KEYS.includes(profile.key))
-      .map((profile) => ({
+    const safeProfile = (profile) => ({
       key: profile.key,
       name: profile.sender.name,
       email: profile.sender.email,
-      }));
+      enabled: profile.enabled === true,
+    });
+    const masterSenderProfiles = globallyEnabledProfiles.map(safeProfile);
     return res.json({
       commonSenderProfiles,
-      restrictedSenderProfiles,
-      senderProfiles: restrictedSenderProfiles,
-      admins: admins.map((admin) => ({
-        id: String(admin._id),
-        name: admin.name || "",
-        email: admin.email || "",
-        role: admin.role || "",
-        status: admin.status || "",
-        businessMailAccess: safeBusinessMailAccess(admin),
-      })),
+      masterSenderProfiles,
+      restrictedSenderProfiles: [],
+      senderProfiles: [],
+      assignmentPolicy: "LOGIN_EMAIL_MATCH",
+      admins: admins.map((admin) => {
+        const summary = getBusinessMailSenderAccessSummary(admin);
+        return {
+          id: String(admin._id),
+          name: admin.name || "",
+          email: admin.email || "",
+          role: admin.role || "",
+          status: admin.status || "",
+          businessMailAccess: {
+            ...safeBusinessMailAccess(admin),
+            authoritative: false,
+          },
+          businessMailEligible: summary.businessMailEligible,
+          matchingPersonalSenderProfile: summary.matchingPersonalSenderProfile
+            ? safeProfile(summary.matchingPersonalSenderProfile)
+            : null,
+          personalSenderAvailable: summary.personalSenderAvailable,
+          personalSenderReason: summary.personalSenderReason,
+          effectiveSenderProfiles: summary.effectiveSenderProfiles.map(safeProfile),
+          effectiveSenderCount: summary.effectiveSenderCount,
+        };
+      }),
     });
   } catch (error) {
     return sendMappedError(res, error);
   }
 };
 
-export const updateBusinessMailSenderAccess = async (req, res) => {
-  try {
-    const body = req.body;
-    if (!body || typeof body !== "object" || Array.isArray(body)) {
-      throw requestError(BUSINESS_MAIL_ERROR_CODES.INVALID_REQUEST, "Request body must be an object.");
-    }
-    if (Object.keys(body).some((key) => ![
-      "enabled",
-      "allowedRestrictedSenderProfiles",
-      "allowedSenderProfiles",
-    ].includes(key))) {
-      throw requestError(BUSINESS_MAIL_ERROR_CODES.INVALID_REQUEST, "Request contains unsupported fields.");
-    }
-    if (typeof body.enabled !== "boolean") {
-      throw requestError(BUSINESS_MAIL_ERROR_CODES.INVALID_REQUEST, "enabled must be a boolean.");
-    }
-    if (body.allowedRestrictedSenderProfiles !== undefined && body.allowedSenderProfiles !== undefined) {
-      throw requestError(BUSINESS_MAIL_ERROR_CODES.INVALID_REQUEST, "Provide only one sender profile allowlist field.");
-    }
-    const requestedProfiles = normalizeBusinessMailRestrictedSenderProfileKeys(
-      body.allowedRestrictedSenderProfiles ?? body.allowedSenderProfiles
-    );
-    const allowedRestrictedSenderProfiles = body.enabled ? requestedProfiles : [];
-    const targetId = String(req.params.adminId || "").trim();
-    if (!mongoose.isValidObjectId(targetId)) {
-      return res.status(404).json({ msg: "Admin account not found." });
-    }
-
-    const actor = getAdminContext(req);
-    const target = await Admin.findById(targetId);
-    if (!target) return res.status(404).json({ msg: "Admin account not found." });
-    if (!BUSINESS_MAIL_ACCESS_ROLES.includes(String(target.role || "").trim().toUpperCase())) {
-      throw requestError(
-        BUSINESS_MAIL_ERROR_CODES.INVALID_REQUEST,
-        "This admin role does not have Business Mail module access."
-      );
-    }
-    if (isBusinessMailMasterAdmin(target)) {
-      throw requestError(BUSINESS_MAIL_ERROR_CODES.INVALID_REQUEST, "Master Business Mail access cannot be changed.");
-    }
-
-    const previous = safeBusinessMailAccess(target);
-    const approvedAt = new Date();
-    target.businessMailAccess = {
-      enabled: body.enabled,
-      allowedRestrictedSenderProfiles,
-      approvedBy: actor.id,
-      approvedAt,
-    };
-    target.auditLogs = target.auditLogs || [];
-    target.auditLogs.push({
-      action: body.enabled ? "BUSINESS_MAIL_ACCESS_ASSIGNED" : "BUSINESS_MAIL_ACCESS_REVOKED",
-      by: actor.id,
-      at: approvedAt,
-      from: {
-        targetAdminId: targetId,
-        enabled: previous.enabled,
-        allowedRestrictedSenderProfiles: previous.allowedRestrictedSenderProfiles,
-      },
-      to: {
-        targetAdminId: targetId,
-        enabled: body.enabled,
-        allowedRestrictedSenderProfiles,
-      },
-      note: "Business Mail sender access updated by configured master admin",
-    });
-    if (target.auditLogs.length > MAX_AUDIT_ENTRIES) {
-      target.auditLogs = target.auditLogs.slice(-MAX_AUDIT_ENTRIES);
-    }
-    await target.save();
-
-    return res.json({
-      success: true,
-      admin: {
-        id: String(target._id),
-        name: target.name || "",
-        email: target.email || "",
-        businessMailAccess: safeBusinessMailAccess(target),
-      },
-    });
-  } catch (error) {
-    return sendMappedError(res, error);
-  }
+export const updateBusinessMailSenderAccess = (req, res) => {
+  return res.status(409).json({
+    success: false,
+    code: BUSINESS_MAIL_ERROR_CODES.INVALID_REQUEST,
+    msg: "Per-admin sender assignments are deprecated. Sender access is derived from the controlled profile registry and authenticated login email.",
+  });
 };
 
 export const sendBusinessMailMessage = async (req, res) => {
@@ -476,6 +474,7 @@ export const sendBusinessMailMessage = async (req, res) => {
       throw requestError(BUSINESS_MAIL_ERROR_CODES.UNKNOWN_SENDER_PROFILE, "Unknown Business Mail sender profile.");
     }
     const profile = await assertBusinessMailSenderAccess(admin, mail.senderProfileKey);
+    const finalContent = appendBusinessMailSignature(mail);
     const providerStatus = getBusinessMailProviderStatus();
     const idempotencyKeyHash = mail.idempotencyKey ? hashIdempotencyKey(mail.idempotencyKey) : "";
     if (idempotencyKeyHash) {
@@ -499,8 +498,8 @@ export const sendBusinessMailMessage = async (req, res) => {
         senderProfileKey: mail.senderProfileKey,
         to: mail.to,
         subject: mail.subject,
-        text: mail.text,
-        html: mail.html,
+        text: finalContent.text,
+        html: finalContent.html,
         category: mail.category,
         metadata: mail.metadata,
         ...(mail.idempotencyKey ? { idempotencyKey: mail.idempotencyKey } : {}),
@@ -608,16 +607,21 @@ const buildLogQuery = (req) => {
   const provider = queryString(req.query.provider, "provider").toLowerCase();
   const senderProfileKey = queryString(req.query.senderProfileKey, "senderProfileKey").toUpperCase();
   const category = queryString(req.query.category, "category").toUpperCase();
+  const recipient = queryString(req.query.recipient, "recipient").toLowerCase();
   if (status && !STATUS_SET.has(status)) throw requestError(BUSINESS_MAIL_ERROR_CODES.INVALID_REQUEST, "Invalid status filter.");
   if (provider && !PROVIDER_SET.has(provider)) throw requestError(BUSINESS_MAIL_ERROR_CODES.INVALID_REQUEST, "Invalid provider filter.");
   if (senderProfileKey && !getBusinessMailSenderProfile(senderProfileKey)) {
     throw requestError(BUSINESS_MAIL_ERROR_CODES.INVALID_REQUEST, "Invalid sender profile filter.");
   }
   if (category && !CATEGORY_SET.has(category)) throw requestError(BUSINESS_MAIL_ERROR_CODES.INVALID_REQUEST, "Invalid category filter.");
+  if (recipient.length > 320 || HEADER_BREAK_PATTERN.test(recipient)) {
+    throw requestError(BUSINESS_MAIL_ERROR_CODES.INVALID_REQUEST, "Invalid recipient filter.");
+  }
   if (status) query.status = status;
   if (provider) query.provider = provider;
   if (senderProfileKey) query.senderProfileKey = senderProfileKey;
   if (category) query.category = category;
+  if (recipient) query.recipient = { $regex: recipient.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
 
   const fromDate = parseIsoDate(req.query.fromDate, "fromDate");
   const toDate = parseIsoDate(req.query.toDate, "toDate");
@@ -640,8 +644,10 @@ export const listBusinessMailLogs = async (req, res) => {
       EmailDeliveryLog.find(query).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
       EmailDeliveryLog.countDocuments(query),
     ]);
+    const items = logs.map(safeLog);
     return res.json({
-      logs: logs.map(safeLog),
+      logs: items,
+      items,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (error) {

@@ -5,6 +5,9 @@ export const BUSINESS_MAIL_SENDER_PROFILE_KEYS = Object.freeze({
   ORCHARD_NO_REPLY: "ORCHARD_NO_REPLY",
   EFRUITMANDI_CAREER: "EFRUITMANDI_CAREER",
   ORCHARD_CAREER: "ORCHARD_CAREER",
+  ADMINHO_ORCHARD: "ADMINHO_ORCHARD",
+  SALES_ORCHARD: "SALES_ORCHARD",
+  SUPPORT_EFRUITMANDI: "SUPPORT_EFRUITMANDI",
 });
 
 const PROFILE_DEFINITIONS = Object.freeze({
@@ -32,6 +35,24 @@ const PROFILE_DEFINITIONS = Object.freeze({
     envPrefix: "BUSINESS_MAIL_ORCHARD_CAREER",
     defaultName: "Orchard Growers Careers",
     defaultEmail: "career@orchardgrowers.in",
+    replyCapable: true,
+  },
+  [BUSINESS_MAIL_SENDER_PROFILE_KEYS.ADMINHO_ORCHARD]: {
+    envPrefix: "BUSINESS_MAIL_ADMINHO_ORCHARD",
+    defaultName: "Orchard Growers Administration",
+    defaultEmail: "adminho@orchardgrowers.in",
+    replyCapable: true,
+  },
+  [BUSINESS_MAIL_SENDER_PROFILE_KEYS.SALES_ORCHARD]: {
+    envPrefix: "BUSINESS_MAIL_SALES_ORCHARD",
+    defaultName: "Orchard Growers Sales",
+    defaultEmail: "sales@orchardgrowers.in",
+    replyCapable: true,
+  },
+  [BUSINESS_MAIL_SENDER_PROFILE_KEYS.SUPPORT_EFRUITMANDI]: {
+    envPrefix: "BUSINESS_MAIL_SUPPORT_EFRUITMANDI",
+    defaultName: "eFruitMandi Support",
+    defaultEmail: "support@efruitmandi.live",
     replyCapable: true,
   },
 });
@@ -62,4 +83,3 @@ export const getBusinessMailSenderProfile = (key = "") => {
 
 export const listBusinessMailSenderProfiles = () =>
   Object.entries(PROFILE_DEFINITIONS).map(([key, definition]) => readProfile(key, definition));
-

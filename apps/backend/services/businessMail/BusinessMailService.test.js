@@ -105,6 +105,9 @@ describe("Business Mail foundation", () => {
     expect(requestBody.sender.email).toBe("no-reply@efruitmandi.live");
     expect(requestBody.replyTo.email).toBe("support@example.test");
     expect(requestBody.to).toEqual([{ email: "recipient@example.test" }]);
+    expect(requestBody.textContent).toContain("Plain-text body");
+    expect(requestBody.textContent).toContain("eFruitMandi");
+    expect(requestBody.textContent.match(/\n-- \n/g)).toHaveLength(1);
   });
 
   it("returns secret-free provider status and enabled profile summaries", () => {

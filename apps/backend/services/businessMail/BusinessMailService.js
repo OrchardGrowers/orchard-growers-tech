@@ -9,6 +9,7 @@ import {
   getBusinessMailSenderProfile,
   listBusinessMailSenderProfiles,
 } from "./senderProfiles.js";
+import { appendBusinessMailSignature } from "./businessMailSignatures.js";
 import BrevoBusinessMailProvider from "./providers/BrevoBusinessMailProvider.js";
 import SmtpBusinessMailProvider from "./providers/SmtpBusinessMailProvider.js";
 
@@ -234,7 +235,9 @@ const updateDeliveryLog = async (log, update) => {
 };
 
 export const sendBusinessMail = async (request, options = {}) => {
-  const mail = validateRequest(request);
+  const validatedMail = validateRequest(request);
+  const signedContent = appendBusinessMailSignature(validatedMail);
+  const mail = { ...validatedMail, text: signedContent.text, html: signedContent.html };
   const providerName = getConfiguredProviderName();
   const provider = providers[providerName];
   if (!provider.isConfigured()) {

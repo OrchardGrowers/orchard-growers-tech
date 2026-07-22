@@ -5,6 +5,7 @@ import {
   getBusinessMailSenderProfiles,
   getBusinessMailStatus,
   listBusinessMailLogs,
+  previewBusinessMailMessage,
   sendBusinessMailMessage,
   updateBusinessMailSenderAccess,
 } from "../controllers/adminBusinessMailController.js";
@@ -34,6 +35,11 @@ router.patch(
   authorize(...BUSINESS_MAIL_MANAGEMENT_ROLES),
   requireBusinessMailMasterAdmin,
   wrapAsync(updateBusinessMailSenderAccess)
+);
+router.post(
+  "/preview",
+  authorize(...BUSINESS_MAIL_ACCESS_ROLES),
+  wrapAsync(previewBusinessMailMessage)
 );
 router.post(
   "/send",

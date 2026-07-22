@@ -90,7 +90,7 @@ const adminOtpVerifyLimiter = createRateLimiter({
 });
 
 export const ensureActiveAdmin = async (req, res, next) => {
-  const admin = await Admin.findById(req.user.id).select("_id email status role adminClass canManageClassIII");
+  const admin = await Admin.findById(req.user.id).select("_id name email status role adminClass canManageClassIII");
 
   const validClasses = new Set(["CLASS_I", "CLASS_II", "CLASS_III"]);
   const roleClass = {

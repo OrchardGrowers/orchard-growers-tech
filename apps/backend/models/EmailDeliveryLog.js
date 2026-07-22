@@ -19,6 +19,7 @@ const emailDeliveryLogSchema = new mongoose.Schema(
       index: true,
     },
     requestedByAdmin: { type: mongoose.Schema.Types.ObjectId, ref: "Admin", default: null, index: true },
+    requestedByAdminName: { type: String, trim: true, maxlength: 100, default: "" },
     requestedByAdminEmail: { type: String, trim: true, lowercase: true, maxlength: 320, default: "" },
     requestedByAdminRole: { type: String, trim: true, maxlength: 80, default: "" },
     failureCode: { type: String, trim: true, maxlength: 80, default: "" },
