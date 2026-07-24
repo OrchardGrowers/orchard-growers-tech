@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
+  AutoSignatureSettings,
   BusinessMailHistoryRows,
   StatusBadge,
   buildBusinessMailLogParams,
@@ -23,6 +24,23 @@ describe('Business Mail UI authorization', () => {
 });
 
 describe('Business Mail signed preview and history helpers', () => {
+  it('renders the automatic signature settings for the selected sender', () => {
+    const markup = renderToStaticMarkup(createElement(AutoSignatureSettings, {
+      profile: {
+        key: 'EFRUITMANDI_NO_REPLY',
+        name: 'eFruitMandi',
+        email: 'no-reply@efruitmandi.live',
+        replyTo: '',
+        enabled: true,
+        replyCapable: false,
+      },
+    }));
+    expect(markup).toContain('Auto Signature Settings');
+    expect(markup).toContain('Enabled');
+    expect(markup).toContain('eFruitMandi');
+    expect(markup).toContain('no-reply@efruitmandi.live');
+  });
+
   it('sends only the editable body and controlled sender key to preview', () => {
     const payload = buildBusinessMailPreviewPayload({
       senderProfileKey: 'EFRUITMANDI_NO_REPLY',

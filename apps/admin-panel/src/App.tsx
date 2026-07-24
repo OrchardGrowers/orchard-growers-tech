@@ -2749,14 +2749,12 @@ function App() {
             onOpenTab={openTab}
           />
           <EfruitErpDashboardPanel dashboard={erpData.dashboard} />
-          <ModulePlanPanel plan={modulePlans.efruitDashboard} />
         </section>
       );
     }
     if (tab === 'users') {
       return (
         <section className="space-y-4">
-          <ModulePlanPanel plan={modulePlans.users} />
           <UsersPanel
             users={searchedUsers}
             onEdit={editUserInfo}
@@ -4059,7 +4057,6 @@ function AdminDashboardPanel({
         <MetricCard label="Approved KYC" value={approvedKycCount} />
         <MetricCard label="Approved Verifications" value={approvedVerificationCount} />
       </div>
-      <ModulePlanPanel plan={modulePlans.dashboard} />
     </section>
   );
 }
@@ -4239,7 +4236,6 @@ function OrchardSubOptionPanel({ module, activePage }: { module: AdminTab; activ
           </div>
         </div>
       </section>
-      <ModulePlanPanel plan={plan} />
     </section>
   );
 }
