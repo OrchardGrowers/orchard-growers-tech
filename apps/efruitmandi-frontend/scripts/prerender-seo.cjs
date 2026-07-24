@@ -166,7 +166,7 @@ const publicLinks = [
   { href: "/buyer-guide", label: "Buyer Guide" },
   { href: "/grower-guide", label: "Grower Guide" },
   { href: "/why-efruitmandi", label: "Why eFruitMandi" },
-  { href: "/contact", label: "Contact" },
+  { href: "/contact-us", label: "Contact" },
 ];
 
 const staticRoutes = [
@@ -234,7 +234,7 @@ const staticRoutes = [
     body: "eFruitMandi aims to support transparent, trusted and accessible fruit marketplace workflows for growers, buyers and logistics partners.",
   },
   {
-    path: "/contact",
+    path: "/contact-us",
     title: "Contact eFruitMandi | Fruit Marketplace Support",
     description: "Contact eFruitMandi for marketplace support, Fruit Lots, buyer questions, grower help, logistics support and platform information.",
     h1: "Contact eFruitMandi",

@@ -180,167 +180,167 @@
   ],
   "redirects": [
     {
-      "source": "/contact-us",
-      "destination": "/contact",
+      "source": "/contact",
+      "destination": "/contact-us",
       "permanent": true
     }
   ],
   "rewrites": [
-  {
-    "source": "/sitemap.xml",
-    "destination": "https://api.efruitmandi.live/sitemap.xml"
-  },
-  {
-    "source": "/auctions",
-    "destination": "/auctions/index.html"
-  },
-  {
-    "source": "/fruit-lots/:fruitSlug",
-    "destination": "/fruit-lots/:fruitSlug/index.html"
-  },
-  {
-    "source": "/grower-guide",
-    "destination": "/grower-guide/index.html"
-  },
-  {
-    "source": "/buyer-guide",
-    "destination": "/buyer-guide/index.html"
-  },
-  {
-    "source": "/blog",
-    "destination": "/blog/index.html"
-  },
-  {
-    "source": "/blog/market-price/apple",
-    "destination": "/blog/market-price/apple/index.html"
-  },
-  {
-    "source": "/about",
-    "destination": "/about/index.html"
-  },
-  {
-    "source": "/our-story",
-    "destination": "/our-story/index.html"
-  },
-  {
-    "source": "/contact",
-    "destination": "/contact/index.html"
-  },
-  {
-    "source": "/vision-mission",
-    "destination": "/vision-mission/index.html"
-  },
-  {
-    "source": "/why-efruitmandi",
-    "destination": "/why-efruitmandi/index.html"
-  },
-  {
-    "source": "/faqs",
-    "destination": "/faqs/index.html"
-  },
-  {
-    "source": "/privacy-policy",
-    "destination": "/privacy-policy/index.html"
-  },
-  {
-    "source": "/terms-of-service",
-    "destination": "/terms-of-service/index.html"
-  },
-  {
-    "source": "/refund-cancellation-policy",
-    "destination": "/refund-cancellation-policy/index.html"
-  },
-  {
-    "source": "/payment-escrow-policy",
-    "destination": "/payment-escrow-policy/index.html"
-  },
-  {
-    "source": "/kyc-verification-policy",
-    "destination": "/kyc-verification-policy/index.html"
-  },
-  {
-    "source": "/og-verified-policy",
-    "destination": "/og-verified-policy/index.html"
-  },
-  {
-    "source": "/commission-fee-policy",
-    "destination": "/commission-fee-policy/index.html"
-  },
-  {
-    "source": "/shipping-logistics-policy",
-    "destination": "/shipping-logistics-policy/index.html"
-  },
-  {
-    "source": "/community-guidelines",
-    "destination": "/community-guidelines/index.html"
-  },
-  {
-    "source": "/logistics-partner-guide",
-    "destination": "/logistics-partner-guide/index.html"
-  },
-  {
-    "source": "/fruit-grading-packing-guidelines",
-    "destination": "/fruit-grading-packing-guidelines/index.html"
-  },
-  {
-    "source": "/report-problem",
-    "destination": "/report-problem/index.html"
-  },
-  {
-    "source": "/user-data-deletion",
-    "destination": "/user-data-deletion/index.html"
-  },
-  {
-    "source": "/mandi-rates",
-    "destination": "/mandi-rates/index.html"
-  },
-  {
-    "source": "/mandi-rates/:commoditySlug",
-    "destination": "/mandi-rates/:commoditySlug/index.html"
-  },
-  {
-    "source": "/growers",
-    "destination": "/growers/index.html"
-  },
-  {
-    "source": "/buyers",
-    "destination": "/buyers/index.html"
-  },
-  {
-    "source": "/fruits",
-    "destination": "/fruits/index.html"
-  },
-  {
-    "source": "/fruits/:path*",
-    "destination": "/fruits/:path*/index.html"
-  },
-  {
-    "source": "/growers/state/:stateSlug/district/:districtSlug",
-    "destination": "/growers/state/:stateSlug/district/:districtSlug/index.html"
-  },
-  {
-    "source": "/growers/state/:stateSlug",
-    "destination": "/growers/state/:stateSlug/index.html"
-  },
-  {
-    "source": "/buyers/state/:stateSlug/district/:districtSlug",
-    "destination": "/buyers/state/:stateSlug/district/:districtSlug/index.html"
-  },
-  {
-    "source": "/buyers/state/:stateSlug",
-    "destination": "/buyers/state/:stateSlug/index.html"
-  },
-  {
-    "source": "/growers/:slug",
-    "destination": "/growers/:slug/index.html"
-  },
-  {
-    "source": "/buyers/:slug",
-    "destination": "/buyers/:slug/index.html"
-  },
-  {
-    "source": "/((?!assets/).*)",
-    "destination": "/index.html"
-  }
-]
+    {
+      "source": "/sitemap.xml",
+      "destination": "https://api.efruitmandi.live/sitemap.xml"
+    },
+    {
+      "source": "/auctions",
+      "destination": "/auctions/index.html"
+    },
+    {
+      "source": "/fruit-lots/:fruitSlug",
+      "destination": "/fruit-lots/:fruitSlug/index.html"
+    },
+    {
+      "source": "/grower-guide",
+      "destination": "/grower-guide/index.html"
+    },
+    {
+      "source": "/buyer-guide",
+      "destination": "/buyer-guide/index.html"
+    },
+    {
+      "source": "/blog",
+      "destination": "/blog/index.html"
+    },
+    {
+      "source": "/blog/market-price/apple",
+      "destination": "/blog/market-price/apple/index.html"
+    },
+    {
+      "source": "/about",
+      "destination": "/about/index.html"
+    },
+    {
+      "source": "/our-story",
+      "destination": "/our-story/index.html"
+    },
+    {
+      "source": "/vision-mission",
+      "destination": "/vision-mission/index.html"
+    },
+    {
+      "source": "/why-efruitmandi",
+      "destination": "/why-efruitmandi/index.html"
+    },
+    {
+      "source": "/faqs",
+      "destination": "/faqs/index.html"
+    },
+    {
+      "source": "/privacy-policy",
+      "destination": "/privacy-policy/index.html"
+    },
+    {
+      "source": "/terms-of-service",
+      "destination": "/terms-of-service/index.html"
+    },
+    {
+      "source": "/refund-cancellation-policy",
+      "destination": "/refund-cancellation-policy/index.html"
+    },
+    {
+      "source": "/payment-escrow-policy",
+      "destination": "/payment-escrow-policy/index.html"
+    },
+    {
+      "source": "/kyc-verification-policy",
+      "destination": "/kyc-verification-policy/index.html"
+    },
+    {
+      "source": "/og-verified-policy",
+      "destination": "/og-verified-policy/index.html"
+    },
+    {
+      "source": "/commission-fee-policy",
+      "destination": "/commission-fee-policy/index.html"
+    },
+    {
+      "source": "/shipping-logistics-policy",
+      "destination": "/shipping-logistics-policy/index.html"
+    },
+    {
+      "source": "/community-guidelines",
+      "destination": "/community-guidelines/index.html"
+    },
+    {
+      "source": "/logistics-partner-guide",
+      "destination": "/logistics-partner-guide/index.html"
+    },
+    {
+      "source": "/fruit-grading-packing-guidelines",
+      "destination": "/fruit-grading-packing-guidelines/index.html"
+    },
+    {
+      "source": "/report-problem",
+      "destination": "/report-problem/index.html"
+    },
+    {
+      "source": "/user-data-deletion",
+      "destination": "/user-data-deletion/index.html"
+    },
+    {
+      "source": "/mandi-rates",
+      "destination": "/mandi-rates/index.html"
+    },
+    {
+      "source": "/mandi-rates/:commoditySlug",
+      "destination": "/mandi-rates/:commoditySlug/index.html"
+    },
+    {
+      "source": "/growers",
+      "destination": "/growers/index.html"
+    },
+    {
+      "source": "/buyers",
+      "destination": "/buyers/index.html"
+    },
+    {
+      "source": "/fruits",
+      "destination": "/fruits/index.html"
+    },
+    {
+      "source": "/fruits/:path*",
+      "destination": "/fruits/:path*/index.html"
+    },
+    {
+      "source": "/growers/state/:stateSlug/district/:districtSlug",
+      "destination": "/growers/state/:stateSlug/district/:districtSlug/index.html"
+    },
+    {
+      "source": "/growers/state/:stateSlug",
+      "destination": "/growers/state/:stateSlug/index.html"
+    },
+    {
+      "source": "/buyers/state/:stateSlug/district/:districtSlug",
+      "destination": "/buyers/state/:stateSlug/district/:districtSlug/index.html"
+    },
+    {
+      "source": "/buyers/state/:stateSlug",
+      "destination": "/buyers/state/:stateSlug/index.html"
+    },
+    {
+      "source": "/growers/:slug",
+      "destination": "/growers/:slug/index.html"
+    },
+    {
+      "source": "/buyers/:slug",
+      "destination": "/buyers/:slug/index.html"
+    },
+    {
+      "source": "/contact-us",
+      "destination": "/contact-us/index.html"
+    },
+    {
+      "source": "/((?!assets/).*)",
+      "destination": "/index.html"
+    }
+  ]
 }

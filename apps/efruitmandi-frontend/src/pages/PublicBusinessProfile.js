@@ -11,6 +11,7 @@ import {
 } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
 import SEO from "../components/SEO";
+import ProfileShareButton from "../components/ProfileShareButton";
 import { buildBreadcrumbSchema, buildBusinessOrganizationSchema, buildLocalBusinessSchema } from "../utils/schemaGenerators";
 
 const BUSINESS_TYPE_LABELS = {
@@ -292,13 +293,21 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
                 )}
               </div>
 
-              {(profile.isKycVerified || profile.isOgVerified) && (
-                <div className="rounded-lg bg-green-50 px-4 py-3 text-sm font-bold text-green-800">
-                  <span className="inline-flex items-center gap-2">
-                    <FaCheckCircle /> Verified profile
-                  </span>
-                </div>
-              )}
+              <div className="flex flex-col items-start gap-2 sm:items-end">
+                <ProfileShareButton
+                  profileType={profileRole}
+                  profileName={firmName}
+                  slug={canonicalSlug}
+                  canonicalUrl={canonicalUrl}
+                />
+                {(profile.isKycVerified || profile.isOgVerified) && (
+                  <div className="rounded-lg bg-green-50 px-4 py-3 text-sm font-bold text-green-800">
+                    <span className="inline-flex items-center gap-2">
+                      <FaCheckCircle /> Verified profile
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="mt-7 rounded-xl border border-gray-100 bg-gray-50 p-5">

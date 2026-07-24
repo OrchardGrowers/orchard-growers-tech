@@ -126,7 +126,7 @@ router.get("/sitemap.xml", async (req, res) => {
       { loc: "/our-story", changefreq: "monthly", priority: "0.6" },
       { loc: "/vision-mission", changefreq: "monthly", priority: "0.6" },
       { loc: "/why-efruitmandi", changefreq: "monthly", priority: "0.7" },
-      { loc: "/contact", changefreq: "monthly", priority: "0.7" },
+      { loc: "/contact-us", changefreq: "monthly", priority: "0.7" },
       { loc: "/faqs", changefreq: "weekly", priority: "0.7" },
       { loc: "/buyer-guide", changefreq: "monthly", priority: "0.7" },
       { loc: "/grower-guide", changefreq: "monthly", priority: "0.7" },
