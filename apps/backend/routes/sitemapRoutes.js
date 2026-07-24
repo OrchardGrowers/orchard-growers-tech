@@ -1,5 +1,4 @@
 import express from "express";
-import Product from "../models/Product.js";
 import User from "../models/User.js";
 import { buildPublicFruitDiscovery } from "../controllers/userController.js";
 
@@ -132,6 +131,8 @@ router.get("/sitemap.xml", async (req, res) => {
       { loc: "/buyer-guide", changefreq: "monthly", priority: "0.7" },
       { loc: "/grower-guide", changefreq: "monthly", priority: "0.7" },
       { loc: "/logistics-partner-guide", changefreq: "monthly", priority: "0.6" },
+      { loc: "/blog", changefreq: "weekly", priority: "0.7" },
+      { loc: "/blog/market-price/apple", changefreq: "daily", priority: "0.7" },
       { loc: "/privacy-policy", changefreq: "monthly", priority: "0.5" },
       { loc: "/terms-of-service", changefreq: "monthly", priority: "0.5" },
       { loc: "/refund-cancellation-policy", changefreq: "monthly", priority: "0.5" },
@@ -158,15 +159,6 @@ router.get("/sitemap.xml", async (req, res) => {
       { loc: "/mandi-rates/mango", changefreq: "daily", priority: "0.8" },
       { loc: "/mandi-rates/pear", changefreq: "daily", priority: "0.8" },
     ];
-
-    const products = await Product.find({
-      active: true,
-      status: { $in: ["AVAILABLE", "IN_AUCTION"] },
-    })
-      .select("_id slug updatedAt createdAt")
-      .sort({ updatedAt: -1 })
-      .limit(5000)
-      .lean();
 
     const [growerProfiles, buyerProfiles] = await Promise.all([
       User.find(buildPublicProfileSitemapQuery("grower"))
@@ -219,28 +211,22 @@ router.get("/sitemap.xml", async (req, res) => {
         changefreq: page.changefreq,
         priority: page.priority,
       })),
-      ...products.map((product) => ({
-        loc: `${SITE_URL}/lots/${product._id}`,
-        lastmod: formatDate(product.updatedAt || product.createdAt),
-        changefreq: "daily",
-        priority: "0.9",
-      })),
-      ...growerProfiles.map((profile) => ({
-        loc: hasSafePublicSlug(profile.slug)
-          ? `${SITE_URL}/growers/${profile.slug}`
-          : `${SITE_URL}/profiles/grower/${profile._id}`,
-        lastmod: formatDate(profile.updatedAt || profile.createdAt),
-        changefreq: "weekly",
-        priority: "0.7",
-      })),
-      ...buyerProfiles.map((profile) => ({
-        loc: hasSafePublicSlug(profile.slug)
-          ? `${SITE_URL}/buyers/${profile.slug}`
-          : `${SITE_URL}/profiles/buyer/${profile._id}`,
-        lastmod: formatDate(profile.updatedAt || profile.createdAt),
-        changefreq: "weekly",
-        priority: "0.7",
-      })),
+      ...growerProfiles
+        .filter((profile) => hasSafePublicSlug(profile.slug))
+        .map((profile) => ({
+          loc: `${SITE_URL}/growers/${profile.slug}`,
+          lastmod: formatDate(profile.updatedAt || profile.createdAt),
+          changefreq: "weekly",
+          priority: "0.7",
+        })),
+      ...buyerProfiles
+        .filter((profile) => hasSafePublicSlug(profile.slug))
+        .map((profile) => ({
+          loc: `${SITE_URL}/buyers/${profile.slug}`,
+          lastmod: formatDate(profile.updatedAt || profile.createdAt),
+          changefreq: "weekly",
+          priority: "0.7",
+        })),
       ...locationUrls.map((location) => ({
         loc: `${SITE_URL}${location.path}`,
         lastmod: formatDate(location.lastmod),

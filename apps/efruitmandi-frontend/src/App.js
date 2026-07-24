@@ -1,50 +1,72 @@
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 
 import StartupSplash from "./components/StartupSplash";
+import { lazyWithRecovery } from "./utils/chunkLoadRecovery";
 
 // 🔹 Layout
-const MainLayout = lazy(() => import("./layouts/MainLayout"));
-const AppFeedback = lazy(() => import("./components/AppFeedback"));
-const InstallAppPrompt = lazy(() => import("./components/InstallAppPrompt"));
+const loadMainLayout = () => import("./layouts/MainLayout");
+const MainLayout = lazyWithRecovery(loadMainLayout);
+const AppFeedback = lazyWithRecovery(() => import("./components/AppFeedback"));
+const InstallAppPrompt = lazyWithRecovery(() => import("./components/InstallAppPrompt"));
 
 // 🔹 Pages
-const Home = lazy(() => import("./pages/Home"));
-const FruitLotsPage = lazy(() => import("./pages/FruitLotsPage"));
-const NewsUpdatesPage = lazy(() => import("./pages/NewsUpdatesPage"));
-const BlogPage = lazy(() => import("./pages/BlogPage"));
-const MediaPage = lazy(() => import("./pages/MediaPage"));
-const PressReleasePage = lazy(() => import("./pages/PressReleasePage"));
-const Orders = lazy(() => import("./pages/Orders"));
-const InvoicesChalan = lazy(() => import("./pages/InvoicesChalan"));
-const Delivery = lazy(() => import("./pages/Delivery"));
-const Notifications = lazy(() => import("./pages/Notifications"));
-const RegisterGrower = lazy(() => import("./pages/RegisterGrower"));
-const RegisterBuyer = lazy(() => import("./pages/RegisterBuyer"));
-const RegisterDriver = lazy(() => import("./pages/RegisterDriver"));
-const ListNewLot = lazy(() => import("./pages/ListNewLot"));
-const GetVerified = lazy(() => import("./pages/GetVerified"));
-const Kyc = lazy(() => import("./pages/Kyc"));
-const PolicyPage = lazy(() => import("./pages/PolicyPage"));
-const GpsTracking = lazy(() => import("./pages/GpsTracking"));
-const EscrowWorkflow = lazy(() => import("./pages/EscrowWorkflow"));
-const QuotePrice = lazy(() => import("./pages/QuotePrice"));
-const QuoteDetails = lazy(() => import("./pages/QuoteDetails"));
-const RateGrower = lazy(() => import("./pages/RateGrower"));
-const Auctions = lazy(() => import("./pages/Auctions"));
-const Payment = lazy(() => import("./pages/Payment"));
-const Profile = lazy(() => import("./pages/Profile"));
-const ProfileDashboard = lazy(() => import("./pages/ProfileDashboard"));
-const LotDetails = lazy(() => import("./pages/LotDetails"));
-const SearchResults = lazy(() => import("./pages/SearchResults"));
-const FruitSeoPage = lazy(() => import("./pages/FruitSeoPage"));
-const MobileCapture = lazy(() => import("./pages/MobileCapture"));
-const MandiRates = lazy(() => import("./pages/MandiRates"));
-const PublicBusinessProfile = lazy(() => import("./pages/PublicBusinessProfile"));
-const PublicProfileDirectory = lazy(() => import("./pages/PublicProfileDirectory"));
-const PublicProfileLocation = lazy(() => import("./pages/PublicProfileLocation"));
-const PublicFruitDiscovery = lazy(() => import("./pages/PublicFruitDiscovery"));
-const DownloadApp = lazy(() => import("./pages/DownloadApp"));
+const loadHome = () => import("./pages/Home");
+const loadAuctions = () => import("./pages/Auctions");
+const loadDelivery = () => import("./pages/Delivery");
+const loadProfile = () => import("./pages/Profile");
+const loadSearchResults = () => import("./pages/SearchResults");
+
+const Home = lazyWithRecovery(loadHome);
+const FruitLotsPage = lazyWithRecovery(() => import("./pages/FruitLotsPage"));
+const NewsUpdatesPage = lazyWithRecovery(() => import("./pages/NewsUpdatesPage"));
+const BlogPage = lazyWithRecovery(() => import("./pages/BlogPage"));
+const MediaPage = lazyWithRecovery(() => import("./pages/MediaPage"));
+const PressReleasePage = lazyWithRecovery(() => import("./pages/PressReleasePage"));
+const Orders = lazyWithRecovery(() => import("./pages/Orders"));
+const InvoicesChalan = lazyWithRecovery(() => import("./pages/InvoicesChalan"));
+const Delivery = lazyWithRecovery(loadDelivery);
+const Notifications = lazyWithRecovery(() => import("./pages/Notifications"));
+const RegisterGrower = lazyWithRecovery(() => import("./pages/RegisterGrower"));
+const RegisterBuyer = lazyWithRecovery(() => import("./pages/RegisterBuyer"));
+const RegisterDriver = lazyWithRecovery(() => import("./pages/RegisterDriver"));
+const ListNewLot = lazyWithRecovery(() => import("./pages/ListNewLot"));
+const GetVerified = lazyWithRecovery(() => import("./pages/GetVerified"));
+const Kyc = lazyWithRecovery(() => import("./pages/Kyc"));
+const PolicyPage = lazyWithRecovery(() => import("./pages/PolicyPage"));
+const GpsTracking = lazyWithRecovery(() => import("./pages/GpsTracking"));
+const EscrowWorkflow = lazyWithRecovery(() => import("./pages/EscrowWorkflow"));
+const QuotePrice = lazyWithRecovery(() => import("./pages/QuotePrice"));
+const QuoteDetails = lazyWithRecovery(() => import("./pages/QuoteDetails"));
+const RateGrower = lazyWithRecovery(() => import("./pages/RateGrower"));
+const Auctions = lazyWithRecovery(loadAuctions);
+const Payment = lazyWithRecovery(() => import("./pages/Payment"));
+const Profile = lazyWithRecovery(loadProfile);
+const ProfileDashboard = lazyWithRecovery(() => import("./pages/ProfileDashboard"));
+const LotDetails = lazyWithRecovery(() => import("./pages/LotDetails"));
+const SearchResults = lazyWithRecovery(loadSearchResults);
+const FruitSeoPage = lazyWithRecovery(() => import("./pages/FruitSeoPage"));
+const MobileCapture = lazyWithRecovery(() => import("./pages/MobileCapture"));
+const MandiRates = lazyWithRecovery(() => import("./pages/MandiRates"));
+const PublicBusinessProfile = lazyWithRecovery(() => import("./pages/PublicBusinessProfile"));
+const PublicProfileDirectory = lazyWithRecovery(() => import("./pages/PublicProfileDirectory"));
+const PublicProfileLocation = lazyWithRecovery(() => import("./pages/PublicProfileLocation"));
+const PublicFruitDiscovery = lazyWithRecovery(() => import("./pages/PublicFruitDiscovery"));
+const DownloadApp = lazyWithRecovery(() => import("./pages/DownloadApp"));
+
+if (typeof window !== "undefined") {
+  const priorityRouteLoaders = {
+    "/": loadHome,
+    "/auctions": loadAuctions,
+    "/delivery": loadDelivery,
+    "/login": loadProfile,
+    "/profile": loadProfile,
+    "/search": loadSearchResults,
+  };
+
+  loadMainLayout().catch(() => undefined);
+  priorityRouteLoaders[window.location.pathname]?.().catch(() => undefined);
+}
 
 const scheduleDeferred = (callback, timeout = 1600) => {
   if (typeof window === "undefined") return () => {};
@@ -76,7 +98,11 @@ function AnalyticsTracker() {
             }
             trackPageView(location.pathname + location.search);
           })
-          .catch(() => undefined);
+          .catch(() => {
+            if (import.meta.env.DEV) {
+              console.warn("Optional analytics module could not be loaded.");
+            }
+          });
       });
     };
     const isMobileHome =

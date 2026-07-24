@@ -455,6 +455,8 @@ function isInteractiveDragTarget(target) {
 }
 
 function useMouseDragScroll(scrollRef) {
+  const scrollFrameRef = useRef(null);
+  const pendingScrollTopRef = useRef(null);
   const dragStateRef = useRef({
     active: false,
     dragged: false,
@@ -463,6 +465,17 @@ function useMouseDragScroll(scrollRef) {
     startScrollTop: 0,
     suppressClick: false,
   });
+
+  useEffect(
+    () => () => {
+      if (scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current);
+      }
+      scrollRef.current?.classList.remove("drag-scroll-active");
+      document.body.classList.remove("drag-scroll-select-none");
+    },
+    [scrollRef]
+  );
 
   const stopDrag = useCallback(
     (event) => {
@@ -520,7 +533,17 @@ function useMouseDragScroll(scrollRef) {
         state.dragged = true;
         event.preventDefault();
       }
-      element.scrollTop = state.startScrollTop - deltaY;
+      pendingScrollTopRef.current = state.startScrollTop - deltaY;
+      if (scrollFrameRef.current === null) {
+        scrollFrameRef.current = window.requestAnimationFrame(() => {
+          scrollFrameRef.current = null;
+          const nextScrollTop = pendingScrollTopRef.current;
+          pendingScrollTopRef.current = null;
+          if (nextScrollTop !== null && scrollRef.current) {
+            scrollRef.current.scrollTop = nextScrollTop;
+          }
+        });
+      }
     },
     [scrollRef]
   );
@@ -1521,7 +1544,7 @@ function PublicHomeFeed({
     );
   }
 
-  if (showProfiles && !profilesLoading && !profilesError && buyers.length) {
+  if (showProfiles && (profilesLoading || (!profilesError && buyers.length))) {
     feedSections.push(
       renderProfileSection({
         key: "buyers",
@@ -1661,9 +1684,9 @@ function PublicDealList({
 
 function PublicFeedSkeleton({ count = 2 }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" aria-hidden="true">
       {Array.from({ length: count }, (_, item) => (
-        <div key={item} className="min-h-[480px] animate-pulse rounded-lg border border-gray-200 bg-white p-4 md:min-h-0">
+        <div key={item} className="min-h-[480px] animate-pulse rounded-lg border border-gray-200 bg-white p-4 motion-reduce:animate-none md:min-h-0">
           <div className="h-4 w-2/3 rounded bg-gray-200" />
           <div className="mt-3 h-3 w-1/2 rounded bg-gray-100" />
           <div className="mt-4 h-[300px] rounded-md bg-green-50 md:h-72" />
@@ -1685,14 +1708,30 @@ function PublicProfilesSection({ title, role, profiles = [], loading, error, emp
         </Link>
       </div>
       {loading ? (
-        <div className="space-y-3">
+        <div className="space-y-3" aria-hidden="true">
           {[0, 1].map((item) => (
-            <div key={item} className="animate-pulse rounded-lg border border-gray-200 bg-white p-4">
-              <div className="flex items-center gap-3">
-                <div className="h-14 w-14 rounded-full bg-gray-200" />
-                <div className="min-w-0 flex-1">
-                  <div className="h-3 w-3/4 rounded bg-gray-200" />
-                  <div className="mt-2 h-3 w-1/2 rounded bg-gray-100" />
+            <div key={item} className="overflow-hidden border border-gray-200 bg-white motion-reduce:animate-none md:rounded-md">
+              <div className="animate-pulse p-3 motion-reduce:animate-none">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="h-4 w-2/3 rounded bg-gray-200" />
+                    <div className="mt-2 h-3 w-1/2 rounded bg-gray-100" />
+                    <div className="mt-3 h-3 w-1/3 rounded bg-gray-100" />
+                  </div>
+                  <div className="h-6 w-28 rounded bg-green-100" />
+                </div>
+              </div>
+              <div className="flex h-64 animate-pulse items-center justify-center bg-green-50 motion-reduce:animate-none md:h-80">
+                <div className="h-32 w-32 rounded-full border-4 border-white bg-gray-200 md:h-40 md:w-40" />
+              </div>
+              <div className="animate-pulse border-t border-gray-100 p-3 motion-reduce:animate-none">
+                <div className="rounded-md bg-green-50 px-3 py-3">
+                  <div className="h-3 w-1/2 rounded bg-gray-200" />
+                  <div className="mt-2 h-3 w-3/4 rounded bg-gray-100" />
+                  <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+                    <div className="h-8 rounded-full bg-white sm:w-24" />
+                    <div className="h-8 rounded-full bg-green-100 sm:w-24" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -2313,12 +2352,12 @@ function WebSectionPost({ title, text, children }) {
               19h <span>-</span> <FaGlobeAmericas className="text-[11px]" />
             </p>
           </div>
-          <button className="rounded-full p-2 text-gray-600 hover:bg-gray-100" aria-label="Section options">
+          <span className="rounded-full p-2 text-gray-400" aria-hidden="true">
             <FaEllipsisH />
-          </button>
-          <button className="rounded-full p-2 text-gray-600 hover:bg-gray-100" aria-label="Close section">
+          </span>
+          <span className="rounded-full p-2 text-gray-400" aria-hidden="true">
             <FaTimes />
-          </button>
+          </span>
         </div>
 
         <p className="mt-3 text-sm leading-5 text-gray-900">{text}</p>
@@ -2828,12 +2867,12 @@ function FeedPost({ item, onOpen }) {
               {item.timeLabel} <span>-</span> <FaGlobeAmericas className="text-[11px]" />
             </p>
           </div>
-          <button className="rounded-full p-2 text-gray-600 hover:bg-gray-100" aria-label="Post options">
+          <span className="rounded-full p-2 text-gray-400" aria-hidden="true">
             <FaEllipsisH />
-          </button>
-          <button className="rounded-full p-2 text-gray-600 hover:bg-gray-100" aria-label="Close post">
+          </span>
+          <span className="rounded-full p-2 text-gray-400" aria-hidden="true">
             <FaTimes />
-          </button>
+          </span>
         </div>
 
         <p className="mt-3 text-sm leading-5 text-gray-900">

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 
 const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-240.png`;
-const MIN_SPLASH_MS = 1200;
-const MAX_SPLASH_MS = 2400;
+const MIN_SPLASH_MS = 200;
+const MAX_SPLASH_MS = 450;
 
 export default function StartupSplash({ autoHide = true }) {
   const [visible, setVisible] = useState(true);

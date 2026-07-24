@@ -116,14 +116,18 @@
     <link rel="preconnect" href="https://res.cloudinary.com" crossorigin />
     <link rel="dns-prefetch" href="https://api.efruitmandi.live" />
     <link rel="dns-prefetch" href="https://res.cloudinary.com" />
-    <link
-      rel="preload"
-      as="image"
-      href="https://res.cloudinary.com/doprdp6bi/image/upload/f_auto,q_auto:eco,c_fill,w_420,h_300/v1780455531/efruitmandi/lots/dvyrl8goxmgvr0fetn5v.jpg"
-      imagesrcset="https://res.cloudinary.com/doprdp6bi/image/upload/f_auto,q_auto:eco,c_fill,w_360,h_257/v1780455531/efruitmandi/lots/dvyrl8goxmgvr0fetn5v.jpg 360w, https://res.cloudinary.com/doprdp6bi/image/upload/f_auto,q_auto:eco,c_fill,w_420,h_300/v1780455531/efruitmandi/lots/dvyrl8goxmgvr0fetn5v.jpg 420w"
-      imagesizes="420px"
-      fetchpriority="high"
-    />
+    <script>
+      if (window.location.pathname === "/") {
+        const bannerPreload = document.createElement("link");
+        bannerPreload.rel = "preload";
+        bannerPreload.as = "image";
+        bannerPreload.href = "https://res.cloudinary.com/doprdp6bi/image/upload/f_auto,q_auto:eco,c_fill,w_690,h_200/v1782457312/Banner_efruitmandi1_rb7fw2.webp";
+        bannerPreload.imageSrcset = "https://res.cloudinary.com/doprdp6bi/image/upload/f_auto,q_auto:eco,c_fill,w_360,h_104/v1782457312/Banner_efruitmandi1_rb7fw2.webp 360w, https://res.cloudinary.com/doprdp6bi/image/upload/f_auto,q_auto:eco,c_fill,w_480,h_139/v1782457312/Banner_efruitmandi1_rb7fw2.webp 480w, https://res.cloudinary.com/doprdp6bi/image/upload/f_auto,q_auto:eco,c_fill,w_690,h_200/v1782457312/Banner_efruitmandi1_rb7fw2.webp 690w";
+        bannerPreload.imageSizes = "(max-width: 767px) calc(100vw - 24px), 690px";
+        bannerPreload.fetchPriority = "high";
+        document.head.appendChild(bannerPreload);
+      }
+    </script>
 
     <style>
       html,
@@ -269,7 +273,7 @@
             <li><a href="/fruit-lots/persimmon">Persimmon Fruit Lots</a> - persimmon lot details, seasonal availability and grower-buyer information.</li>
             <li><a href="/blog/market-price/apple">Apple Market Price Guide</a> - apple mandi rates, market price context and buyer sourcing guidance.</li>
             <li><a href="/about">About eFruitMandi</a> - company and marketplace information.</li>
-            <li><a href="/contact-us">Contact eFruitMandi</a> - official support and marketplace contact information.</li>
+            <li><a href="/contact">Contact eFruitMandi</a> - official support and marketplace contact information.</li>
             <li><a href="/why-efruitmandi">Why eFruitMandi</a> - trusted grower, buyer and logistics marketplace benefits.</li>
           </ul>
         </section>
@@ -283,7 +287,7 @@
           <a href="/buyer-guide">Buyer Guide</a> |
           <a href="/grower-guide">Grower Guide</a> |
           <a href="/why-efruitmandi">Why eFruitMandi</a> |
-          <a href="/contact-us">Contact</a>
+          <a href="/contact">Contact</a>
         </nav>
       </main>
     </div>

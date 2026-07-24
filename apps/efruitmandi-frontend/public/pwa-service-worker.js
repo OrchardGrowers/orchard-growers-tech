@@ -1,4 +1,5 @@
-const CACHE_VERSION = "efruitmandi-v20260625-logo-240";
+const BUILD_ID = "__EFRUITMANDI_BUILD_ID__";
+const CACHE_VERSION = `efruitmandi-v-${BUILD_ID}`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const CACHE_PREFIXES = ["efruitmandi-v", "efruitmandi-pwa-"];
@@ -55,6 +56,12 @@ const isStaticAsset = (url) =>
 
 const isFreshStartupAsset = (url) => FRESH_STARTUP_ASSETS.has(url.pathname);
 
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
@@ -90,11 +97,7 @@ self.addEventListener("fetch", (event) => {
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request, { cache: "no-store" })
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(STATIC_CACHE).then((cache) => cache.put(request, copy));
-          return response;
-        })
+        .then((response) => response)
         .catch(() => caches.match("/offline.html"))
     );
     return;
@@ -120,7 +123,13 @@ self.addEventListener("fetch", (event) => {
       caches.match(request).then((cached) => {
         const networkFetch = fetch(request)
           .then((response) => {
-            if (response.ok) {
+            const contentType = response.headers.get("content-type") || "";
+            const isModuleAsset = url.pathname.startsWith("/assets/") &&
+              /\.(?:js|css)$/i.test(url.pathname);
+            const isValidAsset = response.ok &&
+              (!isModuleAsset || !contentType.includes("text/html"));
+
+            if (isValidAsset) {
               const copy = response.clone();
               caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, copy));
             }

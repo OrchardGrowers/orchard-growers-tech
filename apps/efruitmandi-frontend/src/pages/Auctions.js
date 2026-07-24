@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FaCertificate,
   FaClock,
@@ -45,6 +45,8 @@ export default function Auctions() {
   const [dealAmounts, setDealAmounts] = useState({});
   const [distanceByAuction, setDistanceByAuction] = useState({});
   const [dealPreviews, setDealPreviews] = useState({});
+  const previewTimersRef = useRef(new Map());
+  const previewVersionsRef = useRef(new Map());
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortMode, setSortMode] = useState("latest");
@@ -149,34 +151,60 @@ export default function Auctions() {
     return { totalBoxes, topDeal, organicCount };
   }, [liveAuctions]);
 
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      liveAuctions.forEach((auction) => {
-        if (auction.syntheticProductLot) return;
-        const baseRate = Number(dealAmounts[auction._id] || 0);
-        if (!baseRate || !canDeal) return;
+  useEffect(
+    () => () => {
+      previewTimersRef.current.forEach((timerId) => clearTimeout(timerId));
+      previewTimersRef.current.clear();
+      previewVersionsRef.current.clear();
+    },
+    [canDeal]
+  );
 
-        API.post(`/auctions/${auction._id}/calculate`, {
+  const scheduleDealPreview = useCallback(
+    (auction, baseRateValue, distanceValue) => {
+      const auctionId = auction._id;
+      const existingTimer = previewTimersRef.current.get(auctionId);
+      if (existingTimer) clearTimeout(existingTimer);
+
+      const requestVersion = (previewVersionsRef.current.get(auctionId) || 0) + 1;
+      previewVersionsRef.current.set(auctionId, requestVersion);
+
+      const baseRate = Number(baseRateValue || 0);
+      if (auction.syntheticProductLot || !baseRate || !canDeal) {
+        previewTimersRef.current.delete(auctionId);
+        setDealPreviews((current) => ({
+          ...current,
+          [auctionId]: null,
+        }));
+        return;
+      }
+
+      const timerId = setTimeout(() => {
+        previewTimersRef.current.delete(auctionId);
+        API.post(`/auctions/${auctionId}/calculate`, {
           baseRate,
-          distanceKm: Number(distanceByAuction[auction._id] || 0),
+          distanceKm: Number(distanceValue || 0),
         })
-          .then((res) =>
+          .then((res) => {
+            if (previewVersionsRef.current.get(auctionId) !== requestVersion) return;
             setDealPreviews((current) => ({
               ...current,
-              [auction._id]: res.data,
-            }))
-          )
-          .catch(() =>
+              [auctionId]: res.data,
+            }));
+          })
+          .catch(() => {
+            if (previewVersionsRef.current.get(auctionId) !== requestVersion) return;
             setDealPreviews((current) => ({
               ...current,
-              [auction._id]: null,
-            }))
-          );
-      });
-    }, 350);
+              [auctionId]: null,
+            }));
+          });
+      }, 350);
 
-    return () => clearTimeout(timeout);
-  }, [canDeal, dealAmounts, distanceByAuction, liveAuctions]);
+      previewTimersRef.current.set(auctionId, timerId);
+    },
+    [canDeal]
+  );
 
   useEffect(() => {
     liveAuctions.forEach((auction) => {
@@ -231,17 +259,23 @@ export default function Auctions() {
     });
   };
 
-  const updateDealAmount = (auctionId, value) =>
+  const updateDealAmount = (auction, value) => {
+    const auctionId = auction._id;
     setDealAmounts((current) => ({
       ...current,
       [auctionId]: value,
     }));
+    scheduleDealPreview(auction, value, distanceByAuction[auctionId]);
+  };
 
-  const updateDistance = (auctionId, value) =>
+  const updateDistance = (auction, value) => {
+    const auctionId = auction._id;
     setDistanceByAuction((current) => ({
       ...current,
       [auctionId]: value,
     }));
+    scheduleDealPreview(auction, dealAmounts[auctionId], value);
+  };
 
   return (
     <>
@@ -315,7 +349,9 @@ export default function Auctions() {
         </label>
       </section>
 
-      {featuredAuction && (
+      {loading ? (
+        <FeaturedLotSkeleton />
+      ) : featuredAuction && (
         <FeaturedLot
           auction={featuredAuction}
           canDeal={canDeal}
@@ -352,8 +388,8 @@ export default function Auctions() {
               onView={() => {
                 if (auction.product?._id) navigate(`/lots/${auction.product._id}`);
               }}
-              onDealChange={(value) => updateDealAmount(auction._id, value)}
-              onDistanceChange={(value) => updateDistance(auction._id, value)}
+              onDealChange={(value) => updateDealAmount(auction, value)}
+              onDistanceChange={(value) => updateDistance(auction, value)}
               onDeal={() => {
                 if (auction.syntheticProductLot && auction.product?._id) {
                   navigate(`/lots/${auction.product._id}/quote`);
@@ -420,7 +456,8 @@ function FeaturedLot({ auction, canDeal, onView, onQuote }) {
               width="680"
               height="320"
               className="h-full max-h-[320px] w-full object-contain"
-              loading="lazy"
+              loading="eager"
+              fetchPriority="high"
               decoding="async"
             />
           ) : (
@@ -432,6 +469,34 @@ function FeaturedLot({ auction, canDeal, onView, onQuote }) {
             Deal Open
           </span>
         </div>
+      </div>
+    </section>
+  );
+}
+
+function FeaturedLotSkeleton() {
+  return (
+    <section
+      className="mt-4 overflow-hidden rounded-lg border border-green-100 bg-white shadow-sm"
+      aria-hidden="true"
+    >
+      <div className="grid animate-pulse md:grid-cols-[minmax(0,1fr)_340px] motion-reduce:animate-none">
+        <div className="min-h-[260px] p-4">
+          <div className="h-6 w-36 rounded-full bg-green-100" />
+          <div className="mt-3 h-6 w-2/3 rounded bg-gray-100" />
+          <div className="mt-3 h-4 w-1/2 rounded bg-gray-100" />
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            {[1, 2, 3].map((item) => (
+              <div key={item} className="h-12 rounded-md bg-gray-50" />
+            ))}
+          </div>
+          <div className="mt-4 h-3 w-4/5 rounded bg-gray-100" />
+          <div className="mt-4 flex gap-2">
+            <div className="h-8 w-28 rounded-full bg-green-100" />
+            <div className="h-8 w-28 rounded-full bg-green-50" />
+          </div>
+        </div>
+        <div className="min-h-[220px] bg-green-50 md:min-h-[260px]" />
       </div>
     </section>
   );
@@ -614,9 +679,12 @@ function InfoPill({ label, value }) {
 
 function LotSkeleton() {
   return (
-    <section className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <section
+      className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+      aria-hidden="true"
+    >
       {[1, 2, 3, 4, 5, 6].map((item) => (
-        <div key={item} className="animate-pulse rounded-lg border border-green-100 bg-white p-3">
+        <div key={item} className="animate-pulse rounded-lg border border-green-100 bg-white p-3 motion-reduce:animate-none">
           <div className="aspect-[4/3] rounded-md bg-green-50" />
           <div className="mt-3 h-4 w-2/3 rounded bg-gray-100" />
           <div className="mt-3 grid grid-cols-3 gap-2">

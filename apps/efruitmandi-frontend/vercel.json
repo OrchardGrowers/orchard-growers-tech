@@ -140,6 +140,49 @@
           "value": "no-cache, no-store, must-revalidate"
         }
       ]
+    },
+    {
+      "source": "/(admin|dashboard|profile-dashboard|profile|login|kyc|payment|checkout|notifications|orders|invoices-chalan|delivery|tracking|escrow|register-grower|register-buyer|register-driver|list-new-lot|get-verified|mobile-capture|quotes)(/.*)?",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/lots/(.*)/(quote|rating)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/profiles/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/contact-us",
+      "destination": "/contact",
+      "permanent": true
     }
   ],
   "rewrites": [
@@ -180,8 +223,12 @@
     "destination": "/our-story/index.html"
   },
   {
-    "source": "/contact-us",
-    "destination": "/contact-us/index.html"
+    "source": "/contact",
+    "destination": "/contact/index.html"
+  },
+  {
+    "source": "/vision-mission",
+    "destination": "/vision-mission/index.html"
   },
   {
     "source": "/why-efruitmandi",
@@ -200,8 +247,72 @@
     "destination": "/terms-of-service/index.html"
   },
   {
+    "source": "/refund-cancellation-policy",
+    "destination": "/refund-cancellation-policy/index.html"
+  },
+  {
+    "source": "/payment-escrow-policy",
+    "destination": "/payment-escrow-policy/index.html"
+  },
+  {
+    "source": "/kyc-verification-policy",
+    "destination": "/kyc-verification-policy/index.html"
+  },
+  {
+    "source": "/og-verified-policy",
+    "destination": "/og-verified-policy/index.html"
+  },
+  {
+    "source": "/commission-fee-policy",
+    "destination": "/commission-fee-policy/index.html"
+  },
+  {
+    "source": "/shipping-logistics-policy",
+    "destination": "/shipping-logistics-policy/index.html"
+  },
+  {
+    "source": "/community-guidelines",
+    "destination": "/community-guidelines/index.html"
+  },
+  {
+    "source": "/logistics-partner-guide",
+    "destination": "/logistics-partner-guide/index.html"
+  },
+  {
+    "source": "/fruit-grading-packing-guidelines",
+    "destination": "/fruit-grading-packing-guidelines/index.html"
+  },
+  {
+    "source": "/report-problem",
+    "destination": "/report-problem/index.html"
+  },
+  {
+    "source": "/user-data-deletion",
+    "destination": "/user-data-deletion/index.html"
+  },
+  {
     "source": "/mandi-rates",
     "destination": "/mandi-rates/index.html"
+  },
+  {
+    "source": "/mandi-rates/:commoditySlug",
+    "destination": "/mandi-rates/:commoditySlug/index.html"
+  },
+  {
+    "source": "/growers",
+    "destination": "/growers/index.html"
+  },
+  {
+    "source": "/buyers",
+    "destination": "/buyers/index.html"
+  },
+  {
+    "source": "/fruits",
+    "destination": "/fruits/index.html"
+  },
+  {
+    "source": "/fruits/:path*",
+    "destination": "/fruits/:path*/index.html"
   },
   {
     "source": "/growers/state/:stateSlug/district/:districtSlug",
@@ -228,7 +339,7 @@
     "destination": "/buyers/:slug/index.html"
   },
   {
-    "source": "/(.*)",
+    "source": "/((?!assets/).*)",
     "destination": "/index.html"
   }
 ]

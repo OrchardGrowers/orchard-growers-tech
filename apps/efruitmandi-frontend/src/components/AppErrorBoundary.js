@@ -1,5 +1,9 @@
 import React from "react";
 import { Helmet } from "react-helmet-async";
+import {
+  APP_BUILD_ID,
+  attemptChunkLoadRecovery,
+} from "../utils/chunkLoadRecovery";
 
 const HOME_TITLE = "eFruitMandi - Fruit Buyers & Growers Marketplace in India";
 const HOME_DESCRIPTION =
@@ -11,6 +15,7 @@ export default class AppErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
     this.state = { error: null };
+    this.hasLoggedError = false;
   }
 
   static getDerivedStateFromError(error) {
@@ -18,7 +23,15 @@ export default class AppErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, info) {
-    console.error("eFruitMandi route render failed", error, info);
+    if (attemptChunkLoadRecovery(error)) return;
+    if (this.hasLoggedError) return;
+    this.hasLoggedError = true;
+
+    if (import.meta.env.DEV) {
+      console.error("eFruitMandi route render failed", error, info);
+    } else {
+      console.warn(`eFruitMandi render failure (build ${APP_BUILD_ID})`);
+    }
   }
 
   render() {

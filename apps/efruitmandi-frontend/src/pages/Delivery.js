@@ -386,6 +386,7 @@ export default function Delivery() {
             order={selectedOrder}
             tracking={tracking}
             deliveryTracking={deliveryTracking}
+            ordersLoading={loading}
             loading={trackingLoading}
             onOpenEscrow={() => {
               if (!selectedOrderId) return;
@@ -423,6 +424,7 @@ export default function Delivery() {
             openBuyerReceivingCapture={openBuyerReceivingCapture}
             receivingCaptureStarting={receivingCaptureStarting}
             recordReceivingDecision={recordReceivingDecision}
+            ordersLoading={loading}
           />
         </section>
       </div>
@@ -453,6 +455,8 @@ export default function Delivery() {
             <img
               src={receivingCapture.qrDataUrl}
               alt="Buyer receiving camera QR code"
+              width="224"
+              height="224"
               className="mx-auto mt-4 h-56 w-56"
             />
             <a
@@ -511,13 +515,17 @@ function OrderCard({ order, selected, onSelect }) {
   );
 }
 
-function TrackingPanel({ order, tracking, deliveryTracking, loading, onOpenEscrow }) {
+function TrackingPanel({ order, tracking, deliveryTracking, ordersLoading, loading, onOpenEscrow }) {
   const delivery = deliveryTracking?.delivery;
   const driver = delivery?.driver || order?.driver;
   const lastLocation = delivery?.lastLocation;
   const currentStatus = delivery?.status || tracking?.deliveryStatus || order?.deliveryStatus || "PENDING";
   const trackingNumber = tracking?.trackingNumber || order?.trackingNumber || "";
   const stationUpdates = getStationUpdates(delivery, tracking);
+
+  if (ordersLoading) {
+    return <TrackingPanelSkeleton />;
+  }
 
   if (!order) {
     return (
@@ -647,6 +655,7 @@ function RoleActionPanel(props) {
     openBuyerReceivingCapture,
     receivingCaptureStarting,
     recordReceivingDecision,
+    ordersLoading,
   } = props;
 
   return (
@@ -680,6 +689,12 @@ function RoleActionPanel(props) {
 
         {isBuyer && (
           <ActionBox icon={<FaMoneyBillWave />} title="Buyer actions">
+            {ordersLoading && (
+              <div className="animate-pulse space-y-2 motion-reduce:animate-none" aria-hidden="true">
+                <div className="h-9 rounded-md bg-green-100" />
+                <div className="h-12 rounded-md bg-white" />
+              </div>
+            )}
             {isSelectedOrderBuyer && (
               <>
                 <button
@@ -810,9 +825,9 @@ function StatusChip({ status = "PENDING" }) {
 
 function OrderSkeleton() {
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" aria-hidden="true">
       {[1, 2, 3].map((item) => (
-        <div key={item} className="animate-pulse rounded-lg border border-green-100 bg-white p-3">
+        <div key={item} className="animate-pulse rounded-lg border border-green-100 bg-white p-3 motion-reduce:animate-none">
           <div className="h-4 w-2/3 rounded bg-gray-100" />
           <div className="mt-3 grid grid-cols-2 gap-2">
             <div className="h-12 rounded bg-green-50" />
@@ -821,6 +836,41 @@ function OrderSkeleton() {
         </div>
       ))}
     </div>
+  );
+}
+
+function TrackingPanelSkeleton() {
+  return (
+    <section
+      className="min-h-[430px] animate-pulse rounded-lg border border-gray-200 bg-white p-4 shadow-sm motion-reduce:animate-none"
+      aria-hidden="true"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1">
+          <div className="h-3 w-32 rounded bg-green-100" />
+          <div className="mt-3 h-6 w-2/3 rounded bg-gray-200" />
+          <div className="mt-2 h-3 w-28 rounded bg-gray-100" />
+        </div>
+        <div className="h-8 w-24 rounded-full bg-green-100" />
+      </div>
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        {[1, 2, 3].map((item) => (
+          <div key={item} className="h-12 rounded-md bg-gray-50" />
+        ))}
+      </div>
+      <div className="mt-4 h-24 rounded-md bg-green-50" />
+      <div className="mt-5 space-y-4">
+        {[1, 2, 3].map((item) => (
+          <div key={item} className="flex gap-3">
+            <div className="h-6 w-6 shrink-0 rounded-full bg-gray-100" />
+            <div className="flex-1">
+              <div className="h-4 w-32 rounded bg-gray-200" />
+              <div className="mt-2 h-3 w-3/4 rounded bg-gray-100" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

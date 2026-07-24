@@ -347,11 +347,7 @@ export default function SearchResults() {
         </span>
       </div>
 
-      {loading && (
-        <p className="py-3 text-sm font-semibold text-green-700">
-          Searching live marketplace data...
-        </p>
-      )}
+      {loading && <SearchResultsSkeleton />}
 
       {!loading && profiles.length > 0 && (
         <div className="mb-5">
@@ -368,8 +364,11 @@ export default function SearchResults() {
                       <img
                         src={resolveImageUrl(profile.image)}
                         alt={profile.title || "Profile"}
+                        width="48"
+                        height="48"
                         className="h-full w-full object-cover"
                         loading="lazy"
+                        decoding="async"
                       />
                     ) : (
                       <FaUserCircle />
@@ -414,8 +413,11 @@ export default function SearchResults() {
                     <img
                       src={getImageUrl(product)}
                       alt={product.title || "Fruit Lot"}
+                      width="400"
+                      height="300"
                       className="h-full w-full object-contain object-center"
                       loading="lazy"
+                      decoding="async"
                     />
                   ) : (
                     <div className="flex h-full items-center justify-center text-2xl text-green-700">
@@ -534,6 +536,32 @@ function Badge({ text }) {
     <span className="rounded-full bg-green-100 px-2 py-0.5 text-[8px] font-extrabold text-green-800">
       {text}
     </span>
+  );
+}
+
+function SearchResultsSkeleton() {
+  return (
+    <section className="mb-5" aria-hidden="true">
+      <div className="mb-2 h-3 w-20 rounded bg-gray-200" />
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {[0, 1].map((item) => (
+          <div
+            key={item}
+            className="animate-pulse rounded-md border border-green-100 bg-white p-3 shadow-sm motion-reduce:animate-none"
+          >
+            <div className="flex items-start gap-3">
+              <div className="h-12 w-12 shrink-0 rounded-full bg-green-100" />
+              <div className="min-w-0 flex-1">
+                <div className="h-2.5 w-16 rounded bg-green-100" />
+                <div className="mt-2 h-4 w-3/4 rounded bg-gray-200" />
+                <div className="mt-2 h-3 w-1/2 rounded bg-gray-100" />
+                <div className="mt-3 h-4 w-20 rounded-full bg-green-50" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

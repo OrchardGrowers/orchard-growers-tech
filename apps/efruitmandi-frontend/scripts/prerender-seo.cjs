@@ -166,7 +166,7 @@ const publicLinks = [
   { href: "/buyer-guide", label: "Buyer Guide" },
   { href: "/grower-guide", label: "Grower Guide" },
   { href: "/why-efruitmandi", label: "Why eFruitMandi" },
-  { href: "/contact-us", label: "Contact" },
+  { href: "/contact", label: "Contact" },
 ];
 
 const staticRoutes = [
@@ -176,6 +176,13 @@ const staticRoutes = [
     description: "Browse Fruit Lots, Live Deals, Active Deals and Completed Deals on eFruitMandi, India's fresh fruit marketplace for growers and buyers.",
     h1: "Fruit Lots Marketplace",
     body: "Explore Live Deals, Active Deals, Completed Deals, Fruit Lots, Buy Lots and Sell Lots from verified growers and marketplace participants.",
+  },
+  {
+    path: "/fruits",
+    title: "Fruits Traded on eFruitMandi | eFruitMandi",
+    description: "Explore fruits publicly listed on eFruitMandi and discover related fruit lots, growers and buyers across India.",
+    h1: "Fruits Traded on eFruitMandi",
+    body: "Explore public fruit marketplace categories and discover related fruit lots, growers and buyers on eFruitMandi.",
   },
   {
     path: "/grower-guide",
@@ -220,7 +227,14 @@ const staticRoutes = [
     body: "eFruitMandi was built from practical fruit industry experience and research into grower needs, buyer discovery, marketplace records and trusted fruit trade.",
   },
   {
-    path: "/contact-us",
+    path: "/vision-mission",
+    title: "Vision and Mission | eFruitMandi",
+    description: "Learn about eFruitMandi's vision and mission for transparent fruit trade, grower-buyer discovery and digital horticulture commerce.",
+    h1: "Vision and Mission",
+    body: "eFruitMandi aims to support transparent, trusted and accessible fruit marketplace workflows for growers, buyers and logistics partners.",
+  },
+  {
+    path: "/contact",
     title: "Contact eFruitMandi | Fruit Marketplace Support",
     description: "Contact eFruitMandi for marketplace support, Fruit Lots, buyer questions, grower help, logistics support and platform information.",
     h1: "Contact eFruitMandi",
@@ -255,12 +269,99 @@ const staticRoutes = [
     body: "The terms of service describe marketplace responsibilities, Fruit Lots information, buyer and grower workflows, support records and platform use.",
   },
   {
+    path: "/refund-cancellation-policy",
+    title: "Refund and Cancellation Policy | eFruitMandi",
+    description: "Read the eFruitMandi refund and cancellation policy for marketplace transactions, services and support requests.",
+    h1: "Refund and Cancellation Policy",
+    body: "Review refund, cancellation and support conditions that apply to eFruitMandi marketplace workflows.",
+  },
+  {
+    path: "/payment-escrow-policy",
+    title: "Payment and Escrow Policy | eFruitMandi",
+    description: "Read how payment references, escrow workflows and settlement support are handled on eFruitMandi.",
+    h1: "Payment and Escrow Policy",
+    body: "Review payment, escrow and settlement responsibilities for eFruitMandi marketplace participants.",
+  },
+  {
+    path: "/kyc-verification-policy",
+    title: "KYC Verification Policy | eFruitMandi",
+    description: "Read the eFruitMandi KYC verification policy for growers, buyers and logistics partners.",
+    h1: "KYC Verification Policy",
+    body: "Review identity, business and role-verification requirements for eFruitMandi marketplace accounts.",
+  },
+  {
+    path: "/og-verified-policy",
+    title: "OG Verified Policy | eFruitMandi",
+    description: "Read the eligibility, review and marketplace conditions for the eFruitMandi OG Verified program.",
+    h1: "OG Verified Policy",
+    body: "Review OG Verified eligibility, verification and participant responsibilities on eFruitMandi.",
+  },
+  {
+    path: "/commission-fee-policy",
+    title: "Commission and Fee Policy | eFruitMandi",
+    description: "Read the eFruitMandi commission and fee policy for applicable marketplace services and transactions.",
+    h1: "Commission and Fee Policy",
+    body: "Review commission, fee and marketplace service conditions on eFruitMandi.",
+  },
+  {
+    path: "/shipping-logistics-policy",
+    title: "Shipping and Logistics Policy | eFruitMandi",
+    description: "Read shipping, delivery and logistics responsibilities for eFruitMandi marketplace participants.",
+    h1: "Shipping and Logistics Policy",
+    body: "Review shipping, handling, delivery and logistics responsibilities for fruit consignments.",
+  },
+  {
+    path: "/community-guidelines",
+    title: "Community Guidelines | eFruitMandi",
+    description: "Read the eFruitMandi community guidelines for safe, accurate and respectful marketplace participation.",
+    h1: "Community Guidelines",
+    body: "Review conduct, safety and information-quality expectations for eFruitMandi users.",
+  },
+  {
+    path: "/logistics-partner-guide",
+    title: "Logistics Partner Guide | eFruitMandi",
+    description: "Learn how logistics partners support fruit delivery, tracking and marketplace records on eFruitMandi.",
+    h1: "Logistics Partner Guide",
+    body: "The Logistics Partner Guide explains delivery, tracking and consignment workflows on eFruitMandi.",
+  },
+  {
+    path: "/fruit-grading-packing-guidelines",
+    title: "Fruit Grading and Packing Guidelines | eFruitMandi",
+    description: "Review fruit grading, packing and handling guidance for marketplace fruit lots on eFruitMandi.",
+    h1: "Fruit Grading and Packing Guidelines",
+    body: "Review practical grading, packing and handling guidance for fruit marketplace participants.",
+  },
+  {
+    path: "/report-problem",
+    title: "Report a Problem | eFruitMandi",
+    description: "Report account, listing, transaction, delivery or marketplace support problems to eFruitMandi.",
+    h1: "Report a Problem",
+    body: "Use eFruitMandi's official support process to report marketplace problems with relevant details.",
+  },
+  {
+    path: "/user-data-deletion",
+    title: "User Data Deletion | eFruitMandi",
+    description: "Learn how to request deletion of eligible eFruitMandi account and personal data.",
+    h1: "User Data Deletion",
+    body: "Review the process and applicable conditions for requesting deletion of eFruitMandi user data.",
+  },
+  {
     path: "/mandi-rates",
     title: "Mandi Rates | Fruit Market Prices | eFruitMandi",
     description: "View mandi rates and fruit market price information for buyers, growers and marketplace visitors on eFruitMandi.",
     h1: "Mandi Rates",
     body: "Mandi Rates on eFruitMandi help visitors review fruit market price context, public rate information and marketplace sourcing signals.",
   },
+  ...["apple", "mango", "pear"].map((commodity) => {
+    const name = commodity.charAt(0).toUpperCase() + commodity.slice(1);
+    return {
+      path: `/mandi-rates/${commodity}`,
+      title: `${name} Mandi Rates Today | eFruitMandi`,
+      description: `View current ${name.toLowerCase()} mandi rate information and public fruit market price context on eFruitMandi.`,
+      h1: `${name} Mandi Rates`,
+      body: `Review public ${name.toLowerCase()} mandi rate information and marketplace price context on eFruitMandi.`,
+    };
+  }),
 ];
 
 const routes = [...staticRoutes, ...fruitLotRoutes];

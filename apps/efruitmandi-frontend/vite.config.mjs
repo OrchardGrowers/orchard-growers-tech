@@ -1,5 +1,13 @@
 import { defineConfig, loadEnv, transformWithEsbuild } from "vite";
 import react from "@vitejs/plugin-react";
+import { readFileSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+const PACKAGE_VERSION = JSON.parse(
+  readFileSync(new URL("./package.json", import.meta.url), "utf8")
+).version;
+const BUILD_REVISION = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) || "local";
+const APP_BUILD_ID = `${PACKAGE_VERSION}-${BUILD_REVISION}-${Date.now().toString(36)}`;
 
 const PUBLIC_COMPAT_ENV = new Set([
   "REACT_APP_MSG91_EFRUITMANDI_WIDGET_ID",
@@ -55,6 +63,24 @@ export default defineConfig(({ mode }) => ({
       },
     },
     react(),
+    {
+      name: "inject-efruitmandi-build-id",
+      apply: "build",
+      closeBundle() {
+        const workerPath = fileURLToPath(
+          new URL("./build/pwa-service-worker.js", import.meta.url)
+        );
+        const workerSource = readFileSync(workerPath, "utf8");
+        if (!workerSource.includes("__EFRUITMANDI_BUILD_ID__")) {
+          throw new Error("Missing service-worker build ID placeholder");
+        }
+        writeFileSync(
+          workerPath,
+          workerSource.replaceAll("__EFRUITMANDI_BUILD_ID__", APP_BUILD_ID),
+          "utf8"
+        );
+      },
+    },
   ],
   publicDir: "public",
   build: {
@@ -84,6 +110,7 @@ export default defineConfig(({ mode }) => ({
   },
   define: {
     "process.env": JSON.stringify(createClientEnv(mode)),
+    __EFRUITMANDI_BUILD_ID__: JSON.stringify(APP_BUILD_ID),
   },
   optimizeDeps: {
     esbuildOptions: {

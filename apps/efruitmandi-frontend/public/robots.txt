@@ -1,34 +1,16 @@
-﻿User-agent: GPTBot
-Allow: /
-
-User-agent: OAI-SearchBot
-Allow: /
-
-User-agent: ChatGPT-User
-Allow: /
-
-User-agent: ClaudeBot
-Allow: /
-
-User-agent: PerplexityBot
-Allow: /
-
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
 User-agent: *
 Allow: /
 
 Disallow: /admin
 Disallow: /dashboard
 Disallow: /profile-dashboard
-Disallow: /profile
+Disallow: /profile$
+Disallow: /profile/
 Disallow: /login
-Disallow: /kyc
-Disallow: /payment
+Disallow: /kyc$
+Disallow: /kyc/
+Disallow: /payment$
+Disallow: /payment/
 Disallow: /checkout
 Disallow: /notifications
 Disallow: /orders
@@ -41,6 +23,7 @@ Disallow: /register-buyer
 Disallow: /register-driver
 Disallow: /list-new-lot
 Disallow: /get-verified
+Disallow: /mobile-capture
 Disallow: /lots/*/quote
 Disallow: /lots/*/rating
 Disallow: /quotes
