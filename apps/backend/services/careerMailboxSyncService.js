@@ -6,6 +6,7 @@ import {
   createBodyPreview,
   createFallbackMessageKey,
   deriveApplicantName,
+  extractCandidateProfile,
   extractEmailAddresses,
   extractPhoneNumbers,
   normalizeEmailAddress,
@@ -60,6 +61,23 @@ const attachmentMetadata = (attachments = []) =>
     disposition: String(attachment.contentDisposition || "").slice(0, 100),
   }));
 
+const backfillEmptyCandidateFields = async (externalMessageKey, values) => {
+  const set = {};
+  Object.entries(values).forEach(([field, value]) => {
+    const hasValue = Array.isArray(value) ? value.length > 0 : value !== "" && value !== null && value !== undefined;
+    if (!hasValue) return;
+    const emptyCondition = Array.isArray(value)
+      ? { $eq: [{ $size: { $ifNull: [`$${field}`, []] } }, 0] }
+      : field === "fieldOfWork" || field === "experienceRange"
+        ? { $in: [{ $ifNull: [`$${field}`, "UNKNOWN"] }, ["", null, "UNKNOWN"]] }
+        : { $in: [{ $ifNull: [`$${field}`, ""] }, ["", null]] };
+    set[field] = { $cond: [emptyCondition, { $literal: value }, `$${field}`] };
+  });
+  if (Object.keys(set).length) {
+    await CareerApplication.updateOne({ externalMessageKey }, [{ $set: set }]);
+  }
+};
+
 export const syncCareerMailbox = async ({ importedBy } = {}) => {
   if (syncInProgress) {
     const error = new Error("A career mailbox sync is already in progress.");
@@ -109,15 +127,29 @@ export const syncCareerMailbox = async ({ importedBy } = {}) => {
         const sender = firstAddress(parsed.from);
         const replyTo = firstAddress(parsed.replyTo);
         const textBody = String(parsed.text || "").replace(/\u0000/g, "").trim().slice(0, 100000);
+        const subject = String(parsed.subject || "").trim().slice(0, 1000);
         const emailDate = parsed.date || message.internalDate || null;
         const extractedPhoneNumbers = extractPhoneNumbers(textBody);
+        const profile = extractCandidateProfile({
+          textBody,
+          subject,
+          senderName: sender.name,
+          senderEmail: sender.email,
+          replyToName: replyTo.name,
+          replyToEmail: replyTo.email,
+        });
+        const storedAttachments = attachmentMetadata(parsed.attachments);
+        const resumeAttachment = storedAttachments.find((attachment) =>
+          /(?:pdf|msword|officedocument\.wordprocessingml|rtf|text\/plain)/i.test(attachment.contentType) ||
+          /\.(?:pdf|doc|docx|rtf|txt)$/i.test(attachment.filename)
+        );
         const normalizedMessageId = String(parsed.messageId || "").trim().toLowerCase().slice(0, 1000);
         const externalMessageKey = normalizedMessageId
           ? `message-id:${normalizedMessageId}`
           : createFallbackMessageKey({
               senderEmail: sender.email,
               replyToEmail: replyTo.email,
-              subject: parsed.subject,
+              subject,
               emailDate,
               textBody,
             });
@@ -134,17 +166,40 @@ export const syncCareerMailbox = async ({ importedBy } = {}) => {
             senderEmail: sender.email,
             textBody,
           }),
+          candidateName: profile.candidateName,
+          email: profile.email,
           replyToName: replyTo.name,
           replyToEmail: replyTo.email,
-          subject: String(parsed.subject || "").trim().slice(0, 1000),
+          subject,
+          emailSubject: subject,
+          emailFrom: sender.email,
           emailDate,
           receivedAt: message.internalDate || emailDate || new Date(),
           textBody,
           bodyPreview: createBodyPreview(textBody),
-          contactNumber: extractedPhoneNumbers[0] || "",
+          contactNumber: profile.contactNumber,
+          normalizedContactNumber: profile.normalizedContactNumber,
+          alternateContactNumber: profile.alternateContactNumber,
+          normalizedAlternateContactNumber: profile.normalizedAlternateContactNumber,
           extractedPhoneNumbers,
           extractedEmails: extractEmailAddresses(textBody, sender.email, replyTo.email),
-          attachments: attachmentMetadata(parsed.attachments),
+          address: profile.address,
+          city: profile.city,
+          district: profile.district,
+          state: profile.state,
+          postalCode: profile.postalCode,
+          qualification: profile.qualification,
+          workExperienceText: profile.workExperienceText,
+          experienceYears: profile.experienceYears,
+          experienceRange: profile.experienceRange,
+          currentCompany: profile.currentCompany,
+          currentDesignation: profile.currentDesignation,
+          skills: profile.skills,
+          fieldOfWork: profile.fieldOfWork,
+          resumeFileName: resumeAttachment?.filename || "",
+          resumeContentType: resumeAttachment?.contentType || "",
+          resumeSize: resumeAttachment?.size || 0,
+          attachments: storedAttachments,
           syncBatchId: batchId,
           source: "IMAP",
           importedBy: importedBy || null,
@@ -156,7 +211,35 @@ export const syncCareerMailbox = async ({ importedBy } = {}) => {
           { upsert: true }
         );
         if (result.upsertedCount) summary.imported += 1;
-        else summary.duplicates += 1;
+        else {
+          await backfillEmptyCandidateFields(externalMessageKey, {
+            candidateName: profile.candidateName,
+            email: profile.email,
+            contactNumber: profile.contactNumber,
+            normalizedContactNumber: profile.normalizedContactNumber,
+            alternateContactNumber: profile.alternateContactNumber,
+            normalizedAlternateContactNumber: profile.normalizedAlternateContactNumber,
+            address: profile.address,
+            city: profile.city,
+            district: profile.district,
+            state: profile.state,
+            postalCode: profile.postalCode,
+            qualification: profile.qualification,
+            workExperienceText: profile.workExperienceText,
+            experienceYears: profile.experienceYears,
+            experienceRange: profile.experienceRange,
+            currentCompany: profile.currentCompany,
+            currentDesignation: profile.currentDesignation,
+            skills: profile.skills,
+            fieldOfWork: profile.fieldOfWork,
+            resumeFileName: resumeAttachment?.filename || "",
+            resumeContentType: resumeAttachment?.contentType || "",
+            resumeSize: resumeAttachment?.size || 0,
+            emailSubject: subject,
+            emailFrom: sender.email,
+          });
+          summary.duplicates += 1;
+        }
       } catch (error) {
         if (error?.code === 11000) summary.duplicates += 1;
         else {

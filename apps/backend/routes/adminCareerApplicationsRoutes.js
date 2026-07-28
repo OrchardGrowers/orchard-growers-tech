@@ -1,6 +1,8 @@
 import express from "express";
 import {
+  exportCareerApplications,
   getCareerApplication,
+  getCareerApplicationFilterOptions,
   listCareerApplications,
   syncCareerApplications,
 } from "../controllers/adminCareerApplicationsController.js";
@@ -11,6 +13,8 @@ const careerAdminOnly = authorize("SUPER_ADMIN", "ADMIN");
 const wrapAsync = (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 
 router.post("/sync", careerAdminOnly, wrapAsync(syncCareerApplications));
+router.get("/export", careerAdminOnly, wrapAsync(exportCareerApplications));
+router.get("/filter-options", careerAdminOnly, wrapAsync(getCareerApplicationFilterOptions));
 router.get("/", careerAdminOnly, wrapAsync(listCareerApplications));
 router.get("/:id", careerAdminOnly, wrapAsync(getCareerApplication));
 
