@@ -293,7 +293,7 @@ export default function CareerApplications({ apiBase, authHeaders }: Props) {
       const summary = body.summary || {};
       setPage(1);
       await loadApplications();
-      setMessage(`Sync complete: ${summary.imported || 0} imported, ${summary.duplicates || 0} duplicates, ${summary.failed || 0} failed.`);
+      setMessage(`Full sync complete: ${summary.scanned || 0} of ${summary.mailboxMessages || 0} mailbox messages scanned; ${summary.imported || 0} imported, ${summary.duplicates || 0} duplicates, ${summary.failed || 0} failed.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Career mailbox sync failed.');
     } finally {

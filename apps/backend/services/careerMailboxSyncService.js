@@ -96,6 +96,8 @@ export const syncCareerMailbox = async ({ importedBy, syncAll = false } = {}) =>
     errors: [],
     startedAt: new Date(),
     completedAt: null,
+    syncMode: syncAll ? "ALL" : "RECENT",
+    mailboxMessages: 0,
   };
   const client = new ImapFlow({
     host: config.host,
@@ -110,6 +112,7 @@ export const syncCareerMailbox = async ({ importedBy, syncAll = false } = {}) =>
   try {
     await client.connect();
     const mailbox = await client.mailboxOpen(config.mailbox, { readOnly: true });
+    summary.mailboxMessages = mailbox.exists || 0;
     if (!mailbox.exists) {
       summary.completedAt = new Date();
       return summary;
