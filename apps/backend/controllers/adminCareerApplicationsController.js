@@ -130,7 +130,8 @@ const serializeSafeCandidate = (application) => ({
 
 export const syncCareerApplications = async (req, res) => {
   try {
-    const summary = await syncCareerMailbox({ importedBy: req.user?.id });
+    const syncAll = String(req.query.all || req.body?.all || "").toLowerCase() === "true";
+    const summary = await syncCareerMailbox({ importedBy: req.user?.id, syncAll });
     res.json({ message: "Career mailbox sync completed.", summary });
   } catch (error) {
     res.status(error?.statusCode || 500).json({

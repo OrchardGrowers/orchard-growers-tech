@@ -78,7 +78,7 @@ const backfillEmptyCandidateFields = async (externalMessageKey, values) => {
   }
 };
 
-export const syncCareerMailbox = async ({ importedBy } = {}) => {
+export const syncCareerMailbox = async ({ importedBy, syncAll = false } = {}) => {
   if (syncInProgress) {
     const error = new Error("A career mailbox sync is already in progress.");
     error.statusCode = 409;
@@ -115,7 +115,7 @@ export const syncCareerMailbox = async ({ importedBy } = {}) => {
       return summary;
     }
 
-    const startSequence = Math.max(1, mailbox.exists - config.syncLimit + 1);
+    const startSequence = syncAll ? 1 : Math.max(1, mailbox.exists - config.syncLimit + 1);
     for await (const message of client.fetch(
       `${startSequence}:*`,
       { uid: true, source: true, internalDate: true },

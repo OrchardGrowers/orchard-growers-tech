@@ -285,7 +285,7 @@ export default function CareerApplications({ apiBase, authHeaders }: Props) {
     setSyncing(true);
     setMessage('');
     try {
-      const response = await fetch(`${apiBase}/admin/career-applications/sync`, {
+      const response = await fetch(`${apiBase}/admin/career-applications/sync?all=true`, {
         method: 'POST', headers: { ...authHeaders, 'Content-Type': 'application/json' },
       });
       const body = await readJson(response);
