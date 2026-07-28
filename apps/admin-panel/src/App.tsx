@@ -877,7 +877,7 @@ const logisticsCourierPartners = [
 ];
 
 type AdminTabButton = { id: AdminTab; label: string; count?: number };
-type SidebarSubItem = { label: string; tab?: AdminTab; action?: () => void; count?: number };
+type SidebarSubItem = { label: string; description?: string; tab?: AdminTab; action?: () => void; count?: number };
 type SidebarMenuItem = { label: string; icon: MenuIconName; tab?: AdminTab; action?: () => void; count?: number; children?: SidebarSubItem[] };
 type SidebarGroup = {
   platform: AdminPlatform;
@@ -2965,7 +2965,13 @@ function App() {
       );
     }
     if (tab === 'businessMail') {
-      return <BusinessMail apiBase={API_BASE} authHeaders={authHeaders} />;
+      return (
+        <BusinessMail
+          apiBase={API_BASE}
+          authHeaders={authHeaders}
+          navigationTarget={getOrchardModulePage('businessMail')}
+        />
+      );
     }
     if (tab === 'careerApplications') {
       return <CareerApplications apiBase={API_BASE} authHeaders={authHeaders} />;
@@ -3410,7 +3416,26 @@ function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: (
       title: 'Business Mail',
       subtitle: 'Compose, delivery and applicants',
       items: [
-        { label: 'Business Mail', icon: 'notification', tab: 'businessMail' },
+        {
+          label: 'Business Mail',
+          icon: 'notification',
+          tab: 'businessMail',
+          children: [
+            { label: '+ New message', tab: 'businessMail' },
+            { label: 'Compose', tab: 'businessMail' },
+            { label: 'Activity', tab: 'businessMail' },
+            { label: 'Sent', tab: 'businessMail' },
+            { label: 'Failed', tab: 'businessMail' },
+            { label: 'Business accounts', count: 2 },
+            { label: 'eFruitMandi', description: 'no-reply@efruitmandi.live', tab: 'businessMail' },
+            { label: 'Orchard Growers', description: 'no-reply@orchardgrowers.in', tab: 'businessMail' },
+            { label: 'Identity settings', tab: 'businessMail' },
+            {
+              label: 'Centrally controlled',
+              description: 'Accounts and delivery credentials are controlled by the secure mail service.',
+            },
+          ],
+        },
         { label: 'Career Applications', icon: 'verify', tab: 'careerApplications' },
       ],
     },
@@ -3532,7 +3557,7 @@ function PlatformRail({
                 const itemKey = getSidebarItemKey(group, item);
                 const hasChildren = Boolean(item.children?.length);
                 const childSelected = item.children?.some((child) => isSidebarChildActive(item, child, activeTab, activePages)) || false;
-                const expanded = hasChildren && (expandedItemKey === itemKey || childSelected);
+                const expanded = hasChildren && (expandedItemKey === itemKey || childSelected || activePlatform === group.platform);
                 const selected = Boolean(item.tab && (activeTab === item.tab || childSelected || expanded));
                 return (
                   <div key={item.label}>
@@ -3569,7 +3594,10 @@ function PlatformRail({
                               }`}
                             >
                               <span className="text-emerald-300">.</span>
-                              <span className="min-w-0 truncate">{child.label}</span>
+                              <span className="min-w-0">
+                                <span className="block truncate">{child.label}{typeof child.count === 'number' ? ` (${child.count})` : ''}</span>
+                                {child.description && <span className="mt-0.5 block truncate text-[10px] font-medium text-slate-500">{child.description}</span>}
+                              </span>
                             </button>
                           );
                         })}
@@ -3668,7 +3696,7 @@ function MobileAdminMenu({
                 const itemKey = getSidebarItemKey(group, item);
                 const hasChildren = Boolean(item.children?.length);
                 const childSelected = item.children?.some((child) => isSidebarChildActive(item, child, activeTab, activePages)) || false;
-                const expanded = hasChildren && (expandedItemKey === itemKey || childSelected);
+                const expanded = hasChildren && (expandedItemKey === itemKey || childSelected || activePlatform === group.platform);
                 const selected = Boolean(item.tab && (activeTab === item.tab || childSelected || expanded));
                 return (
                   <div key={item.label} className={expanded ? 'col-span-2' : ''}>
@@ -3708,7 +3736,10 @@ function MobileAdminMenu({
                               }`}
                             >
                               <span className="text-emerald-300">.</span>
-                              <span className="min-w-0 truncate">{child.label}</span>
+                              <span className="min-w-0">
+                                <span className="block truncate">{child.label}{typeof child.count === 'number' ? ` (${child.count})` : ''}</span>
+                                {child.description && <span className="mt-0.5 block truncate text-[9px] font-medium text-slate-500">{child.description}</span>}
+                              </span>
                             </button>
                           );
                         })}

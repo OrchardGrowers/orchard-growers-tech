@@ -367,79 +367,6 @@ function MailGlyph({ name }: { name: 'compose' | 'history' | 'sent' | 'failed' |
   return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0">{paths[name]}</svg>;
 }
 
-function MailWorkspaceNavigation({
-  activeArea,
-  activeStatus,
-  profiles,
-  selectedProfileKey,
-  total,
-  onCompose,
-  onHistory,
-  onSettings,
-  onSelectProfile,
-}: {
-  activeArea: ActiveMailArea;
-  activeStatus: string;
-  profiles: SenderProfile[];
-  selectedProfileKey: string;
-  total: number;
-  onCompose: () => void;
-  onHistory: (status?: string) => void;
-  onSettings: () => void;
-  onSelectProfile: (key: string) => void;
-}) {
-  const navClass = (selected: boolean) =>
-    `flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-bold transition focus:outline-none focus:ring-2 focus:ring-emerald-400 ${
-      selected ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-    }`;
-
-  return (
-    <aside className="border-b border-slate-700 bg-slate-900 p-3 lg:min-h-[720px] lg:border-b-0 lg:border-r">
-      <button type="button" onClick={onCompose} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-black text-white shadow-sm hover:bg-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-300">
-        <span className="text-lg leading-none">+</span> New message
-      </button>
-
-      <nav className="mt-4 grid grid-cols-2 gap-1 sm:grid-cols-4 lg:block lg:space-y-1" aria-label="Business Mail folders">
-        <button type="button" onClick={onCompose} className={navClass(activeArea === 'compose')}><MailGlyph name="compose" /> Compose</button>
-        <button type="button" onClick={() => onHistory('')} className={navClass(activeArea === 'history' && !activeStatus)}><MailGlyph name="history" /> Activity <span className="ml-auto rounded-full bg-slate-950/60 px-2 py-0.5 text-[10px]">{total}</span></button>
-        <button type="button" onClick={() => onHistory('SENT')} className={navClass(activeArea === 'history' && activeStatus === 'SENT')}><MailGlyph name="sent" /> Sent</button>
-        <button type="button" onClick={() => onHistory('FAILED')} className={navClass(activeArea === 'history' && activeStatus === 'FAILED')}><MailGlyph name="failed" /> Failed</button>
-      </nav>
-
-      <div className="mt-5 border-t border-slate-700 pt-4">
-        <div className="flex items-center justify-between gap-2 px-2">
-          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Business accounts</p>
-          <span className="text-[10px] font-bold text-slate-600">{profiles.length}</span>
-        </div>
-        <div className="mt-2 max-h-64 space-y-1 overflow-y-auto pr-1 lg:max-h-[360px]">
-          {profiles.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-slate-700 px-3 py-4 text-xs font-semibold text-slate-500">No sender accounts loaded.</p>
-          ) : profiles.map((profile) => (
-            <button
-              key={profile.key}
-              type="button"
-              onClick={() => onSelectProfile(profile.key)}
-              className={`flex w-full items-start gap-2 rounded-lg px-3 py-2.5 text-left transition focus:outline-none focus:ring-2 focus:ring-emerald-400 ${
-                selectedProfileKey === profile.key ? 'bg-slate-800 text-white' : 'text-slate-300 hover:bg-slate-800/70'
-              }`}
-            >
-              <span className={`mt-0.5 rounded-md p-1.5 ${profile.enabled ? 'bg-emerald-950 text-emerald-300' : 'bg-slate-950 text-slate-600'}`}><MailGlyph name="account" /></span>
-              <span className="min-w-0">
-                <span className="block truncate text-xs font-black">{profile.name}</span>
-                <span className="mt-0.5 block truncate text-[10px] text-slate-500">{profile.email}</span>
-              </span>
-              <span className={`ml-auto mt-1 h-2 w-2 shrink-0 rounded-full ${profile.enabled ? 'bg-emerald-400' : 'bg-slate-600'}`} title={profile.enabled ? 'Enabled' : 'Disabled'} />
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <button type="button" onClick={onSettings} className={`mt-5 ${navClass(activeArea === 'settings')}`}><MailGlyph name="settings" /> Identity settings</button>
-      <p className="mt-3 px-2 text-[10px] font-semibold leading-4 text-slate-600">Accounts and delivery credentials are centrally controlled by the secure mail service.</p>
-    </aside>
-  );
-}
-
 function BusinessMailIdentitySettings({
   profiles,
   selectedProfile,
@@ -621,9 +548,10 @@ function Modal({ title, children, onClose, initialFocusRef }: {
   );
 }
 
-export default function BusinessMail({ apiBase, authHeaders }: {
+export default function BusinessMail({ apiBase, authHeaders, navigationTarget }: {
   apiBase: string;
   authHeaders: Record<string, string>;
+  navigationTarget?: string;
 }) {
   const endpoint = `${apiBase}/admin/business-mail`;
   const [activeArea, setActiveArea] = useState<ActiveMailArea>('compose');
@@ -953,20 +881,35 @@ export default function BusinessMail({ apiBase, authHeaders }: {
     setAppliedFilters(emptyFilters);
   };
 
-  const openCompose = () => setActiveArea('compose');
-
-  const openHistory = (status = '') => {
-    const nextFilters = { ...emptyFilters, status };
-    setDraftFilters(nextFilters);
-    setPagination((current) => ({ ...current, page: 1 }));
-    setAppliedFilters(nextFilters);
-    setActiveArea('history');
-  };
-
   const selectProfile = (key: string, destination: ActiveMailArea = activeArea) => {
     updateForm('senderProfileKey', key);
     setActiveArea(destination);
   };
+
+  useEffect(() => {
+    if (!navigationTarget || navigationTarget === '+ New message' || navigationTarget === 'Compose') {
+      setActiveArea('compose');
+      return;
+    }
+    if (navigationTarget === 'Activity' || navigationTarget === 'Sent' || navigationTarget === 'Failed') {
+      const status = navigationTarget === 'Activity' ? '' : navigationTarget.toUpperCase();
+      const nextFilters = { ...emptyFilters, status };
+      setDraftFilters(nextFilters);
+      setPagination((current) => ({ ...current, page: 1 }));
+      setAppliedFilters(nextFilters);
+      setActiveArea('history');
+      return;
+    }
+    if (navigationTarget === 'Identity settings') {
+      setActiveArea('settings');
+      return;
+    }
+    const profile = profiles.find((item) => item.name === navigationTarget);
+    if (profile) {
+      setForm((current) => ({ ...current, senderProfileKey: profile.key }));
+      setActiveArea('settings');
+    }
+  }, [navigationTarget, profiles]);
 
   return (
     <section className="space-y-4" aria-labelledby="business-mail-title">
@@ -981,19 +924,7 @@ export default function BusinessMail({ apiBase, authHeaders }: {
         </button>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-xl shadow-black/20 lg:grid lg:grid-cols-[260px_minmax(0,1fr)]">
-        <MailWorkspaceNavigation
-          activeArea={activeArea}
-          activeStatus={appliedFilters.status}
-          profiles={profiles}
-          selectedProfileKey={form.senderProfileKey}
-          total={pagination.total}
-          onCompose={openCompose}
-          onHistory={openHistory}
-          onSettings={() => setActiveArea('settings')}
-          onSelectProfile={(key) => selectProfile(key, 'settings')}
-        />
-
+      <div className="overflow-hidden rounded-2xl border border-slate-700 bg-slate-950 shadow-xl shadow-black/20">
         <div className="min-w-0 space-y-4 bg-slate-950/50 p-4 sm:p-5">
       <article className="rounded-xl border border-slate-700 bg-slate-900 p-4 shadow-sm shadow-black/20">
         {overviewError ? <p role="alert" className="rounded-lg border border-red-800 bg-red-950 p-3 text-sm font-bold text-red-200">{overviewError}</p> : (
@@ -1020,14 +951,6 @@ export default function BusinessMail({ apiBase, authHeaders }: {
           </div>
         )}
       </article>
-
-      <div className="flex gap-1 overflow-x-auto border-b border-slate-700" role="tablist" aria-label="Business Mail areas">
-        {(['compose', 'history', 'settings'] as const).map((area) => (
-          <button key={area} type="button" role="tab" aria-selected={activeArea === area} onClick={() => setActiveArea(area)} className={`border-b-2 px-4 py-3 text-sm font-black focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-400 ${activeArea === area ? 'border-emerald-400 text-emerald-300' : 'border-transparent text-slate-400 hover:text-white'}`}>
-            {area === 'compose' ? 'Compose' : area === 'history' ? `Delivery History${pagination.total ? ` (${pagination.total})` : ''}` : 'Identity Settings'}
-          </button>
-        ))}
-      </div>
 
       {activeArea === 'compose' && (
         <form onSubmit={openConfirmation} className="space-y-4 pb-4 sm:pb-6" noValidate>
