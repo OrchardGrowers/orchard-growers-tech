@@ -61,6 +61,69 @@ const attachmentMetadata = (attachments = []) =>
     disposition: String(attachment.contentDisposition || "").slice(0, 100),
   }));
 
+const SAFE_CAREER_ATTACHMENT_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "text/plain",
+  "text/csv",
+]);
+const MAX_CAREER_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
+export const fetchCareerMailboxAttachment = async ({ mailbox, imapUid, attachmentIndex }) => {
+  const config = getMailboxConfig();
+  const client = new ImapFlow({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    auth: { user: config.user, pass: config.pass },
+    tls: { rejectUnauthorized: config.rejectUnauthorized },
+    logger: false,
+  });
+
+  try {
+    await client.connect();
+    await client.mailboxOpen(mailbox || config.mailbox, { readOnly: true });
+    const message = await client.fetchOne(imapUid, { source: true }, { uid: true });
+    if (!message?.source) {
+      const error = new Error("The source mailbox message is no longer available.");
+      error.statusCode = 404;
+      throw error;
+    }
+    const parsed = await simpleParser(message.source);
+    const attachment = parsed.attachments?.[attachmentIndex];
+    if (!attachment) {
+      const error = new Error("The requested attachment was not found.");
+      error.statusCode = 404;
+      throw error;
+    }
+    const contentType = String(attachment.contentType || "").toLowerCase();
+    if (!SAFE_CAREER_ATTACHMENT_TYPES.has(contentType)) {
+      const error = new Error("This attachment type cannot be opened from the admin panel.");
+      error.statusCode = 415;
+      throw error;
+    }
+    const content = Buffer.isBuffer(attachment.content) ? attachment.content : Buffer.from(attachment.content || "");
+    if (!content.length || content.length > MAX_CAREER_ATTACHMENT_BYTES) {
+      const error = new Error("The attachment is empty or exceeds the 10 MB safe download limit.");
+      error.statusCode = 413;
+      throw error;
+    }
+    return {
+      content,
+      contentType,
+      filename: String(attachment.filename || `career-attachment-${attachmentIndex + 1}`).slice(0, 255),
+    };
+  } finally {
+    if (client.usable) await client.logout().catch(() => undefined);
+  }
+};
+
 const backfillEmptyCandidateFields = async (externalMessageKey, values) => {
   const set = {};
   Object.entries(values).forEach(([field, value]) => {

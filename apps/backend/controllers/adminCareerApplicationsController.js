@@ -4,7 +4,10 @@ import CareerApplication, {
   CAREER_EXPERIENCE_RANGES,
   CAREER_FIELDS_OF_WORK,
 } from "../models/CareerApplication.js";
-import { syncCareerMailbox } from "../services/careerMailboxSyncService.js";
+import {
+  fetchCareerMailboxAttachment,
+  syncCareerMailbox,
+} from "../services/careerMailboxSyncService.js";
 
 const EXPORT_MAX_RECORDS = 10000;
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -225,6 +228,44 @@ export const getCareerApplicationFilterOptions = async (_req, res) => {
     countValues("status"),
   ]);
   res.json({ states, qualifications, fieldsOfWork, experienceRanges, statuses });
+};
+
+export const downloadCareerApplicationAttachment = async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(400).json({ msg: "Invalid career application id." });
+  }
+  const attachmentIndex = Number.parseInt(req.params.attachmentIndex, 10);
+  if (!Number.isInteger(attachmentIndex) || attachmentIndex < 0 || attachmentIndex > 49) {
+    return res.status(400).json({ msg: "Invalid attachment index." });
+  }
+  const application = await CareerApplication.findById(req.params.id)
+    .select("imapUid mailbox attachments")
+    .lean();
+  if (!application) return res.status(404).json({ msg: "Career application not found." });
+  if (!application.imapUid || !application.attachments?.[attachmentIndex]) {
+    return res.status(404).json({ msg: "Attachment metadata is not available." });
+  }
+
+  try {
+    const attachment = await fetchCareerMailboxAttachment({
+      mailbox: application.mailbox,
+      imapUid: application.imapUid,
+      attachmentIndex,
+    });
+    const encodedFilename = encodeURIComponent(attachment.filename).replace(
+      /['()*]/g,
+      (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`
+    );
+    res.setHeader("Content-Type", attachment.contentType);
+    res.setHeader("Content-Length", attachment.content.length);
+    res.setHeader("Content-Disposition", `inline; filename*=UTF-8''${encodedFilename}`);
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    return res.send(attachment.content);
+  } catch (error) {
+    return res.status(error?.statusCode || 500).json({
+      msg: error?.statusCode ? error.message : "Attachment could not be retrieved.",
+    });
+  }
 };
 
 export const getCareerApplication = async (req, res) => {

@@ -1,5 +1,6 @@
 import express from "express";
 import {
+  downloadCareerApplicationAttachment,
   exportCareerApplications,
   getCareerApplication,
   getCareerApplicationFilterOptions,
@@ -16,6 +17,7 @@ router.post("/sync", careerAdminOnly, wrapAsync(syncCareerApplications));
 router.get("/export", careerAdminOnly, wrapAsync(exportCareerApplications));
 router.get("/filter-options", careerAdminOnly, wrapAsync(getCareerApplicationFilterOptions));
 router.get("/", careerAdminOnly, wrapAsync(listCareerApplications));
+router.get("/:id/attachments/:attachmentIndex", careerAdminOnly, wrapAsync(downloadCareerApplicationAttachment));
 router.get("/:id", careerAdminOnly, wrapAsync(getCareerApplication));
 
 export default router;

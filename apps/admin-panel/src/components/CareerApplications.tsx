@@ -232,6 +232,7 @@ export default function CareerApplications({ apiBase, authHeaders }: Props) {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [openingAttachment, setOpeningAttachment] = useState('');
   const [message, setMessage] = useState('');
   const [exportOpen, setExportOpen] = useState(false);
   const [exportScope, setExportScope] = useState<ExportScope>('filters');
@@ -325,6 +326,41 @@ export default function CareerApplications({ apiBase, authHeaders }: Props) {
       setSelectedProfile(body.application);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Candidate profile could not be opened.');
+    }
+  };
+
+  const openAttachment = async (applicationId: string, attachmentIndex: number, attachment: Attachment) => {
+    const loadingKey = `${applicationId}:${attachmentIndex}`;
+    setOpeningAttachment(loadingKey);
+    setMessage('');
+    try {
+      const response = await fetch(
+        `${apiBase}/admin/career-applications/${applicationId}/attachments/${attachmentIndex}`,
+        { headers: authHeaders }
+      );
+      if (!response.ok) {
+        const body = await readJson(response);
+        throw new Error(body.msg || 'Attachment could not be opened.');
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const previewable = /^(application\/pdf|image\/(?:jpeg|png|webp)|text\/(?:plain|csv))$/i.test(
+        attachment.contentType || blob.type
+      );
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      if (previewable) {
+        anchor.target = '_blank';
+        anchor.rel = 'noreferrer';
+      } else {
+        anchor.download = attachment.filename || `career-attachment-${attachmentIndex + 1}`;
+      }
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Attachment could not be opened.');
+    } finally {
+      setOpeningAttachment('');
     }
   };
 
@@ -515,7 +551,7 @@ export default function CareerApplications({ apiBase, authHeaders }: Props) {
             </dl>
             {digitsOnly(selectedProfile.contactNumber) && <a href={`https://wa.me/91${digitsOnly(selectedProfile.contactNumber)}`} target="_blank" rel="noreferrer" className="mt-5 inline-flex rounded-lg bg-emerald-600 px-4 py-2 text-sm font-black text-white hover:bg-emerald-500">Open WhatsApp</a>}
             <div className="mt-5"><h4 className="text-xs font-black uppercase text-slate-500">Plain-text application</h4><pre className="mt-2 max-h-80 overflow-y-auto whitespace-pre-wrap break-words rounded-xl border border-slate-800 bg-slate-950 p-4 font-sans text-sm leading-6 text-slate-200">{selectedProfile.textBody || 'Not available'}</pre></div>
-            <div className="mt-5"><h4 className="text-xs font-black uppercase text-slate-500">Attachment metadata</h4>{selectedProfile.attachments?.length ? <ul className="mt-2 space-y-2">{selectedProfile.attachments.map((attachment, index) => <li key={`${attachment.filename || 'attachment'}-${index}`} className="rounded-lg border border-slate-800 bg-slate-950 p-3 text-sm text-slate-300"><span className="font-bold text-white">{attachment.filename || 'Unnamed attachment'}</span><span className="ml-2 text-xs text-slate-500">{attachment.contentType || 'Unknown type'} · {attachment.size || 0} bytes</span></li>)}</ul> : <p className="mt-2 text-sm text-slate-400">Not available</p>}</div>
+            <div className="mt-5"><h4 className="text-xs font-black uppercase text-slate-500">Attachments</h4>{selectedProfile.attachments?.length ? <ul className="mt-2 space-y-2">{selectedProfile.attachments.map((attachment, index) => <li key={`${attachment.filename || 'attachment'}-${index}`} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950 p-3 text-sm text-slate-300"><span><span className="font-bold text-white">{attachment.filename || 'Unnamed attachment'}</span><span className="ml-2 text-xs text-slate-500">{attachment.contentType || 'Unknown type'} · {attachment.size || 0} bytes</span></span><button type="button" onClick={() => void openAttachment(selectedProfile._id, index, attachment)} disabled={openingAttachment === `${selectedProfile._id}:${index}`} className="rounded-lg border border-emerald-700 px-3 py-1.5 text-xs font-black text-emerald-300 hover:bg-emerald-950 disabled:opacity-50">{openingAttachment === `${selectedProfile._id}:${index}` ? 'Opening...' : 'Open / Download'}</button></li>)}</ul> : <p className="mt-2 text-sm text-slate-400">Not available</p>}</div>
           </div>
         </div>
       )}
