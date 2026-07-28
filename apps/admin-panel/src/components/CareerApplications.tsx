@@ -264,6 +264,17 @@ export default function CareerApplications({ apiBase, authHeaders }: Props) {
 
   useEffect(() => { void loadApplications(); }, [loadApplications]);
   useEffect(() => {
+    if (!selectedProfile && !exportOpen) return undefined;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      if (exportOpen) setExportOpen(false);
+      else setSelectedProfile(null);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [selectedProfile, exportOpen]);
+  useEffect(() => {
     let cancelled = false;
     const loadOptions = async () => {
       try {

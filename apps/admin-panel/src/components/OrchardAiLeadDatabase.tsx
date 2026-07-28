@@ -1194,6 +1194,16 @@ function LeadFormModal({
   onSubmit: (payload: LeadPayload) => void;
 }) {
   const [draft, setDraft] = useState<LeadDraft>(() => leadToDraft(lead));
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !saving) {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [onClose, saving]);
   const update = (field: keyof LeadDraft, value: string) =>
     setDraft((current) => ({ ...current, [field]: value }));
 
@@ -1497,6 +1507,17 @@ function LeadDetailsDrawer({
   onEdit: (lead: Lead) => void;
   onDelete: (lead: Lead) => void;
 }) {
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !deleting) {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [deleting, onClose]);
+
   const details = [
     ['Company', lead.companyName],
     ['Contact Person', lead.contactPerson],

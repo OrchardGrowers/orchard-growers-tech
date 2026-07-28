@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
+import pdfParse from "pdf-parse";
 import CareerApplication from "../models/CareerApplication.js";
 import {
   createBodyPreview,
@@ -74,6 +75,31 @@ const SAFE_CAREER_ATTACHMENT_TYPES = new Set([
   "text/csv",
 ]);
 const MAX_CAREER_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const MAX_PDF_EXTRACTION_BYTES = 5 * 1024 * 1024;
+const MAX_PDF_EXTRACTION_TEXT = 50000;
+
+const extractPdfAttachmentText = async (attachments = []) => {
+  const pdfAttachments = attachments
+    .filter((attachment) =>
+      attachment.content &&
+      (String(attachment.contentType || "").toLowerCase() === "application/pdf" ||
+        /\.pdf$/i.test(String(attachment.filename || "")))
+    )
+    .slice(0, 3);
+  const extracted = [];
+  for (const attachment of pdfAttachments) {
+    const content = Buffer.isBuffer(attachment.content) ? attachment.content : Buffer.from(attachment.content);
+    if (!content.length || content.length > MAX_PDF_EXTRACTION_BYTES) continue;
+    try {
+      const parsed = await pdfParse(content, { max: 20 });
+      const text = String(parsed?.text || "").replace(/\u0000/g, "").trim();
+      if (text) extracted.push(text.slice(0, MAX_PDF_EXTRACTION_TEXT));
+    } catch {
+      // A corrupt or image-only PDF must not stop the mailbox sync.
+    }
+  }
+  return extracted.join("\n");
+};
 
 export const fetchCareerMailboxAttachment = async ({ mailbox, imapUid, attachmentIndex }) => {
   const config = getMailboxConfig();
@@ -189,10 +215,10 @@ export const syncCareerMailbox = async ({ importedBy, syncAll = false, startSequ
       : syncAll
         ? 1
         : Math.max(1, mailbox.exists - config.syncLimit + 1);
+    const batchSize = hasRequestedSequence ? Math.min(config.syncLimit, 50) : config.syncLimit;
     const finalSequence = hasRequestedSequence
-      ? Math.min(firstSequence + config.syncLimit - 1, mailbox.exists)
+      ? Math.min(firstSequence + batchSize - 1, mailbox.exists)
       : mailbox.exists;
-    const batchSize = config.syncLimit;
     for (let batchStart = firstSequence; batchStart <= finalSequence; batchStart += batchSize) {
       const batchEnd = Math.min(batchStart + batchSize - 1, finalSequence);
       for await (const message of client.fetch(
@@ -206,11 +232,13 @@ export const syncCareerMailbox = async ({ importedBy, syncAll = false, startSequ
         const sender = firstAddress(parsed.from);
         const replyTo = firstAddress(parsed.replyTo);
         const textBody = String(parsed.text || "").replace(/\u0000/g, "").trim().slice(0, 100000);
+        const pdfText = await extractPdfAttachmentText(parsed.attachments);
+        const extractionText = `${textBody}\n${pdfText}`.trim().slice(0, 150000);
         const subject = String(parsed.subject || "").trim().slice(0, 1000);
         const emailDate = parsed.date || message.internalDate || null;
-        const extractedPhoneNumbers = extractPhoneNumbers(textBody);
+        const extractedPhoneNumbers = extractPhoneNumbers(extractionText);
         const profile = extractCandidateProfile({
-          textBody,
+          textBody: extractionText,
           subject,
           senderName: sender.name,
           senderEmail: sender.email,
@@ -261,7 +289,7 @@ export const syncCareerMailbox = async ({ importedBy, syncAll = false, startSequ
           alternateContactNumber: profile.alternateContactNumber,
           normalizedAlternateContactNumber: profile.normalizedAlternateContactNumber,
           extractedPhoneNumbers,
-          extractedEmails: extractEmailAddresses(textBody, sender.email, replyTo.email),
+          extractedEmails: extractEmailAddresses(extractionText, sender.email, replyTo.email),
           address: profile.address,
           city: profile.city,
           district: profile.district,
@@ -298,6 +326,8 @@ export const syncCareerMailbox = async ({ importedBy, syncAll = false, startSequ
             normalizedContactNumber: profile.normalizedContactNumber,
             alternateContactNumber: profile.alternateContactNumber,
             normalizedAlternateContactNumber: profile.normalizedAlternateContactNumber,
+            extractedPhoneNumbers,
+            extractedEmails: extractEmailAddresses(extractionText, sender.email, replyTo.email),
             address: profile.address,
             city: profile.city,
             district: profile.district,

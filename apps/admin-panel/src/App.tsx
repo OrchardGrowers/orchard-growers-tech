@@ -8580,6 +8580,17 @@ function FilePreviewModal({
   const [pdfPreviewLoading, setPdfPreviewLoading] = useState(isPdf);
 
   useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [onClose]);
+
+  useEffect(() => {
     if (!isPdf) return undefined;
     let objectUrl = '';
     let cancelled = false;

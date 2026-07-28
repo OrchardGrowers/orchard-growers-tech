@@ -69,6 +69,19 @@ export default function InstallAppPrompt() {
     setShowPrompt(false);
   };
 
+  useEffect(() => {
+    if (!showPrompt) return undefined;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        rememberDismissal();
+        setShowPrompt(false);
+      }
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [showPrompt]);
+
   const installApp = async () => {
     const promptEvent = deferredPromptRef.current;
     if (!promptEvent) return;
