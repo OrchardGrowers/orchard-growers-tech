@@ -118,12 +118,15 @@ export const syncCareerMailbox = async ({ importedBy, syncAll = false } = {}) =>
       return summary;
     }
 
-    const startSequence = syncAll ? 1 : Math.max(1, mailbox.exists - config.syncLimit + 1);
-    for await (const message of client.fetch(
-      `${startSequence}:*`,
-      { uid: true, source: true, internalDate: true },
-      { uid: false }
-    )) {
+    const firstSequence = syncAll ? 1 : Math.max(1, mailbox.exists - config.syncLimit + 1);
+    const batchSize = config.syncLimit;
+    for (let batchStart = firstSequence; batchStart <= mailbox.exists; batchStart += batchSize) {
+      const batchEnd = Math.min(batchStart + batchSize - 1, mailbox.exists);
+      for await (const message of client.fetch(
+        `${batchStart}:${batchEnd}`,
+        { uid: true, source: true, internalDate: true },
+        { uid: false }
+      )) {
       summary.scanned += 1;
       try {
         const parsed = await simpleParser(message.source);
@@ -254,6 +257,7 @@ export const syncCareerMailbox = async ({ importedBy, syncAll = false } = {}) =>
             });
           }
         }
+      }
       }
     }
     summary.completedAt = new Date();
