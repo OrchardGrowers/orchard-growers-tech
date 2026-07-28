@@ -39,6 +39,10 @@ export default function SEO({
         name="robots"
         content={noIndex ? "noindex,nofollow" : "index,follow"}
       />
+      <meta
+        name="googlebot"
+        content={noIndex ? "noindex,nofollow" : "index,follow"}
+      />
 
       <meta property="og:site_name" content={SITE_NAME} />
       <meta property="og:type" content={type} />

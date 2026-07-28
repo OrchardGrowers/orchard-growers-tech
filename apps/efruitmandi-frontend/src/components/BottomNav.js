@@ -37,7 +37,7 @@ export default function BottomNav() {
     { path: "/", icon: <FaHome />, label: "Home" },
     { path: "/profile-dashboard", icon: <FaChartLine />, label: "Profile Dashboard" },
     { path: "/auctions", icon: <FaHandshake />, label: "Live Fruit Lots", isLiveLots: true },
-    { path: "/delivery", icon: <FaTruck />, label: "Delivery" },
+    ...(hasUser ? [{ path: "/delivery", icon: <FaTruck />, label: "Delivery" }] : []),
     {
       path: hasUser ? "/profile-dashboard" : "/profile",
       icon: <FaUser />,

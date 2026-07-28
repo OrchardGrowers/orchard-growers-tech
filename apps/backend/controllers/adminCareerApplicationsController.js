@@ -126,6 +126,8 @@ const serializeSafeCandidate = (application) => ({
   status: application.status || "NEW",
   notes: application.notes || "",
   tags: application.tags || [],
+  rating: application.rating ?? null,
+  remark: application.remark || "",
   resumeFileName: application.resumeFileName || "",
   resumeContentType: application.resumeContentType || "",
   resumeSize: application.resumeSize || 0,
@@ -197,7 +199,7 @@ export const exportCareerApplications = async (req, res) => {
       "address", "city", "district", "state", "postalCode", "qualification", "workExperienceText",
       "experienceYears", "experienceRange", "currentCompany", "currentDesignation", "skills",
       "fieldOfWork", "receivedAt", "emailDate", "createdAt", "emailSubject", "subject", "emailFrom",
-      "messageId", "status", "notes", "tags", "resumeFileName", "resumeContentType", "resumeSize",
+      "messageId", "status", "notes", "tags", "rating", "remark", "resumeFileName", "resumeContentType", "resumeSize",
     ].join(" "))
     .sort({ receivedAt: -1, _id: -1 })
     .limit(EXPORT_MAX_RECORDS)
@@ -266,6 +268,34 @@ export const downloadCareerApplicationAttachment = async (req, res) => {
       msg: error?.statusCode ? error.message : "Attachment could not be retrieved.",
     });
   }
+};
+
+export const updateCareerApplicationReview = async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    return res.status(400).json({ msg: "Invalid career application id." });
+  }
+  const rating = Number(req.body?.rating);
+  const remark = String(req.body?.remark || "").trim();
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    return res.status(400).json({ msg: "Rating must be a whole number from 1 to 5." });
+  }
+  if (remark.length > 2000) {
+    return res.status(400).json({ msg: "Remark cannot exceed 2000 characters." });
+  }
+  const application = await CareerApplication.findByIdAndUpdate(
+    req.params.id,
+    {
+      $set: {
+        rating,
+        remark,
+        reviewedBy: req.user?.id || null,
+        reviewedAt: new Date(),
+      },
+    },
+    { new: true, runValidators: true }
+  ).lean();
+  if (!application) return res.status(404).json({ msg: "Career application not found." });
+  return res.json({ message: "Rating and remark saved.", application });
 };
 
 export const getCareerApplication = async (req, res) => {

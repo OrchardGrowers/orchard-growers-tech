@@ -1,8 +1,9 @@
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Suspense, useEffect, useRef, useState } from "react";
 
 import StartupSplash from "./components/StartupSplash";
 import { lazyWithRecovery } from "./utils/chunkLoadRecovery";
+import { hasAccessToken } from "./utils/auth";
 
 // 🔹 Layout
 const loadMainLayout = () => import("./layouts/MainLayout");
@@ -58,7 +59,6 @@ if (typeof window !== "undefined") {
   const priorityRouteLoaders = {
     "/": loadHome,
     "/auctions": loadAuctions,
-    "/delivery": loadDelivery,
     "/login": loadProfile,
     "/profile": loadProfile,
     "/search": loadSearchResults,
@@ -130,6 +130,26 @@ function RouteFallback() {
   return <StartupSplash autoHide={false} />;
 }
 
+function AuthenticatedRoute({ children }) {
+  const location = useLocation();
+
+  if (!hasAccessToken()) {
+    return (
+      <Navigate
+        to="/profile"
+        replace
+        state={{
+          mode: "login",
+          from: `${location.pathname}${location.search}${location.hash}`,
+          message: "Please login to access the delivery workspace.",
+        }}
+      />
+    );
+  }
+
+  return children;
+}
+
 function DeferredEnhancements() {
   const [ready, setReady] = useState(false);
 
@@ -195,7 +215,14 @@ function App() {
           <Route path="invoices-chalan" element={<InvoicesChalan />} />
 
           {/* 🚚 Delivery */}
-          <Route path="delivery" element={<Delivery />} />
+          <Route
+            path="delivery"
+            element={(
+              <AuthenticatedRoute>
+                <Delivery />
+              </AuthenticatedRoute>
+            )}
+          />
 
           {/* 💳 Payment */}
           <Route path="payment/:orderId" element={<Payment />} />

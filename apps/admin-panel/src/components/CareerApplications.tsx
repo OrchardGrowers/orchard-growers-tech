@@ -65,6 +65,9 @@ type CareerApplication = {
   fieldOfWork?: string;
   notes?: string;
   tags?: string[];
+  rating?: number | null;
+  remark?: string;
+  reviewedAt?: string;
   resumeFileName?: string;
   resumeContentType?: string;
   resumeSize?: number;
@@ -187,14 +190,14 @@ const buildExportResult = (records: CareerApplication[], format: ExportFormat, s
     if (format === 'ADDRESS_LIST') { headers = ['Name', 'Address', 'City', 'District', 'State', 'Postal Code']; rows = unique.map((item) => [candidateName(item), item.address || '', item.city || '', item.district || '', item.state || '', item.postalCode || '']); }
     if (format === 'SUMMARY') { headers = ['Name', 'Email', 'Contact', 'Qualification', 'Field', 'Experience', 'State']; rows = unique.map((item) => [candidateName(item), candidateEmail(item), digitsOnly(item.contactNumber), item.qualification || '', readable(item.fieldOfWork), item.workExperienceText || readable(item.experienceRange), item.state || '']); }
     if (format === 'ALL_FIELDS') {
-      headers = ['Name', 'Email', 'Email From', 'Contact', 'Alternate Contact', 'Address', 'City', 'District', 'State', 'Postal Code', 'Qualification', 'Work Experience', 'Experience Years', 'Experience Range', 'Current Company', 'Current Designation', 'Skills', 'Field of Work', 'Applied Date', 'Email Subject', 'Status', 'Notes', 'Tags', 'Resume File', 'Resume Content Type', 'Resume Size', 'Message ID'];
+      headers = ['Name', 'Email', 'Email From', 'Contact', 'Alternate Contact', 'Address', 'City', 'District', 'State', 'Postal Code', 'Qualification', 'Work Experience', 'Experience Years', 'Experience Range', 'Current Company', 'Current Designation', 'Skills', 'Field of Work', 'Applied Date', 'Email Subject', 'Status', 'Rating', 'Remark', 'Notes', 'Tags', 'Resume File', 'Resume Content Type', 'Resume Size', 'Message ID'];
       rows = unique.map((item) => [
       candidateName(item), candidateEmail(item), item.emailFrom || '', digitsOnly(item.contactNumber), digitsOnly(item.alternateContactNumber),
       item.address || '', item.city || '', item.district || '', item.state || '', item.postalCode || '',
       item.qualification || '', item.workExperienceText || '', item.experienceYears === null || item.experienceYears === undefined ? '' : String(item.experienceYears), readable(item.experienceRange),
       item.currentCompany || '', item.currentDesignation || '', (item.skills || []).join('; '), readable(item.fieldOfWork),
       formatDate(item.appliedDate || item.receivedAt || item.emailDate), item.emailSubject || item.subject || '',
-      readable(item.status), item.notes || '', (item.tags || []).join('; '), item.resumeFileName || '',
+      readable(item.status), item.rating ? String(item.rating) : '', item.remark || '', item.notes || '', (item.tags || []).join('; '), item.resumeFileName || '',
       item.resumeContentType || '', item.resumeSize ? String(item.resumeSize) : '', item.messageId || '',
       ]);
     }
@@ -223,6 +226,10 @@ function Detail({ label, value }: { label: string; value?: string | number | nul
 export default function CareerApplications({ apiBase, authHeaders }: Props) {
   const [applications, setApplications] = useState<CareerApplication[]>([]);
   const [selectedProfile, setSelectedProfile] = useState<CareerApplication | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<CareerApplication | null>(null);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewRemark, setReviewRemark] = useState('');
+  const [savingReview, setSavingReview] = useState(false);
   const [filters, setFilters] = useState<Filters>(emptyFilters);
   const [appliedFilters, setAppliedFilters] = useState<Filters>(emptyFilters);
   const [filterOptions, setFilterOptions] = useState<FilterOptions>(emptyFilterOptions);
@@ -264,16 +271,20 @@ export default function CareerApplications({ apiBase, authHeaders }: Props) {
 
   useEffect(() => { void loadApplications(); }, [loadApplications]);
   useEffect(() => {
-    if (!selectedProfile && !exportOpen) return undefined;
+    if (!selectedProfile && !exportOpen && !reviewTarget) return undefined;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
+      if (reviewTarget) {
+        if (!savingReview) setReviewTarget(null);
+        return;
+      }
       if (exportOpen) setExportOpen(false);
       else setSelectedProfile(null);
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [selectedProfile, exportOpen]);
+  }, [selectedProfile, exportOpen, reviewTarget, savingReview]);
   useEffect(() => {
     let cancelled = false;
     const loadOptions = async () => {
@@ -372,6 +383,39 @@ export default function CareerApplications({ apiBase, authHeaders }: Props) {
       setMessage(error instanceof Error ? error.message : 'Attachment could not be opened.');
     } finally {
       setOpeningAttachment('');
+    }
+  };
+
+  const openReview = (application: CareerApplication) => {
+    setReviewTarget(application);
+    setReviewRating(application.rating || 0);
+    setReviewRemark(application.remark || '');
+  };
+
+  const saveReview = async () => {
+    if (!reviewTarget || reviewRating < 1 || reviewRating > 5) {
+      setMessage('Please select a rating from 1 to 5.');
+      return;
+    }
+    setSavingReview(true);
+    setMessage('');
+    try {
+      const response = await fetch(`${apiBase}/admin/career-applications/${reviewTarget._id}/review`, {
+        method: 'PATCH',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating: reviewRating, remark: reviewRemark }),
+      });
+      const body = await readJson(response);
+      if (!response.ok) throw new Error(body.msg || 'Rating and remark could not be saved.');
+      const updated = body.application as CareerApplication;
+      setApplications((current) => current.map((item) => item._id === updated._id ? { ...item, rating: updated.rating, remark: updated.remark, reviewedAt: updated.reviewedAt } : item));
+      setSelectedProfile((current) => current?._id === updated._id ? { ...current, rating: updated.rating, remark: updated.remark, reviewedAt: updated.reviewedAt } : current);
+      setReviewTarget(null);
+      setMessage('Rating and remark saved.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Rating and remark could not be saved.');
+    } finally {
+      setSavingReview(false);
     }
   };
 
@@ -520,7 +564,7 @@ export default function CareerApplications({ apiBase, authHeaders }: Props) {
               {applications.map((application) => (
                 <tr key={application._id} className="align-top hover:bg-slate-800/50">
                   <td className="px-3 py-3"><input type="checkbox" checked={selectedIds.has(application._id)} onChange={() => toggleSelected(application._id)} aria-label={`Select ${candidateName(application)}`} className="h-4 w-4 accent-emerald-500" /></td>
-                  <td className="px-3 py-3 font-bold text-white">{candidateName(application)}</td>
+                  <td className="px-3 py-3 font-bold text-white">{candidateName(application)}{application.rating ? <span className="mt-1 block text-xs text-amber-300">{'★'.repeat(application.rating)}{'☆'.repeat(5 - application.rating)}</span> : null}</td>
                   <td className="break-all px-3 py-3 text-slate-300">{candidateEmail(application) || 'Not available'}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-slate-300">{application.contactNumber || 'Not available'}</td>
                   <td className="px-3 py-3 text-slate-300">{readable(application.fieldOfWork)}</td>
@@ -528,7 +572,7 @@ export default function CareerApplications({ apiBase, authHeaders }: Props) {
                   <td className="px-3 py-3 text-slate-300">{application.state || 'Not available'}</td>
                   <td className="px-3 py-3"><span className="rounded-full bg-slate-800 px-2 py-1 text-xs font-black text-slate-200">{readable(application.status)}</span></td>
                   <td className="whitespace-nowrap px-3 py-3 text-slate-300">{formatDate(application.receivedAt || application.emailDate)}</td>
-                  <td className="px-3 py-3 text-right"><button type="button" onClick={() => void openDetail(application)} className="font-black text-emerald-400 hover:text-emerald-300">Profile</button></td>
+                  <td className="px-3 py-3 text-right"><div className="flex justify-end gap-3"><button type="button" onClick={() => openReview(application)} className="whitespace-nowrap font-black text-amber-300 hover:text-amber-200">Rate / Remark</button><button type="button" onClick={() => void openDetail(application)} className="font-black text-emerald-400 hover:text-emerald-300">Profile</button></div></td>
                 </tr>
               ))}
             </tbody>
@@ -558,11 +602,26 @@ export default function CareerApplications({ apiBase, authHeaders }: Props) {
               <Detail label="Current Designation" value={selectedProfile.currentDesignation} /><Detail label="Skills" value={selectedProfile.skills?.join(', ')} />
               <Detail label="Applied Date" value={formatDate(selectedProfile.receivedAt || selectedProfile.emailDate)} /><Detail label="Email Subject" value={selectedProfile.emailSubject || selectedProfile.subject} />
               <Detail label="Status" value={readable(selectedProfile.status)} /><Detail label="Notes" value={selectedProfile.notes} /><Detail label="Message ID" value={selectedProfile.messageId} />
+              <Detail label="Rating" value={selectedProfile.rating ? `${selectedProfile.rating} / 5` : ''} /><Detail label="Remark" value={selectedProfile.remark} /><Detail label="Reviewed At" value={selectedProfile.reviewedAt ? formatDate(selectedProfile.reviewedAt) : ''} />
               <Detail label="Resume File" value={selectedProfile.resumeFileName} /><Detail label="Resume Type" value={selectedProfile.resumeContentType} /><Detail label="Resume Size" value={selectedProfile.resumeSize ? `${selectedProfile.resumeSize} bytes` : ''} />
             </dl>
             {digitsOnly(selectedProfile.contactNumber) && <a href={`https://wa.me/91${digitsOnly(selectedProfile.contactNumber)}`} target="_blank" rel="noreferrer" className="mt-5 inline-flex rounded-lg bg-emerald-600 px-4 py-2 text-sm font-black text-white hover:bg-emerald-500">Open WhatsApp</a>}
             <div className="mt-5"><h4 className="text-xs font-black uppercase text-slate-500">Plain-text application</h4><pre className="mt-2 max-h-80 overflow-y-auto whitespace-pre-wrap break-words rounded-xl border border-slate-800 bg-slate-950 p-4 font-sans text-sm leading-6 text-slate-200">{selectedProfile.textBody || 'Not available'}</pre></div>
             <div className="mt-5"><h4 className="text-xs font-black uppercase text-slate-500">Attachments</h4>{selectedProfile.attachments?.length ? <ul className="mt-2 space-y-2">{selectedProfile.attachments.map((attachment, index) => <li key={`${attachment.filename || 'attachment'}-${index}`} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950 p-3 text-sm text-slate-300"><span><span className="font-bold text-white">{attachment.filename || 'Unnamed attachment'}</span><span className="ml-2 text-xs text-slate-500">{attachment.contentType || 'Unknown type'} · {attachment.size || 0} bytes</span></span><button type="button" onClick={() => void openAttachment(selectedProfile._id, index, attachment)} disabled={openingAttachment === `${selectedProfile._id}:${index}`} className="rounded-lg border border-emerald-700 px-3 py-1.5 text-xs font-black text-emerald-300 hover:bg-emerald-950 disabled:opacity-50">{openingAttachment === `${selectedProfile._id}:${index}` ? 'Opening...' : 'Open / Download'}</button></li>)}</ul> : <p className="mt-2 text-sm text-slate-400">Not available</p>}</div>
+          </div>
+        </div>
+      )}
+
+      {reviewTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-3" role="dialog" aria-modal="true" aria-labelledby="candidate-review-title">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div><h3 id="candidate-review-title" className="text-xl font-black text-white">Rating and Remark</h3><p className="mt-1 text-sm font-semibold text-slate-400">{candidateName(reviewTarget)}</p></div>
+              <button type="button" onClick={() => setReviewTarget(null)} disabled={savingReview} className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-black text-white disabled:opacity-50">Close</button>
+            </div>
+            <fieldset className="mt-5"><legend className="text-xs font-black uppercase text-slate-500">Rating</legend><div className="mt-2 flex gap-2">{[1, 2, 3, 4, 5].map((rating) => <button key={rating} type="button" onClick={() => setReviewRating(rating)} aria-label={`${rating} star rating`} className={`text-3xl ${rating <= reviewRating ? 'text-amber-300' : 'text-slate-600'} hover:text-amber-200`}>★</button>)}</div></fieldset>
+            <label className="mt-5 block text-xs font-black uppercase text-slate-500">Remark<textarea value={reviewRemark} onChange={(event) => setReviewRemark(event.target.value.slice(0, 2000))} rows={6} placeholder="Add an internal candidate remark..." className="mt-2 w-full resize-y rounded-xl border border-slate-700 bg-slate-950 p-3 text-sm text-white outline-none focus:border-emerald-500" /><span className="mt-1 block text-right text-[10px] text-slate-500">{reviewRemark.length}/2000</span></label>
+            <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setReviewTarget(null)} disabled={savingReview} className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-black text-white disabled:opacity-50">Cancel</button><button type="button" onClick={() => void saveReview()} disabled={savingReview || reviewRating < 1} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-black text-white disabled:opacity-50">{savingReview ? 'Saving...' : 'Save Rating & Remark'}</button></div>
           </div>
         </div>
       )}

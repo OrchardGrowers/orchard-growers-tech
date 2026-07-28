@@ -6,6 +6,7 @@ import {
   getCareerApplicationFilterOptions,
   listCareerApplications,
   syncCareerApplications,
+  updateCareerApplicationReview,
 } from "../controllers/adminCareerApplicationsController.js";
 import { authorize } from "../middleware/authMiddleware.js";
 
@@ -18,6 +19,7 @@ router.get("/export", careerAdminOnly, wrapAsync(exportCareerApplications));
 router.get("/filter-options", careerAdminOnly, wrapAsync(getCareerApplicationFilterOptions));
 router.get("/", careerAdminOnly, wrapAsync(listCareerApplications));
 router.get("/:id/attachments/:attachmentIndex", careerAdminOnly, wrapAsync(downloadCareerApplicationAttachment));
+router.patch("/:id/review", careerAdminOnly, wrapAsync(updateCareerApplicationReview));
 router.get("/:id", careerAdminOnly, wrapAsync(getCareerApplication));
 
 export default router;
