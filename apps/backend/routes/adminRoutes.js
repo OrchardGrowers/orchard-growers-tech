@@ -58,6 +58,7 @@ import {
 } from "../services/dealCalculationService.js";
 import { syncCommodityMaster } from "../services/mandiRateService.js";
 import adminBusinessMailRoutes from "./adminBusinessMailRoutes.js";
+import adminCareerApplicationsRoutes from "./adminCareerApplicationsRoutes.js";
 import {
   getAdminErpDashboard,
   listAdminErpAuditEvents,
@@ -184,6 +185,7 @@ router.post("/forgot-password", wrapAsync(requestAdminPasswordReset));
 router.post("/reset-password", wrapAsync(resetAdminPassword));
 
 router.use("/business-mail", ...adminOnly, adminBusinessMailRoutes);
+router.use("/career-applications", ...adminOnly, adminCareerApplicationsRoutes);
 
 router.get("/analytics", ...adminOnly, requireRoles(...ANALYTICS_ROLES), wrapAsync(getAdminAnalytics));
 router.get("/erp/dashboard", ...adminOnly, requireRoles(...ERP_READ_ROLES), wrapAsync(getAdminErpDashboard));

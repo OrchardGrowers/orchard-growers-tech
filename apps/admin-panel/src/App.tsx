@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEven
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import InstallAppPrompt, { openAdminInstallPrompt } from './components/InstallAppPrompt';
 import BusinessMail, { canUseBusinessMail } from './components/BusinessMail';
+import CareerApplications from './components/CareerApplications';
 import OrchardAiLeadDatabase from './components/OrchardAiLeadDatabase';
 import OrchardAiPlaceholder from './components/OrchardAiPlaceholder';
 
@@ -344,6 +345,7 @@ type AdminTab =
   | 'suspendedUsers'
   | 'notifications'
   | 'businessMail'
+  | 'careerApplications'
   | 'systemSettings'
   | 'downloadApp';
 type OrchardModulePages = Partial<Record<AdminTab, string>>;
@@ -994,6 +996,7 @@ const adminRoutePaths: Record<AdminTab, string> = {
   suspendedUsers: '/users/suspended',
   notifications: '/notifications',
   businessMail: '/business-mail',
+  careerApplications: '/career-applications',
   systemSettings: '/system-settings',
   downloadApp: '/download-app',
 };
@@ -1039,6 +1042,7 @@ const adminTabPlatforms: Record<AdminTab, AdminPlatform> = {
   suspendedUsers: 'userManagement',
   notifications: 'notifications',
   businessMail: 'businessMail',
+  careerApplications: 'businessMail',
   systemSettings: 'system',
   downloadApp: 'download',
 };
@@ -1085,7 +1089,10 @@ const platformTabs: Record<AdminPlatform, AdminTabButton[]> = {
     { id: 'suspendedUsers', label: 'Suspended Users' },
   ],
   notifications: [{ id: 'notifications', label: 'Notifications' }],
-  businessMail: [{ id: 'businessMail', label: 'Business Mail' }],
+  businessMail: [
+    { id: 'businessMail', label: 'Business Mail' },
+    { id: 'careerApplications', label: 'Career Applications' },
+  ],
   system: [{ id: 'systemSettings', label: 'System Settings' }],
   download: [{ id: 'downloadApp', label: 'Download App' }],
   logout: [{ id: 'dashboard', label: 'Dashboard' }],
@@ -1132,7 +1139,7 @@ const classIIIAdminEmails = new Set([
 const adminRolePermissions: Record<AdminRole, AdminTab[]> = {
   SUPER_ADMIN: allAdminTabs,
   ADMIN: allAdminTabs.filter((tab) => tab !== 'systemSettings'),
-  EMPLOYEE: allAdminTabs.filter((tab) => tab !== 'systemSettings' && tab !== 'businessMail'),
+  EMPLOYEE: allAdminTabs.filter((tab) => tab !== 'systemSettings' && tab !== 'businessMail' && tab !== 'careerApplications'),
   UNIT_MANAGER: ['dashboard', 'master', 'inventory', 'productAdmin', 'billing', 'sales', 'logistics', 'unitsOutlets', 'expenses', 'reports', 'orchardSettings', 'notifications', 'downloadApp'],
   INVENTORY_MANAGER: ['dashboard', 'master', 'inventory', 'productAdmin', 'purchase', 'reports', 'notifications', 'downloadApp'],
   SALES_EXECUTIVE: ['dashboard', 'billing', 'sales', 'logistics', 'customers', 'reports', 'notifications', 'businessMail', 'downloadApp'],
@@ -2960,6 +2967,9 @@ function App() {
     if (tab === 'businessMail') {
       return <BusinessMail apiBase={API_BASE} authHeaders={authHeaders} />;
     }
+    if (tab === 'careerApplications') {
+      return <CareerApplications apiBase={API_BASE} authHeaders={authHeaders} />;
+    }
     if (tab === 'orchardAiLeadCollection') {
       return (
         <OrchardAiPlaceholder
@@ -3398,8 +3408,11 @@ function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: (
     {
       platform: 'businessMail',
       title: 'Business Mail',
-      subtitle: 'Compose and delivery history',
-      items: [{ label: 'Business Mail', icon: 'notification', tab: 'businessMail' }],
+      subtitle: 'Compose, delivery and applicants',
+      items: [
+        { label: 'Business Mail', icon: 'notification', tab: 'businessMail' },
+        { label: 'Career Applications', icon: 'verify', tab: 'careerApplications' },
+      ],
     },
     {
       platform: 'system',
@@ -3991,6 +4004,7 @@ function getAdminTabTitle(activeTab: AdminTab, activePlatform: AdminPlatform) {
   if (activeTab === 'users') return 'eFruitMandi Users';
   if (activeTab === 'notifications') return 'Admin Notifications';
   if (activeTab === 'businessMail') return 'Business Mail';
+  if (activeTab === 'careerApplications') return 'Career Applications';
   if (activeTab === 'kyc') return 'eFruitMandi KYC Verification';
   if (activeTab === 'ogVerified') return 'eFruitMandi OG Verification';
   if (activeTab === 'produceLots') return 'eFruitMandi Produce Lots';

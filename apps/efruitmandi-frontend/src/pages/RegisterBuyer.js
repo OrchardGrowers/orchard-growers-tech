@@ -12,6 +12,7 @@ import {
 } from "react-icons/fa";
 import API from "../services/api";
 import AuthBrandShell from "../components/AuthBrandShell";
+import SEO from "../components/SEO";
 import { trackBuyerRegistration } from "../services/analytics";
 import {
   getEfruitMandiWidgetId,
@@ -278,7 +279,15 @@ export default function RegisterBuyer() {
   }
 
   return (
-    <AuthBrandShell compact>
+    <>
+      <SEO
+        title="Buyer Profile Registration | eFruitMandi"
+        description="Create or update a private eFruitMandi buyer profile."
+        canonical="/register-buyer"
+        noIndex
+        image={null}
+      />
+      <AuthBrandShell compact>
       <form onSubmit={handleSubmit} className="w-full">
         <h2 className="mt-1 text-center text-xl font-extrabold text-black">
           {isUpdate ? "Update Buyer Profile" : "Register as Buyer"}
@@ -428,7 +437,8 @@ export default function RegisterBuyer() {
           {loading ? "Saving..." : isUpdate ? "Update Buyer Profile" : "Register & Deal"}
         </button>
       </form>
-    </AuthBrandShell>
+      </AuthBrandShell>
+    </>
   );
 }
 

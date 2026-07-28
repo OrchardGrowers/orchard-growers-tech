@@ -17,6 +17,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import API from "../services/api";
 import BackHomeButton from "../components/BackHomeButton";
+import SEO from "../components/SEO";
 import {
   getCurrentUser,
   hasBuyerProfile,
@@ -305,7 +306,15 @@ export default function Delivery() {
     });
 
   return (
-    <div className="mx-auto max-w-6xl pb-20">
+    <>
+      <SEO
+        title="Delivery and Tracking Workspace | eFruitMandi"
+        description="Private delivery, consignment tracking, and settlement workspace for eFruitMandi users."
+        canonical="/delivery"
+        noIndex
+        image={null}
+      />
+      <div className="mx-auto max-w-6xl pb-20">
       <header className="-mx-3 bg-green-800 px-4 pb-5 pt-4 text-white md:-mx-4 md:px-6">
         <div className="mx-auto max-w-6xl">
           <p className="flex items-center gap-2 text-xs font-extrabold uppercase text-green-100">
@@ -473,7 +482,8 @@ export default function Delivery() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 

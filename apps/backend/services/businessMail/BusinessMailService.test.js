@@ -40,17 +40,31 @@ describe("Business Mail foundation", () => {
     ).rejects.toMatchObject({ code: "BUSINESS_MAIL_UNKNOWN_SENDER_PROFILE" });
   });
 
-  it("rejects unsupported recipient features", async () => {
+  it("delivers bounded CC, BCC, and attachment features", async () => {
     enableBrevoTestProfile();
-    await expect(
-      sendBusinessMail({
-        senderProfileKey: "EFRUITMANDI_NO_REPLY",
-        to: "recipient@example.test",
-        cc: [],
-        subject: "Test",
-        text: "Test body",
-      })
-    ).rejects.toMatchObject({ code: "BUSINESS_MAIL_UNSUPPORTED_CC" });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => ({ messageId: "provider-message-id" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await sendBusinessMail({
+      senderProfileKey: "EFRUITMANDI_NO_REPLY",
+      to: "recipient@example.test",
+      cc: ["copy@example.test"],
+      bcc: ["audit@example.test"],
+      attachments: [{
+        filename: "report.pdf",
+        contentType: "application/pdf",
+        content: Buffer.from("safe report").toString("base64"),
+      }],
+      subject: "Test",
+      text: "Test body",
+    });
+    const requestBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(requestBody.cc).toEqual([{ email: "copy@example.test" }]);
+    expect(requestBody.bcc).toEqual([{ email: "audit@example.test" }]);
+    expect(requestBody.attachment[0]).toMatchObject({ name: "report.pdf" });
   });
 
   it("rejects header injection and caller-supplied sender configuration", async () => {

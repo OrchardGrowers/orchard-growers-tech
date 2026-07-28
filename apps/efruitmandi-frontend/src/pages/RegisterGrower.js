@@ -10,6 +10,7 @@ import {
 } from "react-icons/fa";
 import API from "../services/api";
 import AuthBrandShell from "../components/AuthBrandShell";
+import SEO from "../components/SEO";
 import { trackGrowerRegistration } from "../services/analytics";
 import {
   getEfruitMandiWidgetId,
@@ -235,7 +236,15 @@ export default function RegisterGrower() {
   }
 
   return (
-    <AuthBrandShell compact>
+    <>
+      <SEO
+        title="Grower Profile Registration | eFruitMandi"
+        description="Create or update a private eFruitMandi grower profile."
+        canonical="/register-grower"
+        noIndex
+        image={null}
+      />
+      <AuthBrandShell compact>
       <form onSubmit={handleSubmit} className="w-full">
         <div className="mb-5">
           <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-green-100 text-green-700">
@@ -375,7 +384,8 @@ export default function RegisterGrower() {
           {loading ? "Saving..." : isUpdate ? "Update Grower Profile" : "Register as Grower"}
         </button>
       </form>
-    </AuthBrandShell>
+      </AuthBrandShell>
+    </>
   );
 }
 

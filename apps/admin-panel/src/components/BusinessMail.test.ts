@@ -9,6 +9,7 @@ import {
   buildBusinessMailPreviewPayload,
   canUseBusinessMail,
   getBusinessMailStatusClass,
+  parseBusinessMailRecipients,
 } from './BusinessMail';
 
 describe('Business Mail UI authorization', () => {
@@ -45,14 +46,25 @@ describe('Business Mail signed preview and history helpers', () => {
     const payload = buildBusinessMailPreviewPayload({
       senderProfileKey: 'EFRUITMANDI_NO_REPLY',
       to: 'recipient@example.test',
+      cc: '',
+      bcc: '',
       category: 'GENERAL',
       subject: 'Hello',
       mode: 'text',
       text: 'Admin-authored body',
       html: '',
+      attachments: [],
     });
     expect(payload).toEqual({ senderProfileKey: 'EFRUITMANDI_NO_REPLY', text: 'Admin-authored body' });
     expect(JSON.stringify(payload)).not.toContain('signature');
+  });
+
+  it('normalizes comma, semicolon, and newline-separated copy recipients', () => {
+    expect(parseBusinessMailRecipients(' One@Example.test;two@example.test\nthree@example.test ')).toEqual([
+      'one@example.test',
+      'two@example.test',
+      'three@example.test',
+    ]);
   });
 
   it('builds recipient and date history filters for the backend', () => {

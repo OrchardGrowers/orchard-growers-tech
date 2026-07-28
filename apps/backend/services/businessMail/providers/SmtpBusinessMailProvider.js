@@ -46,7 +46,7 @@ export default class SmtpBusinessMailProvider {
     return Boolean(settings.host && settings.user && settings.pass);
   }
 
-  async send({ sender, replyTo, to, subject, text, html }) {
+  async send({ sender, replyTo, to, cc = [], bcc = [], subject, text, html, attachments = [] }) {
     const settings = readSmtpSettings();
     if (!settings.host || !settings.user || !settings.pass) {
       throw new BusinessMailError(
@@ -73,14 +73,24 @@ export default class SmtpBusinessMailProvider {
         from: { name: sender.name, address: sender.email },
         ...(replyTo?.email ? { replyTo: { name: replyTo.name || "", address: replyTo.email } } : {}),
         to,
+        ...(cc.length ? { cc } : {}),
+        ...(bcc.length ? { bcc } : {}),
         subject,
         ...(text ? { text } : {}),
         ...(html ? { html } : {}),
+        ...(attachments.length ? {
+          attachments: attachments.map((item) => ({
+            filename: item.filename,
+            content: Buffer.from(item.content, "base64"),
+            contentType: item.contentType,
+          })),
+        } : {}),
       });
       const accepted = normalizeAddressList(info?.accepted);
       const rejected = normalizeAddressList(info?.rejected);
 
-      if (!accepted.includes(to) || rejected.includes(to)) {
+      const expectedRecipients = [to, ...cc, ...bcc];
+      if (!accepted.includes(to) || expectedRecipients.some((email) => rejected.includes(email))) {
         throw new BusinessMailError(
           BUSINESS_MAIL_ERROR_CODES.PROVIDER_REJECTED,
           "SMTP provider rejected the Business Mail recipient."
@@ -115,4 +125,3 @@ export default class SmtpBusinessMailProvider {
     }
   }
 }
-

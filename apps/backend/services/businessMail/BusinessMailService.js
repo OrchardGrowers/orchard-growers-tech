@@ -17,6 +17,15 @@ const EMAIL_PATTERN = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}
 const HEADER_BREAK_PATTERN = /[\r\n]/;
 const ALLOWED_METADATA_KEYS = new Set(["source", "correlationId"]);
 const FORBIDDEN_CALLER_KEYS = new Set(["sender", "from", "provider", "credentials", "smtp", "smtpConfig", "apiKey"]);
+const MAX_COPY_RECIPIENTS = 5;
+const MAX_ATTACHMENTS = 5;
+const MAX_ATTACHMENT_BYTES = 2 * 1024 * 1024;
+const MAX_TOTAL_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+const ALLOWED_ATTACHMENT_TYPES = new Set([
+  "application/pdf", "image/jpeg", "image/png", "image/webp", "text/plain", "text/csv",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+]);
 
 const providers = Object.freeze({
   brevo_api: new BrevoBusinessMailProvider(),
@@ -48,6 +57,46 @@ const normalizeEmail = (value, code = BUSINESS_MAIL_ERROR_CODES.INVALID_RECIPIEN
     throw new BusinessMailError(code, "A single valid email address is required.");
   }
   return email;
+};
+
+const normalizeEmailList = (value, field) => {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value) || value.length > MAX_COPY_RECIPIENTS) {
+    throw new BusinessMailError(BUSINESS_MAIL_ERROR_CODES.INVALID_RECIPIENT, `${field} supports at most ${MAX_COPY_RECIPIENTS} addresses.`);
+  }
+  const emails = value.map((email) => normalizeEmail(email));
+  if (new Set(emails).size !== emails.length) {
+    throw new BusinessMailError(BUSINESS_MAIL_ERROR_CODES.INVALID_RECIPIENT, `${field} cannot contain duplicate addresses.`);
+  }
+  return emails;
+};
+
+const normalizeAttachments = (value) => {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value) || value.length > MAX_ATTACHMENTS) {
+    throw new BusinessMailError(BUSINESS_MAIL_ERROR_CODES.UNSUPPORTED_ATTACHMENTS, `Attach at most ${MAX_ATTACHMENTS} files.`);
+  }
+  let totalBytes = 0;
+  return value.map((attachment) => {
+    if (!attachment || typeof attachment !== "object" || Array.isArray(attachment)) {
+      throw new BusinessMailError(BUSINESS_MAIL_ERROR_CODES.UNSUPPORTED_ATTACHMENTS, "Invalid Business Mail attachment.");
+    }
+    const filename = String(attachment.filename || "").trim();
+    const contentType = String(attachment.contentType || "").trim().toLowerCase();
+    const content = String(attachment.content || "").trim();
+    if (!filename || filename.length > 120 || filename !== filename.split(/[\\/]/).pop() || /[\r\n\u0000-\u001f\u007f]/.test(filename)) {
+      throw new BusinessMailError(BUSINESS_MAIL_ERROR_CODES.UNSUPPORTED_ATTACHMENTS, "Invalid attachment filename.");
+    }
+    if (!ALLOWED_ATTACHMENT_TYPES.has(contentType) || !/^[a-z0-9+/]+={0,2}$/i.test(content) || content.length % 4 !== 0) {
+      throw new BusinessMailError(BUSINESS_MAIL_ERROR_CODES.UNSUPPORTED_ATTACHMENTS, "Invalid attachment content or type.");
+    }
+    const size = Buffer.from(content, "base64").length;
+    totalBytes += size;
+    if (!size || size > MAX_ATTACHMENT_BYTES || totalBytes > MAX_TOTAL_ATTACHMENT_BYTES) {
+      throw new BusinessMailError(BUSINESS_MAIL_ERROR_CODES.UNSUPPORTED_ATTACHMENTS, "Attachment size limit exceeded.");
+    }
+    return { filename, contentType, content, size };
+  });
 };
 
 const normalizeOptionalContent = (value, field) => {
@@ -109,18 +158,6 @@ const validateRequest = (request) => {
       );
     }
   }
-  if (Object.prototype.hasOwnProperty.call(request, "cc")) {
-    throw new BusinessMailError(BUSINESS_MAIL_ERROR_CODES.UNSUPPORTED_CC, "CC is not supported in Phase 4A.");
-  }
-  if (Object.prototype.hasOwnProperty.call(request, "bcc")) {
-    throw new BusinessMailError(BUSINESS_MAIL_ERROR_CODES.UNSUPPORTED_BCC, "BCC is not supported in Phase 4A.");
-  }
-  if (Object.prototype.hasOwnProperty.call(request, "attachments")) {
-    throw new BusinessMailError(
-      BUSINESS_MAIL_ERROR_CODES.UNSUPPORTED_ATTACHMENTS,
-      "Attachments are not supported in Phase 4A."
-    );
-  }
   if (Array.isArray(request.to)) {
     throw new BusinessMailError(
       BUSINESS_MAIL_ERROR_CODES.INVALID_RECIPIENT,
@@ -144,6 +181,12 @@ const validateRequest = (request) => {
   }
 
   const to = normalizeEmail(request.to);
+  const cc = normalizeEmailList(request.cc, "CC");
+  const bcc = normalizeEmailList(request.bcc, "BCC");
+  if (new Set([to, ...cc, ...bcc]).size !== 1 + cc.length + bcc.length) {
+    throw new BusinessMailError(BUSINESS_MAIL_ERROR_CODES.INVALID_RECIPIENT, "To, CC, and BCC addresses must be unique.");
+  }
+  const attachments = normalizeAttachments(request.attachments);
   const senderEmail = normalizeEmail(profile.sender.email, BUSINESS_MAIL_ERROR_CODES.INVALID_REQUEST);
   const senderName = String(profile.sender.name || "").trim();
   assertNoHeaderBreaks(
@@ -192,9 +235,12 @@ const validateRequest = (request) => {
     sender: { name: senderName, email: senderEmail },
     replyTo: replyToEmail ? { email: replyToEmail } : null,
     to,
+    cc,
+    bcc,
     subject,
     text,
     html,
+    attachments,
     idempotencyKey: request.idempotencyKey ? String(request.idempotencyKey).trim() : "",
     metadata: normalizeMetadata(request.metadata),
     category: String(request.category || "BUSINESS_MAIL").trim().slice(0, 80) || "BUSINESS_MAIL",
@@ -212,6 +258,9 @@ const createDeliveryLog = async (mail, provider) => {
       senderEmail: mail.sender.email,
       replyTo: mail.replyTo?.email || "",
       recipient: mail.to,
+      ccRecipients: mail.cc,
+      bccRecipients: mail.bcc,
+      attachments: mail.attachments.map(({ filename, contentType, size }) => ({ filename, contentType, size })),
       subject: mail.subject,
       provider,
       status: "REQUESTED",

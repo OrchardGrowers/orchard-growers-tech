@@ -369,7 +369,7 @@ const policyLinkGroups = [
       { label: "Our Story", path: "/our-story" },
       { label: "Vision & Mission", path: "/vision-mission" },
       { label: "Why eFruitMandi", path: "/why-efruitmandi" },
-      { label: "Contact Us", path: "/contact" },
+      { label: "Contact Us", path: "/contact-us" },
     ],
   },
   {

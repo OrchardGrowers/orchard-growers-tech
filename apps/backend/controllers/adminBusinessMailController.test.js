@@ -158,7 +158,7 @@ describe("Admin Business Mail payload validation", () => {
     ["SMTP credentials", (body) => { body.smtpPass = "not-accepted"; }],
     ["CC", (body) => { body.cc = "other@example.test"; }],
     ["BCC", (body) => { body.bcc = "other@example.test"; }],
-    ["attachments", (body) => { body.attachments = []; }],
+    ["unsafe attachment", (body) => { body.attachments = [{ filename: "run.exe", contentType: "application/x-msdownload", content: "dGVzdA==" }]; }],
     ["client signature", (body) => { body.signature = "replace footer"; }],
     ["missing sender profile", (body) => { delete body.senderProfileKey; }],
     ["empty subject", (body) => { body.subject = ""; }],
@@ -180,6 +180,22 @@ describe("Admin Business Mail payload validation", () => {
       to: "recipient@example.test",
       category: "GENERAL",
     });
+  });
+
+  it("accepts bounded CC, BCC, and safe attachment payloads", () => {
+    const result = validateBusinessMailRequestPayload({
+      ...basePayload(),
+      cc: ["copy@example.test"],
+      bcc: ["audit@example.test"],
+      attachments: [{
+        filename: "report.pdf",
+        contentType: "application/pdf",
+        content: Buffer.from("safe report").toString("base64"),
+      }],
+    });
+    expect(result.cc).toEqual(["copy@example.test"]);
+    expect(result.bcc).toEqual(["audit@example.test"]);
+    expect(result.attachments[0]).toMatchObject({ filename: "report.pdf", size: 11 });
   });
 });
 
@@ -293,6 +309,27 @@ describe("Admin Business Mail delivery logging", () => {
     expect(mocks.findByIdAndUpdate).toHaveBeenCalledWith(LOG_ID, {
       $set: expect.objectContaining({ status: "SENT", providerMessageId: "provider-id" }),
     });
+  });
+
+  it("logs copy recipients and attachment metadata without attachment content", async () => {
+    const content = Buffer.from("confidential attachment bytes").toString("base64");
+    await sendBusinessMailMessage(createRequest({
+      ...basePayload(),
+      cc: ["copy@example.test"],
+      bcc: ["audit@example.test"],
+      attachments: [{ filename: "report.pdf", contentType: "application/pdf", content }],
+    }), createResponse());
+
+    const stored = mocks.createLog.mock.calls[0][0];
+    expect(stored.ccRecipients).toEqual(["copy@example.test"]);
+    expect(stored.bccRecipients).toEqual(["audit@example.test"]);
+    expect(stored.attachments).toEqual([{
+      filename: "report.pdf",
+      contentType: "application/pdf",
+      size: 29,
+    }]);
+    expect(JSON.stringify(stored)).not.toContain(content);
+    expect(mocks.sendBusinessMail.mock.calls[0][0].attachments[0].content).toBe(content);
   });
 
   it("records FAILED with a bounded safe failure message", async () => {

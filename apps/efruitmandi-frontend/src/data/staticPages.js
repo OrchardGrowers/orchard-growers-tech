@@ -204,7 +204,7 @@ export const staticPages = {
   }),
 
   contact: page({
-    route: "/contact",
+    route: "/contact-us",
     eyebrow: "Support",
     title: "Contact Us",
     description:

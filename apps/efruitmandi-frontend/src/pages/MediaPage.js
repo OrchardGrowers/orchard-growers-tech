@@ -329,7 +329,7 @@ export default function MediaPage() {
               <Link to="/grower-guide" className="inline-flex min-h-11 items-center justify-center rounded-lg bg-white px-4 py-2 text-green-800">
                 Grower Guide
               </Link>
-              <Link to="/contact" className="inline-flex min-h-11 items-center justify-center rounded-lg bg-white px-4 py-2 text-green-800">
+              <Link to="/contact-us" className="inline-flex min-h-11 items-center justify-center rounded-lg bg-white px-4 py-2 text-green-800">
                 Contact
               </Link>
             </div>

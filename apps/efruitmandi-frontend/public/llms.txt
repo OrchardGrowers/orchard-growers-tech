@@ -17,7 +17,7 @@ eFruitMandi is India's digital fruit marketplace operated by Orchard Growers Pri
 - About: https://www.efruitmandi.live/about
 - Our story: https://www.efruitmandi.live/our-story
 - FAQs: https://www.efruitmandi.live/faqs
-- Contact: https://www.efruitmandi.live/contact
+- Contact: https://www.efruitmandi.live/contact-us
 - Privacy policy: https://www.efruitmandi.live/privacy-policy
 - Terms of service: https://www.efruitmandi.live/terms-of-service
 

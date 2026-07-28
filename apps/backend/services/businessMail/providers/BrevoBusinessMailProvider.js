@@ -26,7 +26,7 @@ export default class BrevoBusinessMailProvider {
     return Boolean(String(process.env.BREVO_API_KEY || "").trim());
   }
 
-  async send({ sender, replyTo, to, subject, text, html }) {
+  async send({ sender, replyTo, to, cc = [], bcc = [], subject, text, html, attachments = [] }) {
     if (!this.isConfigured()) {
       throw new BusinessMailError(
         BUSINESS_MAIL_ERROR_CODES.PROVIDER_NOT_CONFIGURED,
@@ -41,10 +41,13 @@ export default class BrevoBusinessMailProvider {
       const payload = {
         sender,
         to: [{ email: to }],
+        ...(cc.length ? { cc: cc.map((email) => ({ email })) } : {}),
+        ...(bcc.length ? { bcc: bcc.map((email) => ({ email })) } : {}),
         subject,
         ...(text ? { textContent: text } : {}),
         ...(html ? { htmlContent: html } : {}),
         ...(replyTo?.email ? { replyTo } : {}),
+        ...(attachments.length ? { attachment: attachments.map((item) => ({ name: item.filename, content: item.content })) } : {}),
       };
       const response = await fetch("https://api.brevo.com/v3/smtp/email", {
         method: "POST",
@@ -71,7 +74,7 @@ export default class BrevoBusinessMailProvider {
         success: true,
         provider: this.name,
         providerMessageId: String(body?.messageId || body?.messageIds?.[0] || ""),
-        accepted: [to],
+        accepted: [to, ...cc, ...bcc],
         rejected: [],
         status: "SENT",
         sentAt: new Date().toISOString(),
@@ -94,4 +97,3 @@ export default class BrevoBusinessMailProvider {
     }
   }
 }
-
