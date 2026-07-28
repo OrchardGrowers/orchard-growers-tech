@@ -53,7 +53,7 @@ const readJson = async (response: Response) => {
   }
 };
 
-const readableStatus = (status?: string) => (status || 'NEW').replaceAll('_', ' ');
+const readableStatus = (status?: string) => (status || 'NEW').replace(/_/g, ' ');
 const formatDate = (value?: string) => {
   if (!value) return 'Unknown';
   const date = new Date(value);
@@ -286,3 +286,4 @@ export default function CareerApplications({ apiBase, authHeaders }: Props) {
     </section>
   );
 }
+
