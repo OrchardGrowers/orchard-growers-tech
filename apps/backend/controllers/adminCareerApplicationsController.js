@@ -132,7 +132,9 @@ export const syncCareerApplications = async (req, res) => {
   try {
     const requestedMode = req.query.all ?? req.body?.all;
     const syncAll = requestedMode === undefined || String(requestedMode).toLowerCase() !== "false";
-    const summary = await syncCareerMailbox({ importedBy: req.user?.id, syncAll });
+    const requestedStart = Number.parseInt(req.query.startSequence || req.body?.startSequence, 10);
+    const startSequence = Number.isInteger(requestedStart) && requestedStart > 0 ? requestedStart : undefined;
+    const summary = await syncCareerMailbox({ importedBy: req.user?.id, syncAll, startSequence });
     res.json({ message: "Career mailbox sync completed.", summary });
   } catch (error) {
     res.status(error?.statusCode || 500).json({

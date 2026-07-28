@@ -285,15 +285,30 @@ export default function CareerApplications({ apiBase, authHeaders }: Props) {
     setSyncing(true);
     setMessage('');
     try {
-      const response = await fetch(`${apiBase}/admin/career-applications/sync?all=true`, {
-        method: 'POST', headers: { ...authHeaders, 'Content-Type': 'application/json' },
-      });
-      const body = await readJson(response);
-      if (!response.ok) throw new Error(body.msg || 'Career mailbox sync failed.');
-      const summary = body.summary || {};
+      let startSequence = 1;
+      let mailboxMessages = 0;
+      let scanned = 0;
+      let imported = 0;
+      let duplicates = 0;
+      let failed = 0;
+      while (startSequence > 0) {
+        const response = await fetch(`${apiBase}/admin/career-applications/sync?all=true&startSequence=${startSequence}`, {
+          method: 'POST', headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        });
+        const body = await readJson(response);
+        if (!response.ok) throw new Error(body.msg || 'Career mailbox sync failed.');
+        const summary = body.summary || {};
+        mailboxMessages = Number(summary.mailboxMessages) || mailboxMessages;
+        scanned += Number(summary.scanned) || 0;
+        imported += Number(summary.imported) || 0;
+        duplicates += Number(summary.duplicates) || 0;
+        failed += Number(summary.failed) || 0;
+        startSequence = summary.hasMore && Number(summary.nextSequence) > 0 ? Number(summary.nextSequence) : 0;
+        setMessage(`Full sync in progress: ${Math.min(scanned, mailboxMessages)} of ${mailboxMessages} mailbox messages scanned...`);
+      }
       setPage(1);
       await loadApplications();
-      setMessage(`Full sync complete: ${summary.scanned || 0} of ${summary.mailboxMessages || 0} mailbox messages scanned; ${summary.imported || 0} imported, ${summary.duplicates || 0} duplicates, ${summary.failed || 0} failed.`);
+      setMessage(`Full sync complete: ${scanned} of ${mailboxMessages} mailbox messages scanned; ${imported} imported, ${duplicates} duplicates, ${failed} failed.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Career mailbox sync failed.');
     } finally {

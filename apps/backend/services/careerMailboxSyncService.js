@@ -78,7 +78,7 @@ const backfillEmptyCandidateFields = async (externalMessageKey, values) => {
   }
 };
 
-export const syncCareerMailbox = async ({ importedBy, syncAll = false } = {}) => {
+export const syncCareerMailbox = async ({ importedBy, syncAll = false, startSequence } = {}) => {
   if (syncInProgress) {
     const error = new Error("A career mailbox sync is already in progress.");
     error.statusCode = 409;
@@ -98,6 +98,8 @@ export const syncCareerMailbox = async ({ importedBy, syncAll = false } = {}) =>
     completedAt: null,
     syncMode: syncAll ? "ALL" : "RECENT",
     mailboxMessages: 0,
+    nextSequence: null,
+    hasMore: false,
   };
   const client = new ImapFlow({
     host: config.host,
@@ -118,10 +120,18 @@ export const syncCareerMailbox = async ({ importedBy, syncAll = false } = {}) =>
       return summary;
     }
 
-    const firstSequence = syncAll ? 1 : Math.max(1, mailbox.exists - config.syncLimit + 1);
+    const hasRequestedSequence = Number.isInteger(startSequence) && startSequence > 0;
+    const firstSequence = hasRequestedSequence
+      ? Math.min(startSequence, mailbox.exists + 1)
+      : syncAll
+        ? 1
+        : Math.max(1, mailbox.exists - config.syncLimit + 1);
+    const finalSequence = hasRequestedSequence
+      ? Math.min(firstSequence + config.syncLimit - 1, mailbox.exists)
+      : mailbox.exists;
     const batchSize = config.syncLimit;
-    for (let batchStart = firstSequence; batchStart <= mailbox.exists; batchStart += batchSize) {
-      const batchEnd = Math.min(batchStart + batchSize - 1, mailbox.exists);
+    for (let batchStart = firstSequence; batchStart <= finalSequence; batchStart += batchSize) {
+      const batchEnd = Math.min(batchStart + batchSize - 1, finalSequence);
       for await (const message of client.fetch(
         `${batchStart}:${batchEnd}`,
         { uid: true, source: true, internalDate: true },
@@ -260,6 +270,8 @@ export const syncCareerMailbox = async ({ importedBy, syncAll = false } = {}) =>
       }
       }
     }
+    summary.nextSequence = finalSequence < mailbox.exists ? finalSequence + 1 : null;
+    summary.hasMore = Boolean(summary.nextSequence);
     summary.completedAt = new Date();
     return summary;
   } finally {
