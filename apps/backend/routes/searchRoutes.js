@@ -3,6 +3,11 @@ import User from "../models/User.js";
 import Product from "../models/Product.js";
 import MandiRate from "../models/MandiRate.js";
 import { getFruitCommodityNames } from "../services/mandiRateService.js";
+import {
+  getSearchContext,
+  normalizeSearchText,
+  rankSearchResults,
+} from "../../../packages/shared-config/fruitSearch.mjs";
 
 const router = express.Router();
 
@@ -49,14 +54,45 @@ router.get("/", async (req, res) => {
       });
     }
 
-    const regex = new RegExp(escapeRegex(q), "i");
+    let searchContext = getSearchContext(q);
 
     const marketplaceIntentRegex =
       /\b(fruit lots?|live fruit lots?|available lots?|upcoming lots?|upcoming fruit lots?|deals?|live deals?|fruit deals?|auction|auctions|quote|quotes|quotation|marketplace)\b/i;
 
-    const isMarketplaceIntent = marketplaceIntentRegex.test(q);
+    const isMarketplaceIntent =
+      searchContext.intent === "fruit_lot" || marketplaceIntentRegex.test(q);
 
     const fruitCommodityNames = await getFruitCommodityNames();
+    if (!searchContext.fruit) {
+      const dynamicFruitName = fruitCommodityNames.find(
+        (name) => normalizeSearchText(name) === searchContext.subjectQuery
+      );
+      if (dynamicFruitName) {
+        const normalizedName = normalizeSearchText(dynamicFruitName);
+        searchContext = {
+          ...searchContext,
+          fruit: {
+            name: dynamicFruitName,
+            slug: normalizedName.replace(/\s+/g, "-"),
+            normalizedName,
+            aliases: [normalizedName],
+          },
+        };
+      }
+    }
+    const searchableQuery = searchContext.subjectQuery || q;
+    const searchTerms = searchContext.fruit
+      ? [searchContext.fruit.name, ...searchContext.fruit.aliases]
+      : [searchableQuery];
+    const regex = new RegExp(
+      searchTerms
+        .map(normalizeText)
+        .filter(Boolean)
+        .sort((a, b) => b.length - a.length)
+        .map(escapeRegex)
+        .join("|"),
+      "i"
+    );
 
     const [profiles, lots, mandiRates] = await Promise.all([
       User.find({
@@ -78,7 +114,7 @@ router.get("/", async (req, res) => {
         .select(
           "name role activeRole profileTypes orchardName businessName buyerContactPerson buyerLocation logisticsName driverName vehicleNumber location companyLogoUrl buyerCompanyLogoUrl isKycVerified isOgVerified isTrustedBadge createdAt"
         )
-        .limit(limit)
+        .limit(Math.min(limit * 3, 100))
         .lean(),
 
       Product.find(
@@ -103,7 +139,7 @@ router.get("/", async (req, res) => {
           "title fruitName variety description location lotNo quantity status images imageObjects gradeLots createdBy createdAt"
         )
         .populate("createdBy", "name orchardName businessName")
-        .limit(limit)
+        .limit(Math.min(limit * 3, 100))
         .lean(),
 
       fruitCommodityNames.length
@@ -119,15 +155,16 @@ router.get("/", async (req, res) => {
           })
             .select("commodity variety market district state modalPriceKg arrivalDate")
             .sort({ arrivalDate: -1 })
-            .limit(limit)
+            .limit(Math.min(limit * 3, 100))
             .lean()
         : Promise.resolve([]),
     ]);
 
-    return res.json({
-      profiles: profiles.map((user) => ({
+    const profileResults = rankSearchResults(profiles.map((user) => {
+      const type = getProfileRole(user);
+      return {
         _id: user._id,
-        type: getProfileRole(user),
+        type,
         title: getProfileTitle(user),
         name: user.name,
         role: user.role,
@@ -139,11 +176,19 @@ router.get("/", async (req, res) => {
         isOgVerified: Boolean(user.isOgVerified),
         isTrustedBadge: Boolean(user.isTrustedBadge),
         createdAt: user.createdAt,
-      })),
-      lots,
-      mandiRates: mandiRates.map((rate) => ({
+        resultType: String(type).toLowerCase(),
+      };
+    }), searchContext).slice(0, limit);
+
+    const lotResults = rankSearchResults(lots.map((lot) => ({
+      ...lot,
+      resultType: "fruit_lot",
+    })), searchContext).slice(0, limit);
+
+    const liveMandiResults = mandiRates.map((rate) => ({
         _id: rate._id,
         category: "mandi-rate",
+        resultType: "mandi_rate",
         title: `${rate.commodity || "Fruit"} Mandi Rate - ${rate.market || "Market"}`,
         subtitle: [rate.district, rate.state].filter(Boolean).join(", "),
         price: formatPrice(rate.modalPriceKg),
@@ -153,7 +198,44 @@ router.get("/", async (req, res) => {
         market: rate.market,
         district: rate.district,
         state: rate.state,
-      })),
+        url: searchContext.fruit ? `/mandi-rates/${searchContext.fruit.slug}` : "",
+      }));
+    const rankedLiveMandiResults = rankSearchResults(liveMandiResults, searchContext);
+
+    const directMandiResult = searchContext.fruit
+      ? {
+          _id: `mandi-page-${searchContext.fruit.slug}`,
+          category: "mandi-rate",
+          resultType: "mandi_rate",
+          title: `${searchContext.fruit.name} Mandi Price Today`,
+          subtitle: rankedLiveMandiResults[0]
+            ? [
+                rankedLiveMandiResults[0].market,
+                rankedLiveMandiResults[0].district,
+                rankedLiveMandiResults[0].state,
+              ]
+                .filter(Boolean)
+                .join(", ")
+            : "No live rate available",
+          price: rankedLiveMandiResults[0]?.price || "No live rate available",
+          date: rankedLiveMandiResults[0]?.date || null,
+          commodity: searchContext.fruit.name,
+          url: `/mandi-rates/${searchContext.fruit.slug}`,
+          isDirectResult: true,
+        }
+      : null;
+
+    const mandiRateResults = rankSearchResults(
+      [directMandiResult, ...rankedLiveMandiResults].filter(Boolean),
+      searchContext
+    ).slice(0, limit);
+
+    return res.json({
+      profiles: profileResults,
+      lots: lotResults,
+      mandiRates: mandiRateResults,
+      matchedFruit: searchContext.fruit?.name || null,
+      matchedIntent: searchContext.intent,
     });
   } catch (err) {
     console.error("Universal search error:", err);

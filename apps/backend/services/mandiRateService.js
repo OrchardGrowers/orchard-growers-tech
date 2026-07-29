@@ -1,6 +1,7 @@
 import axios from "axios";
 import FruitCategory, { normalizeCommodityName } from "../models/FruitCategory.js";
 import MandiRate from "../models/MandiRate.js";
+import { getDataBackedMandiSlugs } from "../../../packages/shared-config/fruitSearch.mjs";
 
 const DATA_GOV_RESOURCE_ID = "9ef84268-d588-465a-a308-a864a43d0070";
 const DATA_GOV_BASE_URL = `https://api.data.gov.in/resource/${DATA_GOV_RESOURCE_ID}`;
@@ -180,6 +181,13 @@ export const getFruitCommodityNames = async () => {
       ...(Array.isArray(category.aliases) ? category.aliases : []),
     ])
   );
+};
+
+export const getAvailableMandiFruitSlugs = async () => {
+  const commodities = await MandiRate.distinct("commodity", {
+    commodity: { $type: "string", $ne: "" },
+  });
+  return getDataBackedMandiSlugs(commodities);
 };
 
 const normalizeRecord = (record, syncedAt) => {

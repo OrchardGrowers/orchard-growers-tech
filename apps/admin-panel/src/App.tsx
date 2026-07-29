@@ -1947,6 +1947,28 @@ function App() {
   }, [location.pathname]);
 
   useEffect(() => {
+    if (!mobileMenuOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    const desktopMedia = window.matchMedia('(min-width: 1024px)');
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileMenuOpen(false);
+    };
+    const closeOnDesktop = (event: MediaQueryListEvent) => {
+      if (event.matches) setMobileMenuOpen(false);
+    };
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', closeOnEscape);
+    desktopMedia.addEventListener('change', closeOnDesktop);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
+      desktopMedia.removeEventListener('change', closeOnDesktop);
+    };
+  }, [mobileMenuOpen]);
+
+  useEffect(() => {
     setAdminStorageItem('adminPlatformRailWidth', String(platformRailWidth));
   }, [platformRailWidth]);
 
@@ -3065,6 +3087,7 @@ function App() {
                 onClick={() => setMobileMenuOpen((open) => !open)}
                 aria-expanded={mobileMenuOpen}
                 aria-controls="mobile-admin-menu"
+                aria-label={mobileMenuOpen ? 'Close admin menu' : 'Open admin menu'}
                 className="admin-mobile-menu-button hidden h-8 w-8 items-center justify-center rounded-lg bg-white text-slate-950 transition hover:bg-emerald-100"
               >
                 <MenuIcon name="menu" />
@@ -3082,6 +3105,10 @@ function App() {
             onToggleItem={(key) => setExpandedSidebarKey((current) => (current === key ? null : key))}
             onOpenTab={(tab, childLabel, parentTab) => openTab(tab, { childLabel, parentTab })}
             onOpenPlatform={(platform) => openTab(getLastTabForPlatform(platform))}
+            onRefresh={loadRequests}
+            onDownload={openAdminInstallPrompt}
+            onLogout={logout}
+            loading={loading}
             onClose={() => setMobileMenuOpen(false)}
           />
         )}
@@ -3623,6 +3650,10 @@ function MobileAdminMenu({
   onOpenTab,
   onOpenPlatform,
   onToggleItem,
+  onRefresh,
+  onDownload,
+  onLogout,
+  loading,
   onClose,
 }: {
   groups: SidebarGroup[];
@@ -3633,6 +3664,10 @@ function MobileAdminMenu({
   onOpenTab: (tab: AdminTab, childLabel?: string, parentTab?: AdminTab) => void;
   onOpenPlatform: (platform: AdminPlatform) => void;
   onToggleItem: (key: string) => void;
+  onRefresh: () => void;
+  onDownload: () => void;
+  onLogout: () => void;
+  loading: boolean;
   onClose: () => void;
 }) {
   const runAction = (action: () => void) => {
@@ -3658,7 +3693,13 @@ function MobileAdminMenu({
         className="admin-mobile-menu-backdrop fixed inset-0 z-30 bg-slate-950/70 backdrop-blur-sm lg:hidden"
         onClick={onClose}
       />
-      <div id="mobile-admin-menu" className="admin-mobile-menu fixed z-40 lg:hidden">
+      <div
+        id="mobile-admin-menu"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Admin navigation"
+        className="admin-mobile-menu fixed z-40 lg:hidden"
+      >
       <div className="mb-2 flex items-center justify-between gap-3 border-b border-slate-800 pb-2">
         <span className="text-sm font-black text-white">Admin Menu</span>
         <button
@@ -3751,6 +3792,30 @@ function MobileAdminMenu({
             </div>
           </section>
         ))}
+        <section className="grid grid-cols-3 gap-2 border-t border-slate-800 pt-2">
+          <button
+            type="button"
+            onClick={() => runAction(onRefresh)}
+            disabled={loading}
+            className="min-h-10 rounded-lg bg-white px-2 py-2 text-xs font-black text-slate-950 disabled:opacity-60"
+          >
+            {loading ? 'Loading...' : 'Refresh'}
+          </button>
+          <button
+            type="button"
+            onClick={() => runAction(onDownload)}
+            className="min-h-10 rounded-lg bg-white px-2 py-2 text-xs font-black text-slate-950"
+          >
+            Download App
+          </button>
+          <button
+            type="button"
+            onClick={() => runAction(onLogout)}
+            className="min-h-10 rounded-lg bg-rose-700 px-2 py-2 text-xs font-black text-white"
+          >
+            Logout
+          </button>
+        </section>
       </div>
       </div>
     </>
@@ -8630,8 +8695,8 @@ function FilePreviewModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-4">
-      <div className="flex max-h-[92vh] w-full max-w-5xl flex-col rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
-        <div className="flex items-center justify-between gap-3 border-b border-slate-800 p-4">
+      <div className="admin-responsive-dialog flex max-h-[92vh] w-full max-w-5xl flex-col rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
+        <div className="admin-dialog-header flex items-center justify-between gap-3 border-b border-slate-800 p-4">
           <div className="min-w-0">
             <p className="truncate text-base font-black text-white">{name}</p>
             <p className="text-xs font-bold text-slate-400">Supports Pic/PDF preview</p>

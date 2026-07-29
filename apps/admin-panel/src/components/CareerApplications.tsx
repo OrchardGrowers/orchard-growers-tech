@@ -548,14 +548,14 @@ export default function CareerApplications({ apiBase, authHeaders }: Props) {
       <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
           <p className="text-sm font-bold text-slate-300">Showing {applications.length} of {total} candidates · Selected: {selectedIds.size}</p>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button type="button" onClick={toggleCurrentPage} disabled={!applications.length} className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-black text-white disabled:opacity-40">{allPageSelected ? 'Clear Current Page' : 'Select Current Page'}</button>
             <button type="button" onClick={() => setSelectedIds(new Set())} disabled={!selectedIds.size} className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-black text-white disabled:opacity-40">Clear Selection</button>
           </div>
           {loading && <span className="text-xs font-bold text-slate-400">Loading...</span>}
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-800 text-left text-sm">
+          <table className="min-w-[980px] w-full divide-y divide-slate-800 text-left text-sm">
             <thead className="bg-slate-950 text-xs uppercase tracking-wide text-slate-400">
               <tr><th className="px-3 py-3"><span className="sr-only">Select</span></th><th className="px-3 py-3">Name</th><th className="px-3 py-3">Email</th><th className="px-3 py-3">Contact</th><th className="px-3 py-3">Field</th><th className="px-3 py-3">Experience</th><th className="px-3 py-3">State</th><th className="px-3 py-3">Status</th><th className="px-3 py-3">Applied</th><th className="px-3 py-3"><span className="sr-only">Action</span></th></tr>
             </thead>
@@ -578,7 +578,7 @@ export default function CareerApplications({ apiBase, authHeaders }: Props) {
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between border-t border-slate-800 px-4 py-3">
+        <div className="admin-pagination flex items-center justify-between gap-3 border-t border-slate-800 px-4 py-3">
           <button type="button" disabled={page <= 1 || loading} onClick={() => setPage((value) => Math.max(value - 1, 1))} className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-bold text-white disabled:opacity-40">Previous</button>
           <span className="text-sm font-bold text-slate-400">Page {page} of {totalPages}</span>
           <button type="button" disabled={page >= totalPages || loading} onClick={() => setPage((value) => value + 1)} className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-bold text-white disabled:opacity-40">Next</button>
@@ -587,7 +587,7 @@ export default function CareerApplications({ apiBase, authHeaders }: Props) {
 
       {selectedProfile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="dialog" aria-modal="true" aria-labelledby="candidate-profile-title">
-          <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
+          <div className="admin-responsive-dialog max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-3">
               <div><h3 id="candidate-profile-title" className="text-xl font-black text-white">{candidateName(selectedProfile)}</h3><p className="break-all text-sm font-semibold text-slate-400">{candidateEmail(selectedProfile) || 'Email not available'}</p></div>
               <button type="button" onClick={() => setSelectedProfile(null)} className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-black text-white">Close</button>
@@ -614,7 +614,7 @@ export default function CareerApplications({ apiBase, authHeaders }: Props) {
 
       {reviewTarget && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-3" role="dialog" aria-modal="true" aria-labelledby="candidate-review-title">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
+          <div className="admin-responsive-dialog w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-3">
               <div><h3 id="candidate-review-title" className="text-xl font-black text-white">Rating and Remark</h3><p className="mt-1 text-sm font-semibold text-slate-400">{candidateName(reviewTarget)}</p></div>
               <button type="button" onClick={() => setReviewTarget(null)} disabled={savingReview} className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-black text-white disabled:opacity-50">Close</button>
@@ -628,7 +628,7 @@ export default function CareerApplications({ apiBase, authHeaders }: Props) {
 
       {exportOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3" role="dialog" aria-modal="true" aria-labelledby="candidate-export-title">
-          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
+          <div className="admin-responsive-dialog max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-3"><div><h3 id="candidate-export-title" className="text-xl font-black text-white">Candidate Data Export</h3><p className="mt-1 text-sm text-slate-400">Export safe candidate contact and profile fields.</p></div><button type="button" onClick={() => setExportOpen(false)} className="rounded-lg border border-slate-700 px-3 py-2 text-sm font-black text-white">Close</button></div>
             <div className="mt-5 grid gap-4 md:grid-cols-3">
               <FilterSelect includeEmpty={false} label="Data Scope" value={exportScope} onChange={(value) => { setExportScope(value as ExportScope); setExportOutput(''); setExportCsv(''); }} options={[{ value: 'all', label: 'All Available Candidates' }, { value: 'filters', label: 'Current Filter Results' }, { value: 'selected', label: `Selected Candidates (${selectedIds.size})` }, { value: 'page', label: `Current Page (${applications.length})` }]} />

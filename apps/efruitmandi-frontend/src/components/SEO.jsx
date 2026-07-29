@@ -21,12 +21,19 @@ export default function SEO({
   image = DEFAULT_IMAGE,
   type = "website",
   noIndex = false,
+  robots,
   schema,
   schemaId = "",
 }) {
   const fullCanonical = normalizeUrl(canonical);
   const fullImage = image && (/^https?:\/\//i.test(image) || image.startsWith("/")) ? normalizeUrl(image) : "";
   const schemaList = prepareSchemas(schema);
+  const robotsDirective =
+    robots === "noindex,follow" || robots === "noindex,nofollow" || robots === "index,follow"
+      ? robots
+      : noIndex
+        ? "noindex,nofollow"
+        : "index,follow";
 
   return (
     <Helmet>
@@ -37,11 +44,11 @@ export default function SEO({
 
       <meta
         name="robots"
-        content={noIndex ? "noindex,nofollow" : "index,follow"}
+        content={robotsDirective}
       />
       <meta
         name="googlebot"
-        content={noIndex ? "noindex,nofollow" : "index,follow"}
+        content={robotsDirective}
       />
 
       <meta property="og:site_name" content={SITE_NAME} />

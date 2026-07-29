@@ -1,6 +1,8 @@
 import express from "express";
 import User from "../models/User.js";
 import { buildPublicFruitDiscovery } from "../controllers/userController.js";
+import { FRUIT_ENTITIES } from "../../../packages/shared-config/fruitSearch.mjs";
+import { getAvailableMandiFruitSlugs } from "../services/mandiRateService.js";
 
 const router = express.Router();
 
@@ -25,35 +27,23 @@ function hasSafePublicSlug(slug = "") {
   return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(slug || ""));
 }
 
-const CURATED_FRUIT_LOT_SLUGS = [...new Set([
-  "apple",
-  "pear",
-  "persimmon",
-  "plum",
-  "peach",
-  "apricot",
-  "cherry",
-  "kiwi",
-  "pomegranate",
-  "mango",
-  "banana",
-  "orange",
-  "kinnow",
-  "guava",
-  "grapes",
-  "papaya",
-  "watermelon",
-  "muskmelon",
-  "pineapple",
-  "litchi",
-  "strawberry",
-  "dragonfruit",
-  "fig",
-  "jamun",
-  "custardapple",
-  "sapota",
-  "amla",
-].filter(hasSafePublicSlug))];
+const CURATED_FRUIT_LOT_SLUGS = [
+  ...new Set(FRUIT_ENTITIES.map((fruit) => fruit.slug).filter(hasSafePublicSlug)),
+];
+
+export function buildMandiRateSitemapEntries(availableSlugs = []) {
+  const safeSlugs = [...new Set(
+    (Array.isArray(availableSlugs) ? availableSlugs : []).filter(hasSafePublicSlug)
+  )];
+  return [
+    { loc: "/mandi-rates", changefreq: "daily", priority: "0.8" },
+    ...safeSlugs.map((slug) => ({
+      loc: `/mandi-rates/${slug}`,
+      changefreq: "daily",
+      priority: "0.8",
+    })),
+  ];
+}
 
 function slugifyPublicLocation(value = "") {
   return String(value || "").trim().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
@@ -154,13 +144,10 @@ router.get("/sitemap.xml", async (req, res) => {
       })),
 
       // Mandi rate SEO pages
-      { loc: "/mandi-rates", changefreq: "daily", priority: "0.8" },
-      { loc: "/mandi-rates/apple", changefreq: "daily", priority: "0.8" },
-      { loc: "/mandi-rates/mango", changefreq: "daily", priority: "0.8" },
-      { loc: "/mandi-rates/pear", changefreq: "daily", priority: "0.8" },
+      ...buildMandiRateSitemapEntries(),
     ];
 
-    const [growerProfiles, buyerProfiles] = await Promise.all([
+    const [growerProfiles, buyerProfiles, availableMandiSlugs] = await Promise.all([
       User.find(buildPublicProfileSitemapQuery("grower"))
         .select("_id slug kycByRole updatedAt createdAt")
         .sort({ updatedAt: -1 })
@@ -171,7 +158,12 @@ router.get("/sitemap.xml", async (req, res) => {
         .sort({ updatedAt: -1 })
         .limit(5000)
         .lean(),
+      getAvailableMandiFruitSlugs().catch((error) => {
+        console.error("Mandi sitemap availability query error:", error);
+        return [];
+      }),
     ]);
+    staticUrls.push(...buildMandiRateSitemapEntries(availableMandiSlugs).slice(1));
 
     const locationUrls = [
       ...getPublicLocationUrls(growerProfiles, "grower"),

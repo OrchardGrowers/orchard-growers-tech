@@ -3,6 +3,10 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { FaCalendarAlt, FaChartLine, FaFilter, FaMapMarkerAlt, FaSearch } from "react-icons/fa";
 import SEO from "../components/SEO";
 import API from "../services/api";
+import {
+  findFruitEntity,
+  getMandiPageRobots,
+} from "../../../../packages/shared-config/fruitSearch.mjs";
 
 const slugify = (value = "") =>
   String(value)
@@ -49,6 +53,7 @@ export default function MandiRates() {
   const [state, setState] = useState("");
   const [district, setDistrict] = useState("");
   const [fruits, setFruits] = useState([]);
+  const [availableMandiSlugs, setAvailableMandiSlugs] = useState(null);
   const [rates, setRates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -56,16 +61,33 @@ export default function MandiRates() {
   const slugCommodity = useMemo(() => {
     if (!commoditySlug) return "";
     const fallback = fromSlug(commoditySlug);
-    return fruits.find((fruit) => slugify(fruit) === commoditySlug) || fallback;
+    const knownFruit = findFruitEntity(commoditySlug);
+    return fruits.find((fruit) => slugify(fruit) === commoditySlug) || knownFruit?.name || fallback;
   }, [commoditySlug, fruits]);
 
   const selectedCommodity = commodity || slugCommodity;
+  const selectedFruit = findFruitEntity(selectedCommodity || commoditySlug);
+  const selectedFruitSlug = selectedFruit?.slug || slugify(selectedCommodity);
+  const availabilityResolved = Array.isArray(availableMandiSlugs);
+  const hasResolvedRates =
+    Boolean(selectedFruitSlug) &&
+    availabilityResolved &&
+    availableMandiSlugs.includes(selectedFruitSlug);
   const pageTitle = selectedCommodity
-    ? `${selectedCommodity} Mandi Rates Today | eFruitMandi`
+    ? hasResolvedRates
+      ? `${selectedCommodity} Mandi Rates Today | eFruitMandi`
+      : `${selectedCommodity} Mandi Rates | eFruitMandi`
     : "Fruit Mandi Rates Today | eFruitMandi";
   const pageDescription = selectedCommodity
-    ? `Check latest ${selectedCommodity.toLowerCase()} mandi rates from AGMARKNET markets across India with min, modal and max price per kg.`
+    ? hasResolvedRates
+      ? `Check latest ${selectedCommodity.toLowerCase()} mandi rates from AGMARKNET markets across India with min, modal and max price per kg.`
+      : `Check available ${selectedCommodity.toLowerCase()} mandi-rate information and related fruit marketplace pages on eFruitMandi.`
     : "Check latest fruit mandi rates from AGMARKNET markets across India with commodity, variety, market, district, state and price per kg.";
+  const robots = getMandiPageRobots({
+    isFruitPage: Boolean(commoditySlug),
+    loading: Boolean(commoditySlug) && !availabilityResolved,
+    recordCount: hasResolvedRates ? 1 : 0,
+  });
 
   useEffect(() => {
     API.get("/mandi-rates/fruits")
@@ -74,6 +96,19 @@ export default function MandiRates() {
         setFruits(list);
       })
       .catch(() => setFruits([]));
+  }, []);
+
+  useEffect(() => {
+    API.get("/mandi-rates/available-fruits")
+      .then((res) => {
+        const slugs = Array.isArray(res.data?.slugs) ? res.data.slugs : [];
+        setAvailableMandiSlugs((current) => [
+          ...new Set([...(Array.isArray(current) ? current : []), ...slugs]),
+        ]);
+      })
+      .catch(() =>
+        setAvailableMandiSlugs((current) => (Array.isArray(current) ? current : []))
+      );
   }, []);
 
   useEffect(() => {
@@ -93,7 +128,13 @@ export default function MandiRates() {
         if (district) params.set("district", district);
 
         const response = await API.get(`/mandi-rates${params.toString() ? `?${params}` : ""}`);
-        setRates(Array.isArray(response.data?.records) ? response.data.records : []);
+        const records = Array.isArray(response.data?.records) ? response.data.records : [];
+        setRates(records);
+        if (selectedFruitSlug && records.length > 0) {
+          setAvailableMandiSlugs((current) => [
+            ...new Set([...(Array.isArray(current) ? current : []), selectedFruitSlug]),
+          ]);
+        }
       } catch (error) {
         console.error(error);
         setRates([]);
@@ -104,7 +145,7 @@ export default function MandiRates() {
     };
 
     loadRates();
-  }, [district, query, selectedCommodity, state]);
+  }, [district, query, selectedCommodity, selectedFruitSlug, state]);
 
   const stateOptions = useMemo(() => uniqueSorted(rates.map((rate) => rate.state)), [rates]);
   const districtOptions = useMemo(
@@ -116,7 +157,8 @@ export default function MandiRates() {
     setCommodity(value);
     setState("");
     setDistrict("");
-    navigate(value ? `/mandi-rates/${slugify(value)}` : "/mandi-rates");
+    const fruitSlug = findFruitEntity(value)?.slug || slugify(value);
+    navigate(value ? `/mandi-rates/${fruitSlug}` : "/mandi-rates");
   };
 
   return (
@@ -124,7 +166,8 @@ export default function MandiRates() {
       <SEO
         title={pageTitle}
         description={pageDescription}
-        canonical={selectedCommodity ? `/mandi-rates/${slugify(selectedCommodity)}` : "/mandi-rates"}
+        canonical={selectedCommodity ? `/mandi-rates/${selectedFruitSlug}` : "/mandi-rates"}
+        robots={robots}
       />
 
       <main className="mx-auto w-full max-w-6xl overflow-x-hidden px-4 pb-20 md:px-0">
@@ -189,7 +232,13 @@ export default function MandiRates() {
         </section>
 
         {selectedCommodity && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-bold">
+          <div className="mt-3">
+            <p className="mb-2 text-xs font-semibold leading-5 text-gray-600">
+              Latest available {selectedCommodity.toLowerCase()} rates are shown with their market
+              and update date. If no records are available, eFruitMandi does not estimate or
+              fabricate a price.
+            </p>
+            <nav aria-label={`${selectedCommodity} related pages`} className="flex flex-wrap items-center gap-2 text-xs font-bold">
             <Link
               to="/mandi-rates"
               onClick={() => {
@@ -201,6 +250,18 @@ export default function MandiRates() {
             >
               All fruits
             </Link>
+            <Link
+              to={`/fruit-lots/${findFruitEntity(selectedCommodity)?.slug || slugify(selectedCommodity)}`}
+              className="inline-flex min-h-10 items-center rounded-full bg-white px-3 py-1.5 text-green-800 ring-1 ring-green-100"
+            >
+              {selectedCommodity} fruit lots
+            </Link>
+            <Link
+              to="/auctions"
+              className="inline-flex min-h-10 items-center rounded-full bg-white px-3 py-1.5 text-green-800 ring-1 ring-green-100"
+            >
+              Fruit marketplace
+            </Link>
             {["apple", "mango", "pear"].map((slug) => (
               <Link
                 key={slug}
@@ -210,6 +271,7 @@ export default function MandiRates() {
                 {fromSlug(slug)}
               </Link>
             ))}
+            </nav>
           </div>
         )}
 

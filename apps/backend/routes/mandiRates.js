@@ -1,11 +1,16 @@
 import express from "express";
 import MandiRate from "../models/MandiRate.js";
 import {
+  getAvailableMandiFruitSlugs,
   getFruitCategories,
   syncCommodityMaster,
   syncMandiRates,
 } from "../services/mandiRateService.js";
 import { normalizeCommodityName } from "../models/FruitCategory.js";
+import {
+  FRUIT_ENTITIES,
+  getFruitCommodityAliases,
+} from "../../../packages/shared-config/fruitSearch.mjs";
 
 const router = express.Router();
 const MANDI_RATE_SOURCE = "data.gov.in-agmarknet";
@@ -16,6 +21,9 @@ const escapeRegex = (value = "") =>
 const normalizeText = (value = "") => String(value || "").trim();
 
 const exactRegex = (value) => new RegExp(`^${escapeRegex(value)}$`, "i");
+
+export const buildExactCommodityMatchers = (values = []) =>
+  (Array.isArray(values) ? values : []).map(exactRegex);
 
 const getAllowedCommodityNames = (categories = []) =>
   Array.from(
@@ -31,19 +39,34 @@ const getAllowedCommodityNames = (categories = []) =>
     )
   );
 
-const getCommodityFilterValues = (categories, value) => {
-  const normalizedValue = normalizeCommodityName(value);
-  const match = categories.find((category) =>
+export const getCommodityFilterValues = (categories, value) => {
+  const configuredAliases = getFruitCommodityAliases(value);
+  const normalizedTargets = new Set(
+    (configuredAliases.length ? configuredAliases : [value]).map(normalizeCommodityName)
+  );
+  const matches = categories.filter((category) =>
     [category.commodity, category.displayName, ...(category.aliases || [])]
       .map(normalizeCommodityName)
-      .includes(normalizedValue)
+      .some((candidate) => normalizedTargets.has(candidate))
   );
 
-  if (!match) return [];
+  if (!configuredAliases.length && !matches.length) return [];
 
-  return [match.commodity, match.displayName, ...(match.aliases || [])]
-    .map(normalizeText)
-    .filter(Boolean);
+  return Array.from(
+    new Map(
+      [
+        ...configuredAliases,
+        ...matches.flatMap((match) => [
+          match.commodity,
+          match.displayName,
+          ...(match.aliases || []),
+        ]),
+      ]
+        .map(normalizeText)
+        .filter(Boolean)
+        .map((candidate) => [normalizeCommodityName(candidate), candidate])
+    ).values()
+  );
 };
 
 const buildMandiRateQuery = async (query = {}) => {
@@ -62,7 +85,9 @@ const buildMandiRateQuery = async (query = {}) => {
 
     if (field === "commodity") {
       const matchedCommodities = getCommodityFilterValues(fruitCategories, value);
-      filter.commodity = matchedCommodities.length ? { $in: matchedCommodities } : "__NO_FRUIT_MATCH__";
+      filter.commodity = matchedCommodities.length
+        ? { $in: buildExactCommodityMatchers(matchedCommodities) }
+        : "__NO_FRUIT_MATCH__";
       return;
     }
 
@@ -171,6 +196,24 @@ router.get("/fruits", async (req, res) => {
       isFruit: Boolean(category.isFruit),
     })),
   });
+});
+
+router.get("/available-fruits", async (req, res) => {
+  try {
+    const slugs = await getAvailableMandiFruitSlugs();
+    const availableSet = new Set(slugs);
+    return res.json({
+      source: MANDI_RATE_SOURCE,
+      slugs,
+      fruits: FRUIT_ENTITIES.filter((fruit) => availableSet.has(fruit.slug)).map((fruit) => ({
+        name: fruit.name,
+        slug: fruit.slug,
+      })),
+    });
+  } catch (error) {
+    console.error("Available mandi fruits query error:", error);
+    return res.status(500).json({ msg: "Unable to load available mandi fruits" });
+  }
 });
 
 router.post("/commodities/sync", async (req, res) => {

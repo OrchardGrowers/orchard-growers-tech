@@ -535,8 +535,8 @@ function Modal({ title, children, onClose, initialFocusRef }: {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-4" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
-      <section role="dialog" aria-modal="true" aria-labelledby="business-mail-modal-title" className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
-        <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-700 bg-slate-900 p-4">
+      <section role="dialog" aria-modal="true" aria-labelledby="business-mail-modal-title" className="admin-responsive-dialog max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
+        <header className="admin-dialog-header sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-700 bg-slate-900 p-4">
           <h2 id="business-mail-modal-title" className="text-lg font-black text-white">{title}</h2>
           <button type="button" onClick={onClose} aria-label={`Close ${title}`} className="rounded-lg bg-slate-800 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400">
             Close

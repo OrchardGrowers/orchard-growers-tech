@@ -8,7 +8,8 @@
 
 html,
 body {
-  width: 100vw;
+  width: 100%;
+  max-width: 100%;
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
@@ -172,6 +173,80 @@ a {
 
 * {
   box-sizing: border-box;
+}
+
+img,
+svg,
+video,
+canvas,
+iframe {
+  max-width: 100%;
+}
+
+.admin-app-shell,
+.admin-shell-grid,
+.admin-action-panel,
+.admin-content-scroll,
+.admin-content-scroll > *,
+.admin-top-nav > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.admin-content-scroll {
+  overflow-x: hidden;
+}
+
+.admin-content-scroll :where(p, dd, dt, li, label, output) {
+  overflow-wrap: anywhere;
+}
+
+.admin-content-scroll :where(input, select, textarea) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.admin-content-scroll :where(.overflow-x-auto, .admin-table-scroll) {
+  max-width: 100%;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.admin-content-scroll table {
+  max-width: none;
+}
+
+.admin-content-scroll :where(td, th) {
+  overflow-wrap: anywhere;
+}
+
+.admin-responsive-dialog {
+  width: min(calc(100% - 24px), var(--admin-dialog-width, 1024px));
+  max-height: calc(100dvh - 24px) !important;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.admin-responsive-drawer {
+  height: 100dvh;
+  max-height: 100dvh;
+  overscroll-behavior: contain;
+}
+
+.admin-content-scroll [class~="fixed"][class~="inset-0"] {
+  max-width: none;
+}
+
+.admin-content-scroll [class~="fixed"][class~="inset-0"] > [class*="max-w-"]:not(.admin-responsive-drawer) {
+  width: min(calc(100% - 24px), var(--admin-overlay-width, 1024px));
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.admin-pagination {
+  flex-wrap: wrap;
 }
 
 .admin-announcement-track {
@@ -449,6 +524,19 @@ a {
   .admin-content-scroll select {
     font-size: 16px;
   }
+
+  .admin-content-scroll :where(form, section, article) {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .admin-content-scroll :where([class*="justify-between"]) {
+    row-gap: 10px;
+  }
+
+  .admin-responsive-drawer {
+    width: min(100%, 32rem);
+  }
 }
 
 @media (max-width: 767px) {
@@ -546,6 +634,37 @@ a {
     padding-left: 10px;
     padding-right: 10px;
   }
+
+  .admin-responsive-dialog {
+    width: calc(100% - 16px);
+    max-height: calc(100dvh - 16px) !important;
+    border-radius: 14px;
+  }
+
+  .admin-dialog-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .admin-dialog-header > :first-child {
+    min-width: 0;
+    flex: 1 1 180px;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-content-scroll [role="dialog"] [class*="justify-between"] {
+    flex-wrap: wrap;
+  }
+
+  .admin-content-scroll :where(button, a[role="button"]) {
+    min-height: 40px;
+  }
+
+  .admin-pagination > span {
+    order: -1;
+    flex-basis: 100%;
+    text-align: center;
+  }
 }
 
 @media (max-width: 560px) {
@@ -627,8 +746,41 @@ a {
     max-width: 100%;
   }
 
+  .admin-action-panel :where(.flex) {
+    min-width: 0;
+  }
+
+  .admin-action-panel :where(.grid.grid-cols-3, .admin-detail-metrics) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-action-panel :where([class*="max-w-"][class*="truncate"]) {
+    max-width: 100%;
+  }
+
   .admin-action-panel table {
     min-width: 680px;
+  }
+
+  .admin-content-scroll :where(form, section, article) {
+    padding-left: min(12px, 3vw);
+    padding-right: min(12px, 3vw);
+  }
+
+  .admin-content-scroll :where(.flex.flex-wrap) > button,
+  .admin-content-scroll :where(.flex.flex-wrap) > a {
+    flex: 0 1 auto;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-responsive-drawer {
+    width: 100%;
+    max-width: 100%;
+    border-left: 0;
+  }
+
+  .admin-mobile-menu > .space-y-2 > section:last-child {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .admin-mobile-menu .grid-cols-2 {

@@ -5,6 +5,10 @@ import API, { FILE_BASE_URL } from "../services/api";
 import SEO from "../components/SEO";
 import { staticPages } from "../data/staticPages";
 import { fruitSeoPages } from "../data/fruitSeoPages";
+import {
+  getSearchContext,
+  rankSearchResults,
+} from "../../../../packages/shared-config/fruitSearch.mjs";
 
 const SITE_URL = "https://www.efruitmandi.live";
 
@@ -106,6 +110,7 @@ export default function SearchResults() {
     () => query.trim().replace(/\s+/g, " ").slice(0, 120),
     [query]
   );
+  const searchContext = useMemo(() => getSearchContext(cleanQuery), [cleanQuery]);
   const [profiles, setProfiles] = useState([]);
   const [lots, setLots] = useState([]);
   const [mandiRates, setMandiRates] = useState([]);
@@ -242,10 +247,53 @@ export default function SearchResults() {
       return words.every((word) => haystack.includes(word));
     });
 
-    return [...priorityItems, ...normalItems];
-  }, [cleanQuery, words]);
+    return rankSearchResults([...priorityItems, ...normalItems], searchContext)
+      .filter((item) => item.relevanceScore > 0);
+  }, [cleanQuery, searchContext, words]);
 
-  const totalResults = profiles.length + lots.length + mandiRates.length + contentResults.length;
+  const directMandiRate = useMemo(
+    () => mandiRates.find((rate) => rate.isDirectResult) || null,
+    [mandiRates]
+  );
+  const featuredResult = useMemo(() => {
+    if (!searchContext.fruit) return null;
+    if (searchContext.intent === "mandi_price") {
+      return directMandiRate || {
+        _id: `mandi-page-${searchContext.fruit.slug}`,
+        title: `${searchContext.fruit.name} Mandi Price Today`,
+        subtitle: "No live rate available",
+        price: "No live rate available",
+        date: null,
+        url: `/mandi-rates/${searchContext.fruit.slug}`,
+        resultType: "mandi_rate",
+      };
+    }
+    if (searchContext.intent === "general") {
+      return {
+        _id: `fruit-${searchContext.fruit.slug}`,
+        title: searchContext.fruit.name,
+        subtitle: `Explore ${searchContext.fruit.name} fruit lots, live mandi rates, growers and buyers.`,
+        url: `/fruit-lots/${searchContext.fruit.slug}`,
+        resultType: "fruit",
+      };
+    }
+    return null;
+  }, [directMandiRate, searchContext]);
+  const remainingMandiRates = useMemo(
+    () =>
+      mandiRates.filter(
+        (rate) =>
+          !(searchContext.intent === "mandi_price" && rate === directMandiRate)
+      ),
+    [directMandiRate, mandiRates, searchContext.intent]
+  );
+
+  const totalResults =
+    profiles.length +
+    lots.length +
+    mandiRates.length +
+    contentResults.length +
+    (featuredResult && !directMandiRate ? 1 : 0);
   const seoTitle = cleanQuery
     ? `${cleanQuery} Search Results | Fruit Lots, Growers & Buyers | eFruitMandi`
     : "Search eFruitMandi | Fruit Lots, Growers, Buyers & Mandi Rates";
@@ -322,7 +370,7 @@ export default function SearchResults() {
     ...(cleanQuery ? { keywords: cleanQuery } : {}),
     ...(itemListSchema ? { mainEntity: { "@id": itemListId } } : {}),
   };
-  const noIndex = !cleanQuery || (!loading && totalResults === 0);
+  const noIndex = true;
 
   return (
     <>
@@ -348,6 +396,44 @@ export default function SearchResults() {
       </div>
 
       {loading && <SearchResultsSkeleton />}
+
+      {!loading && featuredResult && (
+        <section className="mb-5" aria-labelledby="featured-search-result">
+          <h3 id="featured-search-result" className="mb-2 text-xs font-extrabold text-black">
+            {featuredResult.resultType === "mandi_rate"
+              ? `Mandi rates for ${searchContext.fruit.name}`
+              : `${searchContext.fruit.name} discovery`}
+          </h3>
+          <article className="rounded-md border border-green-200 bg-white p-3 shadow-sm">
+            <div className="mb-1 flex items-center gap-2 text-[10px] font-extrabold uppercase text-green-700">
+              {featuredResult.resultType === "mandi_rate" ? <FaChartLine /> : <FaSeedling />}
+              {featuredResult.resultType === "mandi_rate" ? "Live Mandi Rate" : "Fruit"}
+            </div>
+            <h3 className="text-sm font-extrabold text-black">{featuredResult.title}</h3>
+            <p className="mt-1 text-[11px] font-semibold text-gray-600">
+              {featuredResult.subtitle}
+            </p>
+            {featuredResult.resultType === "mandi_rate" && (
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-extrabold">
+                <span className="rounded bg-green-50 px-2 py-1 text-green-800">
+                  {featuredResult.price || "No live rate available"}
+                </span>
+                <span className="rounded bg-gray-100 px-2 py-1 text-gray-700">
+                  {formatDate(featuredResult.date)}
+                </span>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => navigate(featuredResult.url)}
+              className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-full bg-green-700 px-3 py-2 text-xs font-bold text-white sm:min-h-0 sm:w-auto sm:py-1 sm:text-[9px]"
+            >
+              <FaEye />
+              {featuredResult.resultType === "mandi_rate" ? "View Rates" : "Explore Fruit"}
+            </button>
+          </article>
+        </section>
+      )}
 
       {!loading && profiles.length > 0 && (
         <div className="mb-5">
@@ -451,18 +537,20 @@ export default function SearchResults() {
         </div>
       )}
 
-      {!loading && mandiRates.length > 0 && (
+      {!loading && remainingMandiRates.length > 0 && (
         <div className="mb-5">
           <h3 className="mb-2 text-xs font-extrabold text-black">Mandi Rates</h3>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {mandiRates.map((rate) => (
+            {remainingMandiRates.map((rate) => (
               <article
                 key={rate._id}
                 className="rounded-md border border-green-100 bg-white p-3 shadow-sm"
               >
                 <div className="mb-1 flex items-center gap-2 text-[10px] font-extrabold uppercase text-green-700">
                   <FaChartLine />
-                  {rate.category || "mandi-rate"}
+                  {rate.isDirectResult && rate.price === "No live rate available"
+                    ? "Mandi Rate"
+                    : "Live Mandi Rate"}
                 </div>
                 <h3 className="line-clamp-2 text-sm font-extrabold text-black">
                   {rate.title}
@@ -480,7 +568,7 @@ export default function SearchResults() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => navigate(`/mandi-rates/${slugify(rate.commodity || query)}`)}
+                  onClick={() => navigate(rate.url || `/mandi-rates/${slugify(rate.commodity || query)}`)}
                   className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-full bg-green-700 px-3 py-2 text-xs font-bold text-white sm:mt-2 sm:min-h-0 sm:w-auto sm:py-1 sm:text-[9px]"
                 >
                   <FaEye />

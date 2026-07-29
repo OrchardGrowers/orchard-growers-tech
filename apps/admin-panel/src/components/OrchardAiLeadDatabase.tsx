@@ -924,7 +924,7 @@ Orchard Growers`;
           </span>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="admin-table-scroll overflow-x-auto">
           <table className="min-w-[1900px] w-full text-left text-sm">
             <thead className="bg-slate-950 text-xs uppercase tracking-wide text-slate-400">
               <tr>
@@ -1214,7 +1214,7 @@ function LeadFormModal({
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/90 p-3 sm:p-4">
-      <div className="flex max-h-[94vh] w-full max-w-5xl flex-col rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
+      <div className="admin-responsive-dialog flex max-h-[94vh] w-full max-w-5xl flex-col rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
         <div className="flex items-start justify-between gap-3 border-b border-slate-800 p-4 sm:p-5">
           <div>
             <p className="text-xs font-black uppercase tracking-wide text-emerald-300">
@@ -1549,7 +1549,7 @@ function LeadDetailsDrawer({
         role="dialog"
         aria-modal="true"
         aria-labelledby="lead-details-title"
-        className="relative flex h-full w-full max-w-lg flex-col border-l border-slate-700 bg-slate-900 shadow-2xl"
+        className="admin-responsive-drawer relative flex h-full w-full max-w-lg flex-col border-l border-slate-700 bg-slate-900 shadow-2xl"
       >
         <div className="flex items-start justify-between gap-3 border-b border-slate-800 p-4 sm:p-5">
           <div className="min-w-0">
@@ -1577,7 +1577,7 @@ function LeadDetailsDrawer({
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="admin-detail-metrics grid grid-cols-3 gap-3">
             <div className="rounded-xl border border-slate-800 bg-slate-950 p-4">
               <p className="text-xs font-black uppercase tracking-wide text-slate-500">Score</p>
               <p className="mt-2 text-3xl font-black text-emerald-300">{lead.score}</p>

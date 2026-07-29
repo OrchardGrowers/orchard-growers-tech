@@ -352,14 +352,18 @@ const staticRoutes = [
     h1: "Mandi Rates",
     body: "Mandi Rates on eFruitMandi help visitors review fruit market price context, public rate information and marketplace sourcing signals.",
   },
-  ...["apple", "mango", "pear"].map((commodity) => {
-    const name = commodity.charAt(0).toUpperCase() + commodity.slice(1);
+  ...fruitLotCategories.map(({ slug: commodity, name }) => {
     return {
       path: `/mandi-rates/${commodity}`,
-      title: `${name} Mandi Rates Today | eFruitMandi`,
-      description: `View current ${name.toLowerCase()} mandi rate information and public fruit market price context on eFruitMandi.`,
+      title: `${name} Mandi Rates | eFruitMandi`,
+      description: `Check available ${name.toLowerCase()} mandi-rate information and related fruit marketplace pages on eFruitMandi.`,
       h1: `${name} Mandi Rates`,
-      body: `Review public ${name.toLowerCase()} mandi rate information and marketplace price context on eFruitMandi.`,
+      body: `No live ${name.toLowerCase()} mandi rate is currently available. Explore related fruit lots and marketplace pages while eFruitMandi waits for a verified market record.`,
+      mandiFruit: true,
+      fruitSlug: commodity,
+      fruitName: name,
+      noIndex: true,
+      robots: "noindex,follow",
     };
   }),
 ];
@@ -410,6 +414,9 @@ function synchronizeHomepageSchema(html) {
 
 function replaceHeadTags(html, meta) {
   const canonical = absoluteUrl(meta.path);
+  const robots =
+    meta.robots ||
+    (meta.noIndex ? "noindex,nofollow" : "index,follow");
   let nextHtml = html.replace(/<script\s+(?=[^>]*\bid=["']efruitmandi-home-schema["'])[^>]*>[\s\S]*?<\/script>\s*/gi, "");
   nextHtml = replaceUnique(nextHtml, /<title>[\s\S]*?<\/title>/gi, `<title>${escapeHtml(meta.title)}</title>`);
   nextHtml = replaceUnique(nextHtml, /<meta\s+(?=[^>]*\bname=["']description["'])[^>]*>\s*/gi, `<meta name="description" content="${escapeHtml(meta.description)}" />\n    `);
@@ -419,6 +426,8 @@ function replaceHeadTags(html, meta) {
   nextHtml = replaceUnique(nextHtml, /<meta\s+(?=[^>]*\bproperty=["']og:url["'])[^>]*>\s*/gi, `<meta property="og:url" content="${escapeHtml(canonical)}" />\n    `);
   nextHtml = replaceUnique(nextHtml, /<meta\s+(?=[^>]*\bname=["']twitter:title["'])[^>]*>\s*/gi, `<meta name="twitter:title" content="${escapeHtml(meta.title)}" />\n    `);
   nextHtml = replaceUnique(nextHtml, /<meta\s+(?=[^>]*\bname=["']twitter:description["'])[^>]*>\s*/gi, `<meta name="twitter:description" content="${escapeHtml(meta.description)}" />\n    `);
+  nextHtml = replaceUnique(nextHtml, /<meta\s+(?=[^>]*\bname=["']robots["'])[^>]*>\s*/gi, `<meta name="robots" content="${escapeHtml(robots)}" />\n    `);
+  nextHtml = replaceUnique(nextHtml, /<meta\s+(?=[^>]*\bname=["']googlebot["'])[^>]*>\s*/gi, `<meta name="googlebot" content="${escapeHtml(robots)}" />\n    `);
   return nextHtml;
 }
 
@@ -432,7 +441,6 @@ function appendToHead(html, markup) {
 
 function replaceProfileHeadTags(html, meta) {
   let nextHtml = replaceHeadTags(html, meta);
-  nextHtml = replaceUnique(nextHtml, /<meta\s+(?=[^>]*\bname=["']robots["'])[^>]*>\s*/gi, `<meta name="robots" content="${meta.noIndex ? "noindex,nofollow" : "index,follow"}" />\n    `);
   nextHtml = replaceUnique(nextHtml, /<meta\s+(?=[^>]*\bproperty=["']og:type["'])[^>]*>\s*/gi, '<meta property="og:type" content="website" />\n    ');
   nextHtml = replaceUnique(nextHtml, /<meta\s+(?=[^>]*\bname=["']twitter:card["'])[^>]*>\s*/gi, `<meta name="twitter:card" content="${meta.image ? "summary_large_image" : "summary"}" />\n    `);
 
@@ -824,6 +832,15 @@ async function fetchPublicFruitDiscovery() {
   return response.json();
 }
 
+async function fetchAvailableMandiSlugs() {
+  const response = await fetch(`${API_BASE_URL}/mandi-rates/available-fruits`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const payload = await response.json();
+  return Array.isArray(payload?.slugs) ? payload.slugs : [];
+}
+
 function getFruitPrerenderMetas(discovery) {
   const metas = [];
   const makeMeta = (path, h1, description, links) => ({
@@ -932,7 +949,37 @@ if (!fs.existsSync(indexPath)) {
 
 const baseHtml = synchronizeHomepageSchema(fs.readFileSync(indexPath, "utf8"));
 fs.writeFileSync(indexPath, baseHtml, "utf8");
-routes.forEach((route) => prerenderRoute(baseHtml, route));
-prerenderPublicProfiles(baseHtml).catch((error) => {
-  console.warn(`prerender-seo: public profile generation skipped (${error.message || "unexpected error"})`);
+
+async function prerenderAll() {
+  let availableMandiSlugs = [];
+  try {
+    availableMandiSlugs = await fetchAvailableMandiSlugs();
+  } catch (error) {
+    console.warn(
+      `prerender-seo: mandi availability unavailable; fruit mandi pages remain noindex (${error.message || "public API unavailable"})`
+    );
+  }
+  const availableSet = new Set(availableMandiSlugs);
+
+  routes.forEach((route) => {
+    if (!route.mandiFruit || !availableSet.has(route.fruitSlug)) {
+      prerenderRoute(baseHtml, route);
+      return;
+    }
+
+    prerenderRoute(baseHtml, {
+      ...route,
+      title: `${route.fruitName} Mandi Rates Today | eFruitMandi`,
+      description: `Check latest ${route.fruitName.toLowerCase()} mandi rates from AGMARKNET markets across India with min, modal and max price per kg.`,
+      body: `Review the latest available ${route.fruitName.toLowerCase()} mandi records, markets and update dates on eFruitMandi.`,
+      noIndex: false,
+      robots: "index,follow",
+    });
+  });
+
+  await prerenderPublicProfiles(baseHtml);
+}
+
+prerenderAll().catch((error) => {
+  console.warn(`prerender-seo: generation completed with errors (${error.message || "unexpected error"})`);
 });
