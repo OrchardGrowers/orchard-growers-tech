@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
-import pdfParse from "pdf-parse";
+import pdfParse from "pdf-parse/lib/pdf-parse.js";
 import CareerApplication from "../models/CareerApplication.js";
 import {
   createBodyPreview,
