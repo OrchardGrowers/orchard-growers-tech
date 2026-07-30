@@ -21,13 +21,19 @@ const parseDate = (value, endOfDay = false) => {
 };
 const isTrue = (value) => String(value || "").toLowerCase() === "true";
 
-const buildCareerFilter = (query = {}) => {
+export const buildCareerFilter = (query = {}) => {
   const filter = {};
   const clauses = [];
   const status = String(query.status || "").trim().toUpperCase();
+  const rating = String(query.rating || "").trim().toUpperCase();
   const fieldOfWork = String(query.fieldOfWork || "").trim().toUpperCase();
   const experienceRange = String(query.experienceRange || "").trim().toUpperCase();
   if (status && CAREER_APPLICATION_STATUSES.includes(status)) filter.status = status;
+  if (/^[1-5]$/.test(rating)) {
+    filter.rating = Number(rating);
+  } else if (rating === "UNRATED") {
+    filter.rating = null;
+  }
   if (fieldOfWork && CAREER_FIELDS_OF_WORK.includes(fieldOfWork)) filter.fieldOfWork = fieldOfWork;
   if (experienceRange && CAREER_EXPERIENCE_RANGES.includes(experienceRange)) {
     filter.experienceRange = experienceRange;
@@ -48,32 +54,20 @@ const buildCareerFilter = (query = {}) => {
 
   const search = String(query.search || query.q || "").trim().slice(0, 200);
   if (search) {
-    const expression = new RegExp(escapeRegex(search), "i");
-    clauses.push({
-      $or: [
-        { candidateName: expression },
-        { applicantName: expression },
-        { senderName: expression },
-        { email: expression },
-        { senderEmail: expression },
-        { replyToEmail: expression },
-        { contactNumber: expression },
-        { alternateContactNumber: expression },
-        { extractedPhoneNumbers: expression },
-        { extractedEmails: expression },
-        { address: expression },
-        { city: expression },
-        { district: expression },
-        { state: expression },
-        { qualification: expression },
-        { workExperienceText: expression },
-        { currentCompany: expression },
-        { currentDesignation: expression },
-        { skills: expression },
-        { fieldOfWork: expression },
-        { subject: expression },
-        { emailSubject: expression },
-      ],
+    const searchableFields = [
+      "candidateName", "applicantName", "senderName", "replyToName",
+      "email", "senderEmail", "replyToEmail",
+      "contactNumber", "alternateContactNumber", "extractedPhoneNumbers", "extractedEmails",
+      "address", "city", "district", "state", "qualification", "workExperienceText",
+      "currentCompany", "currentDesignation", "skills", "fieldOfWork",
+      "subject", "emailSubject", "bodyPreview",
+    ];
+    const searchTerms = search.split(/\s+/).filter(Boolean).slice(0, 10);
+    searchTerms.forEach((term) => {
+      const expression = new RegExp(escapeRegex(term), "i");
+      clauses.push({
+        $or: searchableFields.map((field) => ({ [field]: expression })),
+      });
     });
   }
 

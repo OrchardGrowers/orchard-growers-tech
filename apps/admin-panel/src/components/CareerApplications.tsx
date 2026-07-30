@@ -77,6 +77,7 @@ type CareerApplication = {
 type Filters = {
   search: string;
   status: string;
+  rating: string;
   fieldOfWork: string;
   experienceRange: string;
   state: string;
@@ -105,7 +106,7 @@ type ExportResult = { text: string; csv: string; exportedCount: number; duplicat
 type Props = { apiBase: string; authHeaders: Record<string, string> };
 
 const emptyFilters: Filters = {
-  search: '', status: '', fieldOfWork: '', experienceRange: '', state: '', qualification: '',
+  search: '', status: '', rating: '', fieldOfWork: '', experienceRange: '', state: '', qualification: '',
   hasEmail: false, hasContact: false, hasAddress: false, hasExperience: false, hasResume: false,
   dateFrom: '', dateTo: '',
 };
@@ -516,8 +517,9 @@ export default function CareerApplications({ apiBase, authHeaders }: Props) {
       <form onSubmit={applyFilters} className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
         <h3 className="font-black text-white">Candidate Filters</h3>
         <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <label className="text-xs font-bold text-slate-400">Search<input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Name, email, mobile, location, skills..." className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" /></label>
+          <label className="text-xs font-bold text-slate-400">Search by Candidate Name or Details<input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Candidate name, email, mobile, location, skills..." className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" /></label>
           <FilterSelect label="Status" value={filters.status} onChange={(value) => setFilters((current) => ({ ...current, status: value }))} options={STATUSES.map((value) => ({ value, label: readable(value) }))} />
+          <FilterSelect label="Rating" value={filters.rating} onChange={(value) => setFilters((current) => ({ ...current, rating: value }))} options={[{ value: '5', label: '5 Stars' }, { value: '4', label: '4 Stars' }, { value: '3', label: '3 Stars' }, { value: '2', label: '2 Stars' }, { value: '1', label: '1 Star' }, { value: 'UNRATED', label: 'Not Rated' }]} />
           <FilterSelect label="Field of Work" value={filters.fieldOfWork} onChange={(value) => setFilters((current) => ({ ...current, fieldOfWork: value }))} options={FIELDS_OF_WORK.map((value) => ({ value, label: readable(value) }))} />
           <FilterSelect label="Experience Range" value={filters.experienceRange} onChange={(value) => setFilters((current) => ({ ...current, experienceRange: value }))} options={EXPERIENCE_RANGES.map((value) => ({ value, label: readable(value) }))} />
           <FilterSelect label="State" value={filters.state} onChange={(value) => setFilters((current) => ({ ...current, state: value }))} options={availableStates.map((item) => ({ value: item.value, label: `${item.value} (${item.count})` }))} />
