@@ -132,13 +132,11 @@ const csvCell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}
 const separatorCharacter = (separator: Separator) => ({
   COMMA: ', ', SEMICOLON: '; ', NEW_LINE: '\n', TAB: '\t', PIPE: ' | ', CSV: '\n',
 }[separator]);
-
-const appendFilters = (query: URLSearchParams, filters: Filters) => {
-  Object.entries(filters).forEach(([key, value]) => {
-    if (typeof value === 'boolean') {
-      if (value) query.set(key, 'true');
-    } else if (value) query.set(key, value);
-  });
+const searchEntryCount = (value: string) => {
+  const input = value.trim();
+  if (!input) return 0;
+  const entries = /[\n\r,;\t]/.test(input) ? input.split(/[\n\r,;\t]+/) : [input];
+  return new Set(entries.map((entry) => entry.trim()).filter(Boolean)).size;
 };
 
 const uniqueCandidates = (records: CareerApplication[]) => {
@@ -254,9 +252,11 @@ export default function CareerApplications({ apiBase, authHeaders }: Props) {
   const loadApplications = useCallback(async () => {
     setLoading(true);
     try {
-      const query = new URLSearchParams({ page: String(page), limit: '20' });
-      appendFilters(query, appliedFilters);
-      const response = await fetch(`${apiBase}/admin/career-applications?${query}`, { headers: authHeaders });
+      const response = await fetch(`${apiBase}/admin/career-applications/search`, {
+        method: 'POST',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...appliedFilters, page, limit: 100 }),
+      });
       const body = await readJson(response);
       if (!response.ok) throw new Error(body.msg || 'Career applications could not be loaded.');
       setApplications(Array.isArray(body.applications) ? body.applications : []);
@@ -438,11 +438,15 @@ export default function CareerApplications({ apiBase, authHeaders }: Props) {
   const fetchExport = async (forcedSeparator?: Separator) => {
     setExporting(true);
     try {
-      const query = new URLSearchParams({ scope: exportScope, format: exportFormat });
-      if (exportScope === 'filters') appendFilters(query, appliedFilters);
-      if (exportScope === 'selected') query.set('ids', [...selectedIds].join(','));
-      if (exportScope === 'page') query.set('ids', applications.map((item) => item._id).join(','));
-      const response = await fetch(`${apiBase}/admin/career-applications/export?${query}`, { headers: authHeaders });
+      const payload: Record<string, unknown> = { scope: exportScope, format: exportFormat };
+      if (exportScope === 'filters') Object.assign(payload, appliedFilters);
+      if (exportScope === 'selected') payload.ids = [...selectedIds].join(',');
+      if (exportScope === 'page') payload.ids = applications.map((item) => item._id).join(',');
+      const response = await fetch(`${apiBase}/admin/career-applications/export`, {
+        method: 'POST',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
       const body = await readJson(response);
       if (!response.ok) throw new Error(body.msg || 'Candidate export could not be generated.');
       const records = Array.isArray(body.records) ? body.records as CareerApplication[] : [];
@@ -517,7 +521,10 @@ export default function CareerApplications({ apiBase, authHeaders }: Props) {
       <form onSubmit={applyFilters} className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
         <h3 className="font-black text-white">Candidate Filters</h3>
         <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <label className="text-xs font-bold text-slate-400">Search by Candidate Name or Details<input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Candidate name, email, mobile, location, skills..." className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" /></label>
+          <label className="text-xs font-bold text-slate-400 md:col-span-2 xl:col-span-3">Search Candidates (single or bulk)
+            <textarea value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} rows={4} maxLength={50000} placeholder={'Paste names, emails, or mobile numbers — one per line\nRavi Kumar\nuser@example.com\n9876543210'} className="mt-1 w-full resize-y rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-emerald-500" />
+            <span className="mt-1 block font-medium text-slate-500">Use a new line, comma, semicolon, or tab between entries. Up to 500 entries. {searchEntryCount(filters.search)} entered.</span>
+          </label>
           <FilterSelect label="Status" value={filters.status} onChange={(value) => setFilters((current) => ({ ...current, status: value }))} options={STATUSES.map((value) => ({ value, label: readable(value) }))} />
           <FilterSelect label="Rating" value={filters.rating} onChange={(value) => setFilters((current) => ({ ...current, rating: value }))} options={[{ value: '5', label: '5 Stars' }, { value: '4', label: '4 Stars' }, { value: '3', label: '3 Stars' }, { value: '2', label: '2 Stars' }, { value: '1', label: '1 Star' }, { value: 'UNRATED', label: 'Not Rated' }]} />
           <FilterSelect label="Field of Work" value={filters.fieldOfWork} onChange={(value) => setFilters((current) => ({ ...current, fieldOfWork: value }))} options={FIELDS_OF_WORK.map((value) => ({ value, label: readable(value) }))} />

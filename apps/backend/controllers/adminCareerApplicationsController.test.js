@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCareerFilter } from "./adminCareerApplicationsController.js";
+import { buildCareerFilter, parseCareerSearchEntries } from "./adminCareerApplicationsController.js";
 
 describe("career application rating filters", () => {
   it("filters by an exact candidate rating", () => {
@@ -30,5 +30,29 @@ describe("career application candidate search", () => {
 
     expect(fields).toContain("replyToName");
     expect(fields).toContain("bodyPreview");
+  });
+
+  it("matches any candidate from a pasted list while keeping full names together", () => {
+    const filter = buildCareerFilter({ search: "Ravi Kumar\nPriya Sharma" });
+    const bulkSearch = filter.$and[0].$or;
+
+    expect(bulkSearch).toHaveLength(2);
+    expect(bulkSearch[0].$and).toHaveLength(2);
+    expect(bulkSearch[1].$and[0].$or.some(({ candidateName }) => candidateName?.test("Priya"))).toBe(true);
+  });
+
+  it("accepts comma and semicolon separated email and phone lists", () => {
+    expect(parseCareerSearchEntries("one@example.com, two@example.com; 98765 43210")).toEqual([
+      "one@example.com", "two@example.com", "98765 43210",
+    ]);
+    const filter = buildCareerFilter({ search: "+91 98765-43210\nuser@example.com" });
+    const [phoneClause, emailClause] = filter.$and[0].$or;
+
+    expect(phoneClause.$or.some(({ normalizedContactNumber }) => normalizedContactNumber?.test("9876543210"))).toBe(true);
+    expect(emailClause.$or.some(({ email }) => email?.test("USER@example.com"))).toBe(true);
+  });
+
+  it("removes duplicate bulk entries without changing their order", () => {
+    expect(parseCareerSearchEntries("Ravi\nPriya\nRavi")).toEqual(["Ravi", "Priya"]);
   });
 });

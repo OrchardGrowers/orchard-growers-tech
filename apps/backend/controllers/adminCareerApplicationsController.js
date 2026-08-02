@@ -10,6 +10,7 @@ import {
 } from "../services/careerMailboxSyncService.js";
 
 const EXPORT_MAX_RECORDS = 10000;
+const MAX_SEARCH_ENTRIES = 500;
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const nonEmpty = (field) => ({ [field]: { $exists: true, $nin: ["", null] } });
 const parseDate = (value, endOfDay = false) => {
@@ -20,6 +21,14 @@ const parseDate = (value, endOfDay = false) => {
   return date;
 };
 const isTrue = (value) => String(value || "").toLowerCase() === "true";
+
+export const parseCareerSearchEntries = (value) => {
+  const input = String(value || "").trim().slice(0, 50000);
+  if (!input) return [];
+  const hasListSeparator = /[\n\r,;\t]/.test(input);
+  const entries = hasListSeparator ? input.split(/[\n\r,;\t]+/) : [input];
+  return [...new Set(entries.map((entry) => entry.trim()).filter(Boolean))].slice(0, MAX_SEARCH_ENTRIES);
+};
 
 export const buildCareerFilter = (query = {}) => {
   const filter = {};
@@ -52,8 +61,8 @@ export const buildCareerFilter = (query = {}) => {
     if (to) filter.receivedAt.$lte = to;
   }
 
-  const search = String(query.search || query.q || "").trim().slice(0, 200);
-  if (search) {
+  const searchEntries = parseCareerSearchEntries(query.search || query.q);
+  if (searchEntries.length) {
     const searchableFields = [
       "candidateName", "applicantName", "senderName", "replyToName",
       "email", "senderEmail", "replyToEmail",
@@ -62,13 +71,32 @@ export const buildCareerFilter = (query = {}) => {
       "currentCompany", "currentDesignation", "skills", "fieldOfWork",
       "subject", "emailSubject", "bodyPreview",
     ];
-    const searchTerms = search.split(/\s+/).filter(Boolean).slice(0, 10);
-    searchTerms.forEach((term) => {
-      const expression = new RegExp(escapeRegex(term), "i");
-      clauses.push({
-        $or: searchableFields.map((field) => ({ [field]: expression })),
+    const emailFields = ["email", "senderEmail", "replyToEmail", "extractedEmails"];
+    const phoneFields = [
+      "contactNumber", "normalizedContactNumber", "alternateContactNumber",
+      "normalizedAlternateContactNumber", "extractedPhoneNumbers",
+    ];
+    const buildTermClause = (term) => {
+      const digits = term.replace(/\D/g, "");
+      if (digits.length >= 7 && /^[\d\s()+.-]+$/.test(term)) {
+        const localDigits = digits.length === 12 && digits.startsWith("91") ? digits.slice(2) : digits;
+        const flexiblePhone = new RegExp(localDigits.split("").map(escapeRegex).join("\\D*"));
+        return { $or: phoneFields.map((field) => ({ [field]: flexiblePhone })) };
+      }
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(term)) {
+        const email = new RegExp(escapeRegex(term), "i");
+        return { $or: emailFields.map((field) => ({ [field]: email })) };
+      }
+      const words = term.split(/\s+/).filter(Boolean).slice(0, 10);
+      const wordClauses = words.map((word) => {
+        const expression = new RegExp(escapeRegex(word), "i");
+        return { $or: searchableFields.map((field) => ({ [field]: expression })) };
       });
-    });
+      return wordClauses.length === 1 ? wordClauses[0] : { $and: wordClauses };
+    };
+    const entryClauses = searchEntries.map(buildTermClause);
+    if (entryClauses.length === 1 && entryClauses[0].$and) clauses.push(...entryClauses[0].$and);
+    else clauses.push(entryClauses.length === 1 ? entryClauses[0] : { $or: entryClauses });
   }
 
   if (isTrue(query.hasEmail)) {
@@ -143,13 +171,14 @@ export const syncCareerApplications = async (req, res) => {
 };
 
 export const listCareerApplications = async (req, res) => {
-  const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
-  const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 20, 1), 100);
-  const filter = buildCareerFilter(req.query);
+  const query = req.method === "POST" ? { ...(req.body?.filters || {}), ...req.body } : req.query;
+  const page = Math.max(Number.parseInt(query.page, 10) || 1, 1);
+  const limit = Math.min(Math.max(Number.parseInt(query.limit, 10) || 20, 1), 100);
+  const filter = buildCareerFilter(query);
   const allowedSorts = new Set(["receivedAt", "emailDate", "createdAt", "candidateName", "applicantName", "status"]);
-  const requestedSort = req.query.sort || req.query.sortBy;
+  const requestedSort = query.sort || query.sortBy;
   const sortBy = allowedSorts.has(requestedSort) ? requestedSort : "receivedAt";
-  const sortOrder = String(req.query.order || req.query.sortOrder || "desc").toLowerCase() === "asc" ? 1 : -1;
+  const sortOrder = String(query.order || query.sortOrder || "desc").toLowerCase() === "asc" ? 1 : -1;
   const [applications, total] = await Promise.all([
     CareerApplication.find(filter)
       .select("-textBody")
@@ -167,10 +196,11 @@ export const listCareerApplications = async (req, res) => {
 };
 
 export const exportCareerApplications = async (req, res) => {
-  const scope = String(req.query.scope || "filters").trim().toLowerCase();
-  let filter = scope === "all" ? {} : buildCareerFilter(req.query);
+  const query = req.method === "POST" ? { ...(req.body?.filters || {}), ...req.body } : req.query;
+  const scope = String(query.scope || "filters").trim().toLowerCase();
+  let filter = scope === "all" ? {} : buildCareerFilter(query);
   if (scope === "selected" || scope === "page") {
-    const ids = String(req.query.ids || "").split(",").map((id) => id.trim()).filter(Boolean);
+    const ids = String(query.ids || "").split(",").map((id) => id.trim()).filter(Boolean);
     if (!ids.length || ids.length > EXPORT_MAX_RECORDS || ids.some((id) => !mongoose.isValidObjectId(id))) {
       return res.status(400).json({ msg: "A valid bounded candidate ID selection is required." });
     }

@@ -15,6 +15,8 @@ const careerAdminOnly = authorize("SUPER_ADMIN", "ADMIN");
 const wrapAsync = (handler) => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 
 router.post("/sync", careerAdminOnly, wrapAsync(syncCareerApplications));
+router.post("/search", careerAdminOnly, wrapAsync(listCareerApplications));
+router.post("/export", careerAdminOnly, wrapAsync(exportCareerApplications));
 router.get("/export", careerAdminOnly, wrapAsync(exportCareerApplications));
 router.get("/filter-options", careerAdminOnly, wrapAsync(getCareerApplicationFilterOptions));
 router.get("/", careerAdminOnly, wrapAsync(listCareerApplications));
