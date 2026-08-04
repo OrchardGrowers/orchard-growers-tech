@@ -5,6 +5,7 @@ import BusinessMail, { canUseBusinessMail } from './components/BusinessMail';
 import CareerApplications from './components/CareerApplications';
 import OrchardAiLeadDatabase from './components/OrchardAiLeadDatabase';
 import OrchardAiPlaceholder from './components/OrchardAiPlaceholder';
+import OGAgent from './components/OGAgent';
 
 const rawApiBase =
   import.meta.env.VITE_API_BASE_URL ||
@@ -323,6 +324,7 @@ type AdminTab =
   | 'orchardAiLeadDatabase'
   | 'orchardAiCampaignCenter'
   | 'orchardAiReplyCenter'
+  | 'orchardAiOgAgent'
   | 'efruitDashboard'
   | 'users'
   | 'kyc'
@@ -974,6 +976,7 @@ const adminRoutePaths: Record<AdminTab, string> = {
   orchardAiLeadDatabase: '/orchard-ai/lead-database',
   orchardAiCampaignCenter: '/orchard-ai/campaign-center',
   orchardAiReplyCenter: '/orchard-ai/reply-center',
+  orchardAiOgAgent: '/orchard-ai/og-agent',
   efruitDashboard: '/efruitmandi/dashboard',
   users: '/efruitmandi/users',
   kyc: '/efruitmandi/kyc-verification',
@@ -1020,6 +1023,7 @@ const adminTabPlatforms: Record<AdminTab, AdminPlatform> = {
   orchardAiLeadDatabase: 'orchardAi',
   orchardAiCampaignCenter: 'orchardAi',
   orchardAiReplyCenter: 'orchardAi',
+  orchardAiOgAgent: 'orchardAi',
   efruitDashboard: 'efruitmandi',
   users: 'efruitmandi',
   kyc: 'efruitmandi',
@@ -1063,6 +1067,7 @@ const platformTabs: Record<AdminPlatform, AdminTabButton[]> = {
     { id: 'orchardAiLeadDatabase', label: 'Lead Database' },
     { id: 'orchardAiCampaignCenter', label: 'Campaign Center' },
     { id: 'orchardAiReplyCenter', label: 'Reply Center' },
+    { id: 'orchardAiOgAgent', label: 'OG Agent' },
   ],
   efruitmandi: [
     { id: 'efruitDashboard', label: 'Dashboard' },
@@ -1139,14 +1144,14 @@ const classIIIAdminEmails = new Set([
 const adminRolePermissions: Record<AdminRole, AdminTab[]> = {
   SUPER_ADMIN: allAdminTabs,
   ADMIN: allAdminTabs.filter((tab) => tab !== 'systemSettings'),
-  EMPLOYEE: allAdminTabs.filter((tab) => tab !== 'systemSettings' && tab !== 'businessMail' && tab !== 'careerApplications'),
+  EMPLOYEE: allAdminTabs.filter((tab) => tab !== 'systemSettings' && tab !== 'businessMail' && tab !== 'careerApplications' && tab !== 'orchardAiOgAgent'),
   UNIT_MANAGER: ['dashboard', 'master', 'inventory', 'productAdmin', 'billing', 'sales', 'logistics', 'unitsOutlets', 'expenses', 'reports', 'orchardSettings', 'notifications', 'downloadApp'],
   INVENTORY_MANAGER: ['dashboard', 'master', 'inventory', 'productAdmin', 'purchase', 'reports', 'notifications', 'downloadApp'],
-  SALES_EXECUTIVE: ['dashboard', 'billing', 'sales', 'logistics', 'customers', 'reports', 'notifications', 'businessMail', 'downloadApp'],
+  SALES_EXECUTIVE: ['dashboard', 'billing', 'sales', 'logistics', 'customers', 'reports', 'notifications', 'businessMail', 'orchardAiOgAgent', 'downloadApp'],
   PURCHASE_MANAGER: ['dashboard', 'master', 'inventory', 'purchase', 'reports', 'notifications', 'downloadApp'],
   FINANCE_MANAGER: ['dashboard', 'billing', 'expenses', 'financials', 'transactions', 'efruitInvoices', 'reports', 'analytics', 'notifications', 'downloadApp'],
   VERIFICATION_OFFICER: ['dashboard', 'efruitDashboard', 'users', 'kyc', 'ogVerified', 'produceLots', 'efruitInvoices', 'sellers', 'buyers', 'suspendedUsers', 'notifications', 'downloadApp'],
-  SUPPORT_EXECUTIVE: ['dashboard', 'users', 'customers', 'sellers', 'buyers', 'supportDisputes', 'efruitInvoices', 'suspendedUsers', 'notifications', 'businessMail', 'downloadApp'],
+  SUPPORT_EXECUTIVE: ['dashboard', 'users', 'customers', 'sellers', 'buyers', 'supportDisputes', 'efruitInvoices', 'suspendedUsers', 'notifications', 'businessMail', 'orchardAiOgAgent', 'downloadApp'],
   VIEWER: ['dashboard', 'reports', 'efruitDashboard', 'efruitInvoices', 'analytics', 'notifications', 'downloadApp'],
 };
 const adminRolePermissionSets = Object.fromEntries(
@@ -3031,6 +3036,15 @@ function App() {
         />
       );
     }
+    if (tab === 'orchardAiOgAgent') {
+      return (
+        <OGAgent
+          apiBase={API_BASE}
+          authHeaders={authHeaders}
+          adminRole={adminRole}
+        />
+      );
+    }
     return <Navigate to={adminRoutePaths.dashboard} replace />;
   };
 
@@ -3388,6 +3402,7 @@ function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: (
         { label: 'Lead Database', icon: 'users', tab: 'orchardAiLeadDatabase' },
         { label: 'Campaign Center', icon: 'chart', tab: 'orchardAiCampaignCenter' },
         { label: 'Reply Center', icon: 'quotes', tab: 'orchardAiReplyCenter' },
+        { label: 'OG Agent', icon: 'support', tab: 'orchardAiOgAgent' },
       ],
     },
     {
@@ -4096,6 +4111,7 @@ function getAdminTabTitle(activeTab: AdminTab, activePlatform: AdminPlatform) {
   if (activeTab === 'orchardAiLeadDatabase') return 'Orchard Growers AI Lead Database';
   if (activeTab === 'orchardAiCampaignCenter') return 'Orchard Growers AI Campaign Center';
   if (activeTab === 'orchardAiReplyCenter') return 'Orchard Growers AI Reply Center';
+  if (activeTab === 'orchardAiOgAgent') return 'Orchard Growers AI OG Agent';
   if (activeTab === 'efruitDashboard') return 'eFruitMandi Dashboard';
   if (activeTab === 'users') return 'eFruitMandi Users';
   if (activeTab === 'notifications') return 'Admin Notifications';

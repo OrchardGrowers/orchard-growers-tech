@@ -1,0 +1,5 @@
+import mongoose from "mongoose";
+import { humanImpactSchema } from "./ogAgentImprovementSchemas.js";
+const schema = new mongoose.Schema({ sourceId: { type: mongoose.Schema.Types.ObjectId, ref: "OGResearchSource", required: true, index: true }, reviewType: { type: String, enum: ["LEGAL", "TERMS", "PRIVACY", "TECHNICAL", "DATA_QUALITY", "SECURITY", "BUSINESS_VALUE"], required: true }, decision: { type: String, enum: ["ALLOWED", "ALLOWED_WITH_RESTRICTIONS", "PROHIBITED", "NEEDS_MORE_INFORMATION"], required: true }, restrictions: [String], risks: [String], benefits: [String], humanImpact: { type: humanImpactSchema, default: () => ({}) }, reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Admin", required: true }, reviewedAt: { type: Date, default: Date.now }, expiresAt: Date, evidence: { type: [mongoose.Schema.Types.Mixed], default: [] } }, { timestamps: true, collection: "og_research_source_reviews" });
+schema.index({ sourceId: 1, reviewType: 1, reviewedAt: -1 });
+export default mongoose.model("OGResearchSourceReview", schema);

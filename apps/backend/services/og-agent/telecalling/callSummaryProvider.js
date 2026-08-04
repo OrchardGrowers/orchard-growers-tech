@@ -1,0 +1,1 @@
+export const summarizeCallNotes = ({ outcome, notes, interestLevel = "UNKNOWN", nextAction = "NONE" }) => `${String(outcome || "OTHER").replace(/_/g, " ")}. Interest: ${interestLevel}. Next action: ${String(nextAction).replace(/_/g, " ")}. ${String(notes || "").trim()}`.slice(0, 1500);

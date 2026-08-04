@@ -1,0 +1,1 @@
+export const RESEARCH_PROVIDER_CAPABILITIES = Object.freeze({ unrestrictedCrawling: false, browserAutomation: false, captchaBypass: false, loginAutomation: false, proxyEvasion: false, privateProfileScraping: false, automaticOutreach: false, automaticImport: false, approvedWebsiteFetch: true, approvedApiFetch: true });

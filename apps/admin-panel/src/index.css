@@ -2,6 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  .input {
+    @apply w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-cyan-500 disabled:opacity-50;
+  }
+  .action {
+    @apply rounded-lg bg-cyan-700 px-3 py-2 text-xs font-black text-white hover:bg-cyan-600 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .action-secondary {
+    @apply rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-black text-slate-100 hover:border-cyan-600 disabled:opacity-50;
+  }
+  .action-danger {
+    @apply rounded-lg border border-rose-700 bg-rose-950 px-3 py-2 text-xs font-black text-rose-100 hover:bg-rose-900 disabled:opacity-50;
+  }
+}
+
 :root {
   color-scheme: dark;
 }
