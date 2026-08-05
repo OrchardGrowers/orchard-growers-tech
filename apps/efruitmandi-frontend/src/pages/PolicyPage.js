@@ -1,8 +1,17 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import SEO from "../components/SEO";
 import { business, staticPages } from "../data/staticPages";
+import { hindiStaticPages, policyPageHindiUi } from "../data/staticPageTranslations";
 
 const homeLabel = "Back to eFruitMandi";
+const policyPageEnglishUi = {
+  language: "en", marketActors: "Growers • Buyers • Logistics", visualSummary: "Transparent deals and trusted connections.", publishedBy: "Published by", viewLots: "View Fruit Lots", joinGrower: "Join as Grower", joinBuyer: "Join as Buyer",
+  trustItems: ["KYC Verified", "Direct Deals", "Transparent Records", "Pan India Reach"], trustDescription: "Built for safer fresh fruit marketplace operations.", articleOverview: "Article Overview",
+  articleText: "eFruitMandi is built as a practical marketplace layer for India’s fresh fruit ecosystem. It supports growers, buyers, and logistics partners with structured listings, documented offers, KYC, delivery references, and support workflows.",
+  company: "Company", platform: "Platform", focus: "Focus", focusValue: "Fresh Fruit Marketplace", related: "Related reading", story: "Our Story →", vision: "Vision & Mission →", why: "Why eFruitMandi →",
+  help: "Need help?", helpText: `Contact ${business.platform} support for account, KYC, listing, offer, payment, delivery, or dispute questions.`, emailSupport: "Email support", callSupport: "Call support", home: homeLabel,
+};
 
 const pageVisuals = {
   about: {
@@ -43,7 +52,12 @@ const pageVisuals = {
 };
 
 export default function PolicyPage({ type }) {
-  const content = staticPages[type] || staticPages.privacy;
+  const [language, setLanguage] = useState("hi");
+  useEffect(() => setLanguage("hi"), [type]);
+  const supportsLanguageToggle = type === "about" || type === "terms";
+  const englishContent = staticPages[type] || staticPages.privacy;
+  const content = supportsLanguageToggle && language === "hi" ? hindiStaticPages[type] : englishContent;
+  const ui = supportsLanguageToggle && language === "hi" ? policyPageHindiUi : policyPageEnglishUi;
   const visual = pageVisuals[type] || pageVisuals.default;
   const isAboutArticle = type === "about";
 
@@ -68,16 +82,24 @@ export default function PolicyPage({ type }) {
   return (
     <>
       <SEO
-        title={`${content.title} | eFruitMandi`}
-        description={content.description}
-        canonical={content.route}
+        title={`${englishContent.title} | eFruitMandi`}
+        description={englishContent.description}
+        canonical={englishContent.route}
         schema={faqSchema}
       />
 
       <main
         className={`min-h-screen bg-gradient-to-br ${visual.bg} px-2 pb-24 pt-4 sm:px-4 md:pt-6`}
       >
-        <div className="mx-auto w-full max-w-6xl">
+        <div className="mx-auto w-full max-w-6xl" lang={ui.language}>
+          {supportsLanguageToggle && (
+            <div className="mb-3 flex justify-end" role="group" aria-label="पृष्ठ की भाषा / Page language">
+              <div className="inline-flex rounded-full border border-green-200 bg-white p-1 shadow-sm">
+                <button type="button" onClick={() => setLanguage("hi")} aria-pressed={language === "hi"} className={`rounded-full px-5 py-2 text-sm font-black transition ${language === "hi" ? "bg-green-800 text-white" : "text-green-800 hover:bg-green-50"}`}>हिन्दी</button>
+                <button type="button" onClick={() => setLanguage("en")} aria-pressed={language === "en"} className={`rounded-full px-5 py-2 text-sm font-black transition ${language === "en" ? "bg-green-800 text-white" : "text-green-800 hover:bg-green-50"}`}>English</button>
+              </div>
+            </div>
+          )}
           <section className="overflow-hidden rounded-3xl border border-green-100 bg-white shadow-xl shadow-green-900/10">
             <div
               className={`relative overflow-hidden bg-gradient-to-br ${visual.hero} px-5 py-10 text-white sm:px-8 lg:px-12`}
@@ -91,7 +113,7 @@ export default function PolicyPage({ type }) {
                   </p>
 
                   <div className="mt-3 inline-flex rounded-full bg-white/15 px-4 py-2 text-sm font-bold text-green-50 ring-1 ring-white/25">
-                    {visual.theme}
+                    {language === "hi" && supportsLanguageToggle ? (type === "about" ? ui.theme.about : ui.theme.default) : visual.theme}
                   </div>
 
                   <h1 className="mt-5 text-3xl font-black leading-tight sm:text-5xl">
@@ -104,7 +126,7 @@ export default function PolicyPage({ type }) {
 
                   {isAboutArticle && (
                     <p className="mt-4 text-xs font-bold uppercase tracking-[0.18em] text-lime-100">
-                      Published by {business.company}
+                      {ui.publishedBy} {business.company}
                     </p>
                   )}
 
@@ -113,19 +135,19 @@ export default function PolicyPage({ type }) {
                       to="/auctions"
                       className="rounded-full bg-white px-5 py-2 text-xs font-black text-green-800 shadow hover:bg-green-50"
                     >
-                      View Fruit Lots
+                      {ui.viewLots}
                     </Link>
                     <Link
                       to="/register-grower"
                       className="rounded-full bg-green-950/35 px-5 py-2 text-xs font-black text-white ring-1 ring-white/40 hover:bg-green-950/55"
                     >
-                      Join as Grower
+                      {ui.joinGrower}
                     </Link>
                     <Link
                       to="/register-buyer"
                       className="rounded-full bg-green-950/35 px-5 py-2 text-xs font-black text-white ring-1 ring-white/40 hover:bg-green-950/55"
                     >
-                      Join as Buyer
+                      {ui.joinBuyer}
                     </Link>
                   </div>
                 </div>
@@ -139,19 +161,19 @@ export default function PolicyPage({ type }) {
                         <div className="absolute bottom-0 left-0 right-0 h-24 bg-green-800/10" />
                         <div className="absolute bottom-6 left-6 right-6 rounded-2xl bg-white/90 p-4 shadow-lg">
                           <p className="text-xs font-black uppercase tracking-widest text-green-700">
-                            {visual.badge}
+                            {language === "hi" && supportsLanguageToggle ? (type === "about" ? ui.badge.about : ui.badge.default) : visual.badge}
                           </p>
                           <p className="mt-2 text-lg font-black text-gray-900">
-                            Growers • Buyers • Logistics
+                            {ui.marketActors}
                           </p>
                           <p className="mt-1 text-sm text-gray-600">
-                            Transparent deals and trusted connections.
+                            {ui.visualSummary}
                           </p>
                         </div>
                       </div>
 
                       <div className="grid grid-cols-3 gap-3 p-4">
-                        {visual.fruits.map((item) => (
+                        {(language === "hi" && supportsLanguageToggle ? (type === "about" ? ui.fruits.about : ui.fruits.default) : visual.fruits).map((item) => (
                           <div
                             key={item}
                             className="rounded-xl bg-green-50 p-3 text-center"
@@ -172,26 +194,21 @@ export default function PolicyPage({ type }) {
             <div className="p-4 sm:p-6 lg:p-8">
               {!isAboutArticle && (
                 <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {[
-                    "KYC Verified",
-                    "Direct Deals",
-                    "Transparent Records",
-                    "Pan India Reach",
-                  ].map((item) => (
+                  {ui.trustItems.map((item) => (
                     <div
                       key={item}
                       className="rounded-2xl border border-green-100 bg-green-50 p-4"
                     >
                       <p className="text-sm font-black text-green-900">{item}</p>
                       <p className="mt-1 text-xs leading-5 text-gray-600">
-                        Built for safer fresh fruit marketplace operations.
+                        {ui.trustDescription}
                       </p>
                     </div>
                   ))}
                 </div>
               )}
 
-              {isAboutArticle && <ArticleIntro business={business} />}
+              {isAboutArticle && <ArticleIntro business={business} ui={ui} />}
 
               {content.sections?.length ? (
                 <div
@@ -211,29 +228,28 @@ export default function PolicyPage({ type }) {
                 </div>
               ) : null}
 
-              {isAboutArticle && <RelatedReading />}
+              {isAboutArticle && <RelatedReading ui={ui} />}
 
               {content.faqs?.length ? <FaqGroups groups={content.faqs} /> : null}
 
               {!content.noContact && (
                 <section className="mt-7 overflow-hidden rounded-3xl border border-green-200 bg-gradient-to-r from-green-900 via-green-800 to-lime-700 p-5 text-white shadow-lg">
-                  <h2 className="text-xl font-black">Need help?</h2>
+                  <h2 className="text-xl font-black">{ui.help}</h2>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-green-50">
-                    Contact {business.platform} support for account, KYC, listing,
-                    offer, payment, delivery, or dispute questions.
+                    {ui.helpText}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-3">
                     <a
                       href={`mailto:${business.email}`}
                       className="rounded-full bg-white px-5 py-2 text-xs font-black text-green-800 hover:bg-green-50"
                     >
-                      Email support
+                      {ui.emailSupport}
                     </a>
                     <a
                       href={`tel:${business.phone.replace(/\s+/g, "")}`}
                       className="rounded-full bg-green-950/35 px-5 py-2 text-xs font-black text-white ring-1 ring-white/35 hover:bg-green-950/55"
                     >
-                      Call support
+                      {ui.callSupport}
                     </a>
                   </div>
                 </section>
@@ -243,7 +259,7 @@ export default function PolicyPage({ type }) {
                 to="/"
                 className="mt-7 inline-flex rounded-full bg-gray-100 px-4 py-2 text-xs font-black text-gray-700 hover:bg-gray-200"
               >
-                {homeLabel}
+                {ui.home}
               </Link>
             </div>
           </section>
@@ -253,35 +269,32 @@ export default function PolicyPage({ type }) {
   );
 }
 
-function ArticleIntro({ business }) {
+function ArticleIntro({ business, ui }) {
   return (
     <div className="mx-auto mb-8 max-w-4xl rounded-3xl border border-green-100 bg-green-50 p-5 sm:p-6">
       <p className="text-sm font-black uppercase tracking-[0.18em] text-green-700">
-        Article Overview
+        {ui.articleOverview}
       </p>
       <p className="mt-3 text-lg leading-8 text-gray-800">
-        eFruitMandi is built as a practical marketplace layer for India’s fresh
-        fruit ecosystem. It supports growers, buyers, and logistics partners with
-        structured listings, documented offers, KYC, delivery references, and
-        support workflows.
+        {ui.articleText}
       </p>
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
         <div className="rounded-2xl bg-white p-4">
-          <p className="text-xs font-black text-green-800">Company</p>
+          <p className="text-xs font-black text-green-800">{ui.company}</p>
           <p className="mt-1 text-sm font-bold text-gray-800">
             {business.company}
           </p>
         </div>
         <div className="rounded-2xl bg-white p-4">
-          <p className="text-xs font-black text-green-800">Platform</p>
+          <p className="text-xs font-black text-green-800">{ui.platform}</p>
           <p className="mt-1 text-sm font-bold text-gray-800">
             {business.platform}
           </p>
         </div>
         <div className="rounded-2xl bg-white p-4">
-          <p className="text-xs font-black text-green-800">Focus</p>
+          <p className="text-xs font-black text-green-800">{ui.focus}</p>
           <p className="mt-1 text-sm font-bold text-gray-800">
-            Fresh Fruit Marketplace
+            {ui.focusValue}
           </p>
         </div>
       </div>
@@ -289,28 +302,28 @@ function ArticleIntro({ business }) {
   );
 }
 
-function RelatedReading() {
+function RelatedReading({ ui }) {
   return (
     <section className="mx-auto mt-10 max-w-4xl rounded-3xl border border-gray-200 bg-gray-50 p-5 sm:p-6">
-      <h2 className="text-xl font-black text-gray-950">Related reading</h2>
+      <h2 className="text-xl font-black text-gray-950">{ui.related}</h2>
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
         <Link
           to="/our-story"
           className="rounded-2xl bg-white p-4 text-sm font-black text-green-800 shadow-sm hover:bg-green-50"
         >
-          Our Story →
+          {ui.story}
         </Link>
         <Link
           to="/vision-mission"
           className="rounded-2xl bg-white p-4 text-sm font-black text-green-800 shadow-sm hover:bg-green-50"
         >
-          Vision & Mission →
+          {ui.vision}
         </Link>
         <Link
           to="/why-efruitmandi"
           className="rounded-2xl bg-white p-4 text-sm font-black text-green-800 shadow-sm hover:bg-green-50"
         >
-          Why eFruitMandi →
+          {ui.why}
         </Link>
       </div>
     </section>
