@@ -325,8 +325,13 @@ const LOT_IMAGE_ASPECT_RATIO = 10 / 14;
 const isCloudinaryImageUrl = (url = "") =>
   url.includes("res.cloudinary.com") && url.includes(CLOUDINARY_UPLOAD_SEGMENT);
 
+const DESKTOP_MEDIA_QUERY = "(min-width: 768px)";
+
 const isMobileViewport = () =>
   typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches;
+
+const isDesktopViewport = () =>
+  typeof window !== "undefined" && window.matchMedia(DESKTOP_MEDIA_QUERY).matches;
 
 const hasCloudinaryTransform = (segment = "") =>
   CLOUDINARY_TRANSFORM_PATTERN.test(segment);
@@ -624,6 +629,7 @@ export default function Home() {
   const [marketClock, setMarketClock] = useState(() => Date.now());
   const [marketSocket, setMarketSocket] = useState(null);
   const [deferredSectionsReady, setDeferredSectionsReady] = useState(false);
+  const [showDesktopLayout, setShowDesktopLayout] = useState(() => isDesktopViewport());
   const fullMarketDataRef = useRef({ products: [], auctions: [] });
   const deferredSectionsReadyRef = useRef(false);
   const leftColumnRef = useRef(null);
@@ -738,6 +744,15 @@ export default function Home() {
 
     navigate(listPath);
   };
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(DESKTOP_MEDIA_QUERY);
+    const syncDesktopLayout = () => setShowDesktopLayout(mediaQuery.matches);
+
+    syncDesktopLayout();
+    mediaQuery.addEventListener("change", syncDesktopLayout);
+    return () => mediaQuery.removeEventListener("change", syncDesktopLayout);
+  }, []);
 
   useEffect(() => {
     loadMarketData({ showLoading: true });
@@ -1157,13 +1172,16 @@ export default function Home() {
         />
       </div>
 
+    {showDesktopLayout && (
     <div className="hidden md:block">
       <FruitIconRail
         className="-mx-4 px-4 pb-3"
         onSelect={(name) => navigate(`/search?q=${encodeURIComponent(name)}`)}
       />
     </div>
+    )}
 
+    {showDesktopLayout && (
     <div className="hidden h-[calc(100vh-8.4rem)] w-full gap-5 overflow-hidden md:grid md:grid-cols-[218px_minmax(0,1fr)] lg:grid-cols-[218px_minmax(0,1fr)_314px] xl:grid-cols-[240px_minmax(0,1fr)_340px]">
       <aside ref={leftColumnRef} className="auto-hide-column-scroll h-full min-h-0 space-y-2.5 overflow-y-auto pr-1 overscroll-contain">
         <ProfileCard
@@ -1245,6 +1263,7 @@ export default function Home() {
         )}
       </aside>
     </div>
+    )}
     </>
   );
 }

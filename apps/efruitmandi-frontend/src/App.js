@@ -2,23 +2,21 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-route
 import { Suspense, useEffect, useRef, useState } from "react";
 
 import StartupSplash from "./components/StartupSplash";
+import MainLayout from "./layouts/MainLayout";
+import Home from "./pages/Home";
 import { lazyWithRecovery } from "./utils/chunkLoadRecovery";
 import { hasAccessToken } from "./utils/auth";
 
 // 🔹 Layout
-const loadMainLayout = () => import("./layouts/MainLayout");
-const MainLayout = lazyWithRecovery(loadMainLayout);
 const AppFeedback = lazyWithRecovery(() => import("./components/AppFeedback"));
 const InstallAppPrompt = lazyWithRecovery(() => import("./components/InstallAppPrompt"));
 
 // 🔹 Pages
-const loadHome = () => import("./pages/Home");
 const loadAuctions = () => import("./pages/Auctions");
 const loadDelivery = () => import("./pages/Delivery");
 const loadProfile = () => import("./pages/Profile");
 const loadSearchResults = () => import("./pages/SearchResults");
 
-const Home = lazyWithRecovery(loadHome);
 const FruitLotsPage = lazyWithRecovery(() => import("./pages/FruitLotsPage"));
 const NewsUpdatesPage = lazyWithRecovery(() => import("./pages/NewsUpdatesPage"));
 const BlogPage = lazyWithRecovery(() => import("./pages/BlogPage"));
@@ -57,14 +55,12 @@ const DownloadApp = lazyWithRecovery(() => import("./pages/DownloadApp"));
 
 if (typeof window !== "undefined") {
   const priorityRouteLoaders = {
-    "/": loadHome,
     "/auctions": loadAuctions,
     "/login": loadProfile,
     "/profile": loadProfile,
     "/search": loadSearchResults,
   };
 
-  loadMainLayout().catch(() => undefined);
   priorityRouteLoaders[window.location.pathname]?.().catch(() => undefined);
 }
 
