@@ -319,6 +319,7 @@ const CLOUDINARY_UPLOAD_SEGMENT = "/image/upload/";
 const CLOUDINARY_TRANSFORM_PATTERN =
   /(^|,)(?:a_|ar_|b_|bo_|c_|co_|d_|dl_|dn_|e_|eo_|f_|fl_|fn_|g_|h_|ki_|l_|o_|q_|r_|so_|t_|u_|vc_|vs_|w_|x_|y_|z_)/;
 const LOT_IMAGE_WIDTHS = [360, 420];
+const PROFILE_BANNER_WIDTHS = [420, 640];
 const LOT_IMAGE_ASPECT_RATIO = 10 / 14;
 
 const isCloudinaryImageUrl = (url = "") =>
@@ -360,6 +361,13 @@ const buildLotImageSrcSet = (url = "") => {
 
 const optimizeProfileLogoUrl = (url = "") =>
   transformCloudinaryImage(url, "f_auto,q_auto:eco,c_fit,w_224,h_224");
+
+const buildProfileBannerSrcSet = (url = "") => {
+  if (!isCloudinaryImageUrl(url)) return "";
+  return PROFILE_BANNER_WIDTHS.map(
+    (width) => `${optimizeImageUrl(url, width)} ${width}w`
+  ).join(", ");
+};
 
 const policyLinkGroups = [
   {
@@ -1500,6 +1508,7 @@ function PublicHomeFeed({
   const renderDealSection = (section, extraProps = {}) => (
     <PublicDealList
       key={section.key}
+      clsSection={section.key}
       title={section.title}
       emptyText={section.emptyText}
       deals={section.deals}
@@ -1526,9 +1535,25 @@ function PublicHomeFeed({
       onRateProfile={onRateProfile}
     />
   );
+
+  // Keep one stable lead placeholder while the first real section is unknown.
+  // Rendering skeletons for sections whose final presence is still unknown lets
+  // an empty section disappear above an already-painted sibling and causes CLS.
+  if (dealLoading || (!liveLots.length && profilesLoading)) {
+    return (
+      <div className={`space-y-4 ${className}`}>
+        {renderDealSection(liveDealSection, {
+          loading: true,
+          priorityFirstImage: true,
+          initialItemLimit: 1,
+        })}
+      </div>
+    );
+  }
+
   const feedSections = [];
 
-  if (dealLoading || liveLots.length) {
+  if (liveLots.length) {
     feedSections.push(
       renderDealSection(liveDealSection, {
         priorityFirstImage: true,
@@ -1538,7 +1563,7 @@ function PublicHomeFeed({
     );
   }
 
-  if (showProfiles && (profilesLoading || profilesError || growers.length)) {
+  if (showProfiles && (profilesError || growers.length)) {
     feedSections.push(
       renderProfileSection({
         key: "growers",
@@ -1550,7 +1575,7 @@ function PublicHomeFeed({
     );
   }
 
-  if (showProfiles && (profilesLoading || (!profilesError && buyers.length))) {
+  if (showProfiles && !profilesError && buyers.length) {
     feedSections.push(
       renderProfileSection({
         key: "buyers",
@@ -1562,7 +1587,7 @@ function PublicHomeFeed({
     );
   }
 
-  if (!dealLoading && !profilesLoading && closedLots.length) {
+  if (!profilesLoading && closedLots.length) {
     feedSections.push(
       renderDealSection(closedDealSection, {
         initialItemLimit: 1,
@@ -1632,6 +1657,7 @@ function DeferredFeedMount({ enabled = false, children }) {
 }
 
 function PublicDealList({
+  clsSection = "filtered",
   title,
   deals = [],
   loading,
@@ -1665,7 +1691,7 @@ function PublicDealList({
   );
 
   return (
-    <section className="space-y-3">
+    <section className="space-y-3" data-cls-section={`deals-${clsSection}`}>
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-extrabold text-black md:text-base">{title}</h2>
         <span className="shrink-0 rounded-full bg-green-50 px-2.5 py-1 text-[10px] font-extrabold uppercase text-green-800">
@@ -1729,7 +1755,7 @@ function PublicFeedSkeleton({ count = 2 }) {
 
 function PublicProfilesSection({ title, role, profiles = [], loading, error, emptyText, onOpenProfile, onRateProfile }) {
   return (
-    <section className="space-y-3">
+    <section className="space-y-3" data-cls-section={`profiles-${role}`}>
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-extrabold text-black md:text-base">{title}</h2>
         <Link to={role === "grower" ? "/growers" : "/buyers"} className="text-xs font-extrabold text-green-800 hover:text-green-900">
@@ -1805,11 +1831,13 @@ function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile }) {
       safeProfile.logoUrl || safeProfile.profileImage || safeProfile.avatar
     )
   );
-  const bannerImageUrl = resolveProfileMediaUrl(
+  const rawBannerImageUrl = resolveProfileMediaUrl(
     role === "buyer"
       ? profile.buyerBannerUrl || profile.bannerUrl
       : profile.bannerUrl
   );
+  const bannerImageUrl = optimizeImageUrl(rawBannerImageUrl, 640);
+  const bannerImageSrcSet = buildProfileBannerSrcSet(rawBannerImageUrl);
   const badgeText = role === "grower" ? "Registered Grower" : "Registered Buyer";
   const roleTitle = role === "grower" ? "Fruit Grower Profile" : "Fruit Buyer Profile";
 
@@ -1845,10 +1873,23 @@ function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile }) {
 
       <div
         className="relative flex h-64 items-center justify-center bg-gradient-to-br from-green-50 via-white to-amber-50 bg-cover bg-center p-4 md:h-80"
-        style={bannerImageUrl ? { backgroundImage: `url(${bannerImageUrl})` } : undefined}
       >
+        {bannerImageUrl && (
+          <img
+            src={bannerImageUrl}
+            srcSet={bannerImageSrcSet || undefined}
+            sizes="(max-width: 767px) 100vw, 640px"
+            alt=""
+            width="640"
+            height="320"
+            loading="lazy"
+            decoding="async"
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        )}
         {imageUrl ? (
-          <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-white p-2 shadow-xl md:h-40 md:w-40">
+          <div className="relative z-10 flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-white p-2 shadow-xl md:h-40 md:w-40">
             <img
               src={imageUrl}
               alt={displayName}
@@ -1863,7 +1904,7 @@ function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile }) {
           <Avatar
             name={displayName}
             imageUrl={imageUrl}
-            className="h-24 w-24 border-4 border-white text-3xl shadow-lg"
+            className="relative z-10 h-24 w-24 border-4 border-white text-3xl shadow-lg"
           />
         )}
       </div>
@@ -2545,7 +2586,7 @@ function DesktopLotImageCarousel({ images, product, title, onOpen, imagePriority
       <button
         type="button"
         onClick={onOpen}
-        className="flex h-[420px] w-full items-center justify-center bg-green-50 text-4xl text-green-700"
+        className="flex h-[300px] w-full items-center justify-center bg-green-50 text-4xl text-green-700 sm:h-[380px] md:h-[560px]"
         aria-label={`Open ${title}`}
       >
         <FaSeedling />
