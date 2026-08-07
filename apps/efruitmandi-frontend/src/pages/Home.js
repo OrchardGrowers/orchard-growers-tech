@@ -1529,7 +1529,13 @@ function PublicHomeFeed({
   const feedSections = [];
 
   if (dealLoading || liveLots.length) {
-    feedSections.push(renderDealSection(liveDealSection, { priorityFirstImage: true }));
+    feedSections.push(
+      renderDealSection(liveDealSection, {
+        priorityFirstImage: true,
+        initialItemLimit: 1,
+        deferRemaining: true,
+      })
+    );
   }
 
   if (showProfiles && (profilesLoading || profilesError || growers.length)) {
@@ -1557,7 +1563,12 @@ function PublicHomeFeed({
   }
 
   if (!dealLoading && !profilesLoading && closedLots.length) {
-    feedSections.push(renderDealSection(closedDealSection));
+    feedSections.push(
+      renderDealSection(closedDealSection, {
+        initialItemLimit: 1,
+        deferRemaining: true,
+      })
+    );
   }
 
   if (!feedSections.length) {
@@ -1686,12 +1697,30 @@ function PublicFeedSkeleton({ count = 2 }) {
   return (
     <div className="space-y-3" aria-hidden="true">
       {Array.from({ length: count }, (_, item) => (
-        <div key={item} className="min-h-[480px] animate-pulse rounded-lg border border-gray-200 bg-white p-4 motion-reduce:animate-none md:min-h-0">
-          <div className="h-4 w-2/3 rounded bg-gray-200" />
-          <div className="mt-3 h-3 w-1/2 rounded bg-gray-100" />
-          <div className="mt-4 h-[300px] rounded-md bg-green-50 md:h-72" />
-          <div className="mt-4 h-3 w-3/4 rounded bg-gray-100" />
-          <div className="mt-3 h-9 rounded-md bg-green-50" />
+        <div key={item} className="overflow-hidden border border-gray-200 bg-white animate-pulse motion-reduce:animate-none md:rounded-md">
+          <div className="p-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="h-4 w-2/3 rounded bg-gray-200" />
+                <div className="mt-2 h-3 w-1/2 rounded bg-gray-100" />
+                <div className="mt-2 h-3 w-1/3 rounded bg-gray-100" />
+              </div>
+              <div className="h-6 w-20 rounded bg-green-100" />
+            </div>
+          </div>
+          <div className="h-[300px] w-full bg-green-50 sm:h-[380px] md:h-[560px]" />
+          <div className="border-t border-gray-100 p-3">
+            <div className="grid gap-2 rounded-md bg-green-50 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+              <div className="min-w-0">
+                <div className="h-3 w-2/3 rounded bg-gray-200" />
+                <div className="mt-2 h-3 w-1/2 rounded bg-gray-100" />
+              </div>
+              <div className="flex gap-2 sm:justify-end">
+                <div className="h-8 w-20 rounded-full bg-white" />
+                <div className="h-8 w-24 rounded-full bg-green-100" />
+              </div>
+            </div>
+          </div>
         </div>
       ))}
     </div>
