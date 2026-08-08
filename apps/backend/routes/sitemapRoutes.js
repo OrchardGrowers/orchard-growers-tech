@@ -1,6 +1,9 @@
 import express from "express";
 import User from "../models/User.js";
-import { buildPublicFruitDiscovery } from "../controllers/userController.js";
+import {
+  buildPublicFruitDiscovery,
+  buildPublicProfileQuery,
+} from "../controllers/userController.js";
 import { FRUIT_ENTITIES } from "../../../packages/shared-config/fruitSearch.mjs";
 import { getAvailableMandiFruitSlugs } from "../services/mandiRateService.js";
 
@@ -74,34 +77,15 @@ function getPublicLocationUrls(profiles, role) {
   return Array.from(groups.values()).filter((group) => !group.ambiguous && group.count >= PUBLIC_LOCATION_MIN_PROFILES);
 }
 
-function getPublicProfileIdentityQuery(role) {
-  if (role === "grower") {
-    return { orchardName: { $type: "string", $regex: /\S/ } };
+export function buildDataDependentDirectorySitemapEntries({ buyerProfiles = [], fruitDiscovery = {} } = {}) {
+  const entries = [];
+  if (Array.isArray(buyerProfiles) && buyerProfiles.length > 0) {
+    entries.push({ loc: "/buyers", changefreq: "daily", priority: "0.8" });
   }
-
-  if (role === "buyer") {
-    return {
-      $or: [
-        { businessName: { $type: "string", $regex: /\S/ } },
-        { buyerContactPerson: { $type: "string", $regex: /\S/ } },
-      ],
-    };
+  if (Array.isArray(fruitDiscovery?.fruits) && fruitDiscovery.fruits.length > 0) {
+    entries.push({ loc: "/fruits", changefreq: "daily", priority: "0.8" });
   }
-
-  return null;
-}
-
-function buildPublicProfileSitemapQuery(role) {
-  const identityQuery = getPublicProfileIdentityQuery(role);
-
-  return {
-    $and: [
-      { $or: [{ accountStatus: "ACTIVE" }, { accountStatus: { $exists: false } }] },
-      { publicProfileRoles: role },
-      { $or: [{ role }, { activeRole: role }, { profileTypes: role }] },
-      ...(identityQuery ? [identityQuery] : []),
-    ],
-  };
+  return entries;
 }
 
 router.get("/sitemap.xml", async (req, res) => {
@@ -110,8 +94,6 @@ router.get("/sitemap.xml", async (req, res) => {
       { loc: "/", changefreq: "daily", priority: "1.0" },
       { loc: "/auctions", changefreq: "hourly", priority: "0.9" },
       { loc: "/growers", changefreq: "daily", priority: "0.8" },
-      { loc: "/buyers", changefreq: "daily", priority: "0.8" },
-      { loc: "/fruits", changefreq: "daily", priority: "0.8" },
       { loc: "/about", changefreq: "monthly", priority: "0.7" },
       { loc: "/our-story", changefreq: "monthly", priority: "0.6" },
       { loc: "/vision-mission", changefreq: "monthly", priority: "0.6" },
@@ -148,12 +130,12 @@ router.get("/sitemap.xml", async (req, res) => {
     ];
 
     const [growerProfiles, buyerProfiles, availableMandiSlugs] = await Promise.all([
-      User.find(buildPublicProfileSitemapQuery("grower"))
+      User.find(buildPublicProfileQuery("grower"))
         .select("_id slug kycByRole updatedAt createdAt")
         .sort({ updatedAt: -1 })
         .limit(5000)
         .lean(),
-      User.find(buildPublicProfileSitemapQuery("buyer"))
+      User.find(buildPublicProfileQuery("buyer"))
         .select("_id slug kycByRole updatedAt createdAt")
         .sort({ updatedAt: -1 })
         .limit(5000)
@@ -170,6 +152,7 @@ router.get("/sitemap.xml", async (req, res) => {
       ...getPublicLocationUrls(buyerProfiles, "buyer"),
     ];
     const fruitDiscovery = await buildPublicFruitDiscovery().catch(() => ({ fruits: [] }));
+    staticUrls.push(...buildDataDependentDirectorySitemapEntries({ buyerProfiles, fruitDiscovery }));
     const fruitUrls = [];
     fruitDiscovery.fruits.forEach((fruit) => {
       if (fruit.lotCount >= 1) fruitUrls.push(`/fruits/${fruit.slug}`);

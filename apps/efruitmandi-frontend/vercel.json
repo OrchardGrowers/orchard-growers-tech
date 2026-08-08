@@ -311,6 +311,10 @@
       "destination": "/fruits/:path*/index.html"
     },
     {
+      "source": "/search",
+      "destination": "/search/index.html"
+    },
+    {
       "source": "/growers/state/:stateSlug/district/:districtSlug",
       "destination": "/growers/state/:stateSlug/district/:districtSlug/index.html"
     },

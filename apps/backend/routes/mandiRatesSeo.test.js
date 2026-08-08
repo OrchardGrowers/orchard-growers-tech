@@ -4,7 +4,10 @@ import {
   buildExactCommodityMatchers,
   getCommodityFilterValues,
 } from "./mandiRates.js";
-import { buildMandiRateSitemapEntries } from "./sitemapRoutes.js";
+import {
+  buildDataDependentDirectorySitemapEntries,
+  buildMandiRateSitemapEntries,
+} from "./sitemapRoutes.js";
 
 describe("mandi-rate commodity aliases and sitemap indexing", () => {
   const categories = [
@@ -44,8 +47,21 @@ describe("mandi-rate commodity aliases and sitemap indexing", () => {
   it("keeps existing public profile sitemap sources intact", () => {
     const source = readFileSync(new URL("./sitemapRoutes.js", import.meta.url), "utf8");
     expect(source).toContain('{ loc: "/growers"');
-    expect(source).toContain('{ loc: "/buyers"');
     expect(source).toContain("growerProfiles");
     expect(source).toContain("buyerProfiles");
+  });
+
+  it("includes buyer and fruit directories only when their existing public datasets are non-empty", () => {
+    expect(buildDataDependentDirectorySitemapEntries()).toEqual([]);
+    expect(buildDataDependentDirectorySitemapEntries({
+      buyerProfiles: [{ slug: "eligible-buyer" }],
+    }).map((entry) => entry.loc)).toEqual(["/buyers"]);
+    expect(buildDataDependentDirectorySitemapEntries({
+      fruitDiscovery: { fruits: [{ slug: "apple" }] },
+    }).map((entry) => entry.loc)).toEqual(["/fruits"]);
+    expect(buildDataDependentDirectorySitemapEntries({
+      buyerProfiles: [{ slug: "eligible-buyer" }],
+      fruitDiscovery: { fruits: [{ slug: "apple" }] },
+    }).map((entry) => entry.loc)).toEqual(["/buyers", "/fruits"]);
   });
 });

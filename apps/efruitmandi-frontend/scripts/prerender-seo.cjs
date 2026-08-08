@@ -187,6 +187,15 @@ const staticRoutes = [
     robots: "noindex,nofollow",
   },
   {
+    path: "/search",
+    title: "Search eFruitMandi | Fruit Lots, Growers, Buyers & Mandi Rates",
+    description: "Search eFruitMandi for public fruit lots, growers, buyers, mandi rates, guides and marketplace information.",
+    h1: "Search eFruitMandi",
+    body: "Search public fruit lots, growers, buyers, mandi rates, guides and marketplace information on eFruitMandi.",
+    noIndex: true,
+    robots: "noindex,nofollow",
+  },
+  {
     path: "/grower-guide",
     title: "Grower Guide | Sell Fruit Lots on eFruitMandi",
     description: "Learn how growers can list Fruit Lots, manage Sell Lots, receive buyer offers and use eFruitMandi marketplace tools.",

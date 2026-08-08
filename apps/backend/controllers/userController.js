@@ -198,7 +198,7 @@ const getPublicProfileIdentityQuery = (role) => {
   return null;
 };
 
-const buildPublicProfileQuery = (role) => {
+export const buildPublicProfileQuery = (role) => {
   const identityQuery = getPublicProfileIdentityQuery(role);
 
   return {
