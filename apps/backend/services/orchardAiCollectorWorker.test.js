@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  getOrchardAiCollectorStartBlockReason,
   ORCHARD_AI_COLLECTOR_JOBS,
   startOrchardAiCollectorWorker,
   stopOrchardAiCollectorWorker,
@@ -43,14 +44,13 @@ describe("Orchard AI collector worker", () => {
     });
   });
 
-  it("does not schedule jobs when the search provider is disabled", () => {
-    process.env.NODE_ENV = "development";
-    process.env.ORCHARD_AI_COLLECTOR_ENABLED = "true";
-    process.env.SEARCH_PROVIDER = "disabled";
-
-    expect(startOrchardAiCollectorWorker()).toEqual({
-      started: false,
-      reason: "search_provider_disabled",
-    });
+  it("blocks startup when the search provider is disabled outside test runtime", () => {
+    expect(
+      getOrchardAiCollectorStartBlockReason({
+        testRuntime: false,
+        workerEnabled: true,
+        searchProviderEnabled: false,
+      })
+    ).toBe("search_provider_disabled");
   });
 });

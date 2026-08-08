@@ -80,6 +80,17 @@ const isTestRuntime = () =>
   Boolean(process.env.VITEST) ||
   Boolean(process.env.VITEST_WORKER_ID);
 
+export const getOrchardAiCollectorStartBlockReason = ({
+  testRuntime,
+  workerEnabled,
+  searchProviderEnabled,
+}) => {
+  if (testRuntime) return "test_runtime";
+  if (!workerEnabled) return "disabled";
+  if (!searchProviderEnabled) return "search_provider_disabled";
+  return null;
+};
+
 const getIntervalMinutes = () => {
   const configured = Number(process.env.ORCHARD_AI_COLLECTOR_INTERVAL_MINUTES);
   if (!Number.isFinite(configured) || configured <= 0) return DEFAULT_INTERVAL_MINUTES;
@@ -184,28 +195,34 @@ export const runNextOrchardAiCollectorJob = async () => {
 };
 
 export const startOrchardAiCollectorWorker = () => {
-  if (isTestRuntime()) {
+  const blockReason = getOrchardAiCollectorStartBlockReason({
+    testRuntime: isTestRuntime(),
+    workerEnabled: truthyEnv(process.env.ORCHARD_AI_COLLECTOR_ENABLED),
+    searchProviderEnabled: isGoogleSearchProviderEnabled(),
+  });
+
+  if (blockReason === "test_runtime") {
     return {
       started: false,
-      reason: "test_runtime",
+      reason: blockReason,
     };
   }
 
-  if (!truthyEnv(process.env.ORCHARD_AI_COLLECTOR_ENABLED)) {
+  if (blockReason === "disabled") {
     // eslint-disable-next-line no-console
     console.log("[orchard-ai-collector] Worker disabled.");
     return {
       started: false,
-      reason: "disabled",
+      reason: blockReason,
     };
   }
 
-  if (!isGoogleSearchProviderEnabled()) {
+  if (blockReason === "search_provider_disabled") {
     // eslint-disable-next-line no-console
     console.warn(`[orchard-ai-collector] ${SEARCH_PROVIDER_DISABLED_MESSAGE}`);
     return {
       started: false,
-      reason: "search_provider_disabled",
+      reason: blockReason,
     };
   }
 
