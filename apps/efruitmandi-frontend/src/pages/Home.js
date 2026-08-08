@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   FaChevronLeft,
@@ -149,7 +149,7 @@ const mobileTabs = [
 const orchardCover = `${process.env.PUBLIC_URL || ""}/profile-banners/efruitmandi-profile-cover.png`;
 const fallbackLotImage =
   "https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?auto=format&fit=crop&w=640&q=70";
-const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-240.png`;
+const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-240.webp`;
 const normalizeBaseUrl = (value = "") => value.trim().replace(/\/+$/, "");
 const stripApiSuffix = (value = "") => normalizeBaseUrl(value).replace(/\/api$/i, "");
 const normalizeApiUrl = (value = "") => {
@@ -456,9 +456,9 @@ if (typeof window !== "undefined" && window.location.pathname === "/") {
   fetchHomeMarketData();
 }
 
-function DeferredHomeSEO(props) {
+const DeferredHomeSEO = memo(function DeferredHomeSEO(props) {
   return <SEO {...props} />;
-}
+});
 
 const interactiveDragTargets =
   "a,button,input,textarea,select,option,label,[role='button'],[contenteditable='true'],video,audio";
@@ -1942,6 +1942,7 @@ function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile }) {
             <button
               type="button"
               onClick={() => onOpenProfile?.(safeProfileReference, role)}
+              aria-label={`View ${role} profile: ${displayName}`}
               className="min-w-0 rounded-full bg-white px-2 py-2 text-[10px] font-extrabold leading-tight text-green-800 ring-1 ring-green-200 hover:bg-green-100 sm:px-3 sm:text-[11px]"
             >
               View Profile
@@ -1949,6 +1950,7 @@ function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile }) {
             <button
               type="button"
               onClick={() => onRateProfile?.(safeProfileReference, role)}
+              aria-label={`Rate ${role}: ${displayName}`}
               className="min-w-0 rounded-full bg-green-700 px-2 py-2 text-[10px] font-extrabold leading-tight text-white hover:bg-green-800 sm:px-3 sm:text-[11px]"
             >
               {role === "grower" ? "Rate Grower" : "Rate Buyer"}
@@ -2272,6 +2274,7 @@ decoding="async"
       <button
         type="button"
         onClick={onView}
+        aria-label={`${buttonLabel}: ${item.title || "Fruit Lot"}`}
         className="mt-2 inline-flex items-center gap-1 rounded-full bg-gray-200 px-3 py-1 text-[9px] font-bold text-gray-700"
       >
         <FaEye />
@@ -2533,6 +2536,8 @@ function DesktopLotPost({
           <button
             type="button"
             onClick={() => setShowAllDetails((value) => !value)}
+            aria-expanded={showAllDetails}
+            aria-label={`Lot information: ${product.title || "Fruit Lot"}`}
             className="mt-3 text-xs font-extrabold text-green-700 hover:text-green-800"
           >
             {showAllDetails ? "Show less" : "Show Full Lot Information........"}
@@ -2564,6 +2569,7 @@ function DesktopLotPost({
                 type="button"
                 onClick={() => onRateLot(productId)}
                 disabled={!productId}
+                aria-label={`Rate grower: ${growerName}`}
                 className="min-w-0 rounded-full bg-white px-2 py-2 text-[10px] font-extrabold leading-tight text-green-800 ring-1 ring-green-200 hover:bg-green-100 sm:px-3 sm:text-[11px]"
               >
                 Rate Grower
@@ -2574,6 +2580,7 @@ function DesktopLotPost({
                 type="button"
                 onClick={() => onQuoteLot(productId)}
                 disabled={!productId}
+                aria-label={`Offer your price for ${product.title || "Fruit Lot"}`}
                 className="min-w-0 rounded-full bg-green-700 px-2 py-2 text-[10px] font-extrabold leading-tight text-white hover:bg-green-800 sm:px-3 sm:text-[11px]"
               >
                 Offer Your Price
@@ -2583,6 +2590,7 @@ function DesktopLotPost({
                 type="button"
                 onClick={() => onOpenLot(detailId)}
                 disabled={!detailId}
+                aria-label={`${closedDeal ? "View closed deal" : "View details"}: ${product.title || "Fruit Lot"}`}
                 className="min-w-0 rounded-full bg-white px-2 py-2 text-[10px] font-extrabold leading-tight text-green-800 ring-1 ring-green-200 hover:bg-green-100 sm:px-3 sm:text-[11px]"
               >
                 {closedDeal ? "View Closed Deal" : "View Details"}
@@ -2635,7 +2643,7 @@ function DesktopLotImageCarousel({ images, product, title, onOpen, imagePriority
         type="button"
         onClick={openPreview}
         className="flex h-[300px] w-full items-center justify-center bg-white sm:h-[380px] md:h-[560px]"
-        aria-label={`Open ${title}`}
+        aria-label={`Open image preview for ${title}`}
       >
         <span className="relative inline-flex max-h-full max-w-full">
           <img
@@ -2659,7 +2667,7 @@ function DesktopLotImageCarousel({ images, product, title, onOpen, imagePriority
             type="button"
             onClick={showPrevious}
             className="absolute left-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-xl text-slate-700 shadow hover:bg-white"
-            aria-label="Show previous lot image"
+            aria-label={`Show previous image for ${title}`}
           >
             <FaChevronLeft />
           </button>
@@ -2667,7 +2675,7 @@ function DesktopLotImageCarousel({ images, product, title, onOpen, imagePriority
             type="button"
             onClick={showNext}
             className="absolute right-3 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 text-xl text-slate-700 shadow hover:bg-white"
-            aria-label="Show next lot image"
+            aria-label={`Show next image for ${title}`}
           >
             <FaChevronRight />
           </button>
@@ -2811,18 +2819,15 @@ function ProfileCard({ user, profileMode = "", onOpen }) {
         : "Visitor account";
 
   return (
-    <section
-      role="button"
-      tabIndex={0}
-      onClick={onOpen}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onOpen();
-        }
-      }}
-      className="block w-full cursor-pointer overflow-hidden rounded-lg border border-gray-200 bg-white text-left transition hover:border-green-300 hover:shadow-sm"
+    <article
+      className="relative block w-full cursor-pointer overflow-hidden rounded-lg border border-gray-200 bg-white text-left transition hover:border-green-300 hover:shadow-sm"
     >
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`Open ${accountLabel}: ${displayName}`}
+        className="absolute inset-0 z-10 rounded-lg border-0 bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-green-700"
+      />
       <div
         className="group relative h-20 bg-gray-100 bg-cover bg-center"
         style={bannerUrl ? { backgroundImage: `url(${bannerUrl})` } : undefined}
@@ -2865,7 +2870,7 @@ function ProfileCard({ user, profileMode = "", onOpen }) {
           </div>
         )}
       </div>
-    </section>
+    </article>
   );
 }
 

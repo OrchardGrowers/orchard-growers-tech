@@ -16,7 +16,7 @@ import { getCurrentUser, hasAccessToken, logoutUser } from "../utils/auth";
 import { openEFruitInstallPrompt } from "../utils/installPrompt";
 import { isStandalonePwa } from "../utils/mobilePermissions";
 
-const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-240.png`;
+const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-240.webp`;
 const ProfileAccountMenu = lazy(() => import("./ProfileAccountMenu"));
 const READ_NOTIFICATIONS_KEY = "efruitmandiReadNotifications";
 const NOTIFICATION_STATE_EVENT = "efruitmandi-notifications-updated";
@@ -318,7 +318,7 @@ export default function Navbar() {
       <header className="fixed left-0 right-0 top-0 z-50 hidden bg-green-700 shadow-sm md:block">
         <div className="flex h-14 w-full items-center gap-3 px-4">
           <Link to="/" aria-label="Go to home" className="shrink-0">
-            <img src={logoUrl} width="120" height="44" className="h-11 w-auto object-contain" alt="Orchard Growers" />
+            <img src={logoUrl} width="66" height="44" className="h-11 w-auto object-contain" alt="Orchard Growers" />
           </Link>
 
           <SearchForm
@@ -376,7 +376,7 @@ export default function Navbar() {
               <span>Learn Us</span>
             </a>
 
-            <nav className="flex h-full items-center gap-5 border-l border-green-600 pl-4">
+            <nav aria-label="Primary navigation" className="flex h-full items-center gap-5 border-l border-green-600 pl-4">
               {desktopNavItems.map((item) => {
                 const isActive = location.pathname === item.path;
 
@@ -387,6 +387,7 @@ export default function Navbar() {
                         key={item.label}
                         to={item.path}
                         aria-label={item.label}
+                        aria-current={isActive ? "page" : undefined}
                         title={item.label}
                         className={`relative flex min-w-8 flex-col items-center justify-center text-xl transition ${
                           isActive ? "text-yellow-300" : "text-yellow-400 hover:text-white"
@@ -436,6 +437,7 @@ export default function Navbar() {
                     key={item.label}
                     to={item.path}
                     aria-label={item.label}
+                    aria-current={isActive ? "page" : undefined}
                     title={item.label}
                     className={`relative flex min-w-8 flex-col items-center justify-center text-xl transition ${
                       isActive ? "text-yellow-300" : "text-yellow-400 hover:text-white"
@@ -455,6 +457,7 @@ export default function Navbar() {
             <Link
               to="/notifications"
               aria-label="Notifications"
+              aria-current={location.pathname === "/notifications" ? "page" : undefined}
               title="Notifications"
               className="relative flex h-full items-center justify-center text-xl text-yellow-400 hover:text-white"
             >
@@ -478,8 +481,12 @@ function SearchForm({
   startVoiceSearch,
   mobile = false,
 }) {
+  const searchInputId = mobile ? "searchInput" : "desktopSearchInput";
+
   return (
     <form
+      role="search"
+      aria-label="Site search"
       onSubmit={(event) => {
         event.preventDefault();
         runSearch();
@@ -491,8 +498,12 @@ function SearchForm({
       }
     >
       {!mobile && <FaSearch className="text-sm" />}
+      <label htmlFor={searchInputId} className="sr-only">
+        Search eFruitMandi
+      </label>
       <input
-        id={mobile ? "searchInput" : undefined}
+        id={searchInputId}
+        type="search"
         value={searchQuery}
         onChange={(event) => setSearchQuery(event.target.value)}
         placeholder={isListening ? "Listening..." : "Search Live Fruit Lots, APMC Price, and Anything on Web"}

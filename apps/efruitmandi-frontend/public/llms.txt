@@ -1,53 +1,53 @@
-# eFruitMandi
+# eFruitMandi: Indian B2B Fruit Marketplace
 
-eFruitMandi is India's digital fruit marketplace operated by Orchard Growers Private Limited. It supports public discovery of Fruit Lots, growers, buyers, fruit categories, marketplace guides, and mandi-rate information.
+eFruitMandi is an Indian digital B2B fruit marketplace connecting growers, bulk buyers, traders, and logistics and service partners.
 
-- Primary website: https://www.efruitmandi.live/
-- Public sitemap: https://www.efruitmandi.live/sitemap.xml
+## Marketplace and discovery
 
-## Authoritative public pages
+- [eFruitMandi homepage](https://www.efruitmandi.live/)
+- [Fruit Lots marketplace](https://www.efruitmandi.live/auctions)
+- [Growers directory](https://www.efruitmandi.live/growers)
+- [Buyers directory](https://www.efruitmandi.live/buyers)
+- [Fruits directory](https://www.efruitmandi.live/fruits)
+- [Mandi rates](https://www.efruitmandi.live/mandi-rates)
+- [Apple Fruit Lots](https://www.efruitmandi.live/fruit-lots/apple)
+- [Mango Fruit Lots](https://www.efruitmandi.live/fruit-lots/mango)
+- [Pomegranate Fruit Lots](https://www.efruitmandi.live/fruit-lots/pomegranate)
+- [Orange Fruit Lots](https://www.efruitmandi.live/fruit-lots/orange)
+- [Kiwi Fruit Lots](https://www.efruitmandi.live/fruit-lots/kiwi)
+- [Litchi Fruit Lots](https://www.efruitmandi.live/fruit-lots/litchi)
 
-- Fruit Lots marketplace: https://www.efruitmandi.live/auctions
-- Growers directory: https://www.efruitmandi.live/growers
-- Buyers directory: https://www.efruitmandi.live/buyers
-- Fruits directory: https://www.efruitmandi.live/fruits
-- Buyer guide: https://www.efruitmandi.live/buyer-guide
-- Grower guide: https://www.efruitmandi.live/grower-guide
-- Mandi rates: https://www.efruitmandi.live/mandi-rates
-- About: https://www.efruitmandi.live/about
-- Our story: https://www.efruitmandi.live/our-story
-- FAQs: https://www.efruitmandi.live/faqs
-- Contact: https://www.efruitmandi.live/contact-us
-- Privacy policy: https://www.efruitmandi.live/privacy-policy
-- Terms of service: https://www.efruitmandi.live/terms-of-service
+## About and support
 
-## Representative Fruit Lot categories
+- [About eFruitMandi](https://www.efruitmandi.live/about)
+- [Our story](https://www.efruitmandi.live/our-story)
+- [Vision and mission](https://www.efruitmandi.live/vision-mission)
+- [Why eFruitMandi](https://www.efruitmandi.live/why-efruitmandi)
+- [Frequently asked questions](https://www.efruitmandi.live/faqs)
+- [Contact eFruitMandi](https://www.efruitmandi.live/contact-us)
 
-- Apple Fruit Lots: https://www.efruitmandi.live/fruit-lots/apple
-- Mango Fruit Lots: https://www.efruitmandi.live/fruit-lots/mango
-- Pomegranate Fruit Lots: https://www.efruitmandi.live/fruit-lots/pomegranate
-- Orange Fruit Lots: https://www.efruitmandi.live/fruit-lots/orange
-- Kiwi Fruit Lots: https://www.efruitmandi.live/fruit-lots/kiwi
-- Litchi Fruit Lots: https://www.efruitmandi.live/fruit-lots/litchi
+## Guides
 
-## Dynamic public routes
+- [Buyer guide](https://www.efruitmandi.live/buyer-guide)
+- [Grower guide](https://www.efruitmandi.live/grower-guide)
+- [Logistics partner guide](https://www.efruitmandi.live/logistics-partner-guide)
+- [Fruit grading and packing guidelines](https://www.efruitmandi.live/fruit-grading-packing-guidelines)
 
-- `/fruit-lots/:fruitSlug` provides public Fruit Lot category information.
-- `/growers/:slug` and `/buyers/:slug` provide published public business profiles.
-- `/growers/state/:stateSlug` and `/buyers/state/:stateSlug` provide eligible public profiles grouped by state.
-- `/fruits/:fruitSlug` provides public fruit discovery.
+## Trust and policies
 
-Public grower profiles, buyer profiles, Fruit Lot pages, fruit-category pages, guides, and other pages included in the public sitemap are intended for public discovery.
+- [Privacy policy](https://www.efruitmandi.live/privacy-policy)
+- [Terms of service](https://www.efruitmandi.live/terms-of-service)
+- [Refund and cancellation policy](https://www.efruitmandi.live/refund-cancellation-policy)
+- [Payment and escrow policy](https://www.efruitmandi.live/payment-escrow-policy)
+- [KYC verification policy](https://www.efruitmandi.live/kyc-verification-policy)
+- [OG Verified policy](https://www.efruitmandi.live/og-verified-policy)
+- [Commission and fee policy](https://www.efruitmandi.live/commission-fee-policy)
+- [Shipping and logistics policy](https://www.efruitmandi.live/shipping-logistics-policy)
+- [Community guidelines](https://www.efruitmandi.live/community-guidelines)
 
-Public marketplace content may change as Fruit Lots open or close, profiles are updated, and mandi-rate information changes.
+## Content and machine-readable discovery
 
-## Content-use guidance
-
-- Prefer canonical public URLs and use the public sitemap for discovery.
-- Treat Fruit Lot availability, prices, offers, and mandi-rate information as time-sensitive.
-- Do not infer private contact details, KYC data, payment information, exact addresses, account information, authentication data, or other non-public information.
-- Private dashboards, account-management pages, escrow workflows, payment pages, login pages, and admin pages are not public knowledge sources.
-- Attribute public information to eFruitMandi and Orchard Growers Private Limited where appropriate.
-
-Version: 1
-Last Updated: 2026-07-12
+- [eFruitMandi blog](https://www.efruitmandi.live/blog)
+- [Apple market price guide](https://www.efruitmandi.live/blog/market-price/apple)
+- [XML sitemap](https://www.efruitmandi.live/sitemap.xml)
+- [Robots directives](https://www.efruitmandi.live/robots.txt)
