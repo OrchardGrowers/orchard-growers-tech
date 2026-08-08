@@ -23,7 +23,7 @@ import {
   verifyMsg91WidgetOtp,
 } from "../utils/msg91OtpWidget";
 
-const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-240.png`;
+const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-240.webp`;
 const stripApiSuffix = (value = "") =>
   value
     .trim()
@@ -879,6 +879,8 @@ export default function Profile() {
             <img
               src={logoUrl}
               alt="E-Fruit Mandi"
+              width="240"
+              height="160"
               className="h-8 w-auto sm:h-10 lg:h-16 xl:h-20"
             />
           </button>

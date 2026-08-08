@@ -15,7 +15,7 @@ const APP_SHELL = [
   "/icon-512.png",
   "/maskable-icon-192.png",
   "/maskable-icon-512.png",
-  "/logo-240.png",
+  "/logo-240.webp",
   "/apple-touch-icon.png",
   "/notification-icon-192.png",
   "/notification-icon-512.png",
@@ -26,7 +26,7 @@ const APP_SHELL = [
 ];
 
 const FRESH_STARTUP_ASSETS = new Set([
-  "/logo-240.png",
+  "/logo-240.webp",
   "/icon-192.png",
   "/icon-512.png",
   "/maskable-icon-192.png",

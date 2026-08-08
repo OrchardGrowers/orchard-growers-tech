@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-240.png`;
+const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-240.webp`;
 const MIN_SPLASH_MS = 200;
 const MAX_SPLASH_MS = 450;
 
