@@ -2386,7 +2386,12 @@ export const reviewKycRequest = async (req, res) => {
   const canApproveImmediately = canApproveWithoutSecondAdmin(currentAdmin);
   const canRejectImmediately = currentAdmin.role === "SUPER_ADMIN";
   const sectionReviews = user.kyc.adminReviews.filter((review) => (review.section || "kyc") === section);
-  const approvalGranted = action === "APPROVE" && (hasDualApproval(sectionReviews) || canApproveImmediately);
+  // Section-level Verify is an authoritative decision and must immediately
+  // lock that section. The legacy whole-KYC action keeps its existing
+  // dual-approval behavior for backward compatibility.
+  const approvalGranted = action === "APPROVE" && (
+    !isLegacyWholeKycReview || hasDualApproval(sectionReviews) || canApproveImmediately
+  );
   const rejectionGranted = action === "REJECT" && (hasDualRejection(sectionReviews) || canRejectImmediately);
   if (action === "UNDER_REVIEW") {
     user.kyc.status = "UNDER_REVIEW";

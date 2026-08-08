@@ -2058,25 +2058,25 @@ function App() {
     id: string,
     action: ReviewAction,
     selectedSection = ''
-  ) => {
+  ): Promise<boolean> => {
     if (
       type === 'kyc' &&
       action === 'CORRECTION_REQUIRED' &&
       selectedSection &&
       !window.confirm(`Reopen ${selectedSection.replace(/_/g, ' ')} verification and require the user to resubmit it?`)
     ) {
-      return;
+      return false;
     }
     if (type === 'kyc' && action === 'APPROVE' && !confirmTwice('approve this KYC request')) {
-      return;
+      return false;
     }
 
     if (type === 'verification' && action === 'APPROVE' && !confirmTwice('approve this OG Verification request')) {
-      return;
+      return false;
     }
 
     if (['HOLD', 'SUSPEND', 'TERMINATE'].includes(action) && !confirmTwice(`${action.toLowerCase()} this request and user account`)) {
-      return;
+      return false;
     }
 
     const path =
@@ -2093,9 +2093,9 @@ function App() {
 
     if (requiresKycRemark && !note?.trim()) {
       setMessage('Admin remarks are required for rejection or correction.');
-      return;
+      return false;
     }
-    if (supportsProfileRemark && note === null) return;
+    if (supportsProfileRemark && note === null) return false;
 
     let section = selectedSection || (type === 'kyc' ? 'kyc' : 'profile');
     if (!selectedSection && (requiresKycRemark || supportsProfileRemark) && note?.trim()) {
@@ -2106,32 +2106,42 @@ function App() {
         `Affected section (${allowedSections.join(', ')})`,
         section
       );
-      if (sectionInput === null) return;
+      if (sectionInput === null) return false;
       section = sectionInput.trim().toLowerCase();
       if (!allowedSections.includes(section)) {
         setMessage(`Affected section must be one of: ${allowedSections.join(', ')}.`);
-        return;
+        return false;
       }
     }
 
-    const res = await fetch(path, {
-      method: 'POST',
-      headers: authHeaders,
-      body: JSON.stringify({ action, note, section }),
-    });
-    const data = await res.json();
+    let res: Response;
+    let data: { msg?: string };
+    try {
+      res = await fetch(path, {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ action, note, section }),
+      });
+      data = await res.json();
+    } catch {
+      setMessage('Review request failed. Please try again.');
+      return false;
+    }
     if (!res.ok) {
       setMessage(data.msg || 'Review failed');
-      return;
+      return false;
     }
     setMessage(
       action === 'APPROVE'
         ? type === 'verification'
           ? 'OG Verification approval saved. Badge appears only after required admin approval is complete.'
-          : 'Approval saved. User verifies after Class1 and Class2 approval.'
+          : selectedSection
+            ? 'Section verified and locked.'
+            : 'Approval saved. User verifies after Class1 and Class2 approval.'
         : 'Rejection saved.'
     );
-    loadRequests();
+    await loadRequests();
+    return true;
   };
 
   const editVerificationRequest = async (request: VerificationRequest) => {
@@ -4435,7 +4445,7 @@ function KycVerificationPanel({
   onViewFile,
 }: {
   kycRequests: KycUser[];
-  onReview: (type: 'kyc' | 'verification', id: string, action: ReviewAction, section?: string) => void;
+  onReview: (type: 'kyc' | 'verification', id: string, action: ReviewAction, section?: string) => Promise<boolean>;
   onUpdate: (id: string, updates: KycUpdatePayload) => Promise<boolean>;
   onViewFile: (file: UploadedFile) => void;
 }) {
@@ -8350,7 +8360,7 @@ function KycRequestCard({
   onViewFile,
 }: {
   user: KycUser;
-  onReview: (type: 'kyc', id: string, action: ReviewAction, section?: string) => void;
+  onReview: (type: 'kyc', id: string, action: ReviewAction, section?: string) => Promise<boolean>;
   onUpdate: (id: string, updates: KycUpdatePayload) => Promise<boolean>;
   onViewFile: (file: UploadedFile) => void;
 }) {
@@ -8358,6 +8368,8 @@ function KycRequestCard({
   const roleType = getKycUserRoleType(user);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [pendingSectionAction, setPendingSectionAction] = useState<Record<string, ReviewAction | undefined>>({});
+  const [completedSectionActions, setCompletedSectionActions] = useState<Set<string>>(() => new Set());
   const [editDraft, setEditDraft] = useState<KycUpdatePayload>(() => getKycEditDraft(kyc));
   const sectionStates = Object.values(user.sectionStates || {});
   const premisesAddressLabel =
@@ -8382,6 +8394,19 @@ function KycRequestCard({
     const saved = await onUpdate(user._id, editDraft);
     setIsSaving(false);
     if (saved) setIsEditing(false);
+  };
+
+  const runSectionReview = async (section: string, action: ReviewAction) => {
+    if (pendingSectionAction[section]) return;
+    setPendingSectionAction((current) => ({ ...current, [section]: action }));
+    try {
+      const completed = await onReview('kyc', user._id, action, section);
+      if (completed) {
+        setCompletedSectionActions((current) => new Set(current).add(`${section}:${action}`));
+      }
+    } finally {
+      setPendingSectionAction((current) => ({ ...current, [section]: undefined }));
+    }
   };
 
   const downloadInformation = () => {
@@ -8452,6 +8477,9 @@ function KycRequestCard({
           {sectionStates.map((sectionState) => {
             const status = String(sectionState.status || '').toUpperCase();
             const isVerified = status === 'VERIFIED';
+            const sectionBusy = Boolean(pendingSectionAction[sectionState.section]);
+            const actionBlocked = (action: ReviewAction) =>
+              sectionBusy || completedSectionActions.has(`${sectionState.section}:${action}`);
             return (
               <section key={sectionState.section} className="rounded-xl border border-slate-800 bg-slate-900 p-3">
                 <div className="flex flex-wrap items-start justify-between gap-2">
@@ -8467,23 +8495,25 @@ function KycRequestCard({
                 </div>
                 <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                   <AdminActionButton
-                    label="Under Review"
-                    onClick={() => onReview('kyc', user._id, 'UNDER_REVIEW', sectionState.section)}
-                    disabled={isVerified}
+                    label={pendingSectionAction[sectionState.section] === 'UNDER_REVIEW' ? 'Saving...' : 'Under Review'}
+                    onClick={() => runSectionReview(sectionState.section, 'UNDER_REVIEW')}
+                    disabled={isVerified || status === 'UNDER_REVIEW' || actionBlocked('UNDER_REVIEW')}
                   />
                   <AdminActionButton
-                    label={isVerified ? 'Verified' : 'Verify'}
-                    onClick={() => onReview('kyc', user._id, 'APPROVE', sectionState.section)}
-                    disabled={isVerified}
+                    label={pendingSectionAction[sectionState.section] === 'APPROVE' ? 'Saving...' : isVerified ? 'Verified' : 'Verify'}
+                    onClick={() => runSectionReview(sectionState.section, 'APPROVE')}
+                    disabled={isVerified || actionBlocked('APPROVE')}
                     success={isVerified}
                   />
                   <AdminActionButton
-                    label={isVerified ? 'Reopen / Cancel Approval' : 'Request Changes'}
-                    onClick={() => onReview('kyc', user._id, 'CORRECTION_REQUIRED', sectionState.section)}
+                    label={pendingSectionAction[sectionState.section] === 'CORRECTION_REQUIRED' ? 'Saving...' : isVerified ? 'Reopen / Cancel Approval' : 'Request Changes'}
+                    onClick={() => runSectionReview(sectionState.section, 'CORRECTION_REQUIRED')}
+                    disabled={status === 'CHANGES_REQUIRED' || actionBlocked('CORRECTION_REQUIRED')}
                   />
                   <AdminActionButton
-                    label="Reject"
-                    onClick={() => onReview('kyc', user._id, 'REJECT', sectionState.section)}
+                    label={pendingSectionAction[sectionState.section] === 'REJECT' ? 'Saving...' : 'Reject'}
+                    onClick={() => runSectionReview(sectionState.section, 'REJECT')}
+                    disabled={status === 'REJECTED' || actionBlocked('REJECT')}
                     danger
                   />
                 </div>

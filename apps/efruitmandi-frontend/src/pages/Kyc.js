@@ -926,6 +926,7 @@ export default function Kyc() {
             <div className="grid min-w-0 gap-3 md:grid-cols-2">
               <SelectField
                 label="Role Type"
+                required
                 value={form.roleType}
                 disabled
                 error={fieldErrors.roleType}
@@ -938,6 +939,7 @@ export default function Kyc() {
               />
               <KycInput
                 label="Full Name"
+                required
                 value={form.fullName}
                 error={fieldErrors.fullName}
                 disabled={!isSectionEditable("personal")}
@@ -945,6 +947,7 @@ export default function Kyc() {
               />
               <KycInput
                 label="Phone"
+                required
                 value={form.phone}
                 error={fieldErrors.phone}
                 inputMode="tel"
@@ -961,6 +964,7 @@ export default function Kyc() {
               />
               <KycInput
                 label={premisesAddressLabel}
+                required
                 value={form.address}
                 error={fieldErrors.address}
                 disabled={!isSectionEditable("personal")}
@@ -982,6 +986,7 @@ export default function Kyc() {
               />
               <KycInput
                 label="PIN Code"
+                required
                 value={form.pinCode}
                 error={fieldErrors.pinCode}
                 inputMode="numeric"
@@ -1003,6 +1008,7 @@ export default function Kyc() {
             <div className="grid min-w-0 gap-3 md:grid-cols-2">
               <KycInput
                 label="ID Proof Type"
+                required
                 value={form.idProofType}
                 error={fieldErrors.idProofType}
                 disabled={!isSectionEditable("identity")}
@@ -1010,6 +1016,7 @@ export default function Kyc() {
               />
               <KycInput
                 label="ID Proof Number"
+                required
                 value={form.idProofNumber}
                 displayValue={
                   isAadhaarProof(form.idProofType)
@@ -1044,6 +1051,7 @@ export default function Kyc() {
               <div className="grid min-w-0 gap-3 md:grid-cols-2">
                 <KycInput
                   label={["buyer", "grower"].includes(form.roleType) ? "PAN Number" : "PAN Number optional"}
+                  required={["buyer", "grower"].includes(form.roleType)}
                   value={form.panNumber}
                   error={fieldErrors.panNumber}
                   disabled={!isSectionEditable("pan")}
@@ -1102,6 +1110,7 @@ export default function Kyc() {
             <div className="grid min-w-0 gap-3 md:grid-cols-2">
               <KycInput
                 label="Account Holder Name"
+                required
                 value={form.bankAccountHolderName}
                 error={fieldErrors.bankAccountHolderName}
                 disabled={!isSectionEditable("bank")}
@@ -1109,6 +1118,7 @@ export default function Kyc() {
               />
               <KycInput
                 label="Bank Name"
+                required
                 value={form.bankName}
                 error={fieldErrors.bankName}
                 disabled={!isSectionEditable("bank")}
@@ -1116,6 +1126,7 @@ export default function Kyc() {
               />
               <KycInput
                 label="Account Number"
+                required
                 value={form.accountNumber}
                 error={fieldErrors.accountNumber}
                 inputMode="numeric"
@@ -1124,6 +1135,7 @@ export default function Kyc() {
               />
               <KycInput
                 label="IFSC Code"
+                required
                 value={form.ifscCode}
                 error={fieldErrors.ifscCode}
                 disabled={!isSectionEditable("bank")}
@@ -1190,6 +1202,7 @@ export default function Kyc() {
               <div className="grid min-w-0 gap-3 md:grid-cols-2">
                 <KycInput
                   label="Vehicle Number"
+                  required
                   value={form.vehicleNumber}
                   error={fieldErrors.vehicleNumber}
                   disabled={!isSectionEditable("driver")}
@@ -1199,6 +1212,7 @@ export default function Kyc() {
                 />
                 <KycInput
                   label="Driving License Number"
+                  required
                   value={form.drivingLicenseNumber}
                   error={fieldErrors.drivingLicenseNumber}
                   disabled={!isSectionEditable("driver")}
@@ -1257,6 +1271,7 @@ export default function Kyc() {
                 Privacy Policy
               </Link>{" "}
               for KYC verification and marketplace activity.
+              <span className="ml-1 text-red-600" aria-label="required">*</span>
             </span>
           </label>}
           {isInitialSubmission && fieldErrors.acceptedTerms && (
@@ -1356,15 +1371,25 @@ function KycSectionResubmit({ section, state, loading, onResubmit }) {
   );
 }
 
-function SelectField({ label, value, options, disabled, error, onChange }) {
+function RequiredFieldLabel({ label, required = false, missing = false }) {
+  return (
+    <span className={`text-sm font-bold ${missing ? "text-red-700" : "text-gray-800"}`}>
+      {label}
+      {required && <span className="ml-1 text-red-600" aria-label="required">*</span>}
+    </span>
+  );
+}
+
+function SelectField({ label, required = false, value, options, disabled, error, onChange }) {
+  const missing = required && !String(value || "").trim();
   return (
     <label className="block w-full min-w-0 max-w-full">
-      <span className="text-sm font-bold text-gray-800">{label}</span>
+      <RequiredFieldLabel label={label} required={required} missing={missing} />
       <select
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className={`mt-1 w-full min-w-0 max-w-full rounded-md border bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-green-700 disabled:bg-gray-100 ${error ? "border-red-300" : "border-green-100"}`}
+        className={`mt-1 w-full min-w-0 max-w-full rounded-md border bg-white px-3 py-2 text-sm font-semibold outline-none focus:border-green-700 disabled:bg-gray-100 ${error || missing ? "border-red-400" : "border-green-100"}`}
       >
         {options.map(([optionValue, labelText]) => (
           <option key={optionValue} value={optionValue}>
@@ -1529,11 +1554,12 @@ function FileField({
           : upload?.status === "failed"
             ? "Failed"
             : "";
+  const missing = required && !existingUrl && upload?.status !== "uploaded";
   return (
     <label className="block w-full min-w-0 max-w-full">
-      <span className="text-sm font-bold text-gray-800">{label}</span>
+      <RequiredFieldLabel label={label} required={required} missing={missing} />
       <span
-        className={`mt-1 block min-h-11 w-full max-w-full rounded-md border border-dashed bg-white p-3 text-sm font-semibold text-gray-600 ${error || upload?.status === "failed" ? "border-red-300" : "border-green-300"}`}
+        className={`mt-1 block min-h-11 w-full max-w-full rounded-md border border-dashed bg-white p-3 text-sm font-semibold text-gray-600 ${error || missing || upload?.status === "failed" ? "border-red-400" : "border-green-300"}`}
       >
         <span className="flex min-w-0 items-center gap-2">
           <FaFileUpload className="shrink-0 text-green-700" />
@@ -1624,6 +1650,7 @@ function FileField({
 
 function KycInput({
   label,
+  required = false,
   value,
   displayValue,
   disabled,
@@ -1632,12 +1659,13 @@ function KycInput({
   onChange,
 }) {
   const [focused, setFocused] = useState(false);
+  const missing = required && !String(value || "").trim();
   const renderedValue =
     focused || displayValue === undefined ? value : displayValue;
 
   return (
     <label className="block w-full min-w-0 max-w-full">
-      <span className="text-sm font-bold text-gray-800">{label}</span>
+      <RequiredFieldLabel label={label} required={required} missing={missing} />
       <input
         value={renderedValue}
         disabled={disabled}
@@ -1646,7 +1674,7 @@ function KycInput({
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         onChange={(event) => onChange(event.target.value)}
-        className={`mt-1 min-h-11 w-full min-w-0 max-w-full rounded-md border bg-white px-3 py-3 text-sm font-semibold outline-none focus:border-green-700 disabled:bg-gray-100 ${error ? "border-red-300" : "border-green-100"}`}
+        className={`mt-1 min-h-11 w-full min-w-0 max-w-full rounded-md border bg-white px-3 py-3 text-sm font-semibold outline-none focus:border-green-700 disabled:bg-gray-100 ${error || missing ? "border-red-400" : "border-green-100"}`}
       />
       {error && (
         <span className="mt-1 block text-xs font-bold text-red-700">
