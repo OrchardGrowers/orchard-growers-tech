@@ -22,6 +22,7 @@ import API, { FILE_BASE_URL } from "../services/api";
 import { getQualityLabel } from "../config/appleGrading";
 import { getPackingTypeLabel } from "../config/packingSpecifications";
 import LimitedPublicProfileCard from "../components/LimitedPublicProfileCard";
+import VerificationFeedback from "../components/VerificationFeedback";
 import {
   hasBuyerProfile,
   hasDriverProfile,
@@ -632,7 +633,8 @@ export default function ProfileDashboard() {
   const kycStatus = normalizeKycStatus(roleVerificationStatus?.status || roleKyc.status);
   const kycStatusCopy = getKycDashboardStatusCopy(kycStatus);
   const isKycCompleted = ["PENDING", "COMPLETED", "UNDER_REVIEW", "APPROVED", "REJECTED", "CORRECTION_REQUIRED"].includes(kycStatus);
-  const needsKycUpdate = !isKycCompleted;
+  const panUpdateRequired = Boolean(roleVerificationStatus?.panUpdateRequired);
+  const needsKycUpdate = !isKycCompleted || panUpdateRequired;
   const kycDashboardCopy =
     profileMode === "buyer"
       ? {
@@ -1401,6 +1403,13 @@ export default function ProfileDashboard() {
           </div>
         </section>
 
+        {!isVisitor && (
+          <VerificationFeedback
+            feedback={roleOgVerificationStatus?.verificationFeedback}
+            showAction
+          />
+        )}
+
         {availableProfileModes.length > 1 && (
           <ProfileModeSwitcher
             modes={availableProfileModes}
@@ -1426,7 +1435,7 @@ export default function ProfileDashboard() {
         {!isVisitor && (needsKycUpdate ? (
           <section className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
             <p className="text-sm font-extrabold text-amber-900">
-              {kycDashboardCopy.title}
+              {panUpdateRequired ? "KYC update required – Please add your PAN Number and PAN Card." : kycDashboardCopy.title}
             </p>
             <p className="mt-1 text-xs font-semibold leading-5 text-amber-800">
               {kycDashboardCopy.description}
@@ -1479,6 +1488,13 @@ export default function ProfileDashboard() {
             )}
           </section>
         ))}
+
+        {!isVisitor && (
+          <VerificationFeedback
+            feedback={roleVerificationStatus?.verificationFeedback}
+            showAction
+          />
+        )}
 
         {profileMode === "buyer" && (
           <>

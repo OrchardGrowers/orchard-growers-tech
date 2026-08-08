@@ -12,18 +12,15 @@ import {
   calculateDealBreakdown,
   mergeDealSettings,
 } from "../services/dealCalculationService.js";
+import {
+  hasTransactionEligibleKyc,
+  PAN_KYC_REQUIRED_MESSAGE,
+} from "../services/kycEligibilityService.js";
 
 const router = express.Router();
 const PAYMENT_CONFIRMATION_WINDOW_MS = 15 * 60 * 1000;
 const BUSINESS_LOCATION_DISTANCE_MESSAGE =
   "Delivery distance will be calculated after buyer and grower business locations are available.";
-
-const hasCompletedKyc = (user = {}, roleType = "") => {
-  const role = String(roleType || "").toLowerCase();
-  const roleKyc = user?.kycByRole?.[role] || {};
-  const legacyKyc = String(user?.kyc?.roleType || "").toLowerCase() === role ? user.kyc : {};
-  return String(roleKyc.status || legacyKyc.status || "").toUpperCase() === "APPROVED";
-};
 
 const getProfileTypes = (user = {}) => {
   const profiles = new Set(Array.isArray(user.profileTypes) ? user.profileTypes : []);
@@ -190,17 +187,10 @@ const getSafeMainLocation = (user = {}, role = "") => {
 };
 
 const formatPublicProfile = (user = {}, role = "", fallback = {}) => {
-  const roleKyc = getRoleRecord(user.kycByRole, role);
-  const legacyKyc = user.kyc || {};
   const roleOg = getRoleRecord(user.ogVerificationByRole, role);
   const isBuyer = role === "buyer";
   const isGrower = role === "grower";
-  const isKycVerified = Boolean(
-    (isBuyer && user.buyerVerified) ||
-      (isGrower && user.growerVerified) ||
-      isApprovedStatus(roleKyc.status) ||
-      isApprovedStatus(legacyKyc.status)
-  );
+  const isKycVerified = getKycEligibility(user, role).eligible;
   const isOgVerified = Boolean(
     (isBuyer && user.buyerOgVerified) ||
       (isGrower && user.growerOgVerified) ||
@@ -431,12 +421,12 @@ const createQuoteForLot = async (req, res) => {
       return res.status(403).json({ msg: "Register as Fruit Buyer first" });
     }
 
-    if (!isLocalTestAccount(buyer) && !buyer.buyerVerified && !hasCompletedKyc(buyer, "buyer")) {
+    if (!isLocalTestAccount(buyer) && !hasTransactionEligibleKyc(buyer, "buyer")) {
       return res.status(403).json({
         success: false,
         code: "KYC_REQUIRED",
-        message: "KYC approval is required before placing an offer.",
-        msg: "KYC approval is required before placing an offer.",
+        message: PAN_KYC_REQUIRED_MESSAGE,
+        msg: PAN_KYC_REQUIRED_MESSAGE,
       });
     }
 

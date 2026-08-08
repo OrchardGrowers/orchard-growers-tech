@@ -13,6 +13,28 @@ import {
 } from "./authController.js";
 import { getRoleKycStatus, refreshSettlementEligibility } from "../services/logisticsAssignmentService.js";
 import {
+  getVerificationFeedback,
+  markVerificationResubmitted,
+} from "../services/verificationFeedbackService.js";
+import {
+  getKycEligibility,
+  normalizePanNumber,
+  validateKycSubmission,
+} from "../services/kycEligibilityService.js";
+import {
+  assertKycSectionEditable,
+  getKycSectionDocuments,
+  getKycSectionPayloadViolations,
+  getKycSectionStates,
+  getKycSectionsForRole,
+  normalizeKycSection,
+  validateKycSection,
+} from "../services/kycSectionVerificationService.js";
+import {
+  createCloudinaryKycDocumentMetadata,
+  normalizeKycDocumentMetadata,
+} from "../services/kycDocumentStorageService.js";
+import {
   getProfileBusinessType,
   normalizeBuyerBusinessType,
   normalizeOperationalRole,
@@ -211,7 +233,7 @@ export const buildPublicProfileQuery = (role) => {
   };
 };
 
-const toPublicProfile = (user = {}, role = "") => {
+export const toPublicProfile = (user = {}, role = "") => {
   const roleKyc = getRoleRecord(user.kycByRole, role);
   const roleOg = getRoleRecord(user.ogVerificationByRole, role);
   const district = cleanPublicText(roleKyc.district);
@@ -233,12 +255,7 @@ const toPublicProfile = (user = {}, role = "") => {
       : cleanPublicText(user.companyLogoUrl);
   const registeredAt = user.profileRegisteredAtByRole?.[role] || user.createdAt;
 
-  const isKycVerified = Boolean(
-    (role === "buyer" && user.buyerVerified) ||
-    (role === "grower" && user.growerVerified) ||
-    (role === "driver" && user.driverVerified) ||
-    isApprovedStatus(roleKyc.status)
-  );
+  const isKycVerified = getKycEligibility(user, role).eligible;
   const isOgVerified = Boolean(
     (role === "buyer" && user.buyerOgVerified) ||
     (role === "grower" && user.growerOgVerified) ||
@@ -457,23 +474,6 @@ const parseKycDocuments = (value) => {
   }
 };
 
-const normalizeKycDocument = (doc = {}, userId = "", roleType = "") => {
-  const url = String(doc.url || doc.secure_url || "").trim();
-  if (!url) return null;
-  return {
-    label: String(doc.label || doc.field || "").trim(),
-    url,
-    publicId: String(doc.publicId || doc.public_id || "").trim(),
-    resourceType: String(doc.resourceType || doc.resource_type || "").trim(),
-    originalFilename: String(doc.originalFilename || doc.original_filename || doc.fileName || "").trim(),
-    sizeBytes: Number(doc.sizeBytes || doc.bytes || 0) || 0,
-    mimeType: String(doc.mimeType || doc.mimetype || "").trim(),
-    roleType,
-    uploadedBy: userId,
-    uploadedAt: doc.uploadedAt || new Date(),
-  };
-};
-
 const KYC_DOCUMENT_FIELD_BY_LABEL = {
   idProof: "idProofImage",
   idProofImage: "idProofImage",
@@ -496,8 +496,6 @@ const getAvailableRoles = (user = {}) => Array.from(getUserProfileTypes(user)).f
 
 const isAadhaarProof = (value = "") => String(value || "").trim().toLowerCase() === "aadhaar";
 const normalizeAadhaar = (value = "") => String(value || "").replace(/\D/g, "").slice(0, 12);
-const PAN_PATTERN = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
-
 const getAllowedCreateRoles = (roles = []) => {
   const roleSet = new Set(roles);
   return ["grower", "buyer", "driver"].filter((role) => {
@@ -511,12 +509,14 @@ const getAllowedCreateRoles = (roles = []) => {
 const getRoleKycSummary = (user = {}, roleType = "") => {
   const kyc = getRoleKyc(user, roleType);
   const status = normalizeKycStatus(kyc.status).toLowerCase();
+  const eligibility = getKycEligibility(user, roleType);
   return {
     roleType: roleType === "driver" ? "logistic" : roleType,
     exists: true,
     profileId: `${user._id}:${roleType}`,
     kycStatus: status,
-    kycVerified: status === "approved" || Boolean(roleType === "buyer" ? user.buyerVerified : roleType === "grower" ? user.growerVerified : user.driverVerified),
+    kycVerified: eligibility.eligible,
+    panUpdateRequired: eligibility.panUpdateRequired,
     verificationRequestId: kyc.submittedAt ? `${user._id}:${roleType}` : "",
     status: user.accountStatus || "ACTIVE",
   };
@@ -1100,6 +1100,17 @@ export const getMyKyc = async (req, res) => {
       roleType,
       status: normalizeKycStatus(roleKyc.status),
     };
+    const feedback = await getVerificationFeedback({
+      userId: req.user.id,
+      sections: ["kyc", "pan", "bank", "document"],
+      roleType,
+      includeHistory: false,
+    });
+    const sectionStates = await getKycSectionStates({
+      userId: req.user.id,
+      roleType,
+      kyc,
+    });
 
     res.json({
       success: true,
@@ -1130,6 +1141,10 @@ export const getMyKyc = async (req, res) => {
         ogVerificationByRole: user.ogVerificationByRole,
       },
       kyc,
+      panUpdateRequired: getKycEligibility(user, roleType).panUpdateRequired,
+      verificationFeedback: feedback.active,
+      latestVerificationFeedback: feedback.latest,
+      sectionStates,
     });
   } catch (err) {
     res.status(500).json({ msg: err.message });
@@ -1398,20 +1413,6 @@ export const updateKyc = async (req, res) => {
     const submittedRoleType = resolveRequestedKycRole(existingUser, req.body.roleType || req.body.role || "");
     const existingKyc = getRoleKyc(existingUser, submittedRoleType);
     const existingKycStatus = normalizeKycStatus(existingKyc.status);
-    if (existingKycStatus === "APPROVED") {
-      return res.status(400).json({ msg: "KYC already approved." });
-    }
-
-    if (
-      ["PENDING", "UNDER_REVIEW", "COMPLETED"].includes(existingKycStatus) &&
-      !["REJECTED", "CORRECTION_REQUIRED"].includes(existingKycStatus) &&
-      Object.keys(existingKyc).some((key) => existingKyc[key])
-    ) {
-      return res.status(400).json({
-        msg: "KYC has already been submitted and is pending review. Please allow up to 24 hours for verification.",
-      });
-    }
-
     const udyanCardFile = req.files?.udyanCardFile?.[0];
     const passbookFile = req.files?.passbookFile?.[0];
     const aadhaarCardFile = req.files?.aadhaarCardFile?.[0];
@@ -1442,11 +1443,41 @@ export const updateKyc = async (req, res) => {
         : roleTypes.has("driver")
           ? "driver"
           : "buyer";
+    const isInitialSubmission = existingKycStatus === "NOT_SUBMITTED";
+    let requestedSection = "";
+    if (!isInitialSubmission) {
+      const sectionStates = await getKycSectionStates({
+        userId: req.user.id,
+        roleType,
+        kyc: existingKyc,
+      });
+      if (req.body.section) {
+        requestedSection = normalizeKycSection(req.body.section);
+      } else {
+        const editableSections = Object.values(sectionStates).filter((state) => state.editable);
+        if (editableSections.length === 1) requestedSection = editableSections[0].section;
+      }
+      if (!requestedSection || !sectionStates[requestedSection]) {
+        return res.status(400).json({ msg: "Select the verification section being resubmitted." });
+      }
+      assertKycSectionEditable(sectionStates[requestedSection]);
+      const payloadViolations = getKycSectionPayloadViolations({
+        section: requestedSection,
+        body: req.body,
+        files: req.files,
+      });
+      if (payloadViolations.length) {
+        return res.status(403).json({
+          msg: "Only fields in the reopened verification section may be changed.",
+          fields: payloadViolations,
+        });
+      }
+    }
 
     const rawIdProofType = String(req.body.idProofType || existingKyc.idProofType || "Aadhaar").trim();
     const rawIdProofNumber = String(req.body.idProofNumber || existingKyc.idProofNumber || req.body.aadhaarCardNo || existingKyc.aadhaarCardNo || "").trim();
     const normalizedAadhaar = normalizeAadhaar(req.body.aadhaarCardNo || rawIdProofNumber);
-    const rawPanNumber = String(req.body.panNumber || existingKyc.panNumber || "").trim().toUpperCase();
+    const rawPanNumber = normalizePanNumber(req.body.panNumber || existingKyc.panNumber || "");
 
     const kyc = {
       ...existingKyc,
@@ -1483,17 +1514,42 @@ export const updateKyc = async (req, res) => {
       submittedAt: new Date(),
     };
 
-    if (udyanCardFile) kyc.udyanCardFileUrl = (await uploadKycFile(udyanCardFile)).secure_url;
-    if (passbookFile) kyc.passbookFileUrl = (await uploadKycFile(passbookFile)).secure_url;
-    if (aadhaarCardFile) kyc.aadhaarCardFileUrl = (await uploadKycFile(aadhaarCardFile)).secure_url;
-    if (idProofImage) kyc.idProofImage = (await uploadKycFile(idProofImage)).secure_url;
-    if (panImage) kyc.panImage = (await uploadKycFile(panImage)).secure_url;
-    if (gstCertificate) kyc.gstCertificate = (await uploadKycFile(gstCertificate)).secure_url;
-    if (drivingLicenseImage) kyc.drivingLicenseImage = (await uploadKycFile(drivingLicenseImage)).secure_url;
+    const serverUploadedDocuments = [];
+    const uploadAndAssignKycDocument = async (file, field, label) => {
+      if (!file) return;
+      const uploaded = await uploadKycFile(file);
+      kyc[field] = uploaded.secure_url;
+      const metadata = createCloudinaryKycDocumentMetadata(uploaded, {
+        label,
+        userId: req.user.id,
+        roleType,
+        mimeType: file.mimetype,
+      });
+      if (metadata) serverUploadedDocuments.push(metadata);
+    };
+    await uploadAndAssignKycDocument(udyanCardFile, "udyanCardFileUrl", "udyanCard");
+    await uploadAndAssignKycDocument(passbookFile, "passbookFileUrl", "passbookFile");
+    await uploadAndAssignKycDocument(aadhaarCardFile, "aadhaarCardFileUrl", "idProof");
+    if (idProofImage && idProofImage !== aadhaarCardFile) {
+      await uploadAndAssignKycDocument(idProofImage, "idProofImage", "idProof");
+    } else if (aadhaarCardFile) {
+      kyc.idProofImage = kyc.aadhaarCardFileUrl;
+    }
+    await uploadAndAssignKycDocument(panImage, "panImage", "pan");
+    await uploadAndAssignKycDocument(gstCertificate, "gstCertificate", "gstCertificate");
+    await uploadAndAssignKycDocument(drivingLicenseImage, "drivingLicenseImage", "drivingLicense");
 
-    const uploadedDocuments = parseKycDocuments(req.body.documents)
-      .map((doc) => normalizeKycDocument(doc, req.user.id, roleType))
+    let uploadedDocuments = parseKycDocuments(req.body.documents)
+      .map((doc) => normalizeKycDocumentMetadata(doc, { userId: req.user.id, roleType }))
       .filter(Boolean);
+    uploadedDocuments.push(...serverUploadedDocuments);
+    if (requestedSection) {
+      const permittedDocuments = getKycSectionDocuments(requestedSection, uploadedDocuments);
+      if (permittedDocuments.length !== uploadedDocuments.length) {
+        return res.status(403).json({ msg: "Only documents in the reopened verification section may be changed." });
+      }
+      uploadedDocuments = permittedDocuments;
+    }
     uploadedDocuments.forEach((doc) => {
       const kycField = KYC_DOCUMENT_FIELD_BY_LABEL[doc.label];
       if (kycField) kyc[kycField] = doc.url;
@@ -1505,33 +1561,9 @@ export const updateKyc = async (req, res) => {
       kyc.documents = Array.from(byLabel.values());
     }
 
-    const fieldErrors = {};
-    if (!kyc.roleType) fieldErrors.roleType = "Role type is required.";
-    if (!kyc.fullName) fieldErrors.fullName = "Full name is required.";
-    if (!kyc.phone) fieldErrors.phone = "Phone is required.";
-    if (!kyc.address) fieldErrors.address = roleType === "buyer" ? "Buyer premises address is required." : "Address is required.";
-    if (!kyc.pinCode) fieldErrors.pinCode = "PIN code is required.";
-    if (!kyc.idProofType) fieldErrors.idProofType = "ID proof type is required.";
-    if (!kyc.idProofNumber) fieldErrors.idProofNumber = "ID proof number is required.";
-    if (isAadhaarProof(kyc.idProofType) && normalizeAadhaar(kyc.idProofNumber).length !== 12) {
-      fieldErrors.idProofNumber = "Aadhaar must be exactly 12 digits.";
-    }
-    if (kyc.panNumber && !PAN_PATTERN.test(kyc.panNumber)) {
-      fieldErrors.panNumber = "Enter a valid PAN, for example ABCDE1234F.";
-    }
-    if (!kyc.idProofImage) fieldErrors.idProof = "ID proof image is required.";
-    if (!kyc.accountNumber) fieldErrors.accountNumber = "Bank account number is required.";
-    if (!kyc.ifscCode) fieldErrors.ifscCode = "IFSC code is required.";
-    if (!kyc.bankAccountHolderName) fieldErrors.bankAccountHolderName = "Bank account holder name is required.";
-    if (!kyc.bankName) fieldErrors.bankName = "Bank name is required.";
-    if (!kyc.passbookFileUrl) fieldErrors.passbookFile = "Bank proof/passbook file is required.";
-    if (roleType === "driver" && !kyc.vehicleNumber) fieldErrors.vehicleNumber = "Vehicle number is required.";
-    if (roleType === "driver" && !kyc.drivingLicenseNumber) {
-      fieldErrors.drivingLicenseNumber = "Driving license number is required.";
-    }
-    if (roleType === "driver" && !kyc.drivingLicenseImage) {
-      fieldErrors.drivingLicense = "Driving license image is required.";
-    }
+    const fieldErrors = requestedSection
+      ? validateKycSection(kyc, roleType, requestedSection)
+      : validateKycSubmission(kyc, roleType);
 
     const missingKycDetails = Object.values(fieldErrors);
 
@@ -1548,14 +1580,34 @@ export const updateKyc = async (req, res) => {
         $set: {
           kyc,
           [`kycByRole.${roleType}`]: kyc,
+          ...(roleType === "buyer" ? { buyerVerified: false } : {}),
+          ...(roleType === "grower" ? { growerVerified: false } : {}),
         },
       },
       { new: true }
     ).select("-password -__v");
 
+    if (requestedSection) {
+      await markVerificationResubmitted({
+        userId: req.user.id,
+        section: requestedSection,
+        roleType,
+        entityId: req.user.id,
+      });
+    } else {
+      await Promise.all(getKycSectionsForRole(roleType).map((section) =>
+        markVerificationResubmitted({
+          userId: req.user.id,
+          section,
+          roleType,
+          entityId: req.user.id,
+        })
+      ));
+    }
+
     res.json(user);
   } catch (err) {
-    res.status(500).json({ msg: err.message });
+    res.status(err.statusCode || 500).json({ msg: err.message });
   }
 };
 

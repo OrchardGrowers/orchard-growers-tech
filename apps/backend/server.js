@@ -54,6 +54,10 @@ import {
   isPaymentPartnerEnabled,
   PAYMENT_UNAVAILABLE_MESSAGE,
 } from "./utils/paymentFeatureFlag.js";
+import {
+  hasTransactionEligibleKyc,
+  PAN_KYC_REQUIRED_MESSAGE,
+} from "./services/kycEligibilityService.js";
 
 import { createServer } from "http";
 import { Server } from "socket.io";
@@ -329,18 +333,7 @@ const isLocalTestBuyer = (user = {}) => {
 };
 
 const hasApprovedRoleKyc = (user = {}, roleType = "") => {
-  const role = String(roleType || "").toLowerCase();
-  const verifiedFlag =
-    role === "buyer"
-      ? user.buyerVerified
-      : role === "grower"
-        ? user.growerVerified
-        : role === "driver"
-          ? user.driverVerified
-          : false;
-  const roleKyc = user.kycByRole?.[role] || {};
-  const legacyKyc = String(user.kyc?.roleType || "").toLowerCase() === role ? user.kyc : {};
-  return Boolean(verifiedFlag) || String(roleKyc.status || legacyKyc.status || "").toUpperCase() === "APPROVED";
+  return hasTransactionEligibleKyc(user, roleType);
 };
 
 const loadDealSettings = async () =>
@@ -426,8 +419,8 @@ io.on("connection", (socket) => {
         socket.emit("dealRejected", {
           success: false,
           code: "KYC_REQUIRED",
-          message: "KYC approval is required before placing an offer.",
-          msg: "KYC approval is required before placing an offer.",
+          message: PAN_KYC_REQUIRED_MESSAGE,
+          msg: PAN_KYC_REQUIRED_MESSAGE,
         });
         return;
       }
@@ -507,8 +500,8 @@ io.on("connection", (socket) => {
         socket.emit("dealRejected", {
           success: false,
           code: "KYC_REQUIRED",
-          message: "KYC approval is required before placing an offer.",
-          msg: "KYC approval is required before placing an offer.",
+          message: PAN_KYC_REQUIRED_MESSAGE,
+          msg: PAN_KYC_REQUIRED_MESSAGE,
         });
         return;
       }

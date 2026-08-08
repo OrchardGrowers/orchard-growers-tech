@@ -109,9 +109,11 @@ export default function Navbar() {
 
       try {
         const API = await getApiClient();
-        const [lotRes, quoteRes] = await Promise.all([
+        const [lotRes, quoteRes, notificationRes] = await Promise.all([
           API.get("/products?platform=efruitmandi"),
           API.get("/quotes/buyer").catch(() => ({ data: { quotes: [] } })),
+          API.get("/user/notifications", { params: { unreadOnly: true, limit: 1 } })
+            .catch(() => ({ data: { unreadCount: 0 } })),
         ]);
         if (cancelled) return;
         const { getEfruitMandiProducts } = await import("../utils/marketProducts");
@@ -128,7 +130,10 @@ export default function Navbar() {
           .filter(Boolean);
         const readIds = loadReadNotificationIds();
 
-        setHasUnreadNotifications([...wonQuoteIds, ...latestLotIds].some((id) => !readIds.has(id)));
+        setHasUnreadNotifications(
+          Number(notificationRes.data?.unreadCount || 0) > 0 ||
+          [...wonQuoteIds, ...latestLotIds].some((id) => !readIds.has(id))
+        );
       } catch {
         if (!cancelled) setHasUnreadNotifications(false);
       }

@@ -142,6 +142,7 @@ type Admin = {
 type Review = {
   adminClass?: string;
   action: string;
+  section?: string;
   note?: string;
   reviewedAt?: string;
   admin?: {
@@ -165,6 +166,14 @@ type KycUser = {
   growerVerified?: boolean;
   driverVerified?: boolean;
   isVerified?: boolean;
+  sectionStates?: Record<string, {
+    section: string;
+    label: string;
+    status: string;
+    editable: boolean;
+    latestRemark?: { remark?: string; createdAt?: string } | null;
+    history?: { status: string; remark?: string; source?: string; createdAt?: string }[];
+  }>;
   kyc?: {
     roleType?: string;
     fullName?: string;
@@ -2047,8 +2056,17 @@ function App() {
   const review = async (
     type: 'kyc' | 'verification',
     id: string,
-    action: ReviewAction
+    action: ReviewAction,
+    selectedSection = ''
   ) => {
+    if (
+      type === 'kyc' &&
+      action === 'CORRECTION_REQUIRED' &&
+      selectedSection &&
+      !window.confirm(`Reopen ${selectedSection.replace(/_/g, ' ')} verification and require the user to resubmit it?`)
+    ) {
+      return;
+    }
     if (type === 'kyc' && action === 'APPROVE' && !confirmTwice('approve this KYC request')) {
       return;
     }
@@ -2065,20 +2083,41 @@ function App() {
       type === 'kyc'
         ? `${API_BASE}/admin/kyc-requests/${id}/review`
         : `${API_BASE}/admin/verification-requests/${id}/review`;
-    const note =
-      type === 'kyc' && ['REJECT', 'CORRECTION_REQUIRED'].includes(action)
-        ? window.prompt('Admin remarks are required', '')
+    const requiresKycRemark = type === 'kyc' && ['REJECT', 'CORRECTION_REQUIRED'].includes(action);
+    const supportsProfileRemark = type === 'verification' && action !== 'APPROVE';
+    const note = requiresKycRemark
+      ? window.prompt('Admin remarks are required', '')
+      : supportsProfileRemark
+        ? window.prompt('Admin remarks (optional)', '')
         : '';
 
-    if (type === 'kyc' && ['REJECT', 'CORRECTION_REQUIRED'].includes(action) && !note?.trim()) {
+    if (requiresKycRemark && !note?.trim()) {
       setMessage('Admin remarks are required for rejection or correction.');
       return;
+    }
+    if (supportsProfileRemark && note === null) return;
+
+    let section = selectedSection || (type === 'kyc' ? 'kyc' : 'profile');
+    if (!selectedSection && (requiresKycRemark || supportsProfileRemark) && note?.trim()) {
+      const allowedSections = type === 'kyc'
+        ? ['personal', 'identity', 'pan', 'bank', 'business', 'driver']
+        : ['profile', 'business'];
+      const sectionInput = window.prompt(
+        `Affected section (${allowedSections.join(', ')})`,
+        section
+      );
+      if (sectionInput === null) return;
+      section = sectionInput.trim().toLowerCase();
+      if (!allowedSections.includes(section)) {
+        setMessage(`Affected section must be one of: ${allowedSections.join(', ')}.`);
+        return;
+      }
     }
 
     const res = await fetch(path, {
       method: 'POST',
       headers: authHeaders,
-      body: JSON.stringify({ action, note }),
+      body: JSON.stringify({ action, note, section }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -4396,7 +4435,7 @@ function KycVerificationPanel({
   onViewFile,
 }: {
   kycRequests: KycUser[];
-  onReview: (type: 'kyc' | 'verification', id: string, action: ReviewAction) => void;
+  onReview: (type: 'kyc' | 'verification', id: string, action: ReviewAction, section?: string) => void;
   onUpdate: (id: string, updates: KycUpdatePayload) => Promise<boolean>;
   onViewFile: (file: UploadedFile) => void;
 }) {
@@ -8311,7 +8350,7 @@ function KycRequestCard({
   onViewFile,
 }: {
   user: KycUser;
-  onReview: (type: 'kyc', id: string, action: ReviewAction) => void;
+  onReview: (type: 'kyc', id: string, action: ReviewAction, section?: string) => void;
   onUpdate: (id: string, updates: KycUpdatePayload) => Promise<boolean>;
   onViewFile: (file: UploadedFile) => void;
 }) {
@@ -8320,8 +8359,7 @@ function KycRequestCard({
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editDraft, setEditDraft] = useState<KycUpdatePayload>(() => getKycEditDraft(kyc));
-  const kycStatus = String(kyc.status || '').toUpperCase();
-  const isApproved = kycStatus === 'APPROVED';
+  const sectionStates = Object.values(user.sectionStates || {});
   const premisesAddressLabel =
     roleType === 'buyer'
       ? 'Buyer Premises'
@@ -8378,6 +8416,10 @@ function KycRequestCard({
         <Info label="PIN Code" value={kyc.pinCode} />
         <Info label="ID Proof" value={[kyc.idProofType, kyc.idProofNumber].filter(Boolean).join(' - ')} />
         <Info label="PAN" value={kyc.panNumber} />
+        <Info
+          label="PAN Verification Status"
+          value={kyc.panNumber && kyc.panImage ? 'PAN details submitted' : 'PAN update required'}
+        />
         <Info label="GST" value={kyc.gstNumber} />
         <Info label="Bank Holder" value={kyc.bankAccountHolderName} />
         <Info label="Bank Name" value={kyc.bankName} />
@@ -8404,13 +8446,72 @@ function KycRequestCard({
           ...extraDocuments,
         ]}
       />
+      {sectionStates.length ? (
+        <div className="mt-4 space-y-3">
+          <p className="text-sm font-black text-white">Section Verification</p>
+          {sectionStates.map((sectionState) => {
+            const status = String(sectionState.status || '').toUpperCase();
+            const isVerified = status === 'VERIFIED';
+            return (
+              <section key={sectionState.section} className="rounded-xl border border-slate-800 bg-slate-900 p-3">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-black text-white">{sectionState.label}</p>
+                    <p className={`mt-1 text-xs font-bold ${isVerified ? 'text-emerald-300' : ['CHANGES_REQUIRED', 'REJECTED'].includes(status) ? 'text-amber-300' : 'text-sky-300'}`}>
+                      {status.replace(/_/g, ' ')}
+                    </p>
+                  </div>
+                  {sectionState.latestRemark?.remark ? (
+                    <p className="max-w-xl text-xs font-semibold text-amber-200">Admin remark: {sectionState.latestRemark.remark}</p>
+                  ) : null}
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  <AdminActionButton
+                    label="Under Review"
+                    onClick={() => onReview('kyc', user._id, 'UNDER_REVIEW', sectionState.section)}
+                    disabled={isVerified}
+                  />
+                  <AdminActionButton
+                    label={isVerified ? 'Verified' : 'Verify'}
+                    onClick={() => onReview('kyc', user._id, 'APPROVE', sectionState.section)}
+                    disabled={isVerified}
+                    success={isVerified}
+                  />
+                  <AdminActionButton
+                    label={isVerified ? 'Reopen / Cancel Approval' : 'Request Changes'}
+                    onClick={() => onReview('kyc', user._id, 'CORRECTION_REQUIRED', sectionState.section)}
+                  />
+                  <AdminActionButton
+                    label="Reject"
+                    onClick={() => onReview('kyc', user._id, 'REJECT', sectionState.section)}
+                    danger
+                  />
+                </div>
+                {sectionState.history?.length ? (
+                  <details className="mt-3 text-xs text-slate-300">
+                    <summary className="cursor-pointer font-bold text-slate-200">Section history ({sectionState.history.length})</summary>
+                    <div className="mt-2 space-y-1">
+                      {sectionState.history.map((entry, index) => (
+                        <p key={`${entry.createdAt || index}-${entry.status}`}>
+                          {entry.status.replace(/_/g, ' ')} · {entry.source || 'SYSTEM'} · {formatDate(entry.createdAt)}
+                          {entry.remark ? ` · ${entry.remark}` : ''}
+                        </p>
+                      ))}
+                    </div>
+                  </details>
+                ) : null}
+              </section>
+            );
+          })}
+        </div>
+      ) : null}
       {kyc.adminReviews?.length ? (
         <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900 p-3">
           <p className="text-sm font-black text-white">Admin Review History</p>
           <div className="mt-2 space-y-2">
             {kyc.adminReviews.map((review, index) => (
               <p key={`${review.reviewedAt || index}-${review.action}`} className="text-xs font-semibold text-slate-300">
-                {review.action} by {review.admin?.name || review.admin?.email || review.adminClass || 'Admin'} · {formatDate(review.reviewedAt)}
+                {review.action}{review.section ? ` (${review.section})` : ''} by {review.admin?.name || review.admin?.email || review.adminClass || 'Admin'} · {formatDate(review.reviewedAt)}
                 {review.note ? ` · ${review.note}` : ''}
               </p>
             ))}
@@ -8458,17 +8559,6 @@ function KycRequestCard({
           </button>
         </div>
       ) : null}
-      <div className="mt-4 grid gap-2 md:grid-cols-4">
-        <AdminActionButton label="Under Review" onClick={() => onReview('kyc', user._id, 'UNDER_REVIEW')} />
-        <AdminActionButton
-          label={isApproved ? 'Approved' : 'Approve'}
-          onClick={() => onReview('kyc', user._id, 'APPROVE')}
-          disabled={isApproved}
-          success={isApproved}
-        />
-        <AdminActionButton label="Correction Required" onClick={() => onReview('kyc', user._id, 'CORRECTION_REQUIRED')} />
-        <AdminActionButton label="Reject" onClick={() => onReview('kyc', user._id, 'REJECT')} danger />
-      </div>
     </article>
   );
 }
@@ -8530,6 +8620,19 @@ function VerificationRequestCard({
           ...uploadedDocuments,
         ]}
       />
+      {request.adminReviews?.length ? (
+        <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900 p-3">
+          <p className="text-sm font-black text-white">Admin Review History</p>
+          <div className="mt-2 space-y-2">
+            {request.adminReviews.map((review, index) => (
+              <p key={`${review.reviewedAt || index}-${review.action}`} className="text-xs font-semibold text-slate-300">
+                {review.action} by {review.admin?.name || review.admin?.email || review.adminClass || 'Admin'} · {formatDate(review.reviewedAt)}
+                {review.note ? ` · ${review.note}` : ''}
+              </p>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <AdminActionButton label="Edit" onClick={() => onEdit(request)} />
         <AdminActionButton label="Under Review" onClick={() => onReview('verification', request._id, 'UNDER_REVIEW')} />

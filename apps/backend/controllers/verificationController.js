@@ -6,6 +6,11 @@ import {
   isOtpVerified,
   parseIdentifier,
 } from "./authController.js";
+import {
+  getVerificationFeedback,
+  markVerificationResubmitted,
+} from "../services/verificationFeedbackService.js";
+import { getKycEligibility } from "../services/kycEligibilityService.js";
 
 const toFileMeta = (file) =>
   file
@@ -96,6 +101,12 @@ export const getMyVerificationStatus = async (req, res) => {
           : roleType === "grower"
             ? user.growerOgVerified
             : user.driverOgVerified;
+      const feedback = await getVerificationFeedback({
+        userId: req.user.id,
+        sections: ["profile", "business"],
+        roleType,
+        includeHistory: false,
+      });
 
       return res.json({
         status: status.toLowerCase(),
@@ -105,25 +116,30 @@ export const getMyVerificationStatus = async (req, res) => {
         requestId: og.requestId || "",
         adminRemarks: og.adminRemarks || "",
         updatedAt: og.reviewedAt || og.decidedAt || og.submittedAt || "",
+        verificationFeedback: feedback.active,
+        latestVerificationFeedback: feedback.latest,
       });
     }
 
     const kyc = getRoleKyc(user, roleType);
     const status = normalizeKycStatus(kyc.status);
-    const verifiedFlag =
-      roleType === "buyer"
-        ? user.buyerVerified
-        : roleType === "grower"
-          ? user.growerVerified
-          : user.driverVerified;
+    const feedback = await getVerificationFeedback({
+      userId: req.user.id,
+      sections: ["kyc", "pan", "bank", "document"],
+      roleType,
+      includeHistory: false,
+    });
 
     res.json({
       status: status.toLowerCase(),
       roleType,
-      kycVerified: Boolean(verifiedFlag || status === "APPROVED"),
+      kycVerified: getKycEligibility(user, roleType).eligible,
+      panUpdateRequired: getKycEligibility(user, roleType).panUpdateRequired,
       requestId: kyc.submittedAt ? `${user._id}:${roleType}` : "",
       adminRemarks: kyc.adminRemarks || "",
       updatedAt: kyc.reviewedAt || kyc.decidedAt || kyc.submittedAt || "",
+      verificationFeedback: feedback.active,
+      latestVerificationFeedback: feedback.latest,
     });
   } catch (err) {
     res.status(500).json({ msg: err.message });
@@ -232,6 +248,12 @@ export const createVerificationRequest = async (req, res) => {
       ...(roleType === "grower" ? { growerOgVerified: false } : {}),
       ...(roleType === "driver" ? { driverOgVerified: false } : {}),
     });
+    await markVerificationResubmitted({
+      userId: req.user.id,
+      section: "profile",
+      roleType,
+      entityId: request._id,
+    });
 
     consumeOtpVerification(parsedPhone);
 
@@ -248,6 +270,7 @@ export const listVerificationRequests = async (req, res) => {
   try {
     const requests = await VerificationRequest.find()
       .populate("user", "name orchardName phone email role isVerified")
+      .populate("adminReviews.admin", "name email role")
       .sort({ createdAt: -1 });
 
     res.json(requests);

@@ -20,6 +20,15 @@ import {
   enqueueFeaturedProfile,
   normalizeOperationalRole,
 } from "../services/profilePublicationService.js";
+import { recordAdminVerificationRemark } from "../services/verificationFeedbackService.js";
+import { validateKycSubmission } from "../services/kycEligibilityService.js";
+import {
+  ensureKycSectionStateEvents,
+  getKycSectionStates,
+  getKycSectionsForRole,
+  normalizeKycSection,
+  validateKycSection,
+} from "../services/kycSectionVerificationService.js";
 
 const ADMIN_SELECT = "-password -__v";
 const USER_SELECT = "-password -__v";
@@ -2127,7 +2136,16 @@ export const listKycRequests = async (req, res) => {
     .populate("kyc.adminReviews.admin", "name email role")
     .sort({ "kyc.submittedAt": -1, createdAt: -1 });
 
-  res.json(flattenKycUsers(users));
+  const rows = flattenKycUsers(users);
+  const rowsWithSectionStates = await Promise.all(rows.map(async (row) => ({
+    ...row,
+    sectionStates: await getKycSectionStates({
+      userId: row.originalUserId,
+      roleType: row.kyc.roleType,
+      kyc: row.kyc,
+    }),
+  })));
+  res.json(rowsWithSectionStates);
 };
 
 export const previewAdminDocument = async (req, res) => {
@@ -2302,22 +2320,57 @@ export const reviewKycRequest = async (req, res) => {
   }
   if (user.kyc.status !== kycStatus) user.kyc.status = kycStatus;
   if (kycRoleType && user.kyc.roleType !== kycRoleType) user.kyc.roleType = kycRoleType;
-
+  const isLegacyWholeKycReview = !req.body.section || String(req.body.section).toLowerCase() === "kyc";
+  const section = isLegacyWholeKycReview ? "kyc" : normalizeKycSection(req.body.section);
+  if (!isLegacyWholeKycReview && !getKycSectionsForRole(kycRoleType).includes(section)) {
+    return res.status(400).json({ msg: "This verification section does not apply to the selected role." });
+  }
   if (["REJECT", "CORRECTION_REQUIRED"].includes(action) && !String(req.body.note || req.body.adminRemarks || "").trim()) {
     return res.status(400).json({ msg: "Admin remarks are required for rejection or correction." });
+  }
+  const existingSectionStates = isLegacyWholeKycReview ? {} : await getKycSectionStates({
+    userId: user._id,
+    roleType: kycRoleType,
+    kyc: user.kyc,
+  });
+  if (!isLegacyWholeKycReview) {
+    await ensureKycSectionStateEvents({
+      userId: user._id,
+      roleType: kycRoleType,
+      entityId: user._id,
+      states: existingSectionStates,
+    });
+  }
+  const currentSectionStatus = isLegacyWholeKycReview ? kycStatus : existingSectionStates[section]?.status;
+  if (currentSectionStatus === "VERIFIED" && action === "UNDER_REVIEW") {
+    return res.status(400).json({ msg: "Reopen a verified section with Request Changes or Reject and an admin remark." });
+  }
+
+  if (action === "APPROVE") {
+    const kycErrors = isLegacyWholeKycReview
+      ? validateKycSubmission(user.kyc, kycRoleType)
+      : validateKycSection(user.kyc, kycRoleType, section);
+    if (Object.keys(kycErrors).length) {
+      return res.status(400).json({
+        msg: Object.values(kycErrors).join(" "),
+        errors: kycErrors,
+      });
+    }
   }
 
   const adminClass = getAdminClass(currentAdmin.role);
   const existingReview = user.kyc.adminReviews.find(
     (review) =>
-      review.admin?.toString() === currentAdmin.id?.toString() ||
-      review.adminClass === adminClass
+      (review.section || "kyc") === section &&
+      (review.admin?.toString() === currentAdmin.id?.toString() ||
+      review.adminClass === adminClass)
   );
 
   if (existingReview) {
     existingReview.admin = currentAdmin.id;
     existingReview.adminClass = adminClass;
     existingReview.action = action;
+    existingReview.section = section;
     existingReview.note = req.body.note || req.body.adminRemarks || "";
     existingReview.reviewedAt = new Date();
   } else {
@@ -2325,13 +2378,16 @@ export const reviewKycRequest = async (req, res) => {
       admin: currentAdmin.id,
       adminClass,
       action,
+      section,
       note: req.body.note || req.body.adminRemarks || "",
       reviewedAt: new Date(),
     });
   }
-
   const canApproveImmediately = canApproveWithoutSecondAdmin(currentAdmin);
   const canRejectImmediately = currentAdmin.role === "SUPER_ADMIN";
+  const sectionReviews = user.kyc.adminReviews.filter((review) => (review.section || "kyc") === section);
+  const approvalGranted = action === "APPROVE" && (hasDualApproval(sectionReviews) || canApproveImmediately);
+  const rejectionGranted = action === "REJECT" && (hasDualRejection(sectionReviews) || canRejectImmediately);
   if (action === "UNDER_REVIEW") {
     user.kyc.status = "UNDER_REVIEW";
     user.kyc.reviewedBy = currentAdmin.id;
@@ -2343,9 +2399,12 @@ export const reviewKycRequest = async (req, res) => {
     user.kyc.adminRemarks = req.body.note || req.body.adminRemarks || "";
     user.kyc.reviewedBy = currentAdmin.id;
     user.kyc.reviewedAt = new Date();
+    if (kycRoleType === "buyer") user.buyerVerified = false;
+    if (kycRoleType === "grower") user.growerVerified = false;
+    if (kycRoleType === "driver") user.driverVerified = false;
   }
 
-  if (action === "APPROVE" && (hasDualApproval(user.kyc.adminReviews) || canApproveImmediately)) {
+  if (approvalGranted && isLegacyWholeKycReview) {
     user.kyc.status = "APPROVED";
     user.kyc.decidedBy = currentAdmin.id;
     user.kyc.decidedAt = new Date();
@@ -2358,7 +2417,7 @@ export const reviewKycRequest = async (req, res) => {
     user.accountStatus = "ACTIVE";
   }
 
-  if (action === "REJECT" && (hasDualRejection(user.kyc.adminReviews) || canRejectImmediately)) {
+  if (rejectionGranted) {
     user.kyc.status = "REJECTED";
     user.kyc.decidedBy = currentAdmin.id;
     user.kyc.decidedAt = new Date();
@@ -2372,6 +2431,41 @@ export const reviewKycRequest = async (req, res) => {
 
   user.set(`kycByRole.${kycRoleType}`, user.kyc.toObject?.() || user.kyc);
   await user.save();
+  await recordAdminVerificationRemark({
+    userId: user._id,
+    section,
+    status: action === "CORRECTION_REQUIRED"
+      ? "CHANGES_REQUIRED"
+      : rejectionGranted
+        ? "REJECTED"
+        : approvalGranted
+          ? "VERIFIED"
+          : "UNDER_REVIEW",
+    remark: req.body.note || req.body.adminRemarks || "",
+    createdBy: currentAdmin.id,
+    roleType: kycRoleType,
+    entityId: user._id,
+  });
+  if (!isLegacyWholeKycReview && approvalGranted) {
+    const updatedSectionStates = await getKycSectionStates({
+      userId: user._id,
+      roleType: kycRoleType,
+      kyc: user.kyc,
+    });
+    const allSectionsVerified = getKycSectionsForRole(kycRoleType)
+      .every((requiredSection) => updatedSectionStates[requiredSection]?.status === "VERIFIED");
+    user.kyc.status = allSectionsVerified ? "APPROVED" : "UNDER_REVIEW";
+    if (kycRoleType === "buyer") user.buyerVerified = allSectionsVerified;
+    if (kycRoleType === "grower") user.growerVerified = allSectionsVerified;
+    if (kycRoleType === "driver") user.driverVerified = allSectionsVerified;
+    if (allSectionsVerified) {
+      user.kyc.decidedBy = currentAdmin.id;
+      user.kyc.decidedAt = new Date();
+      user.accountStatus = "ACTIVE";
+    }
+    user.set(`kycByRole.${kycRoleType}`, user.kyc.toObject?.() || user.kyc);
+    await user.save();
+  }
   const populated = await User.findById(user._id)
     .select("-password -__v")
     .populate("kyc.adminReviews.admin", "name email role");
@@ -2474,6 +2568,15 @@ export const updateKycStatusByAdmin = async (req, res) => {
     user.kyc.reviewedBy = currentAdmin.id;
     user.kyc.reviewedAt = new Date();
     await user.save();
+    await recordAdminVerificationRemark({
+      userId: user._id,
+      section: req.body.section || "kyc",
+      status: "PENDING",
+      remark: req.body.adminRemarks || req.body.note || "",
+      createdBy: currentAdmin.id,
+      roleType: getKycRoleType(user),
+      entityId: user._id,
+    });
     return res.json(await User.findById(user._id).select("-password -__v"));
   }
 
@@ -2612,6 +2715,15 @@ export const reviewVerificationRequest = async (req, res) => {
   }
 
   await request.save();
+  await recordAdminVerificationRemark({
+    userId: request.user,
+    section: req.body.section || "profile",
+    status: request.status,
+    remark: req.body.note || "",
+    createdBy: currentAdmin.id,
+    roleType: request.roleType || "grower",
+    entityId: request._id,
+  });
   const populated = await VerificationRequest.findById(request._id)
     .populate("user", "name orchardName phone email role isVerified accountStatus buyerOgVerified growerOgVerified driverOgVerified ogVerificationByRole")
     .populate("adminReviews.admin", "name email role");

@@ -590,7 +590,7 @@ export default function ListNewLot() {
     String(currentUser.role || "").trim().toLowerCase()
   );
   const isGrowerKycExempt =
-    isAdminAccount || Boolean(currentUser.growerVerified) || isLocalKycTestAccount(currentUser);
+    isAdminAccount || isLocalKycTestAccount(currentUser);
   const requiresGrowerKycCheck = hasGrowerProfile(currentUser) && !isGrowerKycExempt;
   const hasStoredGrowerKyc = hasCompletedKycForRole(currentUser, "grower");
   const [kycAccessResolved, setKycAccessResolved] = useState(
@@ -734,7 +734,7 @@ export default function ListNewLot() {
         if (!active) return;
         const user = res.data?.user || {};
         const status = String(res.data?.kyc?.status || "").trim().toUpperCase();
-        if (Boolean(user.growerVerified) || status === "APPROVED") {
+        if (!res.data?.panUpdateRequired && (Boolean(user.growerVerified) || status === "APPROVED")) {
           setKycAccessResolved(true);
           return;
         }

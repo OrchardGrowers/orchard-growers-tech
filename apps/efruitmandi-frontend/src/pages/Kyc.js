@@ -10,6 +10,7 @@ import {
 import API, { getApiErrorMessage, getApiFieldErrors } from "../services/api";
 import { trackKycSubmitted } from "../services/analytics";
 import BackHomeButton from "../components/BackHomeButton";
+import VerificationFeedback from "../components/VerificationFeedback";
 import { getKycStatusLabel, getProfileTypes } from "../utils/auth";
 import {
   prepareUploadFile,
@@ -56,6 +57,23 @@ const editableStatuses = new Set([
   "REJECTED",
   "CORRECTION_REQUIRED",
 ]);
+const SECTION_EDITABLE_STATUSES = new Set(["NOT_SUBMITTED", "CHANGES_REQUIRED", "REJECTED"]);
+const KYC_SECTION_FIELDS = {
+  personal: ["fullName", "phone", "email", "address", "district", "state", "pinCode"],
+  identity: ["idProofType", "idProofNumber", "gstNumber"],
+  pan: ["panNumber"],
+  bank: ["bankAccountHolderName", "bankName", "accountNumber", "ifscCode", "upiId"],
+  business: ["orchardName", "orchardLocation"],
+  driver: ["vehicleNumber", "drivingLicenseNumber"],
+};
+const KYC_SECTION_UPLOAD_LABELS = {
+  personal: [],
+  identity: ["idProof", "gstCertificate"],
+  pan: ["pan"],
+  bank: ["passbookFile"],
+  business: ["udyanCard"],
+  driver: ["drivingLicense"],
+};
 const validRoleTypes = new Set(["buyer", "grower", "driver"]);
 const roleTitleLabels = {
   buyer: "Buyer's Account",
@@ -73,8 +91,8 @@ const KYC_DIRECT_UPLOAD_LABELS = {
 };
 
 const REQUIRED_DOCUMENT_LABELS_BY_ROLE = {
-  buyer: ["idProof", "passbookFile"],
-  grower: ["idProof", "passbookFile"],
+  buyer: ["idProof", "pan", "passbookFile"],
+  grower: ["idProof", "pan", "passbookFile"],
   driver: ["idProof", "passbookFile", "drivingLicense"],
 };
 
@@ -86,9 +104,10 @@ const ALLOWED_DOCUMENT_TYPES = new Set([
   "image/jpeg",
   "image/jpg",
   "image/png",
+  "image/webp",
   "application/pdf",
 ]);
-const ALLOWED_DOCUMENT_EXTENSIONS = new Set(["jpg", "jpeg", "png", "pdf"]);
+const ALLOWED_DOCUMENT_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp", "pdf"]);
 const PAN_PATTERN = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 const DOCUMENT_PROGRESS_ITEMS = [
   {
@@ -96,7 +115,7 @@ const DOCUMENT_PROGRESS_ITEMS = [
     key: "idProof",
     requiredFor: ["buyer", "grower", "driver"],
   },
-  { label: "PAN", key: "pan", optional: true },
+  { label: "PAN", key: "pan", requiredFor: ["buyer", "grower"] },
   { label: "GST", key: "gstCertificate", optional: true },
   {
     label: "Bank Proof",
@@ -207,7 +226,7 @@ const maskAadhaar = (value = "") => {
 };
 
 const validateDocumentFile = (file) => {
-  if (!file) return "Select a JPG, PNG, or PDF document.";
+  if (!file) return "Select a JPG, PNG, WebP, or PDF document.";
   const extension =
     String(file.name || "")
       .split(".")
@@ -217,7 +236,7 @@ const validateDocumentFile = (file) => {
     !ALLOWED_DOCUMENT_TYPES.has(file.type) ||
     !ALLOWED_DOCUMENT_EXTENSIONS.has(extension)
   ) {
-    return "Only JPG, JPEG, PNG, or PDF files are accepted.";
+    return "Only JPG, JPEG, PNG, WebP, or PDF files are accepted.";
   }
   if (file.size > MAX_DOCUMENT_SIZE_BYTES && !file.type.startsWith("image/")) {
     return `PDF files must be under ${MAX_DOCUMENT_SIZE_MB} MB.`;
@@ -230,6 +249,7 @@ const buildKycValidation = (
   acceptedTerms,
   canSubmitWithUploads,
   uploadStateText,
+  panDocumentAvailable,
 ) => {
   const errors = {};
   const requiredFields = [
@@ -259,8 +279,13 @@ const buildKycValidation = (
   const panNumber = String(form.panNumber || "")
     .trim()
     .toUpperCase();
-  if (panNumber && !PAN_PATTERN.test(panNumber)) {
+  if (["buyer", "grower"].includes(form.roleType) && !panNumber) {
+    errors.panNumber = "PAN Number is required.";
+  } else if (panNumber && !PAN_PATTERN.test(panNumber)) {
     errors.panNumber = "Enter a valid PAN, for example ABCDE1234F.";
+  }
+  if (["buyer", "grower"].includes(form.roleType) && !panDocumentAvailable) {
+    errors.pan = "PAN Card document is required.";
   }
 
   if (form.roleType === "driver") {
@@ -335,6 +360,9 @@ export default function Kyc() {
   const [currentUserId, setCurrentUserId] = useState("");
   const [kycStatus, setKycStatus] = useState("NOT_SUBMITTED");
   const [adminRemarks, setAdminRemarks] = useState("");
+  const [verificationFeedback, setVerificationFeedback] = useState(null);
+  const [sectionStates, setSectionStates] = useState({});
+  const [panUpdateRequired, setPanUpdateRequired] = useState(false);
   const [message, setMessage] = useState("");
   const [messageIsError, setMessageIsError] = useState(false);
   const [showSubmissionSuccess, setShowSubmissionSuccess] = useState(false);
@@ -344,7 +372,9 @@ export default function Kyc() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
-  const canEdit = editableStatuses.has(kycStatus);
+  const isInitialSubmission = kycStatus === "NOT_SUBMITTED";
+  const isSectionEditable = (section) => isInitialSubmission || Boolean(sectionStates[section]?.editable);
+  const canEdit = isInitialSubmission || Object.values(sectionStates).some((state) => state?.editable);
   const requiredDocumentLabels =
     REQUIRED_DOCUMENT_LABELS_BY_ROLE[form.roleType] ||
     REQUIRED_DOCUMENT_LABELS_BY_ROLE.buyer;
@@ -457,7 +487,7 @@ export default function Kyc() {
           const draft = JSON.parse(localStorage.getItem(draftKey) || "{}");
           if (
             draft?.form &&
-            editableStatuses.has(kyc.status || "NOT_SUBMITTED")
+            (editableStatuses.has(kyc.status || "NOT_SUBMITTED") || res.data?.panUpdateRequired)
           ) {
             Object.assign(nextForm, draft.form, { roleType });
             setAcceptedTerms(Boolean(draft.acceptedTerms));
@@ -471,6 +501,9 @@ export default function Kyc() {
         setForm(nextForm);
         setKycStatus(kyc.status || "NOT_SUBMITTED");
         setAdminRemarks(kyc.adminRemarks || "");
+        setVerificationFeedback(res.data?.verificationFeedback || null);
+        setSectionStates(res.data?.sectionStates || {});
+        setPanUpdateRequired(Boolean(res.data?.panUpdateRequired));
         setDraftReady(true);
       } catch {
         setMessage("Please login to update KYC.");
@@ -644,6 +677,8 @@ export default function Kyc() {
       const document = {
         label,
         url: uploaded.secure_url,
+        storageProvider: "cloudinary",
+        storageKey: uploaded.public_id,
         publicId: uploaded.public_id,
         resourceType: uploaded.resource_type,
         originalFilename: uploaded.original_filename || file.name,
@@ -686,7 +721,7 @@ export default function Kyc() {
     }
   };
 
-  const submitKyc = async (event) => {
+  const submitKyc = async (event, resubmitSection = "") => {
     event.preventDefault();
     setMessage("");
     setMessageIsError(false);
@@ -705,12 +740,41 @@ export default function Kyc() {
     const uploadStateText = hasRequiredUploadingDocuments
       ? "Uploading document... Please wait before submitting."
       : "Upload required KYC documents before submitting.";
-    const validationErrors = buildKycValidation(
-      form,
-      acceptedTerms,
-      canSubmitWithUploads,
-      uploadStateText,
+    let validationErrors = buildKycValidation(
+        form,
+        acceptedTerms,
+        canSubmitWithUploads,
+        uploadStateText,
+      Boolean(existingDocuments.pan || uploads.pan?.status === "uploaded"),
     );
+    if (resubmitSection) {
+      const allowedFields = new Set([
+        ...(KYC_SECTION_FIELDS[resubmitSection] || []),
+        ...(resubmitSection === "identity" ? ["idProof"] : []),
+        ...(resubmitSection === "pan" ? ["pan", "panImage"] : []),
+        ...(resubmitSection === "bank" ? ["passbookFile"] : []),
+        ...(resubmitSection === "driver" ? ["drivingLicense"] : []),
+      ]);
+      validationErrors = Object.fromEntries(
+        Object.entries(validationErrors).filter(([field]) => allowedFields.has(field)),
+      );
+      const sectionUploadLabels = KYC_SECTION_UPLOAD_LABELS[resubmitSection] || [];
+      if (sectionUploadLabels.some((label) => ["uploading", "optimizing"].includes(uploads[label]?.status))) {
+        validationErrors.documents = "Uploading document... Please wait before resubmitting.";
+      }
+      const requiredSectionDocument = {
+        identity: ["idProof", "ID proof image is required."],
+        pan: ["pan", "PAN Card document is required."],
+        bank: ["passbookFile", "Bank proof/passbook file is required."],
+        driver: ["drivingLicense", "Driving license image is required."],
+      }[resubmitSection];
+      if (requiredSectionDocument) {
+        const [label, requiredMessage] = requiredSectionDocument;
+        if (!existingDocuments[label] && uploads[label]?.status !== "uploaded") {
+          validationErrors[label === "pan" ? "pan" : label] = requiredMessage;
+        }
+      }
+    }
     if (Object.keys(validationErrors).length) {
       setFieldErrors(validationErrors);
       setMessage(getFirstErrorMessage(validationErrors));
@@ -738,9 +802,19 @@ export default function Kyc() {
         data.aadhaarCardNo = data.idProofNumber;
       }
       data.acceptedTerms = true;
-      data.documents = Object.values(uploads)
+      data.documents = Object.entries(uploads)
+        .filter(([label]) => !resubmitSection || KYC_SECTION_UPLOAD_LABELS[resubmitSection]?.includes(label))
+        .map(([, upload]) => upload)
         .filter((upload) => upload?.status === "uploaded" && upload.document)
         .map((upload) => upload.document);
+
+      if (resubmitSection) {
+        const allowedFields = new Set(KYC_SECTION_FIELDS[resubmitSection] || []);
+        Object.keys(data).forEach((field) => {
+          if (!["roleType", "acceptedTerms", "documents"].includes(field) && !allowedFields.has(field)) delete data[field];
+        });
+        data.section = resubmitSection;
+      }
 
       const endpoint =
         kycStatus === "NOT_SUBMITTED" ? "/kyc/submit" : "/kyc/update";
@@ -749,10 +823,28 @@ export default function Kyc() {
         : await API.put(endpoint, data);
       saveUserToStorage(res.data);
       setKycStatus(res.data?.kyc?.status || "PENDING");
+      setVerificationFeedback(null);
+      if (resubmitSection) {
+        setSectionStates((current) => ({
+          ...current,
+          [resubmitSection]: {
+            ...(current[resubmitSection] || {}),
+            status: "PENDING",
+            editable: false,
+            latestRemark: null,
+          },
+        }));
+      }
+      setAdminRemarks("");
+      setPanUpdateRequired(false);
       trackKycSubmitted(form.roleType || "buyer");
       setMessage("");
       setMessageIsError(false);
-      setShowSubmissionSuccess(true);
+      if (resubmitSection) {
+        setMessage("Correction submitted. Waiting for verification.");
+      } else {
+        setShowSubmissionSuccess(true);
+      }
       localStorage.removeItem(
         `efruitmandiKycDraft:${currentUserId || getCurrentStoredUserId() || "guest"}:${form.roleType}`,
       );
@@ -790,7 +882,13 @@ export default function Kyc() {
               {intentMessage}
             </p>
           )}
-          {adminRemarks && (
+          <VerificationFeedback feedback={verificationFeedback} />
+          {panUpdateRequired && (
+            <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-sm font-extrabold text-amber-900">
+              KYC update required – Please add your PAN Number and PAN Card.
+            </p>
+          )}
+          {!verificationFeedback && adminRemarks && (
             <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">
               Admin remarks: {adminRemarks}
             </p>
@@ -820,10 +918,11 @@ export default function Kyc() {
         )}
 
         <form onSubmit={submitKyc} className="w-full max-w-full space-y-4">
-          <section className="w-full min-w-0 max-w-full rounded-lg border border-green-100 bg-green-50 p-3 md:p-4">
+          <section id="personal" className="w-full min-w-0 max-w-full scroll-mt-24 rounded-lg border border-green-100 bg-green-50 p-3 md:p-4">
             <h2 className="mb-3 text-base font-extrabold text-gray-950">
               User Details
             </h2>
+            <KycSectionStatus state={sectionStates.personal} />
             <div className="grid min-w-0 gap-3 md:grid-cols-2">
               <SelectField
                 label="Role Type"
@@ -841,7 +940,7 @@ export default function Kyc() {
                 label="Full Name"
                 value={form.fullName}
                 error={fieldErrors.fullName}
-                disabled={!canEdit}
+                disabled={!isSectionEditable("personal")}
                 onChange={(value) => updateForm("fullName", value)}
               />
               <KycInput
@@ -849,7 +948,7 @@ export default function Kyc() {
                 value={form.phone}
                 error={fieldErrors.phone}
                 inputMode="tel"
-                disabled={!canEdit}
+                disabled={!isSectionEditable("personal")}
                 onChange={(value) => updateForm("phone", value)}
               />
               <KycInput
@@ -857,28 +956,28 @@ export default function Kyc() {
                 value={form.email}
                 error={fieldErrors.email}
                 inputMode="email"
-                disabled={!canEdit}
+                disabled={!isSectionEditable("personal")}
                 onChange={(value) => updateForm("email", value)}
               />
               <KycInput
                 label={premisesAddressLabel}
                 value={form.address}
                 error={fieldErrors.address}
-                disabled={!canEdit}
+                disabled={!isSectionEditable("personal")}
                 onChange={(value) => updateForm("address", value)}
               />
               <KycInput
                 label="District"
                 value={form.district}
                 error={fieldErrors.district}
-                disabled={!canEdit}
+                disabled={!isSectionEditable("personal")}
                 onChange={(value) => updateForm("district", value)}
               />
               <KycInput
                 label="State"
                 value={form.state}
                 error={fieldErrors.state}
-                disabled={!canEdit}
+                disabled={!isSectionEditable("personal")}
                 onChange={(value) => updateForm("state", value)}
               />
               <KycInput
@@ -886,25 +985,27 @@ export default function Kyc() {
                 value={form.pinCode}
                 error={fieldErrors.pinCode}
                 inputMode="numeric"
-                disabled={!canEdit}
+                disabled={!isSectionEditable("personal")}
                 onChange={(value) => updateForm("pinCode", value)}
               />
             </div>
+            <KycSectionResubmit section="personal" state={sectionStates.personal} loading={loading} onResubmit={submitKyc} />
           </section>
 
-          <section className="w-full min-w-0 max-w-full rounded-lg border border-green-100 bg-green-50 p-3 md:p-4">
+          <section id="identity" className="w-full min-w-0 max-w-full scroll-mt-24 rounded-lg border border-green-100 bg-green-50 p-3 md:p-4">
             <div className="mb-3 flex items-center gap-2 text-green-800">
               <FaIdCard />
               <h2 className="text-base font-extrabold text-gray-950">
                 Identity Documents
               </h2>
             </div>
+            <KycSectionStatus state={sectionStates.identity} />
             <div className="grid min-w-0 gap-3 md:grid-cols-2">
               <KycInput
                 label="ID Proof Type"
                 value={form.idProofType}
                 error={fieldErrors.idProofType}
-                disabled={!canEdit}
+                disabled={!isSectionEditable("identity")}
                 onChange={(value) => updateForm("idProofType", value)}
               />
               <KycInput
@@ -919,13 +1020,13 @@ export default function Kyc() {
                 inputMode={
                   isAadhaarProof(form.idProofType) ? "numeric" : "text"
                 }
-                disabled={!canEdit}
+                disabled={!isSectionEditable("identity")}
                 onChange={(value) => updateForm("idProofNumber", value)}
               />
               <FileField
                 required
                 label="Upload ID Proof"
-                disabled={!canEdit}
+                disabled={!isSectionEditable("identity")}
                 error={fieldErrors.idProof || fieldErrors.documents}
                 upload={uploads.idProof}
                 existingUrl={existingDocuments.idProof}
@@ -936,18 +1037,22 @@ export default function Kyc() {
                 }
               />
             </div>
-            <OptionalKycSection title="PAN Details Optional">
+            <KycSectionResubmit section="identity" state={sectionStates.identity} loading={loading} onResubmit={submitKyc} />
+            <div id="pan" className="scroll-mt-24">
+            <OptionalKycSection title={["buyer", "grower"].includes(form.roleType) ? "PAN Details" : "PAN Details Optional"}>
+              <KycSectionStatus state={sectionStates.pan} />
               <div className="grid min-w-0 gap-3 md:grid-cols-2">
                 <KycInput
-                  label="PAN Number optional"
+                  label={["buyer", "grower"].includes(form.roleType) ? "PAN Number" : "PAN Number optional"}
                   value={form.panNumber}
                   error={fieldErrors.panNumber}
-                  disabled={!canEdit}
+                  disabled={!isSectionEditable("pan")}
                   onChange={(value) => updateForm("panNumber", value)}
                 />
                 <FileField
-                  label="Upload PAN optional"
-                  disabled={!canEdit}
+                  required={["buyer", "grower"].includes(form.roleType)}
+                  label={["buyer", "grower"].includes(form.roleType) ? "Upload PAN Card" : "Upload PAN optional"}
+                  disabled={!isSectionEditable("pan")}
                   error={fieldErrors.pan}
                   upload={uploads.pan}
                   existingUrl={existingDocuments.pan}
@@ -958,19 +1063,21 @@ export default function Kyc() {
                   }
                 />
               </div>
+              <KycSectionResubmit section="pan" state={sectionStates.pan} loading={loading} onResubmit={submitKyc} />
             </OptionalKycSection>
+            </div>
             <OptionalKycSection title="GST Details Optional">
               <div className="grid min-w-0 gap-3 md:grid-cols-2">
                 <KycInput
                   label="GST Number optional"
                   value={form.gstNumber}
                   error={fieldErrors.gstNumber}
-                  disabled={!canEdit}
+                  disabled={!isSectionEditable("identity")}
                   onChange={(value) => updateForm("gstNumber", value)}
                 />
                 <FileField
                   label="Upload GST Certificate optional"
-                  disabled={!canEdit}
+                  disabled={!isSectionEditable("identity")}
                   error={fieldErrors.gstCertificate}
                   upload={uploads.gstCertificate}
                   existingUrl={existingDocuments.gstCertificate}
@@ -984,26 +1091,27 @@ export default function Kyc() {
             </OptionalKycSection>
           </section>
 
-          <section className="w-full min-w-0 max-w-full rounded-lg border border-green-100 bg-green-50 p-3 md:p-4">
+          <section id="bank" className="w-full min-w-0 max-w-full scroll-mt-24 rounded-lg border border-green-100 bg-green-50 p-3 md:p-4">
             <div className="mb-3 flex items-center gap-2 text-green-800">
               <FaUniversity />
               <h2 className="text-base font-extrabold text-gray-950">
                 Bank Details
               </h2>
             </div>
+            <KycSectionStatus state={sectionStates.bank} />
             <div className="grid min-w-0 gap-3 md:grid-cols-2">
               <KycInput
                 label="Account Holder Name"
                 value={form.bankAccountHolderName}
                 error={fieldErrors.bankAccountHolderName}
-                disabled={!canEdit}
+                disabled={!isSectionEditable("bank")}
                 onChange={(value) => updateForm("bankAccountHolderName", value)}
               />
               <KycInput
                 label="Bank Name"
                 value={form.bankName}
                 error={fieldErrors.bankName}
-                disabled={!canEdit}
+                disabled={!isSectionEditable("bank")}
                 onChange={(value) => updateForm("bankName", value)}
               />
               <KycInput
@@ -1011,14 +1119,14 @@ export default function Kyc() {
                 value={form.accountNumber}
                 error={fieldErrors.accountNumber}
                 inputMode="numeric"
-                disabled={!canEdit}
+                disabled={!isSectionEditable("bank")}
                 onChange={(value) => updateForm("accountNumber", value)}
               />
               <KycInput
                 label="IFSC Code"
                 value={form.ifscCode}
                 error={fieldErrors.ifscCode}
-                disabled={!canEdit}
+                disabled={!isSectionEditable("bank")}
                 onChange={(value) =>
                   updateForm("ifscCode", value.toUpperCase())
                 }
@@ -1027,13 +1135,13 @@ export default function Kyc() {
                 label="UPI ID optional"
                 value={form.upiId}
                 error={fieldErrors.upiId}
-                disabled={!canEdit}
+                disabled={!isSectionEditable("bank")}
                 onChange={(value) => updateForm("upiId", value)}
               />
               <FileField
                 required
                 label="Upload Bank Proof / Passbook"
-                disabled={!canEdit}
+                disabled={!isSectionEditable("bank")}
                 error={fieldErrors.passbookFile || fieldErrors.documents}
                 upload={uploads.passbookFile}
                 existingUrl={existingDocuments.passbookFile}
@@ -1044,43 +1152,47 @@ export default function Kyc() {
                 }
               />
             </div>
+            <KycSectionResubmit section="bank" state={sectionStates.bank} loading={loading} onResubmit={submitKyc} />
           </section>
 
           {form.roleType === "grower" && (
-            <section className="w-full min-w-0 max-w-full rounded-lg border border-green-100 bg-green-50 p-3 md:p-4">
+            <section id="business" className="w-full min-w-0 max-w-full scroll-mt-24 rounded-lg border border-green-100 bg-green-50 p-3 md:p-4">
               <h2 className="mb-3 text-base font-extrabold text-gray-950">
                 Grower Details
               </h2>
+              <KycSectionStatus state={sectionStates.business} />
               <div className="grid min-w-0 gap-3 md:grid-cols-2">
                 <KycInput
                   label="Orchard Name optional"
                   value={form.orchardName}
                   error={fieldErrors.orchardName}
-                  disabled={!canEdit}
+                  disabled={!isSectionEditable("business")}
                   onChange={(value) => updateForm("orchardName", value)}
                 />
                 <KycInput
                   label="Orchard Location optional"
                   value={form.orchardLocation}
                   error={fieldErrors.orchardLocation}
-                  disabled={!canEdit}
+                  disabled={!isSectionEditable("business")}
                   onChange={(value) => updateForm("orchardLocation", value)}
                 />
               </div>
+              <KycSectionResubmit section="business" state={sectionStates.business} loading={loading} onResubmit={submitKyc} />
             </section>
           )}
 
           {form.roleType === "driver" && (
-            <section className="w-full min-w-0 max-w-full rounded-lg border border-green-100 bg-green-50 p-3 md:p-4">
+            <section id="driver" className="w-full min-w-0 max-w-full scroll-mt-24 rounded-lg border border-green-100 bg-green-50 p-3 md:p-4">
               <h2 className="mb-3 text-base font-extrabold text-gray-950">
                 Driver Details
               </h2>
+              <KycSectionStatus state={sectionStates.driver} />
               <div className="grid min-w-0 gap-3 md:grid-cols-2">
                 <KycInput
                   label="Vehicle Number"
                   value={form.vehicleNumber}
                   error={fieldErrors.vehicleNumber}
-                  disabled={!canEdit}
+                  disabled={!isSectionEditable("driver")}
                   onChange={(value) =>
                     updateForm("vehicleNumber", value.toUpperCase())
                   }
@@ -1089,7 +1201,7 @@ export default function Kyc() {
                   label="Driving License Number"
                   value={form.drivingLicenseNumber}
                   error={fieldErrors.drivingLicenseNumber}
-                  disabled={!canEdit}
+                  disabled={!isSectionEditable("driver")}
                   onChange={(value) =>
                     updateForm("drivingLicenseNumber", value.toUpperCase())
                   }
@@ -1097,7 +1209,7 @@ export default function Kyc() {
                 <FileField
                   required
                   label="Upload Driving License"
-                  disabled={!canEdit}
+                  disabled={!isSectionEditable("driver")}
                   error={fieldErrors.drivingLicense || fieldErrors.documents}
                   upload={uploads.drivingLicense}
                   existingUrl={existingDocuments.drivingLicense}
@@ -1113,14 +1225,15 @@ export default function Kyc() {
                   }
                 />
               </div>
+              <KycSectionResubmit section="driver" state={sectionStates.driver} loading={loading} onResubmit={submitKyc} />
             </section>
           )}
 
-          <label className="flex w-full max-w-full items-start gap-3 rounded-lg border border-green-100 bg-white p-3 text-sm font-bold text-gray-800">
+          {isInitialSubmission && <label className="flex w-full max-w-full items-start gap-3 rounded-lg border border-green-100 bg-white p-3 text-sm font-bold text-gray-800">
             <input
               type="checkbox"
               checked={acceptedTerms}
-              disabled={!canEdit}
+              disabled={!isInitialSubmission}
               onChange={(event) => setAcceptedTerms(event.target.checked)}
               className="mt-1 h-4 w-4 rounded border-green-300 text-green-700 focus:ring-green-600 disabled:opacity-60"
             />
@@ -1145,14 +1258,14 @@ export default function Kyc() {
               </Link>{" "}
               for KYC verification and marketplace activity.
             </span>
-          </label>
-          {fieldErrors.acceptedTerms && (
+          </label>}
+          {isInitialSubmission && fieldErrors.acceptedTerms && (
             <p className="-mt-2 text-xs font-bold text-red-700">
               {fieldErrors.acceptedTerms}
             </p>
           )}
 
-          <button
+          {isInitialSubmission && <button
             type="submit"
             disabled={loading || !canEdit || !canSubmitWithUploads}
             className="hidden w-full rounded-md bg-green-700 py-3 text-sm font-extrabold text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:bg-gray-300 md:block"
@@ -1168,13 +1281,13 @@ export default function Kyc() {
                   : !requiredDocumentsUploaded
                     ? "Upload Required Documents"
                     : "Submit KYC"}
-          </button>
+          </button>}
           <div className="flex justify-center">
             <BackHomeButton />
           </div>
         </form>
       </section>
-      <MobileSubmitBar
+      {isInitialSubmission && <MobileSubmitBar
         loading={loading}
         canEdit={canEdit}
         kycStatus={kycStatus}
@@ -1184,7 +1297,7 @@ export default function Kyc() {
         percent={completionPercent}
         isKeyboardOpen={isKeyboardOpen}
         onSubmit={(event) => submitKyc(event)}
-      />
+      />}
       {showSubmissionSuccess && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4">
           <div
@@ -1206,6 +1319,40 @@ export default function Kyc() {
         </div>
       )}
     </div>
+  );
+}
+
+function KycSectionStatus({ state }) {
+  if (!state || state.status === "NOT_SUBMITTED") return null;
+  const copy = {
+    VERIFIED: "Verified — this information is locked.",
+    PENDING: "Submitted for verification.",
+    UNDER_REVIEW: "Under review.",
+    CHANGES_REQUIRED: "Changes required.",
+    REJECTED: "Rejected — update this section and resubmit.",
+  }[state.status] || state.status;
+  const warning = ["CHANGES_REQUIRED", "REJECTED"].includes(state.status);
+  return (
+    <div className={`mb-3 rounded-md border px-3 py-2 text-sm font-bold ${warning ? "border-amber-300 bg-amber-50 text-amber-900" : "border-green-200 bg-white text-green-800"}`}>
+      <p>{copy}</p>
+      {state.latestRemark?.remark && (
+        <p className="mt-1 text-gray-800">Admin remark: {state.latestRemark.remark}</p>
+      )}
+    </div>
+  );
+}
+
+function KycSectionResubmit({ section, state, loading, onResubmit }) {
+  if (!state || !SECTION_EDITABLE_STATUSES.has(state.status) || state.status === "NOT_SUBMITTED") return null;
+  return (
+    <button
+      type="button"
+      disabled={loading}
+      onClick={(event) => onResubmit(event, section)}
+      className="mt-3 w-full rounded-md bg-green-700 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-green-800 disabled:opacity-60"
+    >
+      {loading ? "Submitting..." : "Resubmit for Verification"}
+    </button>
   );
 }
 

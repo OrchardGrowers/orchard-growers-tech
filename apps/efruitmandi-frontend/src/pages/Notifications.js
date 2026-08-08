@@ -4,6 +4,7 @@ import {
   FaCheck,
   FaClock,
   FaEye,
+  FaExclamationCircle,
   FaFilter,
   FaGavel,
   FaMapMarkerAlt,
@@ -24,6 +25,7 @@ const filters = [
   { key: "deal", label: "Deal Open" },
   { key: "upcoming", label: "Upcoming" },
   { key: "closed", label: "Closed" },
+  { key: "verification", label: "Verification" },
 ];
 const READ_NOTIFICATIONS_KEY = "efruitmandiReadNotifications";
 const NOTIFICATION_STATE_EVENT = "efruitmandi-notifications-updated";
@@ -32,6 +34,7 @@ export default function Notifications() {
   const navigate = useNavigate();
   const [lots, setLots] = useState([]);
   const [buyerQuotes, setBuyerQuotes] = useState([]);
+  const [userNotifications, setUserNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState("all");
   const [readIds, setReadIds] = useState(() => loadReadNotifications());
@@ -46,11 +49,14 @@ export default function Notifications() {
   useEffect(() => {
     const loadLots = async () => {
       try {
-        const [lotRes, quoteRes] = await Promise.all([
+        const [lotRes, quoteRes, notificationRes] = await Promise.all([
           API.get("/products?platform=efruitmandi"),
           localStorage.getItem("accessToken")
             ? API.get("/quotes/buyer").catch(() => ({ data: { quotes: [] } }))
             : Promise.resolve({ data: { quotes: [] } }),
+          localStorage.getItem("accessToken")
+            ? API.get("/user/notifications").catch(() => ({ data: { notifications: [] } }))
+            : Promise.resolve({ data: { notifications: [] } }),
         ]);
         const latestLots = getEfruitMandiProducts(lotRes.data)
           .slice()
@@ -59,10 +65,12 @@ export default function Notifications() {
 
         setLots(latestLots);
         setBuyerQuotes(quoteRes.data?.quotes || []);
+        setUserNotifications(notificationRes.data?.notifications || []);
       } catch (err) {
         console.error(err);
         setLots([]);
         setBuyerQuotes([]);
+        setUserNotifications([]);
       } finally {
         setLoading(false);
       }
@@ -76,8 +84,11 @@ export default function Notifications() {
       .filter((quote) => String(quote.status || "").toLowerCase() === "accepted")
       .map((quote) => buildQuoteWonNotification(quote, readIds.has(`quote-${quote._id}`), now));
     const lotNotifications = lots.map((lot) => buildLotNotification(lot, readIds.has(lot._id)));
-    return [...quoteNotifications, ...lotNotifications];
-  }, [buyerQuotes, lots, now, readIds]);
+    const verificationNotifications = userNotifications
+      .filter((notification) => notification.type === "VERIFICATION_REMARK")
+      .map(buildVerificationNotification);
+    return [...verificationNotifications, ...quoteNotifications, ...lotNotifications];
+  }, [buyerQuotes, lots, now, readIds, userNotifications]);
 
   const visibleNotifications = notifications.filter((notification) =>
     activeFilter === "all" ? true : notification.type === activeFilter
@@ -86,6 +97,20 @@ export default function Notifications() {
   const dealOpenCount = notifications.filter((notification) => notification.type === "deal").length;
 
   const markRead = (id) => {
+    const verificationNotification = userNotifications.find(
+      (notification) => `verification-${notification._id}` === id
+    );
+    if (verificationNotification && !verificationNotification.readAt) {
+      setUserNotifications((current) => current.map((notification) =>
+        notification._id === verificationNotification._id
+          ? { ...notification, readAt: new Date().toISOString() }
+          : notification
+      ));
+      API.patch(`/user/notifications/${verificationNotification._id}/read`)
+        .catch(() => {})
+        .finally(() => window.dispatchEvent(new Event(NOTIFICATION_STATE_EVENT)));
+      return;
+    }
     const next = new Set(readIds);
     next.add(id);
     setReadIds(next);
@@ -96,10 +121,23 @@ export default function Notifications() {
     const next = new Set(notifications.map((notification) => notification.id));
     setReadIds(next);
     saveReadNotifications(next);
+    if (localStorage.getItem("accessToken")) {
+      setUserNotifications((current) => current.map((notification) => ({
+        ...notification,
+        readAt: notification.readAt || new Date().toISOString(),
+      })));
+      API.patch("/user/notifications/read-all")
+        .catch(() => {})
+        .finally(() => window.dispatchEvent(new Event(NOTIFICATION_STATE_EVENT)));
+    }
   };
 
   const openNotification = (notification) => {
     markRead(notification.id);
+    if (notification.type === "verification") {
+      navigate(notification.actionUrl || "/profile-dashboard");
+      return;
+    }
     if (notification.type === "won") {
       if (notification.orderId && !notification.paymentExpired) {
         if (!PAYMENT_PARTNER_ENABLED) {
@@ -218,7 +256,9 @@ function NotificationCard({ notification, onOpen, onMarkRead }) {
   return (
     <article
       className={`rounded-lg border p-3 shadow-sm ${
-        notification.type === "won"
+        notification.type === "verification"
+          ? "border-amber-300 bg-amber-50 ring-1 ring-amber-100"
+          : notification.type === "won"
           ? "border-green-300 bg-green-100 ring-1 ring-green-200"
           : notification.read
             ? "border-gray-200 bg-white"
@@ -241,7 +281,7 @@ function NotificationCard({ notification, onOpen, onMarkRead }) {
             />
           ) : (
             <span className="flex h-full w-full items-center justify-center text-2xl text-green-700">
-              <FaSeedling />
+              {notification.type === "verification" ? <FaExclamationCircle /> : <FaSeedling />}
             </span>
           )}
           {!notification.read && (
@@ -265,17 +305,27 @@ function NotificationCard({ notification, onOpen, onMarkRead }) {
             </span>
           </div>
 
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-gray-600">
-            <span className="inline-flex min-w-0 items-center gap-1">
-              <FaMapMarkerAlt className="shrink-0 text-green-700" />
-              <span className="truncate">{notification.location}</span>
-            </span>
-            <span>{notification.quantity} Box Lot</span>
-            <span className="inline-flex items-center gap-1">
-              <FaClock className="text-green-700" />
-              {notification.countdown || notification.time}
-            </span>
-          </div>
+          {notification.type === "verification" ? (
+            <div className="mt-2 text-xs font-semibold leading-5 text-gray-700">
+              <p>{notification.message}</p>
+              <p className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-gray-500">
+                <FaClock className="text-green-700" />
+                {notification.time}
+              </p>
+            </div>
+          ) : (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-gray-600">
+              <span className="inline-flex min-w-0 items-center gap-1">
+                <FaMapMarkerAlt className="shrink-0 text-green-700" />
+                <span className="truncate">{notification.location}</span>
+              </span>
+              <span>{notification.quantity} Box Lot</span>
+              <span className="inline-flex items-center gap-1">
+                <FaClock className="text-green-700" />
+                {notification.countdown || notification.time}
+              </span>
+            </div>
+          )}
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
@@ -284,7 +334,11 @@ function NotificationCard({ notification, onOpen, onMarkRead }) {
               className="inline-flex items-center gap-1 rounded-full bg-green-700 px-3 py-1.5 text-[10px] font-extrabold text-white hover:bg-green-800"
             >
               <FaEye />
-              {notification.type === "won" ? (notification.paymentExpired ? "View Offer" : "Pay to Confirm") : "View Listing"}
+              {notification.type === "verification"
+                ? "Review Verification"
+                : notification.type === "won"
+                  ? (notification.paymentExpired ? "View Offer" : "Pay to Confirm")
+                  : "View Listing"}
             </button>
             {!notification.read && (
               <button
@@ -377,6 +431,26 @@ function buildQuoteWonNotification(quote, read, now) {
     icon: <FaCheck />,
     statusLabel: "Offer Accepted",
     statusClass: "bg-green-700 text-white",
+  };
+}
+
+function buildVerificationNotification(notification) {
+  const actionResolved = Boolean(notification.resolvedAt);
+  return {
+    id: `verification-${notification._id}`,
+    backendId: notification._id,
+    read: Boolean(notification.readAt),
+    type: "verification",
+    title: notification.title || "Verification Update",
+    message: notification.message || "Your verification status was updated.",
+    actionUrl: notification.actionUrl || "/profile-dashboard",
+    time: formatNotificationTime(notification.createdAt),
+    kicker: "Account verification",
+    icon: <FaExclamationCircle />,
+    statusLabel: actionResolved ? "ACTION RESOLVED" : String(notification.status || "UPDATE").replace(/_/g, " "),
+    statusClass: notification.status === "VERIFIED" || actionResolved
+      ? "bg-green-100 text-green-800"
+      : "bg-amber-100 text-amber-900",
   };
 }
 

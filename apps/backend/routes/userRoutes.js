@@ -18,8 +18,16 @@ import {
 import protect from "../middleware/authMiddleware.js";
 import profileMediaUpload from "../middleware/profileMediaUpload.js";
 import kycUpload from "../middleware/kycUpload.js";
+import {
+  getMyNotifications,
+  getMyVerificationFeedback,
+  markAllMyNotificationsRead,
+  markMyNotificationRead,
+} from "../controllers/notificationController.js";
 
 const router = express.Router();
+const wrapAsync = (handler) => (req, res, next) =>
+  Promise.resolve(handler(req, res, next)).catch(next);
 
 router.get("/public-profiles", getPublicProfiles);
 router.get("/public-profile-locations", getPublicProfileLocations);
@@ -38,6 +46,10 @@ router.post("/create-role-profile", protect, createRoleProfile);
 // 🔐 Get logged-in user profile
 router.get("/profile", protect, getProfile);
 router.patch("/profile", protect, updateProfile);
+router.get("/notifications", protect, wrapAsync(getMyNotifications));
+router.patch("/notifications/read-all", protect, wrapAsync(markAllMyNotificationsRead));
+router.patch("/notifications/:id/read", protect, wrapAsync(markMyNotificationRead));
+router.get("/verification-feedback", protect, wrapAsync(getMyVerificationFeedback));
 router.patch(
   "/profile/media",
   protect,

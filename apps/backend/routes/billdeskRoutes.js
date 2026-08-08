@@ -1,6 +1,11 @@
 import express from "express";
 import Order from "../models/Order.js";
 import protect, { authorize } from "../middleware/authMiddleware.js";
+import User from "../models/User.js";
+import {
+  hasTransactionEligibleKyc,
+  PAN_KYC_REQUIRED_MESSAGE,
+} from "../services/kycEligibilityService.js";
 import { requirePaymentPartnerEnabled } from "../utils/paymentFeatureFlag.js";
 import {
   generateBillDeskPaymentRef,
@@ -91,6 +96,16 @@ router.post("/pay", protect, authorize("buyer"), async (req, res) => {
 
     if (!ensureOwnBuyerOrder(order, req.user.id)) {
       return res.status(403).json({ msg: "You can pay only for your own order" });
+    }
+
+    const buyer = await User.findById(req.user.id).select("kyc kycByRole buyerVerified");
+    if (!hasTransactionEligibleKyc(buyer, "buyer")) {
+      return res.status(403).json({
+        success: false,
+        code: "KYC_REQUIRED",
+        message: PAN_KYC_REQUIRED_MESSAGE,
+        msg: PAN_KYC_REQUIRED_MESSAGE,
+      });
     }
 
     if (order.paymentStatus !== "PENDING") {

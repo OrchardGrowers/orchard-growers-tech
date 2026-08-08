@@ -348,6 +348,7 @@ const userSchema = new mongoose.Schema(
             type: String,
             enum: ["APPROVE", "REJECT", "UNDER_REVIEW", "CORRECTION_REQUIRED"],
           },
+          section: { type: String, trim: true, lowercase: true, default: "kyc" },
           note: String,
           reviewedAt: { type: Date, default: Date.now },
         },

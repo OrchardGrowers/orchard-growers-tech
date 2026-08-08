@@ -10,6 +10,10 @@ import {
   generateCommissionReceiptNo,
 } from "../services/invoiceNumberingService.js";
 import { refreshSettlementEligibility } from "../services/logisticsAssignmentService.js";
+import {
+  hasTransactionEligibleKyc,
+  PAN_KYC_REQUIRED_MESSAGE,
+} from "../services/kycEligibilityService.js";
 
 const roundMoney = (value) =>
   Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
@@ -176,7 +180,17 @@ export const createRazorpayOrder = async (req, res) => {
       return res.status(400).json({ msg: "Invalid payable amount" });
     }
 
-    const buyer = await User.findById(order.buyer).select("email phone contact").lean();
+    const buyer = await User.findById(order.buyer)
+      .select("email phone contact kyc kycByRole buyerVerified")
+      .lean();
+    if (!canUseLocalRazorpayTestMode(buyer) && !hasTransactionEligibleKyc(buyer, "buyer")) {
+      return res.status(403).json({
+        success: false,
+        code: "KYC_REQUIRED",
+        message: PAN_KYC_REQUIRED_MESSAGE,
+        msg: PAN_KYC_REQUIRED_MESSAGE,
+      });
+    }
     let razorpayOrder;
     let localTestMode = false;
 

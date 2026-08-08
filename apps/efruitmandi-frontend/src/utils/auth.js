@@ -66,7 +66,16 @@ export const getRoleKyc = (user = getCurrentUser(), roleType = "") => {
 };
 
 export const hasCompletedKycForRole = (user = getCurrentUser(), roleType = "") =>
-  String(getRoleKyc(user, roleType)?.status || "").toUpperCase() === "APPROVED";
+  String(getRoleKyc(user, roleType)?.status || "").toUpperCase() === "APPROVED" &&
+  hasCompletePanForRole(user, roleType);
+
+export const hasCompletePanForRole = (user = getCurrentUser(), roleType = "") => {
+  const role = String(roleType || "").trim().toLowerCase();
+  if (!new Set(["buyer", "grower"]).has(role)) return true;
+  const kyc = getRoleKyc(user, role);
+  return /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(String(kyc.panNumber || "").trim().toUpperCase()) &&
+    Boolean(String(kyc.panImage || "").trim());
+};
 
 export const getKycStatus = (user = getCurrentUser()) =>
   String(user?.kyc?.status || "NOT_SUBMITTED").toUpperCase();
@@ -86,8 +95,8 @@ export const getKycStatusLabel = (user = getCurrentUser()) => {
 
 export const canQuote = (user = getCurrentUser()) => {
   if (!user || !(user._id || user.id || user.email || user.phone)) return false;
-  if (hasBuyerProfile(user)) return Boolean(user.buyerVerified) || hasCompletedKycForRole(user, "buyer");
-  if (hasGrowerProfile(user)) return Boolean(user.growerVerified) || hasCompletedKycForRole(user, "grower");
+  if (hasBuyerProfile(user)) return (Boolean(user.buyerVerified) || hasCompletedKycForRole(user, "buyer")) && hasCompletePanForRole(user, "buyer");
+  if (hasGrowerProfile(user)) return (Boolean(user.growerVerified) || hasCompletedKycForRole(user, "grower")) && hasCompletePanForRole(user, "grower");
   return false;
 };
 

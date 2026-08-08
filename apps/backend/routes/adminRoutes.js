@@ -71,6 +71,7 @@ import {
   listAdminErpSettlements,
   listAdminErpSupportTickets,
 } from "../controllers/adminErpController.js";
+import { getUserVerificationFeedbackByAdmin } from "../controllers/notificationController.js";
 
 const router = express.Router();
 const wrapAsync = (handler) => (req, res, next) =>
@@ -215,6 +216,7 @@ router.get("/users", ...adminOnly, requireRoles(...USER_READ_ROLES), wrapAsync(l
 router.patch("/users/:id", ...adminOnly, requireRoles(...USER_WRITE_ROLES), wrapAsync(updateUserByAdmin));
 router.post("/users/:id/feature-profile", ...adminOnly, requireRoles(...USER_WRITE_ROLES), wrapAsync(featureUserProfileByAdmin));
 router.patch("/users/:id/status", ...adminOnly, requireRoles(...USER_WRITE_ROLES), wrapAsync(setUserStatusByAdmin));
+router.get("/users/:id/verification-feedback", ...adminOnly, requireRoles(...VERIFICATION_READ_ROLES), wrapAsync(getUserVerificationFeedbackByAdmin));
 router.delete("/users/:id", ...adminOnly, requireRoles("SUPER_ADMIN", "ADMIN"), wrapAsync(deleteUserByAdmin));
 
 router.get("/products", ...adminOnly, requireRoles(...PRODUCT_READ_ROLES), wrapAsync(listProductsByAdmin));

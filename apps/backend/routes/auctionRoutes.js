@@ -21,6 +21,10 @@ import {
   isPublicAuctionVisible,
   resolveDealSchedule,
 } from "../services/dealLifecycleService.js";
+import {
+  hasTransactionEligibleKyc,
+  PAN_KYC_REQUIRED_MESSAGE,
+} from "../services/kycEligibilityService.js";
 
 const router = express.Router();
 const PAYMENT_CONFIRMATION_WINDOW_MS = 15 * 60 * 1000;
@@ -40,17 +44,14 @@ const kycRequiredResponse = (res) =>
   res.status(403).json({
     success: false,
     code: "KYC_REQUIRED",
-    message: "KYC approval is required before placing an offer.",
-    msg: "KYC approval is required before placing an offer.",
+    message: PAN_KYC_REQUIRED_MESSAGE,
+    msg: PAN_KYC_REQUIRED_MESSAGE,
   });
 
 const requireApprovedKyc = async (userId, role) => {
   const user = await User.findById(userId).select("kyc kycByRole role profileTypes buyerVerified growerVerified");
   if (!user) return false;
-  const verifiedFlag = role === "buyer" ? user.buyerVerified : role === "grower" ? user.growerVerified : false;
-  const roleKyc = user.kycByRole?.[role] || {};
-  const legacyKyc = String(user.kyc?.roleType || "").toLowerCase() === role ? user.kyc : {};
-  return Boolean(verifiedFlag) || String(roleKyc.status || legacyKyc.status || "").toUpperCase() === "APPROVED";
+  return hasTransactionEligibleKyc(user, role);
 };
 
 const loadDealSettings = async () =>

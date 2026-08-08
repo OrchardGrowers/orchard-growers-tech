@@ -23,6 +23,7 @@ import {
   isLotResourceEligible,
   isValidLotLookupId,
 } from "../services/publicLotAccessService.js";
+import { hasTransactionEligibleKyc } from "../services/kycEligibilityService.js";
 
 const PUBLIC_PROFILE_SELECT =
   "name orchardName businessName buyerContactPerson companyLogoUrl bannerUrl buyerCompanyLogoUrl role profileTypes growerVerified buyerVerified growerOgVerified buyerOgVerified driverOgVerified ogVerificationByRole growerRatingAverage growerRatingCount mapLatitude mapLongitude createdAt";
@@ -254,13 +255,6 @@ const isLocalTestAccount = (user = {}) => {
   );
 };
 
-const hasCompletedKyc = (user = {}, roleType = "") => {
-  const role = String(roleType || "").toLowerCase();
-  const roleKyc = user?.kycByRole?.[role] || {};
-  const legacyKyc = String(user?.kyc?.roleType || "").toLowerCase() === role ? user.kyc : {};
-  return String(roleKyc.status || legacyKyc.status || "").toUpperCase() === "APPROVED";
-};
-
 const requireCompletedKyc = async (userId) => {
   const user = await User.findById(userId).select("email phone contact kyc kycByRole growerVerified");
 
@@ -268,7 +262,7 @@ const requireCompletedKyc = async (userId) => {
     return true;
   }
 
-  return Boolean(user?.growerVerified) || hasCompletedKyc(user, "grower");
+  return hasTransactionEligibleKyc(user, "grower");
 };
 
 export const getNextLotNo = async (req, res) => {
@@ -503,7 +497,7 @@ export const generateSku = async (req, res) => {
 export const createProduct = async (req, res) => {
   try {
     if (!(await requireCompletedKyc(req.user.id))) {
-      return res.status(403).json({ msg: "Complete KYC before listing fruit lots" });
+      return res.status(403).json({ msg: "Complete PAN and KYC verification before listing fruit lots." });
     }
 
     const title = String(req.body.title || "").trim();
@@ -966,7 +960,7 @@ export const getProductById = async (req, res) => {
 export const updateProduct = async (req, res) => {
   try {
     if (!(await requireCompletedKyc(req.user.id))) {
-      return res.status(403).json({ msg: "Complete KYC before updating fruit lots" });
+      return res.status(403).json({ msg: "Complete PAN and KYC verification before updating fruit lots." });
     }
 
     const product = await Product.findById(req.params.id);
