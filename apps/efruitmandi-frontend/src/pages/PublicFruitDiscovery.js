@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import API from "../services/api";
-import SEO from "../components/SEO";
+import SEO, { getInitialRobotsDirective } from "../components/SEO";
 import { DirectoryCard, deduplicateProfiles, getProfileName, getProfilePath } from "./PublicProfileDirectory";
 import { buildBreadcrumbSchema, buildCollectionPageSchema, buildItemListSchema } from "../utils/schemaGenerators";
 
@@ -39,6 +39,9 @@ export default function PublicFruitDiscovery({ view = "overview", role = "" }) {
   const location = districtSlug ? [resolvedDistrict, resolvedState].filter(Boolean).join(", ") : resolvedState;
   const heading = view === "directory" ? "Fruits Traded on eFruitMandi" : role ? `${baseName} ${role === "grower" ? "Growers and Orchards" : "Buyers and Traders"}${location ? ` in ${location}` : ""}` : `${baseName} on eFruitMandi`;
   const path = locationRoute.pathname;
+  const [initialRobots] = useState(() =>
+    getInitialRobotsDirective(path, "noindex,nofollow")
+  );
   const title = view === "directory" ? "Fruits, Growers and Buyers in India | eFruitMandi" : `${heading}${role || variety ? "" : " Growers, Buyers and Fruit Lots in India"} | eFruitMandi`;
   const description = view === "directory" ? "Explore fruits publicly listed on eFruitMandi. Discover fruit lots, eligible growers, orchards, buyers and traders across India." : `Explore public ${baseName} marketplace activity, eligible profiles and fruit lots on eFruitMandi${location ? ` in ${location}` : ""}.`;
   const items = view === "directory" ? data?.fruits || [] : role ? profiles : [];
@@ -57,7 +60,12 @@ export default function PublicFruitDiscovery({ view = "overview", role = "" }) {
   ], [description, fruit, heading, indexable, items, path, role]);
 
   if (unavailable) return <Unavailable />;
-  return <><SEO title={title} description={description} canonical={path} noIndex={!indexable} schema={schema} /><main className="mx-auto min-h-[65vh] max-w-7xl px-4 py-10"><h1 className="text-2xl font-extrabold text-gray-950 sm:text-3xl">{heading}</h1><p className="mt-3 text-sm font-semibold text-gray-600">{description}</p>{!data ? <p className="mt-6">Loading public fruit activity...</p> : view === "directory" ? <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{data.fruits.map((item) => <Link className="rounded-xl border border-green-100 bg-white p-5 font-extrabold text-green-900" key={item.slug} to={`/fruits/${item.slug}`}>{item.name}</Link>)}</div> : role ? <div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{profiles.map((profile) => <DirectoryCard key={getProfilePath(profile, role)} profile={profile} role={role} label={role} />)}</div> : <nav className="mt-7 flex flex-wrap gap-3"><Link to={`/fruit-lots/${fruit.slug}`} className="font-bold text-green-800">View public {fruit.name} lots</Link>{fruit.growerCount >= 2 && <Link to={`/fruits/${fruit.slug}/growers`} className="font-bold text-green-800">View {fruit.name} growers</Link>}{fruit.buyerCount >= 2 && <Link to={`/fruits/${fruit.slug}/buyers`} className="font-bold text-green-800">View {fruit.name} buyers</Link>}{fruit.varieties?.filter((item) => item.lotCount >= 2).map((item) => <Link key={item.slug} to={`/fruits/${fruit.slug}/varieties/${item.slug}`} className="font-bold text-green-800">{item.name}</Link>)}{stateLinks.map((item) => <Link key={item.path} to={item.path} className="font-bold text-green-800">{item.name} {item.role}s</Link>)}</nav>}</main></>;
+  const robots = !data && !failed
+    ? initialRobots
+    : indexable
+      ? "index,follow"
+      : "noindex,nofollow";
+  return <><SEO title={title} description={description} canonical={path} robots={robots} schema={schema} /><main className="mx-auto min-h-[65vh] max-w-7xl px-4 py-10"><h1 className="text-2xl font-extrabold text-gray-950 sm:text-3xl">{heading}</h1><p className="mt-3 text-sm font-semibold text-gray-600">{description}</p>{!data ? <p className="mt-6">Loading public fruit activity...</p> : view === "directory" ? <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{data.fruits.map((item) => <Link className="rounded-xl border border-green-100 bg-white p-5 font-extrabold text-green-900" key={item.slug} to={`/fruits/${item.slug}`}>{item.name}</Link>)}</div> : role ? <div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{profiles.map((profile) => <DirectoryCard key={getProfilePath(profile, role)} profile={profile} role={role} label={role} />)}</div> : <nav className="mt-7 flex flex-wrap gap-3"><Link to={`/fruit-lots/${fruit.slug}`} className="font-bold text-green-800">View public {fruit.name} lots</Link>{fruit.growerCount >= 2 && <Link to={`/fruits/${fruit.slug}/growers`} className="font-bold text-green-800">View {fruit.name} growers</Link>}{fruit.buyerCount >= 2 && <Link to={`/fruits/${fruit.slug}/buyers`} className="font-bold text-green-800">View {fruit.name} buyers</Link>}{fruit.varieties?.filter((item) => item.lotCount >= 2).map((item) => <Link key={item.slug} to={`/fruits/${fruit.slug}/varieties/${item.slug}`} className="font-bold text-green-800">{item.name}</Link>)}{stateLinks.map((item) => <Link key={item.path} to={item.path} className="font-bold text-green-800">{item.name} {item.role}s</Link>)}</nav>}</main></>;
 }
 
 const slug = (value = "") => String(value).trim().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");

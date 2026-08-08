@@ -10,7 +10,7 @@ import {
   FaSeedling,
 } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
-import SEO from "../components/SEO";
+import SEO, { getInitialRobotsDirective } from "../components/SEO";
 import ProfileShareButton from "../components/ProfileShareButton";
 import { buildBreadcrumbSchema, buildBusinessOrganizationSchema, buildLocalBusinessSchema } from "../utils/schemaGenerators";
 
@@ -119,6 +119,9 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
   const routeCanonical = slug
     ? `/${businessType === "grower" ? "growers" : "buyers"}/${slug}`
     : `/profiles/${businessType}/${userId}`;
+  const [initialRobots] = useState(() =>
+    getInitialRobotsDirective(routeCanonical, "noindex,nofollow")
+  );
   const canonicalSlug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(profile?.slug || ""))
     ? profile.slug
     : "";
@@ -219,7 +222,7 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
   if (loading) {
     return (
       <>
-        <SEO canonical={routeCanonical} noIndex image={null} />
+        <SEO canonical={routeCanonical} robots={initialRobots} image={null} />
         <main className="mx-auto min-h-[60vh] max-w-3xl px-4 py-14">
           <p className="text-center text-sm font-semibold text-gray-500">Loading public profile...</p>
         </main>

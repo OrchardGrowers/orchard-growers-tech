@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { FaCalendarAlt, FaChartLine, FaFilter, FaMapMarkerAlt, FaSearch } from "react-icons/fa";
-import SEO from "../components/SEO";
+import SEO, { getInitialRobotsDirective } from "../components/SEO";
 import API from "../services/api";
 import {
   findFruitEntity,
@@ -68,6 +68,10 @@ export default function MandiRates() {
   const selectedCommodity = commodity || slugCommodity;
   const selectedFruit = findFruitEntity(selectedCommodity || commoditySlug);
   const selectedFruitSlug = selectedFruit?.slug || slugify(selectedCommodity);
+  const canonicalPath = selectedCommodity ? `/mandi-rates/${selectedFruitSlug}` : "/mandi-rates";
+  const [initialRobots] = useState(() =>
+    getInitialRobotsDirective(canonicalPath, commoditySlug ? "noindex,follow" : "index,follow")
+  );
   const availabilityResolved = Array.isArray(availableMandiSlugs);
   const hasResolvedRates =
     Boolean(selectedFruitSlug) &&
@@ -83,11 +87,13 @@ export default function MandiRates() {
       ? `Check latest ${selectedCommodity.toLowerCase()} mandi rates from AGMARKNET markets across India with min, modal and max price per kg.`
       : `Check available ${selectedCommodity.toLowerCase()} mandi-rate information and related fruit marketplace pages on eFruitMandi.`
     : "Check latest fruit mandi rates from AGMARKNET markets across India with commodity, variety, market, district, state and price per kg.";
-  const robots = getMandiPageRobots({
-    isFruitPage: Boolean(commoditySlug),
-    loading: Boolean(commoditySlug) && !availabilityResolved,
-    recordCount: hasResolvedRates ? 1 : 0,
-  });
+  const robots = commoditySlug && !availabilityResolved
+    ? initialRobots
+    : getMandiPageRobots({
+        isFruitPage: Boolean(commoditySlug),
+        loading: false,
+        recordCount: hasResolvedRates ? 1 : 0,
+      });
 
   useEffect(() => {
     API.get("/mandi-rates/fruits")
@@ -166,7 +172,7 @@ export default function MandiRates() {
       <SEO
         title={pageTitle}
         description={pageDescription}
-        canonical={selectedCommodity ? `/mandi-rates/${selectedFruitSlug}` : "/mandi-rates"}
+        canonical={canonicalPath}
         robots={robots}
       />
 

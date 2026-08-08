@@ -183,6 +183,8 @@ const staticRoutes = [
     description: "Explore fruits publicly listed on eFruitMandi and discover related fruit lots, growers and buyers across India.",
     h1: "Fruits Traded on eFruitMandi",
     body: "Explore public fruit marketplace categories and discover related fruit lots, growers and buyers on eFruitMandi.",
+    noIndex: true,
+    robots: "noindex,nofollow",
   },
   {
     path: "/grower-guide",

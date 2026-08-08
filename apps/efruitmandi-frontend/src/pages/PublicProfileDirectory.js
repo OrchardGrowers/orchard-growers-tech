@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { FaCheckCircle, FaMapMarkerAlt, FaSeedling } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
-import SEO from "../components/SEO";
+import SEO, { getInitialRobotsDirective } from "../components/SEO";
 import { buildBreadcrumbSchema, buildCollectionPageSchema, buildItemListSchema } from "../utils/schemaGenerators";
 
 const SITE_URL = "https://www.efruitmandi.live";
@@ -64,6 +64,9 @@ export const deduplicateProfiles = (profiles, role) => {
 
 export default function PublicProfileDirectory({ role }) {
   const meta = DIRECTORY_META[role] || DIRECTORY_META.grower;
+  const [initialRobots] = useState(() =>
+    getInitialRobotsDirective(meta.path, "noindex,nofollow")
+  );
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -121,6 +124,11 @@ export default function PublicProfileDirectory({ role }) {
   }, [meta, profiles, role]);
 
   const hasMeaningfulContent = !loading && !failed && profiles.length > 0;
+  const robots = loading
+    ? initialRobots
+    : hasMeaningfulContent
+      ? "index,follow"
+      : "noindex,nofollow";
 
   return (
     <>
@@ -128,7 +136,7 @@ export default function PublicProfileDirectory({ role }) {
         title={meta.title}
         description={meta.description}
         canonical={meta.path}
-        noIndex={!hasMeaningfulContent}
+        robots={robots}
         schema={schema}
       />
       <main className="mx-auto min-h-[65vh] max-w-7xl px-4 py-10">

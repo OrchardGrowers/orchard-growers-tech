@@ -14,6 +14,25 @@ function normalizeUrl(pathOrUrl = "/") {
   return normalizeCanonicalUrl(pathOrUrl);
 }
 
+export function getInitialRobotsDirective(canonical, fallback = "noindex,nofollow") {
+  if (typeof document === "undefined") return fallback;
+
+  const canonicalElement = document.querySelector('link[rel="canonical"]');
+  if (!canonicalElement || normalizeUrl(canonicalElement.href) !== normalizeUrl(canonical)) {
+    return fallback;
+  }
+
+  const directive = String(
+    document.querySelector('meta[name="robots"]')?.getAttribute("content") || ""
+  )
+    .toLowerCase()
+    .replace(/\s+/g, "");
+
+  return ["index,follow", "noindex,follow", "noindex,nofollow"].includes(directive)
+    ? directive
+    : fallback;
+}
+
 export default function SEO({
   title = DEFAULT_TITLE,
   description = DEFAULT_DESCRIPTION,
