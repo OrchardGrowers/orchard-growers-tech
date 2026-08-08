@@ -96,7 +96,7 @@ export default function LotDetails() {
         if (isDevelopment) {
           console.error("Failed to load lot", err);
         }
-        setErrorMessage("Failed to load lot");
+        setErrorMessage(err?.response?.status === 404 ? "Lot not found" : "Failed to load lot");
         setProduct(null);
         setAuction(null);
         setClosedDeal(null);
@@ -830,7 +830,7 @@ function getImageGradeLabel(product = {}, imageUrl = "") {
 
 function isClosedLotStatus(product = {}, auction = {}, closedDeal = null) {
   if (closedDeal) return true;
-  return isClosedDeal(product) || isClosedDeal(auction);
+  return isClosedDeal(product || {}) || isClosedDeal(auction || {});
 }
 
 function getStatusBadgeClass(isClosed) {
