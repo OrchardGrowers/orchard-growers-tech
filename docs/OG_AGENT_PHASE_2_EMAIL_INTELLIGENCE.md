@@ -62,7 +62,7 @@ Opted-out Business Leads are confirmed duplicates and cannot be re-imported. Pha
 
 1. Configure/run the existing authorized career mailbox sync if applicable; never enter credentials through OG Agent.
 2. Start backend and Admin Panel with existing repository commands.
-3. As SUPER_ADMIN open **Orchard Growers AI → OG Agent → Settings** and enable Email Search.
+3. As SUPER_ADMIN open **OG Brain → OG Agent → Settings** and enable Email Search.
 4. Confirm Email Lead Extraction, the bounded maximum (1–250), and confidence threshold.
 5. Open Email Intelligence. If no source appears, verify existing sync configuration/records rather than adding a new connection.
 

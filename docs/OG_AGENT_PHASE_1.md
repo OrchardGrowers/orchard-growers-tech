@@ -114,7 +114,7 @@ Phase 1 adds no environment variables and no frontend secret. It uses the existi
 2. Run `npm test -- --run services/og-agent/ogAgentPhase1.test.js controllers/ogAgentController.test.js routes/ogAgentRoutes.test.js middleware/ogAgentPermissions.test.js` in `apps/backend`.
 3. Start the backend with `npm run dev`.
 4. Start the Admin Panel with `npm run dev` in `apps/admin-panel`.
-5. Sign in as `SUPER_ADMIN` or `ADMIN` and open Orchard Growers AI → OG Agent.
+5. Sign in as `SUPER_ADMIN` or `ADMIN` and open OG Brain → OG Agent.
 6. Create a Report Generation task, inspect its plan, confirm Run, and inspect the structured result/timeline.
 7. Create a General task containing `external action demo`; confirm it waits for approval. A Super Admin can approve or reject it.
 8. Try a prompt such as `deploy to production`; confirm the task is blocked and audited.

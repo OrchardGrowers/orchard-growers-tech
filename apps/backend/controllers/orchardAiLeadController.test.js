@@ -13,7 +13,7 @@ import Lead, {
 
 const adminId = new mongoose.Types.ObjectId();
 
-describe("Orchard Growers AI Lead model", () => {
+describe("OG Brain Lead model", () => {
   it("normalizes duplicate-detection values without exposing format differences", () => {
     expect(normalizeLeadPhone("+91 98765-43210")).toBe("919876543210");
     expect(normalizeLeadEmail(" Admin@Example.COM ")).toBe("admin@example.com");
@@ -77,7 +77,7 @@ describe("Orchard Growers AI Lead model", () => {
   });
 });
 
-describe("Orchard Growers AI Lead request validation", () => {
+describe("OG Brain Lead request validation", () => {
   it("sanitizes create payloads and removes duplicate array values", () => {
     const payload = sanitizeLeadPayload({
       companyName: "  Valley Orchard Network ",

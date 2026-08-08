@@ -1218,7 +1218,7 @@ function LeadFormModal({
         <div className="flex items-start justify-between gap-3 border-b border-slate-800 p-4 sm:p-5">
           <div>
             <p className="text-xs font-black uppercase tracking-wide text-emerald-300">
-              Orchard Growers AI
+              OG Brain
             </p>
             <h2 className="mt-1 text-xl font-black text-white">
               {lead ? 'Edit Lead' : 'Add Lead'}

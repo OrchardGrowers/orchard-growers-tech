@@ -2986,8 +2986,8 @@ function App() {
     if (tab === 'orchardAiDashboard') {
       return (
         <OrchardAiPlaceholder
-          title="Orchard Growers AI Dashboard"
-          description="An overview of Orchard Growers AI tools and activity will be available here."
+          title="OG Brain Dashboard"
+          description="An overview of OG Brain tools and activity will be available here."
         />
       );
     }
@@ -3394,7 +3394,7 @@ function getSidebarGroups(counts: Partial<Record<AdminTab, number>>, onLogout: (
     },
     {
       platform: 'orchardAi',
-      title: 'Orchard Growers AI',
+      title: 'OG Brain',
       subtitle: 'AI leads and campaigns',
       items: [
         { label: 'Dashboard', icon: 'dashboard', tab: 'orchardAiDashboard' },
@@ -4106,12 +4106,12 @@ function getAdminTabTitle(activeTab: AdminTab, activePlatform: AdminPlatform) {
   if (activeTab === 'financials') return 'Orchard Growers Financials';
   if (activeTab === 'reports') return 'Orchard Growers Reports';
   if (activeTab === 'orchardSettings') return 'Orchard Growers Settings';
-  if (activeTab === 'orchardAiDashboard') return 'Orchard Growers AI Dashboard';
-  if (activeTab === 'orchardAiLeadCollection') return 'Orchard Growers AI Lead Collection';
-  if (activeTab === 'orchardAiLeadDatabase') return 'Orchard Growers AI Lead Database';
-  if (activeTab === 'orchardAiCampaignCenter') return 'Orchard Growers AI Campaign Center';
-  if (activeTab === 'orchardAiReplyCenter') return 'Orchard Growers AI Reply Center';
-  if (activeTab === 'orchardAiOgAgent') return 'Orchard Growers AI OG Agent';
+  if (activeTab === 'orchardAiDashboard') return 'OG Brain Dashboard';
+  if (activeTab === 'orchardAiLeadCollection') return 'OG Brain Lead Collection';
+  if (activeTab === 'orchardAiLeadDatabase') return 'OG Brain Lead Database';
+  if (activeTab === 'orchardAiCampaignCenter') return 'OG Brain Campaign Center';
+  if (activeTab === 'orchardAiReplyCenter') return 'OG Brain Reply Center';
+  if (activeTab === 'orchardAiOgAgent') return 'OG Brain OG Agent';
   if (activeTab === 'efruitDashboard') return 'eFruitMandi Dashboard';
   if (activeTab === 'users') return 'eFruitMandi Users';
   if (activeTab === 'notifications') return 'Admin Notifications';

@@ -117,7 +117,7 @@ Audited events cover task/scope creation, status reads, list/search/read and den
 1. Use the existing root `npm install` performed manually by a developer; Phase 4 never installs packages.
 2. Start the existing backend and Admin Panel workflows.
 3. Sign in as SUPER_ADMIN to review Coding Agent settings.
-4. Open Orchard Growers AI → OG Agent → Coding Agent.
+4. Open OG Brain → OG Agent → Coding Agent.
 5. Create a task with the smallest application scope and exact file hints.
 6. Run analysis, review evidence, and request patch generation.
 7. Approve the exact request under Approvals, paste a complete unified diff in deterministic mode, and validate it.

@@ -3,7 +3,7 @@ import express from "express";
 import { describe, expect, it } from "vitest";
 import orchardAiLeadRoutes from "./orchardAiLeadRoutes.js";
 
-describe("Orchard Growers AI Lead routes", () => {
+describe("OG Brain Lead routes", () => {
   it("registers the required CRUD endpoints", () => {
     const registeredRoutes = orchardAiLeadRoutes.stack
       .filter((layer) => layer.route)
