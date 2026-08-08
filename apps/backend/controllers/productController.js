@@ -3,6 +3,7 @@ import Auction from "../models/Auction.js";
 import Quotation from "../models/Quotation.js";
 import Order from "../models/Order.js";
 import User from "../models/User.js";
+import { isAdminRole } from "../middleware/authMiddleware.js";
 import CaptureSession from "../models/CaptureSession.js";
 import ScanRecord from "../models/ScanRecord.js";
 import {
@@ -15,9 +16,13 @@ import {
   getCompletedMarketplaceOrder,
   isOrderCompletedForMarketplace,
   isOrderProtectedFromGrowerDelete,
-  isPublicLotVisible,
   resolveDealSchedule,
 } from "../services/dealLifecycleService.js";
+import {
+  canAccessLotDetail,
+  isLotResourceEligible,
+  isValidLotLookupId,
+} from "../services/publicLotAccessService.js";
 
 const PUBLIC_PROFILE_SELECT =
   "name orchardName businessName buyerContactPerson companyLogoUrl bannerUrl buyerCompanyLogoUrl role profileTypes growerVerified buyerVerified growerOgVerified buyerOgVerified driverOgVerified ogVerificationByRole growerRatingAverage growerRatingCount mapLatitude mapLongitude createdAt";
@@ -93,14 +98,14 @@ const isClosedProductStatus = (status = "") =>
 const isClosedAuctionStatus = (status = "") =>
   CLOSED_AUCTION_STATUSES.has(String(status || "").trim().toUpperCase());
 
-const isWrongProductPlatform = (product, platform = "") => {
-  const isOrchardPlatform = ["orchard", "orchardgrowers", "orchard-growers"].includes(platform);
-  const isEfruitPlatform = ["efruitmandi", "efruit", "mandi"].includes(platform);
-  const hasGradeLots = Array.isArray(product?.gradeLots) && product.gradeLots.length > 0;
-
-  return (
-    (isOrchardPlatform && product?.createdSource !== "admin-panel" && hasGradeLots) ||
-    (isEfruitPlatform && product?.createdSource === "admin-panel")
+export const canAccessNonPublicLot = (product, user) => {
+  const ownerId = product?.createdBy?._id || product?.createdBy;
+  const acceptedBuyerId = product?.acceptedBuyerId?._id || product?.acceptedBuyerId;
+  const userId = user?.id || user?._id;
+  return Boolean(
+    (ownerId && userId && ownerId.toString() === userId.toString()) ||
+      (acceptedBuyerId && userId && acceptedBuyerId.toString() === userId.toString()) ||
+      isAdminRole(String(user?.role || "").trim().toUpperCase())
   );
 };
 
@@ -845,7 +850,12 @@ export const getProducts = async (req, res) => {
       }
       const creator = productObject.createdBy?._id || productObject.createdBy;
       if (requesterId && creator?.toString() === requesterId) return true;
-      return isPublicLotVisible(productObject, completedOrderByProductId.get(String(productObject._id)) || null, now);
+      return canAccessLotDetail({
+        product: productObject,
+        platform,
+        completedOrder: completedOrderByProductId.get(String(productObject._id)) || null,
+        now,
+      });
     });
 
     res.json(
@@ -861,6 +871,10 @@ export const getProducts = async (req, res) => {
 // GET SINGLE PRODUCT WITH AUCTION DETAIL
 export const getProductById = async (req, res) => {
   try {
+    if (!isValidLotLookupId(req.params.id)) {
+      return res.status(404).json({ msg: "Product not found" });
+    }
+
     const platform = String(req.query.platform || "").trim().toLowerCase();
     let product = await Product.findById(req.params.id)
       .populate("createdBy", PUBLIC_PROFILE_SELECT)
@@ -880,7 +894,7 @@ export const getProductById = async (req, res) => {
       product = auction?.product || null;
     }
 
-    if (!product || product.inventoryType === "raw_material" || isWrongProductPlatform(product, platform)) {
+    if (!isLotResourceEligible(product, platform)) {
       return res.status(404).json({ msg: "Product not found" });
     }
 
@@ -915,6 +929,15 @@ export const getProductById = async (req, res) => {
       .lean();
 
     const completedOrder = getCompletedMarketplaceOrder(order);
+    if (!canAccessLotDetail({
+      product,
+      platform,
+      completedOrder,
+      allowNonPublic: canAccessNonPublicLot(product, req.user),
+    })) {
+      return res.status(404).json({ msg: "Product not found" });
+    }
+
     const serializedProduct = serializeProduct(product, req.user, completedOrder);
     const serializedAuction = auction?.toObject ? auction.toObject() : auction;
     if (serializedAuction) {

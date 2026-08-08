@@ -177,12 +177,12 @@ export const isPublicAuctionVisible = (auction = {}, completedOrderByAuctionId =
   return true;
 };
 
-export const isPublicLotVisible = (product = {}, completedOrderByProductId = new Map(), now = new Date()) => {
+export const isPublicLotVisible = (product = {}, completedOrder = null, now = new Date()) => {
   const status = normalizeStatus(product.status);
   if (product.active === false || HIDDEN_LOT_STATUSES.has(status)) return false;
-  const completedOrder = completedOrderByProductId.get(String(product._id));
-  if (COMPLETION_REQUIRED_LOT_STATUSES.has(status)) return Boolean(completedOrder);
-  if (hasPassedEndTime(product.auctionEndTime || product.endTime, now)) return Boolean(completedOrder);
+  const hasCompletedOrder = isOrderCompletedForMarketplace(completedOrder);
+  if (COMPLETION_REQUIRED_LOT_STATUSES.has(status)) return hasCompletedOrder;
+  if (hasPassedEndTime(product.auctionEndTime || product.endTime, now)) return hasCompletedOrder;
   return true;
 };
 

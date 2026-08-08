@@ -351,7 +351,7 @@ const getPublicProfileMarketActivity = async (userId, role) => {
   const now = new Date();
 
   const visibleLiveLots = liveLots
-    .filter((lot) => isPublicLotVisible(lot, completedOrderByProductId, now))
+    .filter((lot) => isPublicLotVisible(lot, completedOrderByProductId.get(String(lot._id)) || null, now))
     .filter((lot) => !completedOrderByProductId.has(String(lot._id)))
     .map((lot) => toPublicMarketLot(lot));
 
@@ -701,8 +701,19 @@ export const buildPublicFruitDiscovery = async () => {
     createdSource: { $ne: "admin-panel" },
     status: { $in: ["AVAILABLE", "SCHEDULED", "IN_AUCTION", "SOLD", "DEAL_CONFIRMED", "deal_confirmed"] },
   }).select("_id fruitName variety createdBy acceptedBuyerId status active auctionEndTime").limit(5000).lean();
+  const candidateProductIds = candidateProducts.map((product) => product._id).filter(Boolean);
+  const completedOrders = candidateProductIds.length
+    ? await Order.find({ product: { $in: candidateProductIds } })
+        .select("_id product paymentStatus deliveryStatus")
+        .lean()
+    : [];
+  const completedOrderByProductId = completedOrders.reduce((map, order) => {
+    if (isOrderCompletedForMarketplace(order)) map.set(String(order.product), order);
+    return map;
+  }, new Map());
+  const now = new Date();
   const products = candidateProducts.filter((product) =>
-    product.status === "SOLD" || isPublicLotVisible(product, new Map(), new Date())
+    isPublicLotVisible(product, completedOrderByProductId.get(String(product._id)) || null, now)
   );
   const growerIds = [...new Set(products.map((product) => String(product.createdBy || "")).filter(Boolean))];
   const completedProducts = products.filter((product) => product.status === "SOLD");
