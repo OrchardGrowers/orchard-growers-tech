@@ -38,7 +38,12 @@ const getMsg91Settings = (platform = "orchardgrowers") => {
     authKey: firstConfigured(process.env[config.authKeyEnv]),
     templateId: firstConfigured(process.env[config.templateIdEnv]),
     senderId: firstConfigured(process.env[config.senderIdEnv]),
-    widgetId: firstConfigured(process.env[config.widgetIdEnv], process.env[config.templateIdEnv]),
+    // eFruitMandi has a valid template-only configuration in existing deployments.
+    // A template ID is not a widget ID and must never be sent to the widget APIs.
+    widgetId:
+      platformKey === "efruitmandi"
+        ? firstConfigured(process.env[config.widgetIdEnv])
+        : firstConfigured(process.env[config.widgetIdEnv], process.env[config.templateIdEnv]),
     tokenAuth: firstConfigured(process.env[config.tokenAuthEnv]),
   };
 };
@@ -46,9 +51,12 @@ const getMsg91Settings = (platform = "orchardgrowers") => {
 const getMsg91Flow = (platform = "orchardgrowers") => {
   const platformKey = normalizePlatform(platform);
   const platformEnv = platformKey === "orchardgrowers" ? process.env.ORCHARD_MSG91_FLOW : process.env.EFRUITMANDI_MSG91_FLOW;
-  const flow = String(platformEnv || process.env.MSG91_FLOW || "widget")
-    .trim()
-    .toLowerCase();
+  const configuredFlow = firstConfigured(platformEnv, process.env.MSG91_FLOW);
+  if (!configuredFlow && platformKey === "efruitmandi") {
+    return getMsg91Settings(platformKey).widgetId ? "widget" : "template";
+  }
+
+  const flow = String(configuredFlow || "widget").trim().toLowerCase();
   return flow === "widget" ? "widget" : "template";
 };
 
