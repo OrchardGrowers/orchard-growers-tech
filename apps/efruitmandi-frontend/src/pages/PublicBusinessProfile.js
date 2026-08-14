@@ -44,6 +44,28 @@ const resolveProfileMediaUrl = (value = "") => {
   return `${FILE_BASE_URL}/${normalized}`;
 };
 
+// Social platforms display one `og:image`.  When both business assets are
+// stored on Cloudinary, request a share-safe 1200x630 banner with the firm
+// logo layered onto it so the preview represents the actual business.
+const buildProfileShareImage = (bannerUrl = "", logoUrl = "") => {
+  if (!bannerUrl) return logoUrl;
+  if (!logoUrl) return bannerUrl;
+
+  const cloudinaryBanner = bannerUrl.match(/^(https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)(.+)$/i);
+  if (!cloudinaryBanner) return bannerUrl;
+
+  try {
+    const encodedLogo = window
+      .btoa(unescape(encodeURIComponent(logoUrl)))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/g, "");
+    return `${cloudinaryBanner[1]}c_fill,w_1200,h_630,g_auto,q_auto,f_jpg/l_fetch:${encodedLogo},w_180,h_180,c_fit,g_south_west,x_42,y_42,r_16,fl_layer_apply/${cloudinaryBanner[2]}`;
+  } catch {
+    return bannerUrl;
+  }
+};
+
 const formatPrice = (value) => {
   const amount = Number(value || 0);
   if (!Number.isFinite(amount) || amount <= 0) return "";
@@ -145,6 +167,7 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
   );
   const publicProfileImage = profileImage || fallbackLogo;
   const publicBannerImage = resolveProfileMediaUrl(profile?.bannerUrl);
+  const profileShareImage = buildProfileShareImage(publicBannerImage, profileImage);
   const schemaImage = profileImage
     ? /^https?:/i.test(profileImage)
       ? profileImage
@@ -259,7 +282,7 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
         title={seoTitle}
         description={seoDescription}
         canonical={canonical}
-        image={profileImage || null}
+        image={profileShareImage || null}
         type="website"
         noIndex={!publicName}
         schema={publicName ? [profilePageSchema, businessSchema, breadcrumbSchema] : undefined}

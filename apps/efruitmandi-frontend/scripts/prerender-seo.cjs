@@ -571,6 +571,23 @@ function normalizePublicImage(value = "") {
   return "";
 }
 
+function buildProfileShareImage(bannerUrl = "", logoUrl = "") {
+  if (!bannerUrl) return logoUrl;
+  if (!logoUrl) return bannerUrl;
+
+  const cloudinaryBanner = bannerUrl.match(/^(https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)(.+)$/i);
+  if (!cloudinaryBanner) return bannerUrl;
+
+  // Cloudinary's fetch overlay lets the static profile HTML advertise one
+  // standard social-card image containing both uploaded business assets.
+  const encodedLogo = Buffer.from(logoUrl, "utf8")
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+  return `${cloudinaryBanner[1]}c_fill,w_1200,h_630,g_auto,q_auto,f_jpg/l_fetch:${encodedLogo},w_180,h_180,c_fit,g_south_west,x_42,y_42,r_16,fl_layer_apply/${cloudinaryBanner[2]}`;
+}
+
 function getPublicProfileMeta(profile, role) {
   if (!profile || typeof profile !== "object" || !["grower", "buyer"].includes(role)) return null;
   const slug = String(profile.slug || "").trim().toLowerCase();
@@ -601,9 +618,11 @@ function getPublicProfileMeta(profile, role) {
   const description = role === "grower"
     ? `View ${name} on eFruitMandi. Explore its public grower profile, ${location ? "location, " : ""}available fruit lots and completed deals${location ? ` from ${location}` : ""}.`
     : `View ${name} on eFruitMandi. Explore this public ${roleLabel.toLowerCase()} profile, ${location ? "location, " : ""}sourcing activity and completed fruit deals${location ? ` from ${location}` : ""}.`;
-  const image = normalizePublicImage(
+  const logoImage = normalizePublicImage(
     profile.logoUrl || profile.profileImage || profile.profilePic || profile.avatar || profile.avatarUrl || profile.photoURL
   );
+  const bannerImage = normalizePublicImage(profile.bannerUrl);
+  const image = buildProfileShareImage(bannerImage, logoImage);
   const address = profile.district || profile.state
     ? {
         "@type": "PostalAddress",
