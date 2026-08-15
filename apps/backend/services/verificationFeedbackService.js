@@ -1,5 +1,6 @@
 import UserNotification from "../models/UserNotification.js";
 import VerificationRemark from "../models/VerificationRemark.js";
+import { sendEmail } from "./mailService.js";
 
 export const VERIFICATION_SECTION_CONFIG = Object.freeze({
   kyc: { label: "KYC", actionUrl: "/kyc" },
@@ -36,6 +37,67 @@ const STATUS_ALIASES = Object.freeze({
 
 const ACTIVE_WARNING_STATUSES = new Set(["CHANGES_REQUIRED", "REJECTED"]);
 const VALID_ROLE_TYPES = new Set(["buyer", "grower", "driver", ""]);
+
+const VERIFICATION_COMPLETION_MESSAGES = Object.freeze({
+  grower: {
+    kyc: {
+      title: "KYC Verified",
+      message: "Welcome to eFruitMandi.Live! 🍎\n\nWe are pleased to inform you that your KYC has been successfully verified. You can now list your Fruit Lots and Consignments and begin your fruit trading journey with eFruitMandi.Live — the future of digital fruit trading.\n\nThank you for your patience and for choosing eFruitMandi.Live.\n\nFor any updates, queries, or assistance, please contact our Support Team:\n📱 WhatsApp: 7018108900\n📧 Email: support@efruitmandi.live",
+    },
+    og_verified: {
+      title: "OG Verification Verified",
+      message: "Welcome to eFruitMandi.Live! 🍎\n\nWe are pleased to inform you that your OG Verification has been successfully verified. You can now list your OG Verified Fruit Lots and Consignments and begin your fruit trading journey with eFruitMandi.Live — the future of digital fruit trading.\n\nThank you for your patience and for choosing eFruitMandi.Live.\n\nFor any updates, queries, or assistance, please contact our Support Team:\n📱 WhatsApp: 7018108900\n📧 Email: support@efruitmandi.live",
+    },
+  },
+  buyer: {
+    kyc: {
+      title: "KYC Verified",
+      message: "Welcome to eFruitMandi.Live! 🍎\n\nWe are pleased to inform you that your KYC has been successfully verified. You can now Offer Your Buying Price from your Business site for live Fruit Lots and Consignments and begin your fruit trading journey with eFruitMandi.Live — the future of digital fruit trading.\n\nThank you for your patience and for choosing eFruitMandi.Live.\n\nFor any updates, queries, or assistance, please contact our Support Team:\n📱 WhatsApp: 7018108900\n📧 Email: support@efruitmandi.live",
+    },
+    og_verified: {
+      title: "OG Verification Completed",
+      message: "Welcome to eFruitMandi.Live! 🍎\n\nWe are pleased to inform you that your OG Verification has been successfully completed. You can now Offer Your Buying Price with 2% less comission from your Business site for live Fruit Lots and Consignments and begin your fruit trading journey with eFruitMandi.Live — the future of digital fruit trading.\n\nThank you for your patience and for choosing eFruitMandi.Live.\n\nFor any updates, queries, or assistance, please contact our Support Team:\n📱 WhatsApp: 7018108900\n📧 Email: support@efruitmandi.live",
+    },
+  },
+});
+
+export const getVerificationCompletionNotification = ({ roleType = "", verificationType = "" }) => {
+  const role = String(roleType).trim().toLowerCase();
+  const verification = String(verificationType).trim().toLowerCase();
+  const content = VERIFICATION_COMPLETION_MESSAGES[role]?.[verification];
+  return content ? { ...content, type: "VERIFICATION_SUCCESS" } : null;
+};
+
+const completionEmailHtml = (message = "") => String(message)
+  .split(/\n{2,}/)
+  .map((paragraph) => `<p>${paragraph.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br />")}</p>`)
+  .join("");
+
+const getPersonalizedGreeting = (recipientName = "") => {
+  const name = String(recipientName || "").trim().replace(/\s+/g, " ");
+  return name && name.toLowerCase() !== "orchardgrowers" ? `${name} Ji Namaste,` : "Namaste,";
+};
+
+export const sendVerificationCompletionEmail = async ({
+  to,
+  recipientName = "",
+  roleType = "",
+  verificationType = "",
+}) => {
+  const recipient = String(to || "").trim();
+  const notification = getVerificationCompletionNotification({ roleType, verificationType });
+  if (!recipient || !notification) return false;
+  const emailText = `${getPersonalizedGreeting(recipientName)}\n\n${notification.message}`;
+
+  await sendEmail({
+    platform: "efruitmandi",
+    to: recipient,
+    subject: notification.title,
+    text: emailText,
+    html: completionEmailHtml(emailText),
+  });
+  return true;
+};
 
 export const normalizeVerificationSection = (section = "") => {
   const normalized = String(section || "").trim().toLowerCase();
@@ -91,6 +153,7 @@ export const recordAdminVerificationRemark = async ({
   createdBy,
   roleType = "",
   entityId = null,
+  notificationOverride = null,
 }) => {
   const normalizedSection = normalizeVerificationSection(section);
   const normalizedStatus = normalizeVerificationFeedbackStatus(status);
@@ -138,9 +201,9 @@ export const recordAdminVerificationRemark = async ({
 
   const notification = await UserNotification.create({
     user: userId,
-    type: "VERIFICATION_REMARK",
-    title: `${sectionConfig.label} Update`,
-    message: messageParts.join(" "),
+    type: notificationOverride?.type || "VERIFICATION_REMARK",
+    title: notificationOverride?.title || `${sectionConfig.label} Update`,
+    message: notificationOverride?.message || messageParts.join(" "),
     section: normalizedSection,
     status: normalizedStatus,
     entityId,

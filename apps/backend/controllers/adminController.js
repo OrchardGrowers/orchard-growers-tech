@@ -20,7 +20,11 @@ import {
   enqueueFeaturedProfile,
   normalizeOperationalRole,
 } from "../services/profilePublicationService.js";
-import { recordAdminVerificationRemark } from "../services/verificationFeedbackService.js";
+import {
+  getVerificationCompletionNotification,
+  recordAdminVerificationRemark,
+  sendVerificationCompletionEmail,
+} from "../services/verificationFeedbackService.js";
 import { validateKycSubmission } from "../services/kycEligibilityService.js";
 import {
   ensureKycSectionStateEvents,
@@ -2315,6 +2319,7 @@ export const reviewKycRequest = async (req, res) => {
   };
   if (!Array.isArray(user.kyc.adminReviews)) user.kyc.adminReviews = [];
   const kycStatus = normalizeKycStatus(user.kyc?.status);
+  const wasKycAlreadyApproved = kycStatus === "APPROVED";
   if (!KYC_REVIEW_STATUSES.includes(kycStatus)) {
     return res.status(400).json({ msg: "KYC is not completed by user" });
   }
@@ -2436,6 +2441,11 @@ export const reviewKycRequest = async (req, res) => {
 
   user.set(`kycByRole.${kycRoleType}`, user.kyc.toObject?.() || user.kyc);
   await user.save();
+  const isKycCompletion = !wasKycAlreadyApproved && approvalGranted && (
+    isLegacyWholeKycReview || getKycSectionsForRole(kycRoleType).every(
+      (requiredSection) => requiredSection === section || existingSectionStates[requiredSection]?.status === "VERIFIED"
+    )
+  );
   await recordAdminVerificationRemark({
     userId: user._id,
     section,
@@ -2450,7 +2460,22 @@ export const reviewKycRequest = async (req, res) => {
     createdBy: currentAdmin.id,
     roleType: kycRoleType,
     entityId: user._id,
+    notificationOverride: isKycCompletion
+      ? getVerificationCompletionNotification({ roleType: kycRoleType, verificationType: "kyc" })
+      : null,
   });
+  if (isKycCompletion) {
+    try {
+      await sendVerificationCompletionEmail({
+        to: user.email,
+        recipientName: user.name || user.kyc?.fullName,
+        roleType: kycRoleType,
+        verificationType: "kyc",
+      });
+    } catch (error) {
+      console.error("KYC completion email could not be sent", { userId: String(user._id), error: error.message });
+    }
+  }
   if (!isLegacyWholeKycReview && approvalGranted) {
     const updatedSectionStates = await getKycSectionStates({
       userId: user._id,
@@ -2607,6 +2632,7 @@ export const reviewVerificationRequest = async (req, res) => {
 
   const request = await VerificationRequest.findById(req.params.id);
   if (!request) return res.status(404).json({ msg: "Verification request not found" });
+  const wasOgAlreadyApproved = request.status === "APPROVED";
 
   const existingReview = request.adminReviews.find(
     (review) => review.admin?.toString() === currentAdmin.id?.toString()
@@ -2728,7 +2754,29 @@ export const reviewVerificationRequest = async (req, res) => {
     createdBy: currentAdmin.id,
     roleType: request.roleType || "grower",
     entityId: request._id,
+    notificationOverride: request.status === "APPROVED" && !wasOgAlreadyApproved
+      ? getVerificationCompletionNotification({
+          roleType: request.roleType || "grower",
+          verificationType: request.verificationType || "og_verified",
+        })
+      : null,
   });
+  if (request.status === "APPROVED" && !wasOgAlreadyApproved) {
+    try {
+      const recipient = await User.findById(request.user).select("name email kyc");
+      await sendVerificationCompletionEmail({
+        to: recipient?.email,
+        recipientName: recipient?.name || recipient?.kyc?.fullName,
+        roleType: request.roleType || "grower",
+        verificationType: request.verificationType || "og_verified",
+      });
+    } catch (error) {
+      console.error("OG verification completion email could not be sent", {
+        userId: String(request.user),
+        error: error.message,
+      });
+    }
+  }
   const populated = await VerificationRequest.findById(request._id)
     .populate("user", "name orchardName phone email role isVerified accountStatus buyerOgVerified growerOgVerified driverOgVerified ogVerificationByRole")
     .populate("adminReviews.admin", "name email role");

@@ -1,11 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+vi.mock("./mailService.js", () => ({ sendEmail: vi.fn() }));
+
 import UserNotification from "../models/UserNotification.js";
 import VerificationRemark from "../models/VerificationRemark.js";
+import { sendEmail } from "./mailService.js";
 import {
   getVerificationFeedback,
+  getVerificationCompletionNotification,
   markVerificationResubmitted,
   normalizeVerificationSection,
   recordAdminVerificationRemark,
+  sendVerificationCompletionEmail,
   VERIFICATION_SECTION_CONFIG,
 } from "./verificationFeedbackService.js";
 
@@ -16,6 +21,36 @@ const REMARK_ID = "64b000000000000000000000003";
 afterEach(() => vi.restoreAllMocks());
 
 describe("verification feedback service", () => {
+  it("provides the requested completion copy for grower and buyer verification", () => {
+    expect(getVerificationCompletionNotification({ roleType: "grower", verificationType: "kyc" })).toMatchObject({
+      type: "VERIFICATION_SUCCESS",
+      title: "KYC Verified",
+      message: expect.stringContaining("list your Fruit Lots and Consignments"),
+    });
+    expect(getVerificationCompletionNotification({ roleType: "buyer", verificationType: "og_verified" })).toMatchObject({
+      type: "VERIFICATION_SUCCESS",
+      title: "OG Verification Completed",
+      message: expect.stringContaining("2% less comission"),
+    });
+  });
+
+  it("sends the matching completion copy through the eFruitMandi no-reply mail platform", async () => {
+    await expect(sendVerificationCompletionEmail({
+      to: "buyer@example.test",
+      recipientName: "Mridul",
+      roleType: "buyer",
+      verificationType: "kyc",
+    })).resolves.toBe(true);
+
+    expect(sendEmail).toHaveBeenCalledWith(expect.objectContaining({
+      platform: "efruitmandi",
+      to: "buyer@example.test",
+      subject: "KYC Verified",
+      text: expect.stringContaining("Mridul Ji Namaste"),
+      html: expect.stringContaining("support@efruitmandi.live"),
+    }));
+  });
+
   it("persists an admin remark and notifies only the affected user with the section route", async () => {
     vi.spyOn(VerificationRemark, "updateMany").mockResolvedValue({ modifiedCount: 0 });
     vi.spyOn(UserNotification, "updateMany").mockResolvedValue({ modifiedCount: 0 });

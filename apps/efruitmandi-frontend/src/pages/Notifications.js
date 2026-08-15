@@ -307,7 +307,7 @@ function NotificationCard({ notification, onOpen, onMarkRead }) {
 
           {notification.type === "verification" ? (
             <div className="mt-2 text-xs font-semibold leading-5 text-gray-700">
-              <p>{notification.message}</p>
+              <p className="whitespace-pre-line">{notification.message}</p>
               <p className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-gray-500">
                 <FaClock className="text-green-700" />
                 {notification.time}
