@@ -415,7 +415,7 @@ function FeaturedLot({ auction, canDeal, onView, onQuote }) {
   return (
     <section className="mt-4 overflow-hidden rounded-lg border border-green-100 bg-white shadow-sm">
       <div className="grid md:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="p-4">
+        <div className="min-h-[260px] p-4">
           <p className="inline-flex items-center gap-2 rounded-full bg-green-100 px-3 py-1 text-[10px] font-extrabold uppercase text-green-800">
             <FaShieldAlt />
             Featured Live Lot
@@ -448,20 +448,20 @@ function FeaturedLot({ auction, canDeal, onView, onQuote }) {
           </div>
         </div>
 
-        <div className="relative min-h-[220px] bg-green-50">
+        <div className="relative h-[220px] bg-green-50 md:h-[320px]">
           {imageUrl ? (
             <img
               src={optimizeImageUrl(imageUrl, 680)}
               alt={product.title || "Fruit Lot"}
               width="680"
               height="320"
-              className="h-full max-h-[320px] w-full object-contain"
+              className="h-full w-full object-contain"
               loading="eager"
               fetchPriority="high"
               decoding="async"
             />
           ) : (
-            <div className="flex h-full min-h-[220px] items-center justify-center text-5xl text-green-700">
+            <div className="flex h-full items-center justify-center text-5xl text-green-700">
               <FaSeedling />
             </div>
           )}
@@ -496,7 +496,7 @@ function FeaturedLotSkeleton() {
             <div className="h-8 w-28 rounded-full bg-green-50" />
           </div>
         </div>
-        <div className="min-h-[220px] bg-green-50 md:min-h-[260px]" />
+        <div className="h-[220px] bg-green-50 md:h-[320px]" />
       </div>
     </section>
   );
@@ -684,14 +684,18 @@ function LotSkeleton() {
       aria-hidden="true"
     >
       {[1, 2, 3, 4, 5, 6].map((item) => (
-        <div key={item} className="animate-pulse rounded-lg border border-green-100 bg-white p-3 motion-reduce:animate-none">
+        <div key={item} className="min-h-[475px] animate-pulse rounded-lg border border-green-100 bg-white p-3 motion-reduce:animate-none">
           <div className="aspect-[4/3] rounded-md bg-green-50" />
           <div className="mt-3 h-4 w-2/3 rounded bg-gray-100" />
+          <div className="mt-2 h-3 w-1/2 rounded bg-gray-100" />
+          <div className="mt-2 h-3 w-1/3 rounded bg-gray-100" />
           <div className="mt-3 grid grid-cols-3 gap-2">
             <div className="h-12 rounded bg-gray-50" />
             <div className="h-12 rounded bg-gray-50" />
             <div className="h-12 rounded bg-gray-50" />
           </div>
+          <div className="mt-3 h-6 w-3/5 rounded-full bg-gray-50" />
+          <div className="mt-3 h-[68px] rounded-md bg-gray-50" />
         </div>
       ))}
     </section>

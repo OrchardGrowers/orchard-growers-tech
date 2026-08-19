@@ -77,8 +77,21 @@ export default function BannerSlider() {
     );
   };
 
+  // Keep the carousel footprint even if a remote banner is temporarily
+  // unavailable. Collapsing it after an image error moves every homepage
+  // section below it and is especially costly on mobile.
   if (!visibleBanners.length) {
-    return null;
+    return (
+      <div
+        className="relative overflow-hidden rounded-xl bg-green-800"
+        style={{ aspectRatio: "690 / 200" }}
+        aria-label="eFruitMandi marketplace"
+      >
+        <div className="flex h-full items-center justify-center px-5 text-center text-sm font-extrabold text-white">
+          Explore fresh fruit lots on eFruitMandi
+        </div>
+      </div>
+    );
   }
 
   return (
