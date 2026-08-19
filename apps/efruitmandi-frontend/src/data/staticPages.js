@@ -316,7 +316,7 @@ export const staticPages = {
           },
           {
             q: "Is there a buyer-side success commission?",
-            a: "Yes. eFruitMandi may charge 5% on successfully completed final deals from the buyer side.",
+            a: "Yes. eFruitMandi may charge 7% on successfully completed final deals from the buyer side.",
           },
           {
             q: "Can a buyer also be a logistics partner on the same account?",
@@ -585,7 +585,7 @@ export const staticPages = {
         bullets: [
           "Grower commission is currently 0%.",
           "Registration, listing, and platform onboarding fees are currently 0%.",
-          "Buyer-side success commission is 5% on successfully completed final deals and may be included in the final consignment value.",
+          "Buyer-side success commission is 7% on successfully completed final deals and is documented separately from the fruit Sales Invoice.",
           "Applicable taxes, if any, may be charged as per Indian law.",
         ],
       },
@@ -1091,7 +1091,7 @@ export const staticPages = {
       {
         title: "Buyer-side success commission",
         body: [
-          "Buyer-side success commission is 5% on successfully completed final deals. The 5% commission is formally charged from the buyer side and may be included in the final consignment value.",
+          "Buyer-side success commission is 7% on successfully completed final deals. The 7% commission is formally charged from the buyer side and is documented through a separate platform service invoice.",
         ],
       },
       {

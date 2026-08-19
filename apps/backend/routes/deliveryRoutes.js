@@ -5,23 +5,15 @@ import User from "../models/User.js";
 import protect, { authorize } from "../middleware/authMiddleware.js";
 import { refreshSettlementEligibility } from "../services/logisticsAssignmentService.js";
 import { requirePaymentPartnerEnabled } from "../utils/paymentFeatureFlag.js";
+import {
+  applyFinancialSnapshotToOrder,
+  calculateDealSettlement,
+} from "../services/dealSettlementService.js";
+import { ensureFinalTransactionDocuments } from "../services/transactionDocumentService.js";
 
 const router = express.Router();
 
 const genOTP = () => Math.floor(1000 + Math.random() * 9000).toString();
-const calculateSettlement = (amount = 0, order = {}) => {
-  const finalAmount = Number(amount || 0);
-  const driverPayment = Number(order.dealBreakdown?.driverCharge || order.driverPayment || 0);
-  const platformCommission = Math.round(
-    (finalAmount + driverPayment) * Number(process.env.PLATFORM_COMMISSION_PERCENT || 5) / 100
-  );
-  return {
-    driverPayment,
-    platformCommission,
-    growerPayout: Math.max(0, finalAmount - platformCommission),
-  };
-};
-
 router.get("/", (req, res) => {
   res.json({ message: "Delivery API working" });
 });
@@ -118,7 +110,7 @@ router.post("/confirm-delivery", protect, authorize("buyer"), async (req, res) =
 
 router.post("/negotiate", protect, authorize("buyer"), async (req, res) => {
   try {
-    const { orderId, amount } = req.body;
+    const { orderId, amount, finalQuantity, finalWeightKg, finalRate } = req.body;
     const delivery = await Delivery.findOne({ order: orderId });
 
     if (!delivery) return res.status(404).json({ msg: "Delivery not found" });
@@ -134,8 +126,22 @@ router.post("/negotiate", protect, authorize("buyer"), async (req, res) => {
       return res.status(400).json({ msg: "Delivery not completed yet" });
     }
 
-    delivery.negotiatedAmount = Number(amount || 0);
+    const negotiatedAmount = Number(amount || 0);
+    if (!Number.isFinite(negotiatedAmount) || negotiatedAmount <= 0) {
+      return res.status(400).json({ msg: "Final negotiated amount must be greater than zero" });
+    }
+    const optionalNumbers = { finalQuantity, finalWeightKg, finalRate };
+    for (const [field, value] of Object.entries(optionalNumbers)) {
+      if (value !== undefined && value !== "" && (!Number.isFinite(Number(value)) || Number(value) <= 0)) {
+        return res.status(400).json({ msg: `${field} must be greater than zero when provided` });
+      }
+    }
+
+    delivery.negotiatedAmount = negotiatedAmount;
     delivery.isNegotiated = true;
+    if (finalQuantity !== undefined && finalQuantity !== "") delivery.finalQuantity = Number(finalQuantity);
+    if (finalWeightKg !== undefined && finalWeightKg !== "") delivery.finalWeightKg = Number(finalWeightKg);
+    if (finalRate !== undefined && finalRate !== "") delivery.finalRate = Number(finalRate);
     await delivery.save();
 
     res.json({
@@ -192,6 +198,12 @@ router.post("/confirm-settlement", protect, authorize("grower"), requirePaymentP
       return res.status(400).json({ msg: "Invalid settlement OTP" });
     }
 
+    if (order.receivingStatus === "DISCREPANCY_RAISED") {
+      return res.status(400).json({
+        msg: "Settlement is blocked until the Buyer receiving discrepancy is resolved.",
+      });
+    }
+
     order.growerApproved = true;
     await refreshSettlementEligibility(order, {
       grower: await User.findById(order.grower).lean(),
@@ -212,23 +224,54 @@ router.post("/confirm-settlement", protect, authorize("grower"), requirePaymentP
     const finalAmount = delivery.isNegotiated
       ? delivery.negotiatedAmount
       : order.auctionPrice;
-    const settlement = calculateSettlement(finalAmount, order);
+    if (!Number.isFinite(Number(finalAmount)) || Number(finalAmount) <= 0) {
+      return res.status(400).json({ msg: "A valid final fruit transaction amount is required" });
+    }
+    const financialSnapshot = calculateDealSettlement(order, {
+      grossSaleAmount: finalAmount,
+      finalQuantity: delivery.finalQuantity,
+      finalWeightKg: delivery.finalWeightKg,
+      finalRate: delivery.finalRate,
+      lockedAt: new Date(),
+    });
 
     order.paymentStatus = "RELEASED";
-    order.finalPrice = finalAmount;
-    order.driverPayment = settlement.driverPayment;
-    order.platformCommission = settlement.platformCommission;
-    order.growerPayout = settlement.growerPayout;
+    applyFinancialSnapshotToOrder(order, financialSnapshot);
+    order.finalQuantity = financialSnapshot.finalQuantity || undefined;
+    order.finalWeightKg = financialSnapshot.finalWeightKg || undefined;
+    order.finalRate = financialSnapshot.finalRate || undefined;
+    order.commissionTaxableAmount = financialSnapshot.platformRevenue;
+    order.commissionGstPercent = financialSnapshot.commissionTaxRate;
+    order.commissionGstAmount = financialSnapshot.taxAmount;
+    order.commissionTotalAmount =
+      financialSnapshot.platformRevenue + financialSnapshot.taxAmount;
     order.escrowStatus = "DEAL_CLOSED";
-    delivery.driverPayment = settlement.driverPayment;
-    delivery.platformCommission = settlement.platformCommission;
-    delivery.growerPayout = settlement.growerPayout;
+    delivery.driverPayment = financialSnapshot.logisticsAmount;
+    delivery.platformCommission = financialSnapshot.platformRevenue;
+    delivery.growerPayout = financialSnapshot.growerNetSettlement;
     await delivery.save();
+    await order.save();
+
+    const documents = await ensureFinalTransactionDocuments(order);
+    const salesInvoice = documents.find((document) => document.documentType === "SALES_INVOICE");
+    const commissionInvoice = documents.find((document) =>
+      ["GROWER_COMMISSION_INVOICE", "BUYER_COMMISSION_INVOICE"].includes(document.documentType)
+    );
+    if (salesInvoice && !order.invoiceNumber) {
+      order.invoiceNumber = salesInvoice.documentNumber;
+      order.invoiceDate = salesInvoice.finalizedAt || new Date();
+    }
+    if (commissionInvoice && !order.commissionInvoiceNumber) {
+      order.commissionInvoiceNumber = commissionInvoice.documentNumber;
+      order.commissionInvoiceDate = commissionInvoice.finalizedAt || new Date();
+    }
     await order.save();
 
     res.json({
       msg: "Payment released successfully",
-      finalReceivableAmount: settlement.growerPayout,
+      finalReceivableAmount: financialSnapshot.growerNetSettlement,
+      financialSnapshot,
+      documents,
     });
   } catch (err) {
     res.status(500).json({ msg: err.message });

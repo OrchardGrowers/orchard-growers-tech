@@ -5,18 +5,12 @@ import getRazorpayClient from "../config/razorpay.js";
 import { isLocalTestAccount } from "../utils/testAccount.js";
 import {
   generateBillDeskPaymentRef,
-  generateBuyerInvoiceNo,
-  generateCommissionInvoiceNo,
-  generateCommissionReceiptNo,
 } from "../services/invoiceNumberingService.js";
 import { refreshSettlementEligibility } from "../services/logisticsAssignmentService.js";
 import {
   hasTransactionEligibleKyc,
   PAN_KYC_REQUIRED_MESSAGE,
 } from "../services/kycEligibilityService.js";
-
-const roundMoney = (value) =>
-  Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 
 const ensureOwnBuyerOrder = (order, userId) =>
   order.buyer?.toString() === userId?.toString();
@@ -52,42 +46,11 @@ const getRazorpayPaymentEntity = (payload = {}) =>
 const getRazorpayOrderEntity = (payload = {}) =>
   payload?.payload?.order?.entity || payload?.order?.entity || {};
 
-const ensureCommissionDocuments = async (order) => {
+const ensurePaymentReference = async (order) => {
   const now = new Date();
-
-  if (!order.invoiceNumber) {
-    order.invoiceNumber = await generateBuyerInvoiceNo(now);
-    order.invoiceDate = now;
-  }
-
-  if (!order.commissionInvoiceNumber) {
-    order.commissionInvoiceNumber = await generateCommissionInvoiceNo(now);
-    order.commissionInvoiceDate = now;
-  }
-
-  if (!order.commissionReceiptNumber) {
-    order.commissionReceiptNumber = await generateCommissionReceiptNo(now);
-    order.commissionReceiptDate = now;
-  }
-
   if (!order.paymentReference) {
     order.paymentReference = await generateBillDeskPaymentRef(now);
   }
-
-  const taxableAmount = roundMoney(
-    order.platformCommission ||
-      order.dealBreakdown?.platformServiceFee ||
-      order.dealBreakdown?.commissionAmount ||
-      0
-  );
-
-  const gstPercent = Number(process.env.EFRUITMANDI_COMMISSION_GST_PERCENT || 0);
-  const gstAmount = roundMoney(taxableAmount * (gstPercent / 100));
-
-  order.commissionTaxableAmount = taxableAmount;
-  order.commissionGstPercent = gstPercent;
-  order.commissionGstAmount = gstAmount;
-  order.commissionTotalAmount = roundMoney(taxableAmount + gstAmount);
 };
 
 const holdOrderInEscrow = async (
@@ -135,7 +98,7 @@ const holdOrderInEscrow = async (
     verifiedAt: response.verifiedAt || new Date(),
   };
 
-  await ensureCommissionDocuments(order);
+  await ensurePaymentReference(order);
   await refreshSettlementEligibility(order);
   await order.save();
   return order;
@@ -174,7 +137,14 @@ export const createRazorpayOrder = async (req, res) => {
       return res.status(400).json({ msg: "Order already paid or in escrow" });
     }
 
-    const amount = Number(order.finalPrice || order.totalAmount || order.auctionPrice || 0);
+    const amount = Number(
+      order.financialSnapshot?.buyerTotalPayable ||
+      order.dealBreakdown?.buyerPayableThroughPlatform ||
+      order.totalAmount ||
+      order.finalPrice ||
+      order.auctionPrice ||
+      0
+    );
 
     if (!amount || amount <= 0) {
       return res.status(400).json({ msg: "Invalid payable amount" });

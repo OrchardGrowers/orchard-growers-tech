@@ -1,3 +1,10 @@
+import {
+  basisPointsToPercent,
+  getActiveCommissionConfig,
+  getCommissionTaxRateBps,
+} from "../config/commission.js";
+import { calculatePercentageMinor, fromMinorUnits, toMinorUnits } from "./dealSettlementService.js";
+
 export const DEFAULT_GRADE_ORDER = ["A+", "A", "B+", "B", "C+", "C", "D", "Ungraded"];
 
 export const DEFAULT_DRIVER_CHARGE_SLABS = [
@@ -18,8 +25,14 @@ export const DEFAULT_DRIVER_CHARGE_SLABS = [
 ];
 
 const roundMoney = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
-const roundRate = (value) => Math.round(Number(value) || 0);
-const DEFAULT_PLATFORM_SERVICE_FEE_PERCENT = 5;
+const roundRate = (value) => roundMoney(value);
+const ACTIVE_COMMISSION_DEFAULTS = getActiveCommissionConfig();
+export const DEFAULT_PLATFORM_SERVICE_FEE_PERCENT = basisPointsToPercent(
+  Math.max(
+    ACTIVE_COMMISSION_DEFAULTS.growerCommissionRateBps,
+    ACTIVE_COMMISSION_DEFAULTS.buyerCommissionRateBps
+  )
+);
 const DEFAULT_LABOUR_CHARGE_PER_UNIT = 5;
 
 export const normalizeGradeQuantities = (gradeQuantities = {}) => {
@@ -70,10 +83,15 @@ export const calculateDealBreakdown = ({
   gradePrices = {},
   distanceKm = 0,
   commissionPercent = Number(process.env.PLATFORM_COMMISSION_PERCENT || DEFAULT_PLATFORM_SERVICE_FEE_PERCENT),
+  growerCommissionEnabled = ACTIVE_COMMISSION_DEFAULTS.growerCommissionEnabled,
+  buyerCommissionEnabled = ACTIVE_COMMISSION_DEFAULTS.buyerCommissionEnabled,
+  growerCommissionPercent = commissionPercent,
+  buyerCommissionPercent = commissionPercent,
   labourAmount = Number(process.env.DEFAULT_LABOUR_AMOUNT || DEFAULT_LABOUR_CHARGE_PER_UNIT),
   driverChargeSlabs = DEFAULT_DRIVER_CHARGE_SLABS,
   gradeOrder = DEFAULT_GRADE_ORDER,
 } = {}) => {
+  const activeCommission = getActiveCommissionConfig();
   const quantities = normalizeGradeQuantities(gradeQuantities);
   const availableGrades = gradeOrder.filter((grade) => Number(quantities[grade] || 0) > 0);
 
@@ -107,18 +125,52 @@ export const calculateDealBreakdown = ({
   const logisticsAmount = roundMoney(totalUnits * logisticsChargePerUnit);
   const driverCharge = logisticsAmount;
   const commissionBase = dealAmount;
-  const commissionAmount = roundMoney(commissionBase * (Number(commissionPercent || 0) / 100));
+  const growerCommissionRateBps = growerCommissionEnabled
+    ? Math.round(Number(growerCommissionPercent || 0) * 100)
+    : 0;
+  const buyerCommissionRateBps = buyerCommissionEnabled
+    ? Math.round(Number(buyerCommissionPercent || 0) * 100)
+    : 0;
+  const growerCommissionAmount = fromMinorUnits(
+    calculatePercentageMinor(toMinorUnits(commissionBase), growerCommissionRateBps)
+  );
+  const buyerCommissionAmount = fromMinorUnits(
+    calculatePercentageMinor(toMinorUnits(commissionBase), buyerCommissionRateBps)
+  );
+  const commissionTaxRateBps = getCommissionTaxRateBps();
+  const growerCommissionTaxAmount = fromMinorUnits(
+    calculatePercentageMinor(toMinorUnits(growerCommissionAmount), commissionTaxRateBps)
+  );
+  const buyerCommissionTaxAmount = fromMinorUnits(
+    calculatePercentageMinor(toMinorUnits(buyerCommissionAmount), commissionTaxRateBps)
+  );
+  const commissionAmount = roundMoney(growerCommissionAmount + buyerCommissionAmount);
+  const commissionTaxAmount = roundMoney(growerCommissionTaxAmount + buyerCommissionTaxAmount);
   const labourChargePerUnit = roundMoney(Number(labourAmount || 0));
   const labour = roundMoney(totalUnits * labourChargePerUnit);
-  const totalCharges = roundMoney(commissionAmount + labour + logisticsAmount);
+  const totalCharges = roundMoney(
+    growerCommissionAmount + growerCommissionTaxAmount + labour + logisticsAmount
+  );
   const chargePerUnit = totalUnits > 0 ? roundMoney(totalCharges / totalUnits) : 0;
   const settlementGrades = gradeBreakdown.map((grade) => {
-    const platformServiceFee = roundMoney(Number(grade.price || 0) * (Number(commissionPercent || 0) / 100));
+    const growerPlatformServiceFee = fromMinorUnits(
+      calculatePercentageMinor(toMinorUnits(grade.price), growerCommissionRateBps)
+    );
+    const buyerPlatformServiceFee = fromMinorUnits(
+      calculatePercentageMinor(toMinorUnits(grade.price), buyerCommissionRateBps)
+    );
+    const growerServiceTax = fromMinorUnits(
+      calculatePercentageMinor(toMinorUnits(growerPlatformServiceFee), commissionTaxRateBps)
+    );
+    const buyerServiceTax = fromMinorUnits(
+      calculatePercentageMinor(toMinorUnits(buyerPlatformServiceFee), commissionTaxRateBps)
+    );
     const netSettlementRate = roundRate(
       Math.max(
         0,
         Number(grade.price || 0) -
-          platformServiceFee -
+          growerPlatformServiceFee -
+          growerServiceTax -
           labourChargePerUnit -
           logisticsChargePerUnit
       )
@@ -126,19 +178,30 @@ export const calculateDealBreakdown = ({
 
     return {
       ...grade,
-      platformServiceFee,
+      platformServiceFee: roundMoney(growerPlatformServiceFee + buyerPlatformServiceFee),
+      growerPlatformServiceFee,
+      buyerPlatformServiceFee,
+      growerServiceTax,
+      buyerServiceTax,
       logisticsCharge: logisticsChargePerUnit,
       labourCharge: labourChargePerUnit,
-      buyerPayableThroughPlatform: roundMoney(Number(grade.price || 0)),
+      buyerPayableThroughPlatform: roundMoney(
+        Number(grade.price || 0) + buyerPlatformServiceFee + buyerServiceTax
+      ),
       netSettlementRate,
       netRate: netSettlementRate,
       netAmount: roundMoney(netSettlementRate * Number(grade.quantity || 0)),
     };
   });
   const sellerReceivable = roundMoney(
-    settlementGrades.reduce((sum, grade) => sum + Number(grade.netAmount || 0), 0)
+    Math.max(
+      0,
+      dealAmount - growerCommissionAmount - growerCommissionTaxAmount - labour - logisticsAmount
+    )
   );
-  const buyerPayable = dealAmount;
+  const buyerPayable = roundMoney(
+    dealAmount + buyerCommissionAmount + buyerCommissionTaxAmount
+  );
 
   return {
     grades: settlementGrades,
@@ -152,6 +215,17 @@ export const calculateDealBreakdown = ({
     labourChargePerUnit,
     commissionBase,
     commissionPercent: Number(commissionPercent || 0),
+    growerCommissionEnabled: Boolean(growerCommissionEnabled),
+    buyerCommissionEnabled: Boolean(buyerCommissionEnabled),
+    growerCommissionRate: growerCommissionEnabled ? Number(growerCommissionPercent || 0) : 0,
+    buyerCommissionRate: buyerCommissionEnabled ? Number(buyerCommissionPercent || 0) : 0,
+    growerCommissionAmount,
+    buyerCommissionAmount,
+    commissionTaxRate: basisPointsToPercent(commissionTaxRateBps),
+    growerCommissionTaxAmount,
+    buyerCommissionTaxAmount,
+    commissionTaxAmount,
+    commissionVersion: activeCommission.commissionVersion,
     commissionAmount,
     platformServiceFee: commissionAmount,
     totalCharges,
@@ -183,11 +257,30 @@ export const buildGradeQuantitiesFromProduct = (product = {}) =>
     return quantities;
   };
 
-export const mergeDealSettings = (settings = {}) => ({
-  commissionPercent:
-    settings.commissionPercent ?? Number(process.env.PLATFORM_COMMISSION_PERCENT || DEFAULT_PLATFORM_SERVICE_FEE_PERCENT),
-  labourAmount: Number(process.env.DEFAULT_LABOUR_AMOUNT || DEFAULT_LABOUR_CHARGE_PER_UNIT),
-  driverChargeSlabs: settings.driverChargeSlabs?.length
-    ? settings.driverChargeSlabs
-    : DEFAULT_DRIVER_CHARGE_SLABS,
-});
+export const mergeDealSettings = (settings = {}) => {
+  const active = getActiveCommissionConfig();
+  const commissionPercent = settings.commissionVersion
+    ? Number(settings.commissionPercent)
+    : Number(process.env.PLATFORM_COMMISSION_PERCENT || DEFAULT_PLATFORM_SERVICE_FEE_PERCENT);
+
+  return {
+    commissionPercent,
+    growerCommissionEnabled: settings.commissionVersion
+      ? settings.growerCommissionEnabled === true
+      : active.growerCommissionEnabled,
+    buyerCommissionEnabled: settings.commissionVersion
+      ? settings.buyerCommissionEnabled !== false
+      : active.buyerCommissionEnabled,
+    growerCommissionPercent: settings.commissionVersion
+      ? Number(settings.growerCommissionPercent ?? commissionPercent)
+      : commissionPercent,
+    buyerCommissionPercent: settings.commissionVersion
+      ? Number(settings.buyerCommissionPercent ?? commissionPercent)
+      : basisPointsToPercent(active.buyerCommissionRateBps),
+    commissionVersion: settings.commissionVersion || active.commissionVersion,
+    labourAmount: Number(process.env.DEFAULT_LABOUR_AMOUNT || DEFAULT_LABOUR_CHARGE_PER_UNIT),
+    driverChargeSlabs: settings.driverChargeSlabs?.length
+      ? settings.driverChargeSlabs
+      : DEFAULT_DRIVER_CHARGE_SLABS,
+  };
+};

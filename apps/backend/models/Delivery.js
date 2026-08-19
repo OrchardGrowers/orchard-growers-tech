@@ -17,6 +17,9 @@ const deliverySchema = new mongoose.Schema(
     // optional negotiation fields
     negotiatedAmount: { type: Number },
     isNegotiated: { type: Boolean, default: false },
+    finalQuantity: { type: Number, min: 0 },
+    finalWeightKg: { type: Number, min: 0 },
+    finalRate: { type: Number, min: 0 },
     driverPayment: { type: Number, default: 0 },
     platformCommission: { type: Number, default: 0 },
     growerPayout: { type: Number, default: 0 },

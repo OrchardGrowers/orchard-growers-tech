@@ -55,7 +55,7 @@ export default function Orders() {
           {isGrower ? (
             <p>You Will Receive: Rs. {order.sellerReceivable || order.growerPayout || order.auctionPrice || 0}</p>
           ) : (
-            <p>Amount Payable: Rs. {order.finalPrice || order.totalAmount || order.auctionPrice || 0}</p>
+            <p>Amount Payable: Rs. {order.financialSnapshot?.buyerTotalPayable || order.totalAmount || order.finalPrice || order.auctionPrice || 0}</p>
           )}
           <p>Status: {order.paymentStatus}</p>
           <p>Delivery: {order.deliveryStatus || "PENDING"}</p>

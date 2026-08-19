@@ -91,6 +91,19 @@ const sanitizeOrderForUser = (order, user) => {
     delete data.paymentGatewayOrderId;
     delete data.paymentGatewaySessionId;
     delete data.paymentGatewayResponse;
+    if (data.financialSnapshot) {
+      const snapshot = { ...data.financialSnapshot };
+      delete snapshot.buyerCommissionEnabled;
+      delete snapshot.buyerCommissionRateBps;
+      delete snapshot.buyerCommissionRate;
+      delete snapshot.buyerCommissionMinor;
+      delete snapshot.buyerCommissionAmount;
+      delete snapshot.buyerCommissionTaxMinor;
+      delete snapshot.buyerCommissionTaxAmount;
+      delete snapshot.buyerTotalPayableMinor;
+      delete snapshot.buyerTotalPayable;
+      data.financialSnapshot = snapshot;
+    }
   }
 
   return data;

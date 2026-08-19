@@ -569,11 +569,23 @@ type AdminErpDocument = {
   id?: string;
   documentType?: string;
   sourceType?: string;
+  sourceOrder?: string;
+  sourceLot?: string;
+  grower?: string;
+  buyer?: string;
   documentNumber?: string;
+  issuedToName?: string;
+  recipientRole?: string;
   status?: string;
   totalAmount?: number;
+  finalizedAt?: string;
   createdAt?: string;
   persisted?: boolean;
+  snapshot?: {
+    seller?: { name?: string; businessName?: string };
+    buyer?: { name?: string; businessName?: string };
+    grower?: { name?: string; businessName?: string };
+  };
 };
 type AdminErpLedgerEntry = {
   _id?: string;
@@ -2911,7 +2923,7 @@ function App() {
       );
     }
     if (tab === 'efruitInvoices') {
-      return <EfruitInvoiceChalanPanel orders={orders} />;
+      return <EfruitInvoiceChalanPanel orders={orders} documents={erpData.documents} authHeaders={authHeaders} />;
     }
     if (tab === 'quotes') {
       return (
@@ -6961,11 +6973,90 @@ function printAdminDocument(order: AdminOrder) {
   printWindow.print();
 }
 
-function EfruitInvoiceChalanPanel({ orders }: { orders: AdminOrder[] }) {
-  const documents = orders.filter(isCompletedMarketplaceOrder);
+const MODERN_TRANSACTION_DOCUMENT_TYPES = new Set([
+  'LOT_CHALLAN',
+  'SALES_INVOICE',
+  'GROWER_COMMISSION_INVOICE',
+  'BUYER_COMMISSION_INVOICE',
+]);
+
+async function openAdminTransactionPdf(document: AdminErpDocument, authHeaders: HeadersInit, disposition: 'inline' | 'attachment') {
+  if (!document._id) return;
+  const previewWindow = disposition === 'inline' ? window.open('', '_blank', 'noopener,noreferrer') : null;
+  try {
+    const response = await fetch(
+      `${API_BASE}/transaction-documents/${document._id}/pdf?disposition=${disposition}`,
+      { headers: authHeaders }
+    );
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.msg || payload.message || 'Could not open transaction PDF');
+    }
+    const url = URL.createObjectURL(await response.blob());
+    if (previewWindow) {
+      previewWindow.location.href = url;
+    } else {
+      const link = window.document.createElement('a');
+      link.href = url;
+      link.download = `${document.documentNumber || 'transaction-document'}.pdf`;
+      link.click();
+    }
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (error) {
+    previewWindow?.close();
+    window.alert(error instanceof Error ? error.message : 'Could not open transaction PDF');
+  }
+}
+
+function EfruitInvoiceChalanPanel({
+  orders,
+  documents,
+  authHeaders,
+}: {
+  orders: AdminOrder[];
+  documents: AdminErpDocument[];
+  authHeaders: HeadersInit;
+}) {
+  const [documentSearch, setDocumentSearch] = useState('');
+  const modernDocuments = documents.filter(
+    (document) => document._id && MODERN_TRANSACTION_DOCUMENT_TYPES.has(String(document.documentType || '').toUpperCase())
+  );
+  const modernOrderIds = new Set(modernDocuments.map((document) => String(document.sourceOrder || '')).filter(Boolean));
+  const legacyDocuments = orders.filter(
+    (order) => isCompletedMarketplaceOrder(order) && !modernOrderIds.has(String(order._id))
+  );
+  const normalizedSearch = documentSearch.trim().toLowerCase();
+  const filteredModernDocuments = normalizedSearch
+    ? modernDocuments.filter((document) =>
+        [
+          document.documentNumber,
+          document.documentType,
+          document.sourceLot,
+          document.sourceOrder,
+          document.grower,
+          document.buyer,
+          document.issuedToName,
+          document.snapshot?.seller?.name,
+          document.snapshot?.seller?.businessName,
+          document.snapshot?.grower?.name,
+          document.snapshot?.grower?.businessName,
+          document.snapshot?.buyer?.name,
+          document.snapshot?.buyer?.businessName,
+        ].some((value) => String(value || '').toLowerCase().includes(normalizedSearch))
+      )
+    : modernDocuments;
 
   return (
-    <RequestSection title="eFruitMandi Invoices / Chalan" count={documents.length}>
+    <RequestSection title="eFruitMandi Transaction Documents" count={modernDocuments.length + legacyDocuments.length}>
+      <label className="mb-3 block max-w-xl text-xs font-bold text-slate-300">
+        Search by document number, type, Lot ID, Deal ID, Grower, or Buyer
+        <input
+          value={documentSearch}
+          onChange={(event) => setDocumentSearch(event.target.value)}
+          placeholder="Search transaction documents"
+          className="mt-2 h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-white outline-none focus:border-emerald-400"
+        />
+      </label>
       <div className="overflow-x-auto rounded-xl border border-slate-800">
         <table className="min-w-full divide-y divide-slate-800 text-sm">
           <thead className="bg-slate-950 text-left text-xs uppercase tracking-wide text-slate-400">
@@ -6978,7 +7069,39 @@ function EfruitInvoiceChalanPanel({ orders }: { orders: AdminOrder[] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-slate-900">
-            {documents.map((order) => (
+            {filteredModernDocuments.map((document) => (
+              <tr key={document._id}>
+                <td className="px-3 py-3">
+                  <p className="font-bold text-white">{document.documentNumber || document._id}</p>
+                  <p className="text-xs font-bold text-emerald-300">
+                    {String(document.documentType || 'DOCUMENT').replace(/_/g, ' ')} - {formatDate(document.finalizedAt || document.createdAt)}
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-500">Lot: {document.sourceLot || '-'} | Deal: {document.sourceOrder || '-'}</p>
+                </td>
+                <td className="px-3 py-3 text-slate-300">
+                  <p className="font-bold">{document.issuedToName || document.recipientRole || 'Transaction participant'}</p>
+                  <p className="text-xs text-slate-500">{document.recipientRole || 'Authorized parties'}</p>
+                  {document.documentType === 'SALES_INVOICE' && (
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Grower: {document.snapshot?.seller?.businessName || document.snapshot?.seller?.name || '-'} | Buyer: {document.snapshot?.buyer?.businessName || document.snapshot?.buyer?.name || '-'}
+                    </p>
+                  )}
+                </td>
+                <td className="px-3 py-3 font-black text-emerald-300">{formatAdminMoney(document.totalAmount)}</td>
+                <td className="px-3 py-3 text-slate-300">{document.status || 'FINAL'}</td>
+                <td className="px-3 py-3">
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => openAdminTransactionPdf(document, authHeaders, 'inline')} className="rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-600">
+                      View
+                    </button>
+                    <button type="button" onClick={() => openAdminTransactionPdf(document, authHeaders, 'attachment')} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-500">
+                      Download PDF
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {!normalizedSearch && legacyDocuments.map((order) => (
               <tr key={order._id}>
                 <td className="px-3 py-3">
                   <p className="font-bold text-white">{order.invoiceNumber || order._id}</p>
@@ -7002,9 +7125,9 @@ function EfruitInvoiceChalanPanel({ orders }: { orders: AdminOrder[] }) {
                 </td>
               </tr>
             ))}
-            {!documents.length && (
+            {!filteredModernDocuments.length && (normalizedSearch || !legacyDocuments.length) && (
               <tr>
-                <td colSpan={5} className="px-3 py-6 text-center font-bold text-slate-400">No eFruitMandi invoice or chalan records found.</td>
+                <td colSpan={5} className="px-3 py-6 text-center font-bold text-slate-400">No matching eFruitMandi transaction documents found.</td>
               </tr>
             )}
           </tbody>
@@ -8506,14 +8629,14 @@ function KycRequestCard({
                     success={isVerified}
                   />
                   <AdminActionButton
-                    label={pendingSectionAction[sectionState.section] === 'CORRECTION_REQUIRED' ? 'Saving...' : isVerified ? 'Reopen / Cancel Approval' : 'Request Changes'}
+                    label={pendingSectionAction[sectionState.section] === 'CORRECTION_REQUIRED' ? 'Updating...' : isVerified ? 'Update' : 'Request Changes'}
                     onClick={() => runSectionReview(sectionState.section, 'CORRECTION_REQUIRED')}
                     disabled={status === 'CHANGES_REQUIRED' || actionBlocked('CORRECTION_REQUIRED')}
                   />
                   <AdminActionButton
                     label={pendingSectionAction[sectionState.section] === 'REJECT' ? 'Saving...' : 'Reject'}
                     onClick={() => runSectionReview(sectionState.section, 'REJECT')}
-                    disabled={status === 'REJECTED' || actionBlocked('REJECT')}
+                    disabled={isVerified || status === 'REJECTED' || actionBlocked('REJECT')}
                     danger
                   />
                 </div>

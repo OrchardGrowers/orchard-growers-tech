@@ -170,6 +170,18 @@ const orderSchema = new mongoose.Schema(
     driverPayment: { type: Number, default: 0 },
     platformCommission: { type: Number, default: 0 },
     growerPayout: { type: Number, default: 0 },
+    platformCommissionRate: { type: Number, default: undefined, min: 0 },
+    growerCommissionRate: { type: Number, default: undefined, min: 0 },
+    buyerCommissionRate: { type: Number, default: undefined, min: 0 },
+    commissionVersion: { type: String, trim: true, default: "" },
+    commissionLockedAt: Date,
+    finalQuantity: { type: Number, default: undefined, min: 0 },
+    finalWeightKg: { type: Number, default: undefined, min: 0 },
+    finalRate: { type: Number, default: undefined, min: 0 },
+    financialSnapshot: {
+      type: mongoose.Schema.Types.Mixed,
+      default: undefined,
+    },
 
     // 🔐 OTPs
     deliveryOTP: String,

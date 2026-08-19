@@ -9,15 +9,17 @@ import ErpPaymentTransaction from "../models/ErpPaymentTransaction.js";
 import ErpSettlement from "../models/ErpSettlement.js";
 import { generateErpNumber } from "./erpNumberingService.js";
 import { isOrderCompletedForMarketplace } from "./dealLifecycleService.js";
+import { ensureFinalTransactionDocuments } from "./transactionDocumentService.js";
 
 const roundMoney = (value) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 const toNumber = (value) => (Number.isFinite(Number(value)) ? Number(value) : 0);
 const normalizeStatus = (value = "") => String(value || "").trim().toUpperCase();
 const toObjectIdValue = (value) => (mongoose.isValidObjectId(value) ? value : undefined);
 
-const getOrderAmount = (order = {}) =>
+const getGrossSaleAmount = (order = {}) =>
   roundMoney(
-    order.finalPrice ||
+    order.financialSnapshot?.grossFruitSaleAmount ||
+      order.finalPrice ||
       order.totalAmount ||
       order.auctionPrice ||
       order.dealBreakdown?.buyerPayableThroughPlatform ||
@@ -26,17 +28,30 @@ const getOrderAmount = (order = {}) =>
       0
   );
 
+const getBuyerPayableAmount = (order = {}) =>
+  roundMoney(
+    order.financialSnapshot?.buyerTotalPayable ||
+      order.dealBreakdown?.buyerPayableThroughPlatform ||
+      order.dealBreakdown?.buyerPayable ||
+      order.totalAmount ||
+      getGrossSaleAmount(order)
+  );
+
 const getCommissionAmount = (order = {}) =>
   roundMoney(
-    order.platformCommission ||
+    order.financialSnapshot?.platformRevenue ||
+      order.platformCommission ||
       order.commissionTaxableAmount ||
       order.dealBreakdown?.platformServiceFee ||
       order.dealBreakdown?.commissionAmount ||
       0
   );
 
+const getCommissionTaxAmount = (order = {}) =>
+  roundMoney(order.financialSnapshot?.taxAmount || order.commissionGstAmount || 0);
+
 const getGrowerPayout = (order = {}) =>
-  roundMoney(order.growerPayout || order.dealBreakdown?.sellerReceivable || order.dealBreakdown?.growerReceivable || 0);
+  roundMoney(order.financialSnapshot?.growerNetSettlement || order.growerPayout || order.dealBreakdown?.sellerReceivable || order.dealBreakdown?.growerReceivable || 0);
 
 const getLogisticsAmount = (order = {}) =>
   roundMoney(order.driverPayment || order.dealBreakdown?.driverCharge || order.dealBreakdown?.logisticsAmount || 0);
@@ -95,7 +110,7 @@ const upsertAuditEvent = async ({ order, verificationRequest, module, action, en
 };
 
 const upsertPaymentTransaction = async ({ order, adminId }) => {
-  const amount = getOrderAmount(order);
+  const amount = getBuyerPayableAmount(order);
   if (amount <= 0) return null;
 
   const query = {
@@ -148,9 +163,17 @@ const upsertCommissionLedger = async ({ order, adminId }) => {
   if (!isOrderCompletedForMarketplace(order)) return null;
 
   const commissionAmount = getCommissionAmount(order);
+  const commissionTaxAmount = getCommissionTaxAmount(order);
   if (commissionAmount <= 0) return null;
 
-  const taxAmount = roundMoney(order.commissionGstAmount);
+  const taxAmount = commissionTaxAmount;
+  const snapshot = order.financialSnapshot || {};
+  const commissionParty = snapshot.buyerCommissionEnabled && snapshot.buyerCommissionAmount > 0
+    ? "BUYER"
+    : "GROWER";
+  const commissionPercent = commissionParty === "BUYER"
+    ? toNumber(snapshot.buyerCommissionRate)
+    : toNumber(snapshot.growerCommissionRate || order.dealBreakdown?.commissionPercent);
   const query = {
     platform: "efruitmandi",
     sourceOrder: order._id,
@@ -164,8 +187,8 @@ const upsertCommissionLedger = async ({ order, adminId }) => {
         lot: order.product,
         buyer: order.buyer,
         grower: order.grower,
-        commissionBase: roundMoney(order.dealBreakdown?.commissionBase || getOrderAmount(order)),
-        commissionPercent: toNumber(order.dealBreakdown?.commissionPercent),
+        commissionBase: roundMoney(order.financialSnapshot?.grossFruitSaleAmount || order.dealBreakdown?.commissionBase || getGrossSaleAmount(order)),
+        commissionPercent,
         commissionAmount,
         taxPercent: toNumber(order.commissionGstPercent),
         taxAmount,
@@ -176,6 +199,10 @@ const upsertCommissionLedger = async ({ order, adminId }) => {
         invoiceDate: order.commissionInvoiceDate,
         receiptNumber: order.commissionReceiptNumber || "",
         receiptDate: order.commissionReceiptDate,
+        metadata: {
+          commissionParty,
+          commissionVersion: snapshot.commissionVersion || order.commissionVersion || "legacy",
+        },
         updatedBy: adminId || undefined,
       },
       $setOnInsert: {
@@ -296,10 +323,19 @@ const upsertDocument = async ({ query, type, payload, date, adminId }) => {
 const upsertOrderDocuments = async ({ order, adminId }) => {
   if (!isOrderCompletedForMarketplace(order)) return [];
 
-  const amount = getOrderAmount(order);
+  if (order.financialSnapshot?.lockedAt) {
+    return ensureFinalTransactionDocuments(order);
+  }
+
+  const legacyDocumentFinalized =
+    ["DELIVERED"].includes(normalizeStatus(order.deliveryStatus)) ||
+    ["RELEASED"].includes(normalizeStatus(order.paymentStatus));
+  if (!legacyDocumentFinalized) return [];
+
+  const amount = getGrossSaleAmount(order);
   const documents = [];
 
-  if (amount > 0) {
+  if (amount > 0 && order.invoiceNumber) {
     documents.push(
       await upsertDocument({
         query: {
@@ -334,7 +370,7 @@ const upsertOrderDocuments = async ({ order, adminId }) => {
   }
 
   const commissionAmount = getCommissionAmount(order);
-  if (commissionAmount > 0) {
+  if (commissionAmount > 0 && order.commissionInvoiceNumber) {
     documents.push(
       await upsertDocument({
         query: {
@@ -373,10 +409,11 @@ const upsertOrderDocuments = async ({ order, adminId }) => {
 };
 
 const buildLedgerRows = (order = {}) => {
-  const amount = getOrderAmount(order);
+  const amount = getBuyerPayableAmount(order);
   const growerPayout = getGrowerPayout(order);
   const logisticsAmount = getLogisticsAmount(order);
   const commissionAmount = getCommissionAmount(order);
+  const commissionTaxAmount = getCommissionTaxAmount(order);
   const rows = [];
 
   if (amount > 0) {
@@ -471,6 +508,29 @@ const buildLedgerRows = (order = {}) => {
       debit: 0,
       credit: commissionAmount,
       memo: "OGPL marketplace commission revenue",
+    });
+  }
+
+  if (commissionTaxAmount > 0) {
+    rows.push({
+      sourceType: "COMMISSION",
+      accountCode: "2300",
+      accountName: "Escrow Liability Clearing",
+      accountType: "LIABILITY",
+      partyType: "PLATFORM",
+      debit: commissionTaxAmount,
+      credit: 0,
+      memo: "Escrow liability allocated to configured service tax",
+    });
+    rows.push({
+      sourceType: "COMMISSION",
+      accountCode: "2400",
+      accountName: "Service Tax Payable",
+      accountType: "LIABILITY",
+      partyType: "PLATFORM",
+      debit: 0,
+      credit: commissionTaxAmount,
+      memo: "Configured service tax liability",
     });
   }
 

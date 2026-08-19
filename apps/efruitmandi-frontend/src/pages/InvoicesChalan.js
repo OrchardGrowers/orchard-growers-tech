@@ -8,7 +8,8 @@ const formatCurrency = (value) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(Number(value || 0));
 
 const formatDate = (value) => {
@@ -185,21 +186,82 @@ const printCommissionDocument = (order, type) => {
   printWindow.print();
 };
 
+const TRANSACTION_DOCUMENT_LABELS = {
+  LOT_CHALLAN: "Grower Lot Listing Challan",
+  SALES_INVOICE: "Final Sales Invoice",
+  GROWER_COMMISSION_INVOICE: "Grower Platform Commission Invoice",
+  BUYER_COMMISSION_INVOICE: "Buyer Platform Commission Invoice",
+};
+
+const getTransactionDocumentAmount = (document = {}) =>
+  document.documentType === "LOT_CHALLAN" ? null : Number(document.totalAmount || 0);
+
+const openSecurePdf = async (document, disposition = "attachment") => {
+  const previewWindow = disposition === "inline"
+    ? window.open("", "_blank", "noopener,noreferrer")
+    : null;
+  try {
+    const response = await API.get(`/transaction-documents/${document._id}/pdf`, {
+      params: { disposition },
+      responseType: "blob",
+    });
+    const url = URL.createObjectURL(response.data);
+    if (previewWindow) {
+      previewWindow.location.href = url;
+    } else {
+      const link = window.document.createElement("a");
+      link.href = url;
+      link.download = `${document.documentNumber || "transaction-document"}.pdf`;
+      link.click();
+    }
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (error) {
+    previewWindow?.close();
+    throw error;
+  }
+};
+
 export default function InvoicesChalan() {
   const [orders, setOrders] = useState([]);
+  const [transactionDocuments, setTransactionDocuments] = useState([]);
   const [message, setMessage] = useState("");
   const growerView = isGrowerAccount();
 
   useEffect(() => {
-    API.get("/orders")
-      .then((res) => setOrders(res.data || []))
-      .catch((err) => setMessage(err.response?.data?.msg || "Could not load invoices and chalan."));
+    Promise.all([
+      API.get("/transaction-documents").catch(() => ({ data: { documents: [] } })),
+      API.get("/orders").catch(() => ({ data: [] })),
+    ])
+      .then(([documentResponse, orderResponse]) => {
+        setTransactionDocuments(documentResponse.data?.documents || []);
+        setOrders(orderResponse.data || []);
+      })
+      .catch((err) => setMessage(err.response?.data?.msg || "Could not load invoices and challans."));
   }, []);
 
-  const documents = useMemo(
-    () => orders.filter((order) => isCompletedDocumentOrder(order) && order.invoiceNumber),
-    [orders]
+  const legacyDocuments = useMemo(
+    () => {
+      const modernOrderIds = new Set(
+        transactionDocuments.map((document) => String(document.sourceOrder || "")).filter(Boolean)
+      );
+      return orders.filter(
+        (order) =>
+          isCompletedDocumentOrder(order) &&
+          order.invoiceNumber &&
+          !modernOrderIds.has(String(order._id))
+      );
+    },
+    [orders, transactionDocuments]
   );
+
+  const handleSecurePdf = async (document, disposition) => {
+    setMessage("");
+    try {
+      await openSecurePdf(document, disposition);
+    } catch (error) {
+      setMessage(error.response?.data?.msg || "Could not open this secure PDF.");
+    }
+  };
 
   return (
     <div className="mx-auto max-w-4xl pb-20">
@@ -219,14 +281,69 @@ export default function InvoicesChalan() {
         </p>
       )}
 
-      {!documents.length && !message && (
+      {!transactionDocuments.length && !legacyDocuments.length && !message && (
         <section className="rounded-lg border border-gray-200 bg-white p-5 text-sm font-bold text-gray-600">
           No invoice or chalan documents are available yet.
         </section>
       )}
 
       <div className="space-y-3">
-        {documents.map((order) => (
+        {transactionDocuments.map((document) => {
+          const financial = document.snapshot?.financial || {};
+          const amount = getTransactionDocumentAmount(document);
+          return (
+          <article key={document._id} className="rounded-lg border border-green-100 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <p className="inline-flex items-center gap-2 rounded-full bg-green-50 px-3 py-1 text-xs font-extrabold text-green-800">
+                  <FaFileInvoice />
+                  {TRANSACTION_DOCUMENT_LABELS[document.documentType] || document.documentType}
+                </p>
+                <h2 className="mt-2 text-base font-extrabold text-gray-950">{document.documentNumber}</h2>
+                <p className="mt-1 text-xs font-bold text-gray-500">
+                  {formatDate(document.finalizedAt || document.createdAt)} - {document.status || "FINAL"}
+                </p>
+              </div>
+              {amount !== null && <p className="text-lg font-black text-green-800">{formatCurrency(amount)}</p>}
+            </div>
+            {document.documentType === "SALES_INVOICE" && (
+              <div className="mt-3 grid gap-2 rounded-md bg-gray-50 p-3 text-xs font-bold text-gray-700 sm:grid-cols-2">
+                <p>Gross Fruit Sale: {formatCurrency(financial.grossFruitSaleAmount)}</p>
+                <p>Settlement Status: {document.snapshot?.deal?.paymentStatus || "FINAL"}</p>
+                {growerView ? (
+                  <>
+                    <p>Platform Charges: {formatCurrency(financial.growerCommissionAmount)}</p>
+                    <p>Net Settlement: {formatCurrency(financial.growerNetSettlement)}</p>
+                  </>
+                ) : (
+                  <>
+                    <p>Platform Service Charge: {formatCurrency(financial.buyerCommissionAmount)}</p>
+                    <p>Total Buyer Amount: {formatCurrency(financial.buyerTotalPayable)}</p>
+                  </>
+                )}
+              </div>
+            )}
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => handleSecurePdf(document, "inline")}
+                className="inline-flex items-center gap-2 rounded-md bg-gray-100 px-3 py-2 text-xs font-extrabold text-gray-800 hover:bg-gray-200"
+              >
+                <FaPrint /> View PDF
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSecurePdf(document, "attachment")}
+                className="inline-flex items-center gap-2 rounded-md bg-green-700 px-3 py-2 text-xs font-extrabold text-white hover:bg-green-800"
+              >
+                <FaDownload /> Download PDF
+              </button>
+            </div>
+          </article>
+          );
+        })}
+
+        {legacyDocuments.map((order) => (
           <article key={order._id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>

@@ -37,6 +37,24 @@ export const generateCommissionReceiptNo = async (date = new Date()) => {
   return `EFM-COMM-RCPT-${financialYear}-${padSerial(serial)}`;
 };
 
+const generateTransactionDocumentNumber = async (type, prefix, date = new Date()) => {
+  const year = date.getFullYear();
+  const serial = await nextSequence(`transaction-document:${type}:${year}`);
+  return `${prefix}-${year}-${padSerial(serial)}`;
+};
+
+export const generateLotChallanNo = (date = new Date()) =>
+  generateTransactionDocumentNumber("lot-challan", "EFM-GLC", date);
+
+export const generateSalesInvoiceNo = (date = new Date()) =>
+  generateTransactionDocumentNumber("sales-invoice", "EFM-SI", date);
+
+export const generateGrowerCommissionInvoiceNo = (date = new Date()) =>
+  generateTransactionDocumentNumber("grower-commission", "EFM-CI-G", date);
+
+export const generateBuyerCommissionInvoiceNo = (date = new Date()) =>
+  generateTransactionDocumentNumber("buyer-commission", "EFM-CI-B", date);
+
 export const generateBillDeskPaymentRef = async (date = new Date()) => {
   const yyyymmdd = [
     date.getFullYear(),

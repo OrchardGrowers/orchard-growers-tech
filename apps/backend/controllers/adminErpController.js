@@ -52,7 +52,8 @@ const getDateRange = (req) => {
 
 const getOrderAmount = (order = {}) =>
   roundMoney(
-    order.finalPrice ||
+    order.financialSnapshot?.grossFruitSaleAmount ||
+      order.finalPrice ||
       order.totalAmount ||
       order.auctionPrice ||
       order.dealBreakdown?.buyerPayableThroughPlatform ||
@@ -61,20 +62,33 @@ const getOrderAmount = (order = {}) =>
       0
   );
 
+const getBuyerPayableAmount = (order = {}) =>
+  roundMoney(
+    order.financialSnapshot?.buyerTotalPayable ||
+      order.dealBreakdown?.buyerPayableThroughPlatform ||
+      order.dealBreakdown?.buyerPayable ||
+      order.totalAmount ||
+      getOrderAmount(order)
+  );
+
 const getCommissionAmount = (order = {}) =>
   roundMoney(
-    order.platformCommission ||
+    order.financialSnapshot?.platformRevenue ||
+      order.platformCommission ||
       order.commissionTaxableAmount ||
       order.dealBreakdown?.platformServiceFee ||
       order.dealBreakdown?.commissionAmount ||
       0
   );
 
+const getCommissionTaxAmount = (order = {}) =>
+  roundMoney(order.financialSnapshot?.taxAmount || order.commissionGstAmount || 0);
+
 const getGrowerPayout = (order = {}) =>
-  roundMoney(order.growerPayout || order.dealBreakdown?.sellerReceivable || order.dealBreakdown?.growerReceivable || 0);
+  roundMoney(order.financialSnapshot?.growerNetSettlement || order.growerPayout || order.dealBreakdown?.sellerReceivable || order.dealBreakdown?.growerReceivable || 0);
 
 const getLogisticsAmount = (order = {}) =>
-  roundMoney(order.driverPayment || order.dealBreakdown?.driverCharge || order.dealBreakdown?.logisticsAmount || 0);
+  roundMoney(order.financialSnapshot?.logisticsAmount || order.driverPayment || order.dealBreakdown?.driverCharge || order.dealBreakdown?.logisticsAmount || 0);
 
 const getPartyName = (party = {}, fallback = "Not available") =>
   party?.businessName ||
@@ -136,7 +150,7 @@ const mapOrderPayment = (order = {}) => ({
   provider: normalizeProvider(order.paymentGateway || order.paymentMethod),
   gatewayOrderId: order.paymentGatewayOrderId || "",
   gatewayPaymentId: order.paymentReference || "",
-  amount: getOrderAmount(order),
+  amount: getBuyerPayableAmount(order),
   currency: "INR",
   status: normalizePaymentStatus(order),
   escrowStatus: order.escrowStatus || "",
@@ -148,7 +162,12 @@ const mapOrderPayment = (order = {}) => ({
 
 const mapOrderCommission = (order = {}) => {
   const commissionAmount = getCommissionAmount(order);
+  const commissionTaxAmount = getCommissionTaxAmount(order);
   const taxAmount = toNumber(order.commissionGstAmount);
+  const snapshot = order.financialSnapshot || {};
+  const commissionParty = snapshot.buyerCommissionEnabled && snapshot.buyerCommissionAmount > 0
+    ? "BUYER"
+    : "GROWER";
   return {
     id: `order:${order._id}:commission`,
     persisted: false,
@@ -157,8 +176,10 @@ const mapOrderCommission = (order = {}) => {
     lot: order.product,
     buyer: order.buyer,
     grower: order.grower,
-    commissionBase: roundMoney(order.dealBreakdown?.commissionBase || getOrderAmount(order)),
-    commissionPercent: toNumber(order.dealBreakdown?.commissionPercent),
+    commissionBase: roundMoney(snapshot.grossFruitSaleAmount || order.dealBreakdown?.commissionBase || getOrderAmount(order)),
+    commissionPercent: commissionParty === "BUYER"
+      ? toNumber(snapshot.buyerCommissionRate)
+      : toNumber(snapshot.growerCommissionRate || order.dealBreakdown?.commissionPercent),
     commissionAmount,
     taxPercent: toNumber(order.commissionGstPercent),
     taxAmount,
@@ -168,6 +189,10 @@ const mapOrderCommission = (order = {}) => {
     invoiceDate: order.commissionInvoiceDate,
     receiptNumber: order.commissionReceiptNumber || "",
     receiptDate: order.commissionReceiptDate,
+    metadata: {
+      commissionParty,
+      commissionVersion: snapshot.commissionVersion || order.commissionVersion || "legacy",
+    },
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
   };
@@ -274,7 +299,7 @@ const mapOrderDocuments = (order = {}) => {
 const mapOrderLedgerEntries = (order = {}) => {
   if (!isOrderCompletedForMarketplace(order)) return [];
 
-  const amount = getOrderAmount(order);
+  const amount = getBuyerPayableAmount(order);
   const growerPayout = getGrowerPayout(order);
   const logisticsAmount = getLogisticsAmount(order);
   const commissionAmount = getCommissionAmount(order);
@@ -348,6 +373,24 @@ const mapOrderLedgerEntries = (order = {}) => {
       credit: commissionAmount,
       postingDate: order.createdAt,
       memo: "OGPL marketplace commission",
+    });
+  }
+
+
+  if (commissionTaxAmount > 0) {
+    entries.push({
+      id: `order:${order._id}:ledger:service-tax`,
+      persisted: false,
+      sourceType: "COMMISSION",
+      sourceOrder: order._id,
+      accountCode: "2400",
+      accountName: "Service Tax Payable",
+      accountType: "LIABILITY",
+      partyType: "PLATFORM",
+      debit: 0,
+      credit: commissionTaxAmount,
+      postingDate: order.createdAt,
+      memo: "Configured service tax liability",
     });
   }
 
@@ -511,7 +554,7 @@ export const listAdminErpPayments = async (req, res) => {
   const [persisted, orders] = await Promise.all([
     ErpPaymentTransaction.find().sort({ createdAt: -1 }).limit(limit).lean(),
     Order.find(getOrderQuery(req))
-      .select("quote product buyer grower finalPrice totalAmount auctionPrice dealBreakdown paymentStatus paymentMethod paymentReference paymentGateway paymentGatewayOrderId paymentGatewayStatus escrowStatus paymentDueAt createdAt updatedAt")
+      .select("quote product buyer grower finalPrice totalAmount auctionPrice dealBreakdown financialSnapshot paymentStatus paymentMethod paymentReference paymentGateway paymentGatewayOrderId paymentGatewayStatus escrowStatus paymentDueAt createdAt updatedAt")
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean(),
@@ -534,7 +577,7 @@ export const listAdminErpSettlements = async (req, res) => {
   const [persisted, orders] = await Promise.all([
     ErpSettlement.find().sort({ createdAt: -1 }).limit(limit).lean(),
     Order.find(getOrderQuery(req))
-      .select("quote product buyer grower driver beneficiaryMapping settlementEligibility paymentStatus escrowStatus finalPrice totalAmount auctionPrice dealBreakdown growerPayout driverPayment platformCommission createdAt updatedAt")
+      .select("quote product buyer grower driver beneficiaryMapping settlementEligibility paymentStatus escrowStatus finalPrice totalAmount auctionPrice dealBreakdown financialSnapshot growerPayout driverPayment platformCommission createdAt updatedAt")
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean(),
@@ -558,7 +601,7 @@ export const listAdminErpCommissions = async (req, res) => {
   const [persisted, orders, quotes] = await Promise.all([
     ErpCommissionLedger.find().sort({ createdAt: -1 }).limit(limit).lean(),
     Order.find(getOrderQuery(req))
-      .select("quote product buyer grower finalPrice totalAmount auctionPrice dealBreakdown platformCommission commissionTaxableAmount commissionGstPercent commissionGstAmount commissionTotalAmount commissionInvoiceNumber commissionInvoiceDate commissionReceiptNumber commissionReceiptDate createdAt updatedAt")
+      .select("quote product buyer grower finalPrice totalAmount auctionPrice dealBreakdown financialSnapshot commissionVersion platformCommission commissionTaxableAmount commissionGstPercent commissionGstAmount commissionTotalAmount commissionInvoiceNumber commissionInvoiceDate commissionReceiptNumber commissionReceiptDate createdAt updatedAt")
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean(),
@@ -672,7 +715,7 @@ export const listAdminErpLedgerEntries = async (req, res) => {
   const [persisted, orders] = await Promise.all([
     ErpLedgerEntry.find().sort({ postingDate: -1, createdAt: -1 }).limit(limit).lean(),
     Order.find(getCompletedOrderQuery(req))
-      .select("buyer grower driver finalPrice totalAmount auctionPrice dealBreakdown growerPayout driverPayment platformCommission commissionTaxableAmount paymentStatus deliveryStatus createdAt")
+      .select("buyer grower driver finalPrice totalAmount auctionPrice dealBreakdown financialSnapshot growerPayout driverPayment platformCommission commissionTaxableAmount commissionGstAmount paymentStatus deliveryStatus createdAt")
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean(),

@@ -288,8 +288,10 @@ const formatQuote = (quotation = {}, visibility = "admin") => {
     quotedTotalValue: quotation.quotedTotalValue || quotation.baseDealAmount || quotation.dealAmount || 0,
     dealAmount: quotation.dealAmount || 0,
     baseDealAmount: quotation.baseDealAmount || quotation.dealAmount || 0,
-    buyerPayable: quotation.dealAmount || quotation.buyerPayable || 0,
-    buyerPayableThroughPlatform: quotation.dealAmount || quotation.buyerPayableThroughPlatform || quotation.buyerPayable || 0,
+    buyerPayable: quotation.buyerPayable || quotation.buyerPayableThroughPlatform || quotation.dealAmount || 0,
+    buyerPayableThroughPlatform: quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount || 0,
+    buyerCommissionRate: quotation.buyerCommissionRate || 0,
+    buyerCommissionAmount: quotation.buyerCommissionAmount || 0,
     labourChargePerUnit: quotation.labourChargePerUnit || 0,
     acceptedOrderId: quotation.acceptedOrder?._id || quotation.acceptedOrder || undefined,
     acceptedOrderPaymentStatus: quotation.acceptedOrder?.paymentStatus || undefined,
@@ -500,7 +502,15 @@ const createQuoteForLot = async (req, res) => {
       labourChargePerUnit: breakdown.labourChargePerUnit,
       commissionBase: breakdown.commissionBase,
       commissionPercent: breakdown.commissionPercent,
+      growerCommissionRate: breakdown.growerCommissionRate,
+      buyerCommissionRate: breakdown.buyerCommissionRate,
+      commissionVersion: breakdown.commissionVersion,
       commissionAmount: breakdown.commissionAmount,
+      growerCommissionAmount: breakdown.growerCommissionAmount,
+      buyerCommissionAmount: breakdown.buyerCommissionAmount,
+      commissionTaxRate: breakdown.commissionTaxRate,
+      growerCommissionTaxAmount: breakdown.growerCommissionTaxAmount,
+      buyerCommissionTaxAmount: breakdown.buyerCommissionTaxAmount,
       platformServiceFee: breakdown.platformServiceFee,
       totalCharges: breakdown.totalCharges,
       totalUnits: breakdown.totalUnits,
@@ -623,7 +633,15 @@ router.patch("/:quoteId", protect, authorize("buyer"), async (req, res) => {
     quotation.labourChargePerUnit = breakdown.labourChargePerUnit;
     quotation.commissionBase = breakdown.commissionBase;
     quotation.commissionPercent = breakdown.commissionPercent;
+    quotation.growerCommissionRate = breakdown.growerCommissionRate;
+    quotation.buyerCommissionRate = breakdown.buyerCommissionRate;
+    quotation.commissionVersion = breakdown.commissionVersion;
     quotation.commissionAmount = breakdown.commissionAmount;
+    quotation.growerCommissionAmount = breakdown.growerCommissionAmount;
+    quotation.buyerCommissionAmount = breakdown.buyerCommissionAmount;
+    quotation.commissionTaxRate = breakdown.commissionTaxRate;
+    quotation.growerCommissionTaxAmount = breakdown.growerCommissionTaxAmount;
+    quotation.buyerCommissionTaxAmount = breakdown.buyerCommissionTaxAmount;
     quotation.platformServiceFee = breakdown.platformServiceFee;
     quotation.totalCharges = breakdown.totalCharges;
     quotation.totalUnits = breakdown.totalUnits;
@@ -688,6 +706,20 @@ router.patch("/:quoteId/accept", protect, authorize("grower"), requirePaymentPar
       { $set: { status: "closed", rejectedAt: new Date() } }
     );
 
+    const acceptedCommissionVersion = quotation.commissionVersion || "legacy";
+    const acceptedGrowerCommissionRate = quotation.commissionVersion
+      ? quotation.growerCommissionRate || 0
+      : quotation.commissionPercent || 0;
+    const acceptedBuyerCommissionRate = quotation.commissionVersion
+      ? quotation.buyerCommissionRate || 0
+      : 0;
+    const acceptedGrowerCommissionAmount = quotation.commissionVersion
+      ? quotation.growerCommissionAmount || 0
+      : quotation.commissionAmount || 0;
+    const acceptedBuyerCommissionAmount = quotation.commissionVersion
+      ? quotation.buyerCommissionAmount || 0
+      : 0;
+
     await Order.findOneAndUpdate(
       { quote: quotation._id },
       {
@@ -695,20 +727,28 @@ router.patch("/:quoteId/accept", protect, authorize("grower"), requirePaymentPar
         product: quotation.lot._id,
         buyer: quotation.buyer,
         grower: quotation.grower,
-        totalAmount: quotation.dealAmount || quotation.buyerPayableThroughPlatform || quotation.buyerPayable,
-        auctionPrice: quotation.dealAmount || quotation.buyerPayableThroughPlatform || quotation.buyerPayable,
-        finalPrice: quotation.dealAmount || quotation.buyerPayableThroughPlatform || quotation.buyerPayable,
+        totalAmount: quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount,
+        auctionPrice: quotation.dealAmount || quotation.baseDealAmount,
+        finalPrice: quotation.dealAmount || quotation.baseDealAmount,
         dealBreakdown: {
           grades: quotation.grades,
           dealAmount: quotation.dealAmount,
           baseDealAmount: quotation.baseDealAmount || quotation.dealAmount,
-          buyerPayable: quotation.dealAmount || quotation.buyerPayable || quotation.buyerPayableThroughPlatform,
-          buyerPayableThroughPlatform: quotation.dealAmount || quotation.buyerPayableThroughPlatform || quotation.buyerPayable,
+          buyerPayable: quotation.buyerPayable || quotation.buyerPayableThroughPlatform || quotation.dealAmount,
+          buyerPayableThroughPlatform: quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount,
           sellerReceivable: quotation.sellerReceivable || quotation.growerReceivable,
           growerReceivable: quotation.growerReceivable || quotation.sellerReceivable,
           commissionAmount: quotation.commissionAmount,
           platformServiceFee: quotation.platformServiceFee || quotation.commissionAmount,
           commissionPercent: quotation.commissionPercent,
+          growerCommissionRate: acceptedGrowerCommissionRate,
+          buyerCommissionRate: acceptedBuyerCommissionRate,
+          commissionVersion: acceptedCommissionVersion,
+          growerCommissionAmount: acceptedGrowerCommissionAmount,
+          buyerCommissionAmount: acceptedBuyerCommissionAmount,
+          commissionTaxRate: quotation.commissionTaxRate || 0,
+          growerCommissionTaxAmount: quotation.growerCommissionTaxAmount || 0,
+          buyerCommissionTaxAmount: quotation.buyerCommissionTaxAmount || 0,
           labourAmount: quotation.labourAmount || 0,
           labourChargePerUnit: quotation.labourChargePerUnit || 0,
           logisticsAmount: quotation.logisticsAmount || quotation.driverCharge || 0,
@@ -720,6 +760,10 @@ router.patch("/:quoteId/accept", protect, authorize("grower"), requirePaymentPar
         },
         driverPayment: quotation.driverCharge || 0,
         platformCommission: quotation.commissionAmount || 0,
+        platformCommissionRate: acceptedGrowerCommissionRate,
+        growerCommissionRate: acceptedGrowerCommissionRate,
+        buyerCommissionRate: acceptedBuyerCommissionRate,
+        commissionVersion: acceptedCommissionVersion,
         growerPayout: quotation.sellerReceivable || quotation.growerReceivable || 0,
         paymentStatus: "PENDING",
         paymentDueAt: quotation.paymentDueAt,
@@ -731,7 +775,7 @@ router.patch("/:quoteId/accept", protect, authorize("grower"), requirePaymentPar
     const buyer = await User.findById(quotation.buyer).select("phone name businessName buyerContactPerson").lean();
     if (buyer?.phone) {
       const buyerName = buyer.businessName || buyer.buyerContactPerson || buyer.name || "Buyer";
-      const amount = quotation.dealAmount || quotation.buyerPayableThroughPlatform || quotation.buyerPayable || 0;
+      const amount = quotation.buyerPayableThroughPlatform || quotation.buyerPayable || quotation.dealAmount || 0;
       sendMobileMessage({
         phone: buyer.phone,
         platform: "efruitmandi",

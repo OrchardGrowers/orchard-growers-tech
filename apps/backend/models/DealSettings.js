@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { COMMISSION_VERSION } from "../config/commission.js";
 
 const driverChargeSlabSchema = new mongoose.Schema(
   {
@@ -20,9 +21,14 @@ const dealSettingsSchema = new mongoose.Schema(
     },
     commissionPercent: {
       type: Number,
-      default: 5,
+      default: 7,
       min: 0,
     },
+    growerCommissionEnabled: { type: Boolean, default: false },
+    buyerCommissionEnabled: { type: Boolean, default: true },
+    growerCommissionPercent: { type: Number, default: 7, min: 0 },
+    buyerCommissionPercent: { type: Number, default: 7, min: 0 },
+    commissionVersion: { type: String, trim: true, default: COMMISSION_VERSION },
     labourAmount: {
       type: Number,
       default: 5,

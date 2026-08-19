@@ -55,6 +55,7 @@ export default function Delivery() {
   const [deliveryOtp, setDeliveryOtp] = useState("");
   const [settlementOtp, setSettlementOtp] = useState("");
   const [negotiationAmount, setNegotiationAmount] = useState("");
+  const [finalReceipt, setFinalReceipt] = useState({ quantity: "", weightKg: "", rate: "" });
   const [manualLocation, setManualLocation] = useState({ stationName: "", lat: "", lng: "" });
   const [receivingCapture, setReceivingCapture] = useState(null);
   const [receivingCaptureStarting, setReceivingCaptureStarting] = useState(false);
@@ -240,7 +241,13 @@ export default function Delivery() {
 
   const negotiate = () =>
     runAction(
-      () => API.post("/delivery/negotiate", { orderId: selectedOrderId, amount: negotiationAmount }),
+      () => API.post("/delivery/negotiate", {
+        orderId: selectedOrderId,
+        amount: negotiationAmount,
+        finalQuantity: finalReceipt.quantity || undefined,
+        finalWeightKg: finalReceipt.weightKg || undefined,
+        finalRate: finalReceipt.rate || undefined,
+      }),
       (res) => `Negotiation updated. Final amount: Rs. ${res.data.finalAmount || negotiationAmount || 0}`
     );
 
@@ -420,6 +427,8 @@ export default function Delivery() {
             setSettlementOtp={setSettlementOtp}
             negotiationAmount={negotiationAmount}
             setNegotiationAmount={setNegotiationAmount}
+            finalReceipt={finalReceipt}
+            setFinalReceipt={setFinalReceipt}
             manualLocation={manualLocation}
             setManualLocation={setManualLocation}
             startDelivery={startDelivery}
@@ -652,6 +661,8 @@ function RoleActionPanel(props) {
     setSettlementOtp,
     negotiationAmount,
     setNegotiationAmount,
+    finalReceipt,
+    setFinalReceipt,
     manualLocation,
     setManualLocation,
     startDelivery,
@@ -752,6 +763,23 @@ function RoleActionPanel(props) {
               Confirm Delivery
             </button>
             <TextInput value={negotiationAmount} placeholder="Negotiation Amount" onChange={setNegotiationAmount} />
+            <div className="grid gap-2 sm:grid-cols-3">
+              <TextInput
+                value={finalReceipt.quantity}
+                placeholder="Final Quantity"
+                onChange={(value) => setFinalReceipt((current) => ({ ...current, quantity: value }))}
+              />
+              <TextInput
+                value={finalReceipt.weightKg}
+                placeholder="Accepted Weight (kg)"
+                onChange={(value) => setFinalReceipt((current) => ({ ...current, weightKg: value }))}
+              />
+              <TextInput
+                value={finalReceipt.rate}
+                placeholder="Final Rate"
+                onChange={(value) => setFinalReceipt((current) => ({ ...current, rate: value }))}
+              />
+            </div>
             <button type="button" onClick={negotiate} disabled={!selectedOrderId} className={secondaryButtonClass}>
               Update Negotiation
             </button>

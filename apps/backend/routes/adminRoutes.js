@@ -4,6 +4,7 @@ import Admin from "../models/Admin.js";
 import DealSettings from "../models/DealSettings.js";
 import FruitCategory, { normalizeCommodityName } from "../models/FruitCategory.js";
 import Quotation from "../models/Quotation.js";
+import { COMMISSION_VERSION } from "../config/commission.js";
 import {
   createAdmin,
   activateAdmin,
@@ -322,6 +323,15 @@ router.patch("/deal-settings", ...adminOnly, requireRoles(...SETTINGS_WRITE_ROLE
     { key: "default" },
     {
       commissionPercent,
+      growerCommissionPercent: commissionPercent,
+      buyerCommissionPercent: Number(
+        req.body.buyerCommissionPercent ?? currentSettings.buyerCommissionPercent ?? commissionPercent
+      ),
+      growerCommissionEnabled:
+        req.body.growerCommissionEnabled ?? currentSettings.growerCommissionEnabled ?? false,
+      buyerCommissionEnabled:
+        req.body.buyerCommissionEnabled ?? currentSettings.buyerCommissionEnabled ?? true,
+      commissionVersion: COMMISSION_VERSION,
       labourAmount,
       driverChargeSlabs,
       updatedBy: req.user.id,

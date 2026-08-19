@@ -375,11 +375,13 @@ function getGrowerName(order) {
 
 function getBuyerPayableAmount(order) {
   const value =
-    order?.dealBreakdown?.dealAmount ??
+    order?.financialSnapshot?.buyerTotalPayable ??
     order?.dealBreakdown?.buyerPayableThroughPlatform ??
+    order?.dealBreakdown?.buyerPayable ??
+    order?.totalAmount ??
     order?.finalPrice ??
     order?.auctionPrice ??
-    order?.totalAmount ??
+    order?.dealBreakdown?.dealAmount ??
     0;
   return Number(value || 0);
 }

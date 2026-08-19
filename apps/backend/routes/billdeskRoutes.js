@@ -7,12 +7,7 @@ import {
   PAN_KYC_REQUIRED_MESSAGE,
 } from "../services/kycEligibilityService.js";
 import { requirePaymentPartnerEnabled } from "../utils/paymentFeatureFlag.js";
-import {
-  generateBillDeskPaymentRef,
-  generateBuyerInvoiceNo,
-  generateCommissionInvoiceNo,
-  generateCommissionReceiptNo,
-} from "../services/invoiceNumberingService.js";
+import { generateBillDeskPaymentRef } from "../services/invoiceNumberingService.js";
 import { refreshSettlementEligibility } from "../services/logisticsAssignmentService.js";
 
 const router = express.Router();
@@ -56,33 +51,11 @@ const sanitizeEscrowOrder = (order, user) => {
   return data;
 };
 
-const roundMoney = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
-
-const ensureCommissionDocuments = async (order) => {
+const ensurePaymentReference = async (order) => {
   const now = new Date();
-  if (!order.invoiceNumber) {
-    order.invoiceNumber = await generateBuyerInvoiceNo(now);
-    order.invoiceDate = now;
-  }
-  if (!order.commissionInvoiceNumber) {
-    order.commissionInvoiceNumber = await generateCommissionInvoiceNo(now);
-    order.commissionInvoiceDate = now;
-  }
-  if (!order.commissionReceiptNumber) {
-    order.commissionReceiptNumber = await generateCommissionReceiptNo(now);
-    order.commissionReceiptDate = now;
-  }
   if (!order.paymentReference) {
     order.paymentReference = await generateBillDeskPaymentRef(now);
   }
-
-  const taxableAmount = roundMoney(order.platformCommission || order.dealBreakdown?.platformServiceFee || order.dealBreakdown?.commissionAmount || 0);
-  const gstPercent = Number(process.env.EFRUITMANDI_COMMISSION_GST_PERCENT || 0);
-  const gstAmount = roundMoney(taxableAmount * (gstPercent / 100));
-  order.commissionTaxableAmount = taxableAmount;
-  order.commissionGstPercent = gstPercent;
-  order.commissionGstAmount = gstAmount;
-  order.commissionTotalAmount = roundMoney(taxableAmount + gstAmount);
 };
 
 router.post("/pay", protect, authorize("buyer"), async (req, res) => {
@@ -112,7 +85,13 @@ router.post("/pay", protect, authorize("buyer"), async (req, res) => {
       return res.json({ msg: "Order already paid or in escrow" });
     }
 
-    const amount = order.finalPrice || order.auctionPrice;
+    const amount =
+      order.financialSnapshot?.buyerTotalPayable ||
+      order.dealBreakdown?.buyerPayableThroughPlatform ||
+      order.dealBreakdown?.buyerPayable ||
+      order.totalAmount ||
+      order.finalPrice ||
+      order.auctionPrice;
 
     res.json({
       msg: "Redirecting to payment (TEST MODE)",
@@ -149,7 +128,7 @@ router.post("/callback", protect, authorize("buyer"), async (req, res) => {
       ...(order.logisticsAssignment?.toObject ? order.logisticsAssignment.toObject() : order.logisticsAssignment || {}),
       status: "AWAITING_GROWER_DETAILS",
     };
-    await ensureCommissionDocuments(order);
+    await ensurePaymentReference(order);
     await refreshSettlementEligibility(order);
     await order.save();
 

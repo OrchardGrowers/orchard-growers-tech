@@ -24,6 +24,7 @@ import {
   isValidLotLookupId,
 } from "../services/publicLotAccessService.js";
 import { hasTransactionEligibleKyc } from "../services/kycEligibilityService.js";
+import { ensureLotListingChallan } from "../services/transactionDocumentService.js";
 
 const PUBLIC_PROFILE_SELECT =
   "name orchardName businessName buyerContactPerson companyLogoUrl bannerUrl buyerCompanyLogoUrl role profileTypes growerVerified buyerVerified growerOgVerified buyerOgVerified driverOgVerified ogVerificationByRole growerRatingAverage growerRatingCount mapLatitude mapLongitude createdAt";
@@ -784,10 +785,24 @@ export const createProduct = async (req, res) => {
       auctionId: auction._id,
     });
 
+    let lotChallan = null;
+    let documentWarning = "";
+    try {
+      lotChallan = await ensureLotListingChallan(product, { grower: req.user.id });
+    } catch (documentError) {
+      documentWarning = "The lot was listed, but its challan is pending generation.";
+      console.error("Lot challan generation failed:", {
+        productId: product._id?.toString(),
+        message: documentError?.message || "Unknown document error",
+      });
+    }
+
     res.json({
       message: "Product created",
       product,
       auction,
+      lotChallan,
+      documentWarning,
     });
   } catch (err) {
     console.error("Product creation failed:", err.message || err);

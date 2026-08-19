@@ -69,7 +69,7 @@ export default function EscrowWorkflow() {
             {isGrower ? (
               <p className="mt-3">You Will Receive: Rs. {order.sellerReceivable || order.growerPayout || order.auctionPrice || 0}</p>
             ) : (
-              <p className="mt-3">Amount Payable: Rs. {order.finalPrice || order.auctionPrice || 0}</p>
+              <p className="mt-3">Amount Payable: Rs. {order.financialSnapshot?.buyerTotalPayable || order.totalAmount || order.finalPrice || order.auctionPrice || 0}</p>
             )}
             <p>Status: {order.paymentStatus} / {order.deliveryStatus}</p>
             {!isGrower && (
