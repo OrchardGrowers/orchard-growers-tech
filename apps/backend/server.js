@@ -33,6 +33,7 @@ import uploadRoutes from "./routes/uploadRoutes.js";
 import searchRoutes from "./routes/searchRoutes.js";
 import captureSessionRoutes from "./routes/captureSessionRoutes.js";
 import profilePublicationRoutes from "./routes/profilePublicationRoutes.js";
+import transactionDocumentRoutes from "./routes/transactionDocumentRoutes.js";
 
 import Auction from "./models/Auction.js";
 import Order from "./models/Order.js";
@@ -230,6 +231,7 @@ app.use("/api/deals", auctionRoutes);
 app.use("/api/quotes", quotationRoutes);
 app.use("/api/quotations", quotationRoutes);
 app.use("/api/orders", orderRoutes);
+app.use("/api/transaction-documents", transactionDocumentRoutes);
 app.use("/api/delivery", deliveryRoutes);
 app.use("/api/billdesk", billdeskRoutes);
 app.use("/api/payments/cashfree", cashfreeRoutes);
