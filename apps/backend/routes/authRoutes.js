@@ -16,14 +16,14 @@ import {
   getCurrentAuthUser,
   logoutUser,
 } from "../controllers/authController.js";
-import protect from "../middleware/authMiddleware.js";
+import protect, { optionalProtect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
 router.post("/send-otp", sendOtp);
 router.post("/resend-otp", resendOtp);
 router.post("/verify-otp", verifyOtp);
-router.post("/verify-mobile-widget-otp", verifyMobileWidgetOtp);
+router.post("/verify-mobile-widget-otp", optionalProtect, verifyMobileWidgetOtp);
 router.post("/forgot-password", forgotPasswordOtp);
 router.post("/reset-password", resetPasswordWithOtp);
 router.post("/register", registerUser);

@@ -1258,19 +1258,26 @@ export const updateProfile = async (req, res) => {
       updates.email = parsedEmail.value;
       verifiedEmailForUpdate = parsedEmail;
     }
+    const currentUserForVerification = await User.findById(req.user.id).select("phone contact phoneVerified").lean();
     const contactNumber = typeof phone === "string" ? phone : contact;
     if (typeof contactNumber === "string" && contactNumber.trim()) {
       const parsedPhone = parseIdentifier(contactNumber);
+      const persistedPhoneVerified = Boolean(
+        currentUserForVerification?.phoneVerified &&
+        parseIdentifier(currentUserForVerification.phone)?.value === parsedPhone?.value
+      );
 
       if (
         !parsedPhone ||
         parsedPhone.type !== "phone" ||
-        !isOtpVerified(parsedPhone, platform || "efruitmandi", "auth", phoneOtpVerificationToken)
+        (!persistedPhoneVerified &&
+          !isOtpVerified(parsedPhone, platform || "efruitmandi", "auth", phoneOtpVerificationToken, req.user.id))
       ) {
         return res.status(400).json({ msg: "Verify contact number OTP before saving" });
       }
 
       updates.phone = parsedPhone.value;
+      updates.phoneVerified = true;
       verifiedPhoneForUpdate = parsedPhone;
     }
     if (socialLinks && typeof socialLinks === "object") {

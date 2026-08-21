@@ -480,9 +480,12 @@ export const verifyMsg91WidgetOtp = async ({ widgetId, tokenAuth, otp, reqId, ph
     const purpose = mode === "forgot" || mode === "forgot-password" || mode === "reset" ? "forgot-password" : "auth";
     const otpFlow = efruitOtpFlowsByReqId.get(reqId) || "";
     const endpoint = reqId && otpFlow !== "template" ? "verify-mobile-widget-otp" : "verify-otp";
+    const headers = { "Content-Type": "application/json" };
+    const accessToken = typeof localStorage !== "undefined" ? localStorage.getItem("accessToken") : "";
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
     const response = await fetch(`${API_BASE_URL}/auth/${endpoint}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         identifier: verifiedPhone,
         otp,

@@ -156,7 +156,7 @@ const getRequestPlatform = (req) => {
 const getOtpKey = (platform, parsed, purpose = "auth") => `${normalizeMailPlatform(platform)}:${getOtpPurpose(purpose)}:${parsed.type}:${parsed.value}`;
 const getOtpThrottleKey = (platform, parsed) => `${normalizeMailPlatform(platform)}:${parsed.type}:${parsed.value}`;
 const hashToken = (token = "") => crypto.createHash("sha256").update(String(token)).digest("hex");
-const createOtpVerificationToken = ({ platform, parsed, purpose }) => {
+const createOtpVerificationToken = ({ platform, parsed, purpose, userId = "" }) => {
   const token = crypto.randomBytes(32).toString("hex");
   const key = getOtpKey(platform, parsed, purpose);
   otpVerificationTokens.set(hashToken(token), {
@@ -165,12 +165,13 @@ const createOtpVerificationToken = ({ platform, parsed, purpose }) => {
     purpose: getOtpPurpose(purpose),
     channel: parsed.type,
     identifier: parsed.value,
+    userId: String(userId || ""),
     expiresAt: Date.now() + getOtpTtlMs(),
     used: false,
   });
   return token;
 };
-const validateOtpVerificationToken = ({ token, platform, parsed, purpose = "auth" }) => {
+const validateOtpVerificationToken = ({ token, platform, parsed, purpose = "auth", userId = "" }) => {
   const cleanToken = String(token || "").trim();
   if (!cleanToken) return false;
 
@@ -178,6 +179,7 @@ const validateOtpVerificationToken = ({ token, platform, parsed, purpose = "auth
   const record = otpVerificationTokens.get(tokenKey);
   const expectedKey = getOtpKey(platform, parsed, purpose);
   if (!record || record.used || record.key !== expectedKey) return false;
+  if (record.userId && record.userId !== String(userId || "")) return false;
 
   if (record.expiresAt < Date.now()) {
     otpVerificationTokens.delete(tokenKey);
@@ -667,7 +669,7 @@ export const verifyOtp = async (req, res) => {
     }
 
     otpStore.set(key, { ...record, otp: "", verified: true, used: true });
-    const otpVerificationToken = createOtpVerificationToken({ platform, parsed, purpose });
+    const otpVerificationToken = createOtpVerificationToken({ platform, parsed, purpose, userId: req.user?.id });
 
     logAuthDebug("OTP verified", {
       platform,
@@ -825,6 +827,13 @@ export const verifyMobileWidgetOtp = async (req, res) => {
     const verifiedKey = storeWidgetVerification({ platform, parsed, purpose, audit });
     const otpVerificationToken = createOtpVerificationToken({ platform, parsed, purpose });
 
+    if (req.user?.id && parsed.type === "phone" && purpose === "auth") {
+      await User.findByIdAndUpdate(req.user.id, {
+        phone: parsed.value,
+        phoneVerified: true,
+      });
+    }
+
     if (String(process.env.APP_ENV || process.env.NODE_ENV || "").trim().toLowerCase() === "development") {
       console.log(`MSG91 widget verification accepted for ${maskOtpKey(verifiedKey)}`, {
         provider: "MSG91_WIDGET",
@@ -851,8 +860,8 @@ export const verifyMobileWidgetOtp = async (req, res) => {
   }
 };
 
-export const isOtpVerified = (parsed, platform = "orchardgrowers", purpose = "auth", token = "") => {
-  return validateOtpVerificationToken({ token, platform, parsed, purpose });
+export const isOtpVerified = (parsed, platform = "orchardgrowers", purpose = "auth", token = "", userId = "") => {
+  return validateOtpVerificationToken({ token, platform, parsed, purpose, userId });
 };
 
 export const consumeOtpVerification = (parsed, platform = "orchardgrowers", purpose = "auth", token = "") => {

@@ -859,12 +859,14 @@ export default function ProfileDashboard() {
       const result = await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp, reqId: contactDraft.otpReqId, phone: normalizeIndianMobile(phone) || phone, mode: "signup" });
       const verificationToken = result.data?.otpVerificationToken || "";
       if (!verificationToken) throw new Error("Phone was verified, but the verification token was not returned. Request OTP again.");
+      const verifiedPhone = normalizeIndianMobile(phone) || phone;
       setContactDraft((current) => ({
         ...current,
-        verifiedPhone: phone,
+        verifiedPhone,
         verificationToken,
         loading: false,
       }));
+      setProfile((current) => current ? { ...current, phone: verifiedPhone, contact: verifiedPhone, phoneVerified: true } : current);
       setNotice("Contact number verified.");
     } catch (err) {
       setContactDraft((current) => ({ ...current, loading: false }));
@@ -943,7 +945,9 @@ export default function ProfileDashboard() {
       nextEmail && nextEmail !== profileEmail.trim().toLowerCase()
     );
 
-    if (contactChanged && contactDraft.verifiedPhone !== nextPhone) {
+    const normalizedNextPhone = normalizeIndianMobile(nextPhone) || nextPhone;
+    const normalizedVerifiedPhone = normalizeIndianMobile(contactDraft.verifiedPhone) || contactDraft.verifiedPhone;
+    if (contactChanged && normalizedVerifiedPhone !== normalizedNextPhone) {
       setNotice("Verify contact number OTP before saving.");
       return;
     }
