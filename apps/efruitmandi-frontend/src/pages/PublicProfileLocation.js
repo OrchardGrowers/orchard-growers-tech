@@ -78,8 +78,8 @@ export default function PublicProfileLocation({ role }) {
   const title = locationName ? `${roleHeading} in ${locationName} | eFruitMandi` : `Location unavailable | eFruitMandi`;
   const description = locationName
     ? role === "grower"
-      ? `Discover public fruit growers, orchards and farms listed on eFruitMandi in ${locationName}. Explore grower profiles, public locations and available fruit lots.`
-      : `Discover public fruit buyers, traders and sourcing businesses listed on eFruitMandi in ${locationName}. Explore buyer profiles and fruit sourcing activity.`
+      ? `Discover public fruit grower, orchard and farm profiles listed on eFruitMandi in ${locationName}.`
+      : `Discover public fruit buyer, trader and sourcing-business profiles listed on eFruitMandi in ${locationName}.`
     : "This public profile location is unavailable.";
   const indexable = !loading && !unavailable && profiles.length >= PUBLIC_LOCATION_MIN_PROFILES;
   const schema = useMemo(() => {
@@ -132,5 +132,5 @@ export default function PublicProfileLocation({ role }) {
 }
 
 function LocationUnavailable({ basePath }) {
-  return <><SEO title="Location unavailable | eFruitMandi" canonical={basePath} noIndex image={null} /><main className="mx-auto min-h-[60vh] max-w-3xl px-4 py-14 text-center"><h1 className="text-2xl font-bold text-gray-950">Location unavailable</h1><p className="mt-3 text-gray-600">This public profile location is unavailable.</p><Link to={basePath} className="mt-6 inline-flex rounded-md bg-green-700 px-5 py-3 text-sm font-bold text-white">Browse public profiles</Link></main></>;
+  return <><SEO title="Profile Location Not Found | eFruitMandi" canonical={null} robots="noindex,follow" image={null} /><main className="mx-auto min-h-[60vh] max-w-3xl px-4 py-14 text-center"><h1 className="text-2xl font-bold text-gray-950">Profile Location Not Found</h1><p className="mt-3 text-gray-600">This public profile location is unavailable.</p><Link to={basePath} className="mt-6 inline-flex rounded-md bg-green-700 px-5 py-3 text-sm font-bold text-white">Browse public profiles</Link></main></>;
 }

@@ -24,7 +24,7 @@ import { trackLotContact, trackLotView } from "../services/analytics";
 import { saveUserToStorage } from "../utils/userStorage";
 import { getSafePublicProfile, isClosedDeal } from "../utils/marketplaceVisibility";
 
-const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
+const LOGIN_REQUIRED_MESSAGE = "Please login or Sign up first to continue.";
 const isDevelopment = process.env.NODE_ENV !== "production";
 const LOT_DETAILS_CACHE_LIMIT = 20;
 const lotDetailsCache = new Map();
@@ -125,7 +125,8 @@ export default function LotDetails() {
     product?.fruitName === "Apple" &&
     Array.isArray(product?.packingBreakdown) &&
     product.packingBreakdown.length > 0;
-  const growerName = createdBy.orchardName || createdBy.businessName || createdBy.name || "Grower's Orchard";
+  const verifiedGrowerName = createdBy.orchardName || createdBy.businessName || createdBy.name || "";
+  const growerName = verifiedGrowerName || "Grower's Orchard";
   const growerRating = Number(createdBy.growerRatingAverage || createdBy.rating || product?.growerRating || 0);
   const growerRatingCount = Number(createdBy.growerRatingCount || 0);
   const activeGradeLabel = getImageGradeLabel(product, activeImage);
@@ -214,10 +215,11 @@ export default function LotDetails() {
     return (
       <>
         <SEO
-          title="Lot Not Found | eFruitMandi"
+          title="Fruit Lot Not Found | eFruitMandi"
           description="The requested eFruitMandi fruit lot could not be found or is no longer available."
-          canonical={`/lots/${lotId || ""}`}
-          noIndex
+          canonical={null}
+          robots="noindex,follow"
+          image={null}
         />
         <div className="w-full max-w-full overflow-x-hidden pb-[calc(160px+env(safe-area-inset-bottom))]">
           <button
@@ -228,7 +230,12 @@ export default function LotDetails() {
             <FaArrowLeft />
             Back
           </button>
-          <EmptyState text={errorMessage || "Lot not found"} />
+          <section className="rounded-xl border border-gray-200 bg-white px-5 py-10 text-center">
+            <h1 className="text-2xl font-extrabold text-gray-950">Fruit Lot Not Found</h1>
+            <p className="mt-3 text-sm font-semibold text-gray-600">
+              {errorMessage || "This fruit lot is unavailable or is no longer publicly listed."}
+            </p>
+          </section>
         </div>
       </>
     );
@@ -247,6 +254,7 @@ export default function LotDetails() {
     product?.grade ||
     "";
 
+  const directLocation = typeof product?.location === "string" ? product.location.trim() : "";
   const district =
     product?.district ||
     product?.location?.district ||
@@ -257,14 +265,20 @@ export default function LotDetails() {
     product?.state ||
     product?.location?.state ||
     createdBy?.state ||
-    "India";
+    "";
 
   const lotTitleParts = [variety, fruitName].filter(Boolean).join(" ");
-  const seoLocation = [district, state].filter(Boolean).join(", ");
+  const seoLocation = directLocation || [district, state].filter(Boolean).join(", ");
 
-  const seoTitle = `${lotTitleParts} Lot in ${seoLocation} | eFruitMandi`;
-
-  const seoDescription = `Buy fresh ${lotTitleParts} directly from verified growers in ${seoLocation}. View quantity, grade, packing, harvest date and logistics details on eFruitMandi.`;
+  const lotQuantity = getPublicLotQuantity(product);
+  const publicLotStatus = getPublicLotStatus(product, auction, closedDeal);
+  const seoQualifiers = [seoLocation, lotQuantity].filter(Boolean).join(" - ");
+  const seoTitle = `${lotTitleParts} Lot${seoQualifiers ? ` - ${seoQualifiers}` : ""} | eFruitMandi`;
+  const seoDescription = [
+    `${lotTitleParts} fruit lot${seoLocation ? ` in ${seoLocation}` : ""}.`,
+    lotQuantity ? `Quantity: ${lotQuantity}.` : "",
+    publicLotStatus ? `Status: ${publicLotStatus}.` : "",
+  ].filter(Boolean).join(" ");
 
   const seoImage = activeImage || images?.[0] || "/og-efruitmandi.jpg";
 
@@ -277,11 +291,8 @@ export default function LotDetails() {
       name: "eFruitMandi",
     },
     category: fruitName,
-    areaServed: seoLocation,
-    seller: {
-      "@type": "Organization",
-      name: growerName,
-    },
+    ...(seoLocation ? { areaServed: seoLocation } : {}),
+    ...(verifiedGrowerName ? { seller: { "@type": "Organization", name: verifiedGrowerName } } : {}),
     subjectOf: {
       "@type": "WebPage",
       publisher: publisherReference(),
@@ -831,6 +842,27 @@ function getImageGradeLabel(product = {}, imageUrl = "") {
 function isClosedLotStatus(product = {}, auction = {}, closedDeal = null) {
   if (closedDeal) return true;
   return isClosedDeal(product || {}) || isClosedDeal(auction || {});
+}
+
+function getPublicLotStatus(product = {}, auction = {}, closedDeal = null) {
+  if (closedDeal || product?.completedDeal) return "Completed";
+  const normalized = String(product?.status || auction?.status || "").trim().toUpperCase();
+  if (normalized === "SOLD") return "Sold";
+  if (normalized === "EXPIRED") return "Expired";
+  if (["ACTIVE", "IN_AUCTION"].includes(normalized)) return "Active";
+  if (normalized === "ENDED") return "Completed";
+  return formatDealStatus(normalized);
+}
+
+function getPublicLotQuantity(product = {}) {
+  const quantity = Number(product?.quantity);
+  if (Number.isFinite(quantity) && quantity > 0) {
+    return `${quantity.toLocaleString("en-IN")} ${String(product?.unit || "boxes").trim()}`;
+  }
+  const weight = Number(product?.totalWeightKg);
+  return Number.isFinite(weight) && weight > 0
+    ? `${weight.toLocaleString("en-IN")} kg`
+    : "";
 }
 
 function getStatusBadgeClass(isClosed) {

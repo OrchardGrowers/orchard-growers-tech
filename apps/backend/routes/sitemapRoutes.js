@@ -1,11 +1,15 @@
 import express from "express";
 import User from "../models/User.js";
+import Product from "../models/Product.js";
+import Order from "../models/Order.js";
 import {
   buildPublicFruitDiscovery,
   buildPublicProfileQuery,
 } from "../controllers/userController.js";
 import { FRUIT_ENTITIES } from "../../../packages/shared-config/fruitSearch.mjs";
 import { getAvailableMandiFruitSlugs } from "../services/mandiRateService.js";
+import { canAccessLotDetail } from "../services/publicLotAccessService.js";
+import { isOrderCompletedForMarketplace } from "../services/dealLifecycleService.js";
 
 const router = express.Router();
 
@@ -22,8 +26,9 @@ function escapeXml(value = "") {
 }
 
 function formatDate(date) {
-  if (!date) return new Date().toISOString();
-  return new Date(date).toISOString();
+  if (!date) return "";
+  const parsed = new Date(date);
+  return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
 }
 
 function hasSafePublicSlug(slug = "") {
@@ -129,7 +134,7 @@ router.get("/sitemap.xml", async (req, res) => {
       ...buildMandiRateSitemapEntries(),
     ];
 
-    const [growerProfiles, buyerProfiles, availableMandiSlugs] = await Promise.all([
+    const [growerProfiles, buyerProfiles, availableMandiSlugs, publicLotCandidates] = await Promise.all([
       User.find(buildPublicProfileQuery("grower"))
         .select("_id slug kycByRole updatedAt createdAt")
         .sort({ updatedAt: -1 })
@@ -144,8 +149,37 @@ router.get("/sitemap.xml", async (req, res) => {
         console.error("Mandi sitemap availability query error:", error);
         return [];
       }),
+      Product.find({
+        active: { $ne: false },
+        inventoryType: { $ne: "raw_material" },
+        $or: [{ createdSource: "grower" }, { "gradeLots.0": { $exists: true } }],
+      })
+        .select("_id createdSource inventoryType status active auctionEndTime endTime updatedAt createdAt")
+        .sort({ updatedAt: -1, createdAt: -1 })
+        .limit(5000)
+        .lean(),
     ]);
     staticUrls.push(...buildMandiRateSitemapEntries(availableMandiSlugs).slice(1));
+
+    const publicLotIds = publicLotCandidates.map((lot) => lot._id).filter(Boolean);
+    const lotOrders = publicLotIds.length
+      ? await Order.find({ product: { $in: publicLotIds } })
+          .select("_id product paymentStatus deliveryStatus updatedAt")
+          .sort({ updatedAt: -1 })
+          .lean()
+      : [];
+    const completedOrderByProduct = lotOrders.reduce((map, order) => {
+      const key = String(order.product || "");
+      if (key && !map.has(key) && isOrderCompletedForMarketplace(order)) map.set(key, order);
+      return map;
+    }, new Map());
+    const publicLots = publicLotCandidates.filter((lot) =>
+      canAccessLotDetail({
+        product: lot,
+        platform: "efruitmandi",
+        completedOrder: completedOrderByProduct.get(String(lot._id)) || null,
+      })
+    );
 
     const locationUrls = [
       ...getPublicLocationUrls(growerProfiles, "grower"),
@@ -182,9 +216,14 @@ router.get("/sitemap.xml", async (req, res) => {
     const urls = [
       ...staticUrls.map((page) => ({
         loc: `${SITE_URL}${page.loc}`,
-        lastmod: new Date().toISOString(),
         changefreq: page.changefreq,
         priority: page.priority,
+      })),
+      ...publicLots.map((lot) => ({
+        loc: `${SITE_URL}/lots/${lot._id}`,
+        lastmod: formatDate(lot.updatedAt || lot.createdAt),
+        changefreq: "daily",
+        priority: "0.8",
       })),
       ...growerProfiles
         .filter((profile) => hasSafePublicSlug(profile.slug))
@@ -210,7 +249,6 @@ router.get("/sitemap.xml", async (req, res) => {
       })),
       ...[...new Set(fruitUrls)].map((fruitPath) => ({
         loc: `${SITE_URL}${fruitPath}`,
-        lastmod: new Date().toISOString(),
         changefreq: "weekly",
         priority: "0.6",
       })),
@@ -222,8 +260,7 @@ ${urls
   .map(
     (url) => `  <url>
     <loc>${escapeXml(url.loc)}</loc>
-    <lastmod>${escapeXml(url.lastmod)}</lastmod>
-    <changefreq>${url.changefreq}</changefreq>
+${url.lastmod ? `    <lastmod>${escapeXml(url.lastmod)}</lastmod>\n` : ""}    <changefreq>${url.changefreq}</changefreq>
     <priority>${url.priority}</priority>
   </url>`
   )

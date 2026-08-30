@@ -182,8 +182,8 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
     : "Public Profile | eFruitMandi";
   const seoDescription = publicName
     ? profileRole === "grower"
-      ? `View ${publicName} on eFruitMandi. Explore its public grower profile, ${publicLocation ? "location, " : ""}available fruit lots and completed deals${publicLocation ? ` from ${publicLocation}` : ""}.`
-      : `View ${publicName} on eFruitMandi. Explore this public ${seoRoleLabel.toLowerCase()} profile, ${publicLocation ? "location, " : ""}sourcing activity and completed fruit deals${publicLocation ? ` from ${publicLocation}` : ""}.`
+      ? `View the public fruit grower profile for ${publicName}${publicLocation ? ` in ${publicLocation}` : ""} on eFruitMandi.`
+      : `View the public ${seoRoleLabel.toLowerCase()} profile for ${publicName}${publicLocation ? ` in ${publicLocation}` : ""} on eFruitMandi.`
     : "This public business profile is not available for search indexing.";
   const canonicalUrl = `${siteUrl}${canonical}`;
   const publicAddress = profile?.district || profile?.state
@@ -261,9 +261,9 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
     const directoryPath = expectedRole === "grower" ? "/growers" : "/buyers";
     return (
       <>
-        <SEO title="Public Profile Unavailable | eFruitMandi" canonical={routeCanonical} noIndex image={null} />
+        <SEO title="Public Profile Not Found | eFruitMandi" canonical={null} robots="noindex,follow" image={null} />
         <main className="mx-auto min-h-[60vh] max-w-3xl px-4 py-14 text-center">
-          <h1 className="text-2xl font-bold text-gray-950">Public profile unavailable</h1>
+          <h1 className="text-2xl font-bold text-gray-950">Public Profile Not Found</h1>
           <p className="mt-3 text-gray-600">This public profile is unavailable or is no longer publicly listed.</p>
           <Link
             to={directoryPath}

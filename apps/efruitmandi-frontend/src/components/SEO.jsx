@@ -44,7 +44,7 @@ export default function SEO({
   schema,
   schemaId = "",
 }) {
-  const fullCanonical = normalizeUrl(canonical);
+  const fullCanonical = canonical === null ? "" : normalizeUrl(canonical);
   const fullImage = image && (/^https?:\/\//i.test(image) || image.startsWith("/")) ? normalizeUrl(image) : "";
   const schemaList = prepareSchemas(schema);
   const robotsDirective =
@@ -59,7 +59,7 @@ export default function SEO({
       <title>{title}</title>
 
       <meta name="description" content={description} />
-      <link rel="canonical" href={fullCanonical} />
+      {fullCanonical && <link rel="canonical" href={fullCanonical} />}
 
       <meta
         name="robots"
@@ -74,7 +74,7 @@ export default function SEO({
       <meta property="og:type" content={type} />
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
-      <meta property="og:url" content={fullCanonical} />
+      {fullCanonical && <meta property="og:url" content={fullCanonical} />}
       {fullImage && <meta property="og:image" content={fullImage} />}
 
       <meta name="twitter:card" content={fullImage ? "summary_large_image" : "summary"} />

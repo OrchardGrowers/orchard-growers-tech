@@ -315,35 +315,11 @@
       "destination": "/search/index.html"
     },
     {
-      "source": "/growers/state/:stateSlug/district/:districtSlug",
-      "destination": "/growers/state/:stateSlug/district/:districtSlug/index.html"
-    },
-    {
-      "source": "/growers/state/:stateSlug",
-      "destination": "/growers/state/:stateSlug/index.html"
-    },
-    {
-      "source": "/buyers/state/:stateSlug/district/:districtSlug",
-      "destination": "/buyers/state/:stateSlug/district/:districtSlug/index.html"
-    },
-    {
-      "source": "/buyers/state/:stateSlug",
-      "destination": "/buyers/state/:stateSlug/index.html"
-    },
-    {
-      "source": "/growers/:slug",
-      "destination": "/growers/:slug/index.html"
-    },
-    {
-      "source": "/buyers/:slug",
-      "destination": "/buyers/:slug/index.html"
-    },
-    {
       "source": "/contact-us",
       "destination": "/contact-us/index.html"
     },
     {
-      "source": "/((?!assets/).*)",
+      "source": "/((?!assets/|lots/[^/]+/?$|growers/|buyers/).*)",
       "destination": "/index.html"
     }
   ]

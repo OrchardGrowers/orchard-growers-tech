@@ -171,6 +171,15 @@ const publicLinks = [
 
 const staticRoutes = [
   {
+    path: "/delivery",
+    title: "Delivery Workspace | eFruitMandi",
+    description: "Sign in to access your private eFruitMandi delivery workspace.",
+    h1: "Delivery Workspace",
+    body: "This workspace requires an authenticated eFruitMandi account.",
+    noIndex: true,
+    robots: "noindex,nofollow",
+  },
+  {
     path: "/auctions",
     title: "Fruit Lots Marketplace | Live Deals on eFruitMandi",
     description: "Browse Fruit Lots, Live Deals, Active Deals and Completed Deals on eFruitMandi, India's fresh fruit marketplace for growers and buyers.",
@@ -490,17 +499,29 @@ function renderPublicProfileFallback(meta) {
   const location = meta.location
     ? `<p><strong>Public location:</strong> ${escapeHtml(meta.location)}</p>`
     : "";
-  const activity = meta.role === "grower"
-    ? "Public fruit lots and completed deals from this grower are available on eFruitMandi."
-    : "Public sourcing activity and completed fruit deals from this buyer are available on eFruitMandi.";
+  const profileSummary = meta.role === "grower"
+    ? "This is a public fruit grower profile on eFruitMandi."
+    : "This is a public fruit buyer profile on eFruitMandi.";
 
   return `      <main style="background:#f7fff4;color:#123;padding:32px;font-family:Arial,sans-serif;line-height:1.6">
         <article>
           <p>${meta.role === "grower" ? "Public Fruit Grower Profile" : "Public Fruit Buyer Profile"}</p>
           <h1>${escapeHtml(meta.name)}</h1>
           ${location}
-          <p>${escapeHtml(activity)}</p>
+          <p>${escapeHtml(profileSummary)}</p>
           <p><a href="/">Visit eFruitMandi</a></p>
+        </article>
+      </main>`;
+}
+
+function renderPublicLotFallback(meta) {
+  return `      <main style="background:#f7fff4;color:#123;padding:32px;font-family:Arial,sans-serif;line-height:1.6">
+        <article>
+          <p>Public Fruit Lot</p>
+          <h1>${escapeHtml(meta.h1)}</h1>
+          <p>${escapeHtml(meta.description)}</p>
+          <p><strong>Status:</strong> ${escapeHtml(meta.status)}</p>
+          <p><a href="/auctions">Browse public fruit lots</a></p>
         </article>
       </main>`;
 }
@@ -616,8 +637,8 @@ function getPublicProfileMeta(profile, role) {
   const canonical = `${SITE_URL}${routePath}`;
   const title = `${name} – ${roleLabel}${location ? ` in ${location}` : ""} | eFruitMandi`;
   const description = role === "grower"
-    ? `View ${name} on eFruitMandi. Explore its public grower profile, ${location ? "location, " : ""}available fruit lots and completed deals${location ? ` from ${location}` : ""}.`
-    : `View ${name} on eFruitMandi. Explore this public ${roleLabel.toLowerCase()} profile, ${location ? "location, " : ""}sourcing activity and completed fruit deals${location ? ` from ${location}` : ""}.`;
+    ? `View the public fruit grower profile for ${name}${location ? ` in ${location}` : ""} on eFruitMandi.`
+    : `View the public ${roleLabel.toLowerCase()} profile for ${name}${location ? ` in ${location}` : ""} on eFruitMandi.`;
   const logoImage = normalizePublicImage(
     profile.logoUrl || profile.profileImage || profile.profilePic || profile.avatar || profile.avatarUrl || profile.photoURL
   );
@@ -678,6 +699,75 @@ function getPublicProfileMeta(profile, role) {
       ],
     },
   };
+}
+
+function cleanMetadataText(value = "", maxLength = 180) {
+  return String(value || "")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength);
+}
+
+function getPublicLotStatus(lot = {}) {
+  if (lot.completedDeal || lot.marketplaceLifecycle?.status === "completed") return "Completed";
+  const status = cleanMetadataText(lot.status, 40).toUpperCase();
+  if (status === "SOLD") return "Sold";
+  if (status === "EXPIRED") return "Expired";
+  if (["ACTIVE", "IN_AUCTION"].includes(status)) return "Active";
+  if (["QUOTE_ACCEPTED", "DEAL_CONFIRMED", "ENDED", "COMPLETED"].includes(status)) return "Completed";
+  return status ? status.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase()) : "Available";
+}
+
+function getPublicLotQuantity(lot = {}) {
+  const quantity = Number(lot.quantity);
+  if (Number.isFinite(quantity) && quantity > 0) {
+    return `${quantity.toLocaleString("en-IN")} ${cleanMetadataText(lot.unit, 30) || "boxes"}`;
+  }
+  const weight = Number(lot.totalWeightKg);
+  return Number.isFinite(weight) && weight > 0 ? `${weight.toLocaleString("en-IN")} kg` : "";
+}
+
+function getPublicLotMeta(lot) {
+  if (!lot || typeof lot !== "object") return null;
+  const id = cleanMetadataText(lot._id || lot.id, 24).toLowerCase();
+  if (!/^[a-f0-9]{24}$/.test(id)) return null;
+
+  const fruitName = cleanMetadataText(lot.fruitName || lot.name || lot.title || lot.category, 80);
+  if (!fruitName) return null;
+  const variety = cleanMetadataText(lot.variety || lot.fruitVariety, 80);
+  const displayName = variety && !fruitName.toLowerCase().includes(variety.toLowerCase())
+    ? `${variety} ${fruitName}`
+    : fruitName;
+  const location = cleanMetadataText(
+    [lot.district, lot.state].filter(Boolean).join(", ") ||
+      (typeof lot.location === "string" ? lot.location : [lot.location?.district, lot.location?.state].filter(Boolean).join(", ")),
+    120
+  );
+  const quantity = getPublicLotQuantity(lot);
+  const status = getPublicLotStatus(lot);
+  const path = `/lots/${id}`;
+  const h1 = `${displayName} Fruit Lot${location ? ` in ${location}` : ""}`;
+  const qualifiers = [location, quantity].filter(Boolean).join(" - ");
+  const title = `${displayName} Lot${qualifiers ? ` - ${qualifiers}` : ""} | eFruitMandi`;
+  const description = [
+    `${displayName} fruit lot${location ? ` in ${location}` : ""}.`,
+    quantity ? `Quantity: ${quantity}.` : "",
+    status ? `Status: ${status}.` : "",
+  ].filter(Boolean).join(" ");
+  const image = normalizePublicImage(
+    lot.imageUrl || lot.productImage || lot.images?.[0] || lot.productImages?.[0]
+  );
+  return { path, h1, title, description, status, image };
+}
+
+function prerenderPublicLot(baseHtml, meta) {
+  const withHead = replaceProfileHeadTags(baseHtml, { ...meta, schemas: [] });
+  const withFallback = replaceRootContent(withHead, renderPublicLotFallback(meta));
+  const outputPath = outputPathForRoute(meta.path);
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.writeFileSync(outputPath, withFallback, "utf8");
+  console.log(`prerender-seo: generated ${path.relative(buildDir, outputPath).replace(/\\/g, "/")}`);
 }
 
 function prerenderPublicProfile(baseHtml, meta) {
@@ -834,8 +924,8 @@ function getPublicLocationMetas(profiles, role) {
 function buildPublicLocationMeta(profiles, role, routePath, locationName, roleHeading, breadcrumbs, locationLinks = [], parentLink = null) {
   const entries = profiles.map((profile) => getPublicDirectoryEntry(profile, role)).filter(Boolean);
   const description = role === "grower"
-    ? `Discover public fruit growers, orchards and farms listed on eFruitMandi in ${locationName}. Explore grower profiles, public locations and available fruit lots.`
-    : `Discover public fruit buyers, traders and sourcing businesses listed on eFruitMandi in ${locationName}. Explore buyer profiles and fruit sourcing activity.`;
+    ? `Discover public fruit grower, orchard and farm profiles listed on eFruitMandi in ${locationName}.`
+    : `Discover public fruit buyer, trader and sourcing-business profiles listed on eFruitMandi in ${locationName}.`;
   const canonical = `${SITE_URL}${routePath}`;
   return {
     path: routePath, role, h1: `${roleHeading} in ${locationName}`, title: `${roleHeading} in ${locationName} | eFruitMandi`, description,
@@ -854,6 +944,15 @@ async function fetchPublicProfiles(role) {
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const payload = await response.json();
   return Array.isArray(payload?.profiles) ? payload.profiles : [];
+}
+
+async function fetchPublicLots() {
+  const response = await fetch(`${API_BASE_URL}/products?platform=efruitmandi`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const payload = await response.json();
+  return Array.isArray(payload) ? payload : [];
 }
 
 async function fetchPublicFruitDiscovery() {
@@ -925,21 +1024,20 @@ async function prerenderPublicProfiles(baseHtml) {
     try {
       profiles = await fetchPublicProfiles(role);
     } catch (error) {
-      console.warn(`prerender-seo: skipped ${role} profiles (${error.message || "public API unavailable"})`);
-      continue;
+      throw new Error(`Could not prerender ${role} profiles: ${error.message || "public API unavailable"}`);
     }
 
     try {
       prerenderPublicDirectory(baseHtml, profiles, role);
     } catch (error) {
-      console.warn(`prerender-seo: skipped /${role === "grower" ? "growers" : "buyers"} (${error.message || "write failed"})`);
+      throw new Error(`Could not write /${role === "grower" ? "growers" : "buyers"}: ${error.message || "write failed"}`);
     }
 
     getPublicLocationMetas(profiles, role).forEach((meta) => {
       try {
         prerenderPublicDirectoryMeta(baseHtml, meta);
       } catch (error) {
-        console.warn(`prerender-seo: skipped ${meta.path} (${error.message || "write failed"})`);
+        throw new Error(`Could not write ${meta.path}: ${error.message || "write failed"}`);
       }
     });
 
@@ -958,7 +1056,7 @@ async function prerenderPublicProfiles(baseHtml) {
         prerenderPublicProfile(baseHtml, meta);
         writtenRoutes.add(meta.path);
       } catch (error) {
-        console.warn(`prerender-seo: skipped ${meta.path} (${error.message || "write failed"})`);
+        throw new Error(`Could not write ${meta.path}: ${error.message || "write failed"}`);
       }
     }
   }
@@ -973,12 +1071,41 @@ async function prerenderPublicProfiles(baseHtml) {
   }
 }
 
+async function prerenderPublicLots(baseHtml) {
+  const lots = await fetchPublicLots();
+  const writtenRoutes = new Set();
+  lots.forEach((lot) => {
+    const meta = getPublicLotMeta(lot);
+    if (!meta || writtenRoutes.has(meta.path)) return;
+    prerenderPublicLot(baseHtml, meta);
+    writtenRoutes.add(meta.path);
+  });
+}
+
+function generateNotFoundPage(baseHtml) {
+  let html = replaceHeadTags(baseHtml, {
+    path: "/404",
+    title: "Page Not Found | eFruitMandi",
+    description: "The requested eFruitMandi page could not be found or is no longer publicly available.",
+    robots: "noindex,follow",
+  });
+  html = removeHeadTag(html, /<link\s+(?=[^>]*\brel=["']canonical["'])[^>]*>\s*/gi);
+  html = removeHeadTag(html, /<meta\s+(?=[^>]*\bproperty=["']og:url["'])[^>]*>\s*/gi);
+  html = replaceRootContent(html, `      <main style="background:#f7fff4;color:#123;padding:32px;font-family:Arial,sans-serif;line-height:1.6;text-align:center">
+        <h1>Page Not Found</h1>
+        <p>The requested fruit lot, public profile or page is unavailable or is no longer publicly listed.</p>
+        <p><a href="/auctions">Browse public fruit lots</a> | <a href="/growers">Browse growers</a> | <a href="/buyers">Browse buyers</a></p>
+      </main>`);
+  fs.writeFileSync(path.join(buildDir, "404.html"), html, "utf8");
+}
+
 if (!fs.existsSync(indexPath)) {
   throw new Error(`Missing ${indexPath}. Run vite build before prerender-seo.`);
 }
 
 const baseHtml = synchronizeHomepageSchema(fs.readFileSync(indexPath, "utf8"));
 fs.writeFileSync(indexPath, baseHtml, "utf8");
+generateNotFoundPage(baseHtml);
 
 async function prerenderAll() {
   let availableMandiSlugs = [];
@@ -1007,9 +1134,13 @@ async function prerenderAll() {
     });
   });
 
-  await prerenderPublicProfiles(baseHtml);
+  await Promise.all([
+    prerenderPublicProfiles(baseHtml),
+    prerenderPublicLots(baseHtml),
+  ]);
 }
 
 prerenderAll().catch((error) => {
-  console.warn(`prerender-seo: generation completed with errors (${error.message || "unexpected error"})`);
+  console.error(`prerender-seo: generation failed (${error.message || "unexpected error"})`);
+  process.exitCode = 1;
 });
