@@ -35,8 +35,6 @@ import {
 } from "../config/appleGrading";
 import {
   getCurrentUser,
-  hasCompletedKycForRole,
-  hasGrowerProfile,
 } from "../utils/auth";
 import { isMobileDevice, prepareUploadFile } from "../utils/mobileMedia";
 import { requestMediaPermission } from "../utils/mobilePermissions";
@@ -549,18 +547,6 @@ const getLotNoPreview = () => {
   return `${makeFirmPrefix(getCurrentUser())}/${year}/001`;
 };
 
-const isLocalKycTestAccount = (user = {}) => {
-  if (process.env.NODE_ENV === "production") return false;
-
-  const email = String(user.email || "").trim().toLowerCase();
-  const phone = String(user.phone || user.contact || "").trim();
-
-  return (
-    ["testbuyer@efruitmandi.live", "testgrower@efruitmandi.live", "testdriver@efruitmandi.live"].includes(email) ||
-    ["1234567890", "1234567891", "1234567892"].includes(phone)
-  );
-};
-
 const getVarietiesForFruit = (fruitName) => {
   const mappedOptions = FRUIT_VARIETY_OPTIONS[fruitName] || [];
   const fallbackOptions = DRY_FRUIT_NAMES.has(fruitName)
@@ -587,17 +573,6 @@ const cropImageToPlatformFrame = async (file) => {
 
 export default function ListNewLot() {
   const navigate = useNavigate();
-  const currentUser = useMemo(() => getCurrentUser(), []);
-  const isAdminAccount = ["admin", "super_admin"].includes(
-    String(currentUser.role || "").trim().toLowerCase()
-  );
-  const isGrowerKycExempt =
-    isAdminAccount || isLocalKycTestAccount(currentUser);
-  const requiresGrowerKycCheck = hasGrowerProfile(currentUser) && !isGrowerKycExempt;
-  const hasStoredGrowerKyc = hasCompletedKycForRole(currentUser, "grower");
-  const [kycAccessResolved, setKycAccessResolved] = useState(
-    !requiresGrowerKycCheck || hasStoredGrowerKyc
-  );
   const [fruits, setFruits] = useState(DEFAULT_FRUITS);
   const [varieties, setVarieties] = useState(DEFAULT_VARIETIES);
   const [customPanel, setCustomPanel] = useState(null);
@@ -736,42 +711,6 @@ export default function ListNewLot() {
   }, []);
 
   useEffect(() => {
-    if (!requiresGrowerKycCheck || hasStoredGrowerKyc) return;
-
-    let active = true;
-    const kycMessage =
-      "Complete your Grower KYC before listing a Live Fruit Lot and receiving offers from fruit buyers.";
-
-    API.get("/kyc/me", { params: { roleType: "grower" } })
-      .then((res) => {
-        if (!active) return;
-        const user = res.data?.user || {};
-        const status = String(res.data?.kyc?.status || "").trim().toUpperCase();
-        if (!res.data?.panUpdateRequired && (Boolean(user.growerVerified) || status === "APPROVED")) {
-          setKycAccessResolved(true);
-          return;
-        }
-        navigate("/kyc", {
-          replace: true,
-          state: { from: "/list-new-lot", roleType: "grower", message: kycMessage },
-        });
-      })
-      .catch(() => {
-        if (!active) return;
-        navigate("/kyc", {
-          replace: true,
-          state: { from: "/list-new-lot", roleType: "grower", message: kycMessage },
-        });
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [hasStoredGrowerKyc, navigate, requiresGrowerKycCheck]);
-
-  useEffect(() => {
-    if (!kycAccessResolved) return undefined;
-
     let active = true;
 
     API.get("/products/next-lot-no")
@@ -787,7 +726,7 @@ export default function ListNewLot() {
     return () => {
       active = false;
     };
-  }, [kycAccessResolved, localLotNoPreview]);
+  }, [localLotNoPreview]);
 
   useEffect(() => {
     if (!captureModal?.sessionId) return undefined;
@@ -1447,14 +1386,6 @@ export default function ListNewLot() {
       setUploadProgress(0);
     }
   };
-
-  if (!kycAccessResolved) {
-    return (
-      <div className="mx-auto min-h-[calc(100vh-132px)] w-full max-w-4xl bg-white px-4 py-8 text-center text-sm font-bold text-green-800 md:min-h-[calc(100vh-94px)]">
-        Checking Grower KYC...
-      </div>
-    );
-  }
 
   return (
     <div className="mx-auto w-full max-w-4xl border-t-4 border-green-600 bg-white pb-20 md:my-6 md:rounded-xl md:border md:border-gray-200 md:border-t-4 md:shadow-sm">

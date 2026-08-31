@@ -2,6 +2,12 @@ export const PAN_PATTERN = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 export const PAN_REQUIRED_ROLES = new Set(["buyer", "grower"]);
 export const PAN_KYC_REQUIRED_MESSAGE =
   "Complete PAN and KYC verification before proceeding with this transaction.";
+export const LOT_LISTING_ACCESS_MESSAGES = Object.freeze({
+  GROWER_REQUIRED: "Only verified growers can list fruit lots.",
+  KYC_INCOMPLETE: "Please complete your KYC to list a fruit lot.",
+  KYC_APPROVAL_REQUIRED: "Your KYC must be approved before you can list a fruit lot.",
+});
+const KYC_AWAITING_APPROVAL_STATUSES = new Set(["PENDING", "COMPLETED", "UNDER_REVIEW"]);
 
 export const normalizePanNumber = (value = "") =>
   String(value || "").trim().toUpperCase();
@@ -90,3 +96,34 @@ export const getKycEligibility = (user = {}, roleType = "") => {
 
 export const hasTransactionEligibleKyc = (user = {}, roleType = "") =>
   getKycEligibility(user, roleType).eligible;
+
+export const getGrowerLotListingAuthorization = (user = {}) => {
+  const profileTypes = new Set(Array.isArray(user.profileTypes) ? user.profileTypes : []);
+  if (user.role) profileTypes.add(String(user.role).trim().toLowerCase());
+  const activeRole = String(user.activeRole || user.role || "").trim().toLowerCase();
+
+  if (activeRole !== "grower" || !profileTypes.has("grower")) {
+    return {
+      allowed: false,
+      code: "GROWER_REQUIRED",
+      message: LOT_LISTING_ACCESS_MESSAGES.GROWER_REQUIRED,
+      eligibility: null,
+    };
+  }
+
+  const eligibility = getKycEligibility(user, "grower");
+  const legacyVerifiedApproval = eligibility.status === "NOT_SUBMITTED" && eligibility.approved;
+  if (eligibility.eligible && (eligibility.status === "APPROVED" || legacyVerifiedApproval)) {
+    return { allowed: true, code: "AUTHORIZED", message: "", eligibility };
+  }
+
+  const awaitingApproval = KYC_AWAITING_APPROVAL_STATUSES.has(eligibility.status);
+  return {
+    allowed: false,
+    code: awaitingApproval ? "KYC_APPROVAL_REQUIRED" : "KYC_INCOMPLETE",
+    message: awaitingApproval
+      ? LOT_LISTING_ACCESS_MESSAGES.KYC_APPROVAL_REQUIRED
+      : LOT_LISTING_ACCESS_MESSAGES.KYC_INCOMPLETE,
+    eligibility,
+  };
+};

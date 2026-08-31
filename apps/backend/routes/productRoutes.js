@@ -11,6 +11,7 @@ import {
 import { downloadLotPdf } from "../controllers/lotDocumentController.js";
 
 import protect, { authorize, optionalProtect } from "../middleware/authMiddleware.js";
+import requireGrowerLotListingAuthorization from "../middleware/lotListingAuthorization.js";
 import upload from "../middleware/uploadMiddleware.js";
 
 const router = express.Router();
@@ -19,7 +20,7 @@ const router = express.Router();
 router.post(
   "/",
   protect,
-  authorize("grower"),
+  requireGrowerLotListingAuthorization,
   upload.any(),
   createProduct
 );

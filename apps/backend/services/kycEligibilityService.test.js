@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getKycEligibility,
+  getGrowerLotListingAuthorization,
   getPanValidationErrors,
   hasTransactionEligibleKyc,
   normalizePanNumber,
@@ -94,5 +95,49 @@ describe("mandatory PAN KYC eligibility", () => {
       status: "NOT_SUBMITTED",
       eligible: false,
     });
+  });
+
+  it("denies generic users and buyers, including buyers with a grower profile", () => {
+    expect(getGrowerLotListingAuthorization({ role: null, profileTypes: [] })).toMatchObject({
+      allowed: false,
+      code: "GROWER_REQUIRED",
+    });
+    expect(getGrowerLotListingAuthorization({
+      role: "buyer",
+      activeRole: "buyer",
+      profileTypes: ["buyer", "grower"],
+      growerVerified: true,
+      kycByRole: { grower: completeKyc({ roleType: "grower" }) },
+    })).toMatchObject({ allowed: false, code: "GROWER_REQUIRED" });
+  });
+
+  it("uses canonical KYC eligibility for grower lot listing authorization", () => {
+    const grower = { role: "grower", activeRole: "grower", profileTypes: ["grower"] };
+    expect(getGrowerLotListingAuthorization(grower)).toMatchObject({
+      allowed: false,
+      code: "KYC_INCOMPLETE",
+    });
+    expect(getGrowerLotListingAuthorization({
+      ...grower,
+      kycByRole: { grower: completeKyc({ roleType: "grower", status: "PENDING" }) },
+    })).toMatchObject({ allowed: false, code: "KYC_APPROVAL_REQUIRED" });
+    expect(getGrowerLotListingAuthorization({
+      ...grower,
+      growerVerified: true,
+      kycByRole: { grower: completeKyc({ roleType: "grower", status: "PENDING" }) },
+    })).toMatchObject({ allowed: false, code: "KYC_APPROVAL_REQUIRED" });
+    expect(getGrowerLotListingAuthorization({
+      ...grower,
+      growerVerified: true,
+      kycByRole: { grower: completeKyc({ roleType: "grower", status: "REJECTED" }) },
+    })).toMatchObject({ allowed: false, code: "KYC_INCOMPLETE" });
+    expect(getGrowerLotListingAuthorization({
+      ...grower,
+      kycByRole: { grower: completeKyc({ roleType: "grower", status: "REJECTED" }) },
+    })).toMatchObject({ allowed: false, code: "KYC_INCOMPLETE" });
+    expect(getGrowerLotListingAuthorization({
+      ...grower,
+      kycByRole: { grower: completeKyc({ roleType: "grower", status: "APPROVED" }) },
+    })).toMatchObject({ allowed: true, code: "AUTHORIZED" });
   });
 });

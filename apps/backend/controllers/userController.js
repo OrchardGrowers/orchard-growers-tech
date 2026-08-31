@@ -1115,6 +1115,7 @@ export const getMyKyc = async (req, res) => {
       roleType,
       kyc,
     });
+    const eligibility = getKycEligibility(user, roleType);
 
     res.json({
       success: true,
@@ -1145,7 +1146,13 @@ export const getMyKyc = async (req, res) => {
         ogVerificationByRole: user.ogVerificationByRole,
       },
       kyc,
-      panUpdateRequired: getKycEligibility(user, roleType).panUpdateRequired,
+      panUpdateRequired: eligibility.panUpdateRequired,
+      eligibility: {
+        status: eligibility.status,
+        approved: eligibility.approved,
+        panComplete: eligibility.panComplete,
+        eligible: eligibility.eligible,
+      },
       verificationFeedback: feedback.active,
       latestVerificationFeedback: feedback.latest,
       sectionStates,

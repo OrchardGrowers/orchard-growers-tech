@@ -30,7 +30,7 @@ const buildSrcSet = (url) =>
     .map((width) => `${addCloudinaryTransform(url, buildBannerTransform(width))} ${width}w`)
     .join(", ");
 
-export default function BannerSlider() {
+export default function BannerSlider({ onListLot }) {
   const banners = useMemo(
     () =>
       Array.from({ length: BANNER_COUNT }, (_, index) => ({
@@ -119,12 +119,13 @@ export default function BannerSlider() {
       </div>
 
       <div className="absolute right-2 top-2 flex max-w-[calc(100%-1rem)] flex-wrap justify-end gap-1.5 sm:right-3 sm:top-3 sm:gap-2">
-        <Link
-          to="/list-new-lot"
+        <button
+          type="button"
+          onClick={onListLot}
           className="rounded-full bg-orange-500/95 px-2 py-1 text-[9px] font-extrabold text-white shadow-sm hover:bg-orange-600 sm:px-3 sm:text-xs"
         >
           List Lot
-        </Link>
+        </button>
         <Link
           to="/search"
           className="rounded-full bg-white/95 px-2 py-1 text-[9px] font-extrabold text-green-800 shadow-sm hover:bg-green-50 sm:px-3 sm:text-xs"

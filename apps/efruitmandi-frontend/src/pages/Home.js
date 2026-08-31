@@ -20,11 +20,11 @@ import BannerSlider from "../components/BannerSlider";
 import {
   getCurrentUser,
   canQuote,
+  getFruitLotListingAccess,
   hasAccessToken,
   hasBuyerProfile,
   hasDriverProfile,
   hasGrowerProfile,
-  isGrowerAccount,
 } from "../utils/auth";
 import { getEfruitMandiProducts } from "../utils/marketProducts";
 import { saveUserToStorage } from "../utils/userStorage";
@@ -670,7 +670,6 @@ export default function Home() {
   const rightColumnRef = useRef(null);
   const centerColumnDragHandlers = useMouseDragScroll(centerColumnRef);
   useArrowKeyScroll(leftColumnRef, centerColumnRef, rightColumnRef);
-  const isGrower = isGrowerAccount(user);
   const isPublicVisitor = !hasAccessToken();
   const activeProfileMode = useMemo(
     () => resolveHomeProfileMode(user, profileModeQueryParam || profileModePreference, storedProfileMode),
@@ -767,13 +766,11 @@ export default function Home() {
   });
   const openListLotFlow = () => {
     const listPath = "/list-new-lot";
-    if (!hasAccessToken()) {
-      navigate("/profile", { state: buildLoginState(listPath, "grower") });
-      return;
-    }
-
-    if (!isGrower) {
-      navigate("/register-grower", { state: { from: listPath } });
+    const access = getFruitLotListingAccess(user, { authenticated: hasAccessToken() });
+    if (!access.allowed) {
+      navigate("/profile", {
+        state: { ...buildLoginState(listPath, "grower"), message: access.message },
+      });
       return;
     }
 
@@ -1175,7 +1172,7 @@ export default function Home() {
       />
 
       <div className="pb-32 pt-2 md:hidden">
-        <BannerSlider />
+        <BannerSlider onListLot={openListLotFlow} />
         <ListingFilterSearchRow
           activeFilter={activeListingFilter}
           search={listingSearch}
@@ -1265,7 +1262,7 @@ export default function Home() {
         className="auto-hide-column-scroll mouse-drag-scroll min-h-0 min-w-0 space-y-3 overflow-y-auto pr-1 overscroll-contain"
         {...centerColumnDragHandlers}
       >
-        <BannerSlider />
+        <BannerSlider onListLot={openListLotFlow} />
         <ListingFilterSearchRow
           activeFilter={activeListingFilter}
           search={listingSearch}

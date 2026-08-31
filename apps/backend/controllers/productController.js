@@ -23,7 +23,7 @@ import {
   isLotResourceEligible,
   isValidLotLookupId,
 } from "../services/publicLotAccessService.js";
-import { hasTransactionEligibleKyc } from "../services/kycEligibilityService.js";
+import { getGrowerLotListingAuthorization } from "../services/kycEligibilityService.js";
 import { ensureLotListingChallan } from "../services/transactionDocumentService.js";
 import { sanitizeLotPricing } from "../services/lotPricePrivacyService.js";
 import { getFruitScanningReportForLot } from "../services/fruitScanningReportService.js";
@@ -238,31 +238,11 @@ const ORGANIC_CERTIFIED_QUALITIES = new Set([
 const requiresOrganicCertificate = (quality = "") =>
   ORGANIC_CERTIFIED_QUALITIES.has(String(quality || "").trim().toLowerCase());
 
-const isLocalTestAccount = (user = {}) => {
-  if (process.env.NODE_ENV === "production") return false;
-  if (process.env.ALLOW_TEST_OTP !== "true") return false;
-
-  const email = String(user.email || "").trim().toLowerCase();
-  const phone = String(user.phone || user.contact || "").trim();
-
-  return (
-    email === "testbuyer@efruitmandi.live" ||
-    email === "testgrower@efruitmandi.live" ||
-    email === "testdriver@efruitmandi.live" ||
-    phone === "1234567890" ||
-    phone === "1234567891" ||
-    phone === "1234567892"
+const getLotListingAuthorizationForUser = async (userId) => {
+  const user = await User.findById(userId).select(
+    "role activeRole profileTypes kyc kycByRole growerVerified"
   );
-};
-
-const requireCompletedKyc = async (userId) => {
-  const user = await User.findById(userId).select("email phone contact kyc kycByRole growerVerified");
-
-  if (isLocalTestAccount(user)) {
-    return true;
-  }
-
-  return hasTransactionEligibleKyc(user, "grower");
+  return getGrowerLotListingAuthorization(user || {});
 };
 
 export const getNextLotNo = async (req, res) => {
@@ -496,8 +476,13 @@ export const generateSku = async (req, res) => {
 // CREATE PRODUCT WITH IMAGE
 export const createProduct = async (req, res) => {
   try {
-    if (!(await requireCompletedKyc(req.user.id))) {
-      return res.status(403).json({ msg: "Complete PAN and KYC verification before listing fruit lots." });
+    const lotListingAuthorization =
+      req.lotListingAuthorization || (await getLotListingAuthorizationForUser(req.user.id));
+    if (!lotListingAuthorization.allowed) {
+      return res.status(403).json({
+        code: lotListingAuthorization.code,
+        msg: lotListingAuthorization.message,
+      });
     }
 
     const title = String(req.body.title || "").trim();
@@ -987,8 +972,12 @@ export const getProductById = async (req, res) => {
 // UPDATE GROWER LOT DETAILS
 export const updateProduct = async (req, res) => {
   try {
-    if (!(await requireCompletedKyc(req.user.id))) {
-      return res.status(403).json({ msg: "Complete PAN and KYC verification before updating fruit lots." });
+    const lotListingAuthorization = await getLotListingAuthorizationForUser(req.user.id);
+    if (!lotListingAuthorization.allowed) {
+      return res.status(403).json({
+        code: lotListingAuthorization.code,
+        msg: lotListingAuthorization.message,
+      });
     }
 
     const product = await Product.findById(req.params.id);

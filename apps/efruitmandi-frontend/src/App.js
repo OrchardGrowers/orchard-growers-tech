@@ -10,6 +10,7 @@ import { hasAccessToken } from "./utils/auth";
 // 🔹 Layout
 const AppFeedback = lazyWithRecovery(() => import("./components/AppFeedback"));
 const InstallAppPrompt = lazyWithRecovery(() => import("./components/InstallAppPrompt"));
+const LotListingRoute = lazyWithRecovery(() => import("./components/LotListingRoute"));
 
 // 🔹 Pages
 const loadAuctions = () => import("./pages/Auctions");
@@ -237,7 +238,14 @@ function App() {
             <Route path="/register-grower" element={<RegisterGrower />} />
             <Route path="/register-buyer" element={<RegisterBuyer />} />
             <Route path="/register-driver" element={<RegisterDriver />} />
-            <Route path="/list-new-lot" element={<ListNewLot />} />
+            <Route
+              path="/list-new-lot"
+              element={(
+                <LotListingRoute>
+                  <ListNewLot />
+                </LotListingRoute>
+              )}
+            />
             <Route path="/mobile-capture/:sessionId" element={<MobileCapture />} />
             <Route path="/download-app" element={<DownloadApp />} />
             <Route path="/get-verified" element={<GetVerified />} />
