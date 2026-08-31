@@ -40,10 +40,18 @@ import {
   normalizeOperationalRole,
   syncRegistrationPublication,
 } from "../services/profilePublicationService.js";
+import { PUBLIC_PROFILE_MARKET_LOT_SELECT } from "../services/publicLotProjectionService.js";
+import {
+  DEVELOPMENT_PUBLIC_MARKETPLACE_RESPONSE_HEADER,
+  loadDevelopmentPublicProfile,
+  loadDevelopmentPublicProfileLocations,
+  loadDevelopmentPublicProfiles,
+} from "../services/developmentPublicMarketplaceService.js";
 import {
   isOrderCompletedForMarketplace,
   isPublicLotVisible,
 } from "../services/dealLifecycleService.js";
+import { isRoleOgPubliclyVerified } from "../utils/publicProfileVerification.js";
 
 const getVerifiedPhone = (contact, user = null, otpVerificationToken = "", platform = "efruitmandi") => {
   const parsed = parseIdentifier(contact);
@@ -107,6 +115,7 @@ const PUBLIC_PROFILE_SELECT = [
   "buyerOgVerified",
   "growerOgVerified",
   "driverOgVerified",
+  "kyc",
   "kycByRole",
   "ogVerificationByRole",
   "accountStatus",
@@ -118,30 +127,6 @@ const PUBLIC_PROFILE_ALL_LIMIT = 1000;
 const PUBLIC_PROFILE_MARKET_LIMIT = 12;
 const PUBLIC_LOCATION_MIN_PROFILES = 2;
 const PUBLIC_FRUIT_PROFILE_MIN = 2;
-const PUBLIC_MARKET_PRODUCT_SELECT = [
-  "_id",
-  "title",
-  "fruitName",
-  "variety",
-  "quality",
-  "gradeLots",
-  "quantity",
-  "unit",
-  "basePrice",
-  "finalPrice",
-  "finalDealValue",
-  "location",
-  "images",
-  "imageObjects",
-  "status",
-  "active",
-  "auctionEndTime",
-  "createdAt",
-  "updatedAt",
-  "createdBy",
-  "createdSource",
-  "inventoryType",
-].join(" ");
 const SENSITIVE_PUBLIC_LOCATION_PATTERN =
   /\b(address|house|street|road|near|plot|flat|building|village|ward|pin|pincode|post office|orchard location|exact)\b/i;
 
@@ -167,9 +152,6 @@ const exactPublicLocationRegex = (value = "") => {
   const escaped = cleanPublicText(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`^\\s*${escaped}\\s*$`, "i");
 };
-
-const isApprovedStatus = (status = "") =>
-  cleanPublicText(status).toUpperCase() === "APPROVED";
 
 const getRoleRecord = (records = {}, role = "") => {
   const normalizedRole = cleanPublicText(role).toLowerCase();
@@ -256,12 +238,7 @@ export const toPublicProfile = (user = {}, role = "") => {
   const registeredAt = user.profileRegisteredAtByRole?.[role] || user.createdAt;
 
   const isKycVerified = getKycEligibility(user, role).eligible;
-  const isOgVerified = Boolean(
-    (role === "buyer" && user.buyerOgVerified) ||
-    (role === "grower" && user.growerOgVerified) ||
-    (role === "driver" && user.driverOgVerified) ||
-    (roleOg.requestId && isApprovedStatus(roleOg.status))
-  );
+  const isOgVerified = isRoleOgPubliclyVerified({ isKycVerified, roleOg });
 
   return {
     _id: user._id,
@@ -327,8 +304,8 @@ const toPublicMarketLot = (product = {}, order = null) => ({
   quantity: product.quantity || 0,
   unit: product.unit || "boxes",
   price: order
-    ? order.totalAmount || order.finalPrice || product.finalDealValue || product.finalPrice || product.basePrice || 0
-    : product.basePrice || product.finalDealValue || product.finalPrice || 0,
+    ? order.totalAmount || order.finalPrice || product.finalDealValue || product.finalPrice || 0
+    : product.finalDealValue || product.finalPrice || 0,
   status: order ? "Completed Deal" : product.status || "AVAILABLE",
   imageUrl: getPrimaryProductImage(product),
   createdAt: product.createdAt,
@@ -349,7 +326,7 @@ const getPublicProfileMarketActivity = async (userId, role) => {
           inventoryType: { $ne: "raw_material" },
           createdSource: { $ne: "admin-panel" },
         })
-          .select(PUBLIC_MARKET_PRODUCT_SELECT)
+          .select(PUBLIC_PROFILE_MARKET_LOT_SELECT)
           .sort({ createdAt: -1, _id: -1 })
           .limit(PUBLIC_PROFILE_MARKET_LIMIT)
           .lean()
@@ -374,7 +351,7 @@ const getPublicProfileMarketActivity = async (userId, role) => {
 
   const closedOrders = await Order.find({ [role]: userId })
     .select("_id product finalPrice totalAmount paymentStatus deliveryStatus invoiceDate updatedAt createdAt")
-    .populate("product", PUBLIC_MARKET_PRODUCT_SELECT)
+    .populate("product", PUBLIC_PROFILE_MARKET_LOT_SELECT)
     .sort({ updatedAt: -1, _id: -1 })
     .limit(PUBLIC_PROFILE_MARKET_LIMIT)
     .lean();
@@ -540,6 +517,17 @@ export const getPublicProfiles = async (req, res) => {
     const requestedState = cleanPublicText(req.query.state);
     const requestedDistrict = cleanPublicText(req.query.district);
 
+    const developmentProfiles = await loadDevelopmentPublicProfiles(req, {
+      role,
+      limit: requestedLimit,
+      state: requestedState,
+      district: requestedDistrict,
+    });
+    if (developmentProfiles) {
+      res.setHeader(DEVELOPMENT_PUBLIC_MARKETPLACE_RESPONSE_HEADER, "production-sanitized");
+      return res.json(developmentProfiles);
+    }
+
     const profilesByRole = await Promise.all(
       roles.map(async (profileRole) => {
         const locationQuery = {
@@ -596,6 +584,16 @@ const getPublicProfile = async (req, res, lookup) => {
       return res.status(400).json({ msg: "Unsupported public profile type" });
     }
 
+    const developmentProfile = await loadDevelopmentPublicProfile(req, {
+      businessType: requestedType,
+      slug: req.params.slug,
+      userId: req.params.userId,
+    });
+    if (developmentProfile) {
+      res.setHeader(DEVELOPMENT_PUBLIC_MARKETPLACE_RESPONSE_HEADER, "production-sanitized");
+      return res.json(developmentProfile);
+    }
+
     const userDocument = await User.findOne({
       ...lookup,
       ...buildPublicProfileQuery(role),
@@ -641,6 +639,12 @@ export const getPublicProfileLocations = async (req, res) => {
     const role = normalizeOperationalRole(requestedRole);
     if (!role || !["grower", "buyer"].includes(role)) {
       return res.status(400).json({ msg: "Unsupported public profile type" });
+    }
+
+    const developmentLocations = await loadDevelopmentPublicProfileLocations(req, role);
+    if (developmentLocations) {
+      res.setHeader(DEVELOPMENT_PUBLIC_MARKETPLACE_RESPONSE_HEADER, "production-sanitized");
+      return res.json(developmentLocations);
     }
 
     const users = await User.find(buildPublicProfileQuery(role))

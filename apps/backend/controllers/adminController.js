@@ -4,6 +4,7 @@ import Product from "../models/Product.js";
 import Order from "../models/Order.js";
 import VerificationRequest from "../models/VerificationRequest.js";
 import CaptureSession from "../models/CaptureSession.js";
+import ScanRecord from "../models/ScanRecord.js";
 import ProfilePublication from "../models/ProfilePublication.js";
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
@@ -26,6 +27,8 @@ import {
   sendVerificationCompletionEmail,
 } from "../services/verificationFeedbackService.js";
 import { validateKycSubmission } from "../services/kycEligibilityService.js";
+import { buildFruitScanningReport } from "../services/fruitScanningReportService.js";
+import { sanitizeLotPricing } from "../services/lotPricePrivacyService.js";
 import {
   ensureKycSectionStateEvents,
   getKycSectionStates,
@@ -1896,8 +1899,25 @@ export const listProductsByAdmin = async (req, res) => {
 
   const products = await Product.find()
     .populate("createdBy", "name orchardName businessName role")
-    .sort({ createdAt: -1 });
-  res.json(products);
+    .sort({ createdAt: -1 })
+    .lean();
+  const productIds = products.map((product) => product._id);
+  const scans = await ScanRecord.find({
+    fruitLotId: { $in: productIds },
+    status: { $ne: "SUPERSEDED" },
+  })
+    .select("scanId fruitLotId image.secureUrl image.thumbnailUrl image.processed.thumbnailUrl analysis createdAt")
+    .lean();
+  const scansByProduct = scans.reduce((groups, scan) => {
+    const key = String(scan.fruitLotId || "");
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(scan);
+    return groups;
+  }, new Map());
+  res.json(products.map((product) => sanitizeLotPricing({
+    ...product,
+    fruitScanningReport: buildFruitScanningReport(scansByProduct.get(String(product._id)) || []),
+  }, { product, viewer: req.user })));
 };
 
 export const uploadProductImagesByAdmin = async (req, res) => {
@@ -2259,7 +2279,10 @@ export const listOrders = async (req, res) => {
     .populate("logisticsAssignment.assignedLogisticsAccount", "name logisticsName driverName driverContact vehicleNumber driverVerified accountStatus")
     .sort({ createdAt: -1 });
 
-  res.json(orders);
+  res.json(orders.map((order) => sanitizeLotPricing(order, {
+    product: { createdBy: order.grower },
+    viewer: req.user,
+  })));
 };
 
 export const updateOrderLogistics = async (req, res) => {

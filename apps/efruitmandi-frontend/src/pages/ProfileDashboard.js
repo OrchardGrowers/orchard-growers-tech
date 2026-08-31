@@ -43,6 +43,7 @@ import {
   sendMsg91WidgetOtp,
   verifyMsg91WidgetOtp,
 } from "../utils/msg91OtpWidget";
+import useOtpVerificationCooldown from "../hooks/useOtpVerificationCooldown";
 
 const assetUrl = (path) => `${process.env.PUBLIC_URL || ""}${path}`;
 const orchardCover = assetUrl("/profile-banners/efruitmandi-profile-cover.png");
@@ -269,9 +270,13 @@ export default function ProfileDashboard() {
     verificationToken: "",
     loading: false,
   });
-  const [contactOtpCooldownUntil, setContactOtpCooldownUntil] = useState(0);
-  const [contactOtpCooldown, setContactOtpCooldown] = useState(0);
   const contactOtpInFlightRef = useRef(false);
+  const {
+    remainingSeconds: contactOtpCooldown,
+    isLocked: contactOtpLocked,
+    startCooldown: startContactOtpCooldown,
+    resetCooldown: resetContactOtpCooldown,
+  } = useOtpVerificationCooldown();
   const [showContactVerification, setShowContactVerification] = useState(false);
   const [emailDraft, setEmailDraft] = useState({
     email: "",
@@ -285,23 +290,6 @@ export default function ProfileDashboard() {
   const [socialDraft, setSocialDraft] = useState(createSocialDraft());
   const [detectingAddress, setDetectingAddress] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
-
-  useEffect(() => {
-    if (!contactOtpCooldownUntil) {
-      setContactOtpCooldown(0);
-      return undefined;
-    }
-
-    const updateCooldown = () => {
-      const remaining = Math.max(0, Math.ceil((contactOtpCooldownUntil - Date.now()) / 1000));
-      setContactOtpCooldown(remaining);
-      if (!remaining) setContactOtpCooldownUntil(0);
-    };
-
-    updateCooldown();
-    const timer = window.setInterval(updateCooldown, 1000);
-    return () => window.clearInterval(timer);
-  }, [contactOtpCooldownUntil]);
 
   useEffect(() => {
     if (!emailOtpCooldown) return undefined;
@@ -799,8 +787,7 @@ export default function ProfileDashboard() {
       verificationToken: "",
       loading: false,
     });
-    setContactOtpCooldownUntil(0);
-    setContactOtpCooldown(0);
+    if (!contactOtpLocked) resetContactOtpCooldown();
     setShowContactVerification(needsContactUpdate);
     setEmailDraft({
       email: profileEmail,
@@ -823,7 +810,7 @@ export default function ProfileDashboard() {
   const sendContactOtp = async () => {
     const phone = contactDraft.phone.trim();
 
-    if (contactOtpInFlightRef.current || contactDraft.loading || contactOtpCooldown > 0) return;
+    if (contactOtpInFlightRef.current || contactDraft.loading || contactOtpLocked) return;
 
     if (!phone) {
       setNotice("Enter contact number first.");
@@ -851,8 +838,6 @@ export default function ProfileDashboard() {
         ? await retryMsg91WidgetOtp({ widgetId, tokenAuth, reqId: contactDraft.otpReqId })
         : await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone: normalizedPhone, mode: "signup" });
       setContactDraft((current) => ({ ...current, otpReqId: result.reqId || "", otpSent: true }));
-      setContactOtpCooldownUntil(Date.now() + 60 * 1000);
-      setContactOtpCooldown(60);
       setNotice(result.reqId ? "OTP sent to phone." : "OTP sent. Enter the OTP received.");
     } catch (err) {
       setNotice(err.response?.data?.msg || err.message || "Unable to send OTP.");
@@ -866,7 +851,7 @@ export default function ProfileDashboard() {
     const phone = contactDraft.phone.trim();
     const otp = contactDraft.otp.trim();
 
-    if (contactOtpInFlightRef.current || contactDraft.loading || contactOtpCooldown > 0) return;
+    if (contactOtpInFlightRef.current || contactDraft.loading || contactOtpLocked) return;
 
     if (!phone || !otp) {
       setNotice("Enter contact number and OTP.");
@@ -893,6 +878,7 @@ export default function ProfileDashboard() {
         loading: false,
       }));
       setProfile((current) => current ? { ...current, phone: verifiedPhone, contact: verifiedPhone, phoneVerified: true } : current);
+      startContactOtpCooldown(60);
       setNotice("Contact number verified.");
     } catch (err) {
       setContactDraft((current) => ({ ...current, loading: false }));
@@ -1931,8 +1917,7 @@ export default function ProfileDashboard() {
                         verificationToken: "",
                         loading: false,
                       });
-                      setContactOtpCooldownUntil(0);
-                      setContactOtpCooldown(0);
+                      if (!contactOtpLocked) resetContactOtpCooldown();
                       setShowContactVerification(true);
                     }}
                     className="rounded-md border border-green-200 px-3 py-2 text-xs font-extrabold text-green-800 hover:bg-green-100"
@@ -1962,8 +1947,7 @@ export default function ProfileDashboard() {
                         verifiedPhone: "",
                         verificationToken: "",
                       }));
-                      setContactOtpCooldownUntil(0);
-                      setContactOtpCooldown(0);
+                      if (!contactOtpLocked) resetContactOtpCooldown();
                       setShowContactVerification(false);
                     }}
                     className="shrink-0 font-extrabold text-green-800 underline"
@@ -1986,8 +1970,7 @@ export default function ProfileDashboard() {
                       verifiedPhone: "",
                       verificationToken: "",
                     }));
-                    setContactOtpCooldownUntil(0);
-                    setContactOtpCooldown(0);
+                    if (!contactOtpLocked) resetContactOtpCooldown();
                   }}
                   placeholder={needsContactUpdate ? "Enter contact number" : "Enter new contact number"}
                   className="min-h-11 w-full rounded-md border border-green-200 bg-white px-3 py-3 text-sm font-semibold outline-none focus:border-green-700"
@@ -2005,21 +1988,21 @@ export default function ProfileDashboard() {
                   <button
                     type="button"
                     onClick={sendContactOtp}
-                    disabled={contactDraft.loading || contactOtpCooldown > 0}
+                    disabled={contactDraft.loading || contactOtpLocked}
                     className="min-h-11 rounded-md bg-white px-3 py-2 text-xs font-extrabold text-green-800 disabled:opacity-60"
                   >
-                    {contactOtpCooldown > 0 ? <><FaLock className="mr-1 inline-block" /> Request OTP ({contactOtpCooldownLabel})</> : "Request OTP"}
+                    {contactOtpLocked ? <><FaLock className="mr-1 inline-block" /> Request OTP ({contactOtpCooldownLabel})</> : "Request OTP"}
                   </button>
                   <button
                     type="button"
                     onClick={verifyContactOtp}
-                    disabled={contactDraft.loading || contactOtpCooldown > 0}
+                    disabled={contactDraft.loading || contactOtpLocked}
                     className="min-h-11 rounded-md bg-green-700 px-3 py-2 text-xs font-extrabold text-white disabled:opacity-60"
                   >
-                    {contactOtpCooldown > 0 ? <><FaLock className="mr-1 inline-block" /> Verify ({contactOtpCooldownLabel})</> : "Verify"}
+                    {contactOtpLocked ? <><FaLock className="mr-1 inline-block" /> Verify ({contactOtpCooldownLabel})</> : "Verify"}
                   </button>
                 </div>
-                {contactOtpCooldown > 0 && (
+                {contactOtpLocked && (
                   <p className="text-xs font-semibold text-green-800">
                     Please wait {contactOtpCooldownLabel} before requesting a new OTP or verifying.
                   </p>

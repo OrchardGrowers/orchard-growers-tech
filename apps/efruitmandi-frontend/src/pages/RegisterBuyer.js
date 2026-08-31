@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   FaBriefcase,
@@ -23,8 +23,9 @@ import {
   verifyMsg91WidgetOtp,
 } from "../utils/msg91OtpWidget";
 import { getCurrentUser, hasBuyerProfile, hasDriverProfile } from "../utils/auth";
+import useOtpVerificationCooldown from "../hooks/useOtpVerificationCooldown";
 
-const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
+const LOGIN_REQUIRED_MESSAGE = "Please login or Sign upfirst to continue.";
 
 export default function RegisterBuyer() {
   const navigate = useNavigate();
@@ -57,7 +58,13 @@ export default function RegisterBuyer() {
   const [otp, setOtp] = useState("");
   const [otpReqId, setOtpReqId] = useState("");
   const [otpSent, setOtpSent] = useState(false);
-  const [otpCooldown, setOtpCooldown] = useState(0);
+  const otpInFlightRef = useRef(false);
+  const {
+    remainingSeconds: otpCooldown,
+    isLocked: otpLocked,
+    startCooldown,
+    resetCooldown,
+  } = useOtpVerificationCooldown();
   const [verifiedPhone, setVerifiedPhone] = useState(isUpdate ? savedContact : "");
   const [otpVerificationToken, setOtpVerificationToken] = useState("");
   const [message, setMessage] = useState("");
@@ -106,19 +113,13 @@ export default function RegisterBuyer() {
       .catch(() => {});
   }, [isAuthenticated, navigate, returnTo]);
 
-  useEffect(() => {
-    if (otpCooldown <= 0) return undefined;
-    const timer = window.setTimeout(() => setOtpCooldown((seconds) => Math.max(0, seconds - 1)), 1000);
-    return () => window.clearTimeout(timer);
-  }, [otpCooldown]);
-
   const updateForm = (field, value) => {
     setForm({ ...form, [field]: value });
     if (field === "contact") {
       setOtp("");
       setOtpReqId("");
       setOtpSent(false);
-      setOtpCooldown(0);
+      if (!otpLocked) resetCooldown();
       setVerifiedPhone("");
       setOtpVerificationToken("");
     }
@@ -160,7 +161,7 @@ export default function RegisterBuyer() {
 
   const sendPhoneOtp = async () => {
     setMessage("");
-    if (otpCooldown > 0) return;
+    if (otpInFlightRef.current || otpLocked) return;
 
     if (!contactValue) {
       setMessage("Enter contact number first.");
@@ -168,6 +169,7 @@ export default function RegisterBuyer() {
     }
 
     try {
+      otpInFlightRef.current = true;
       const widgetId = getEfruitMandiWidgetId();
       const tokenAuth = getEfruitMandiTokenAuth();
       const phone = normalizeIndianMobile(contactValue);
@@ -181,15 +183,18 @@ export default function RegisterBuyer() {
         : await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone, mode: "profile" });
       setOtpReqId(result.reqId || "");
       setOtpSent(true);
-      setOtpCooldown(60);
       setMessage(result.reqId ? "OTP sent to phone." : "OTP sent. Enter the OTP received.");
     } catch (err) {
       setMessage(err.response?.data?.msg || err.message || "Could not send phone OTP.");
+    } finally {
+      otpInFlightRef.current = false;
     }
   };
 
   const verifyPhoneOtp = async () => {
     setMessage("");
+
+    if (otpInFlightRef.current || otpLocked) return;
 
     if (!contactValue || !otp.trim()) {
       setMessage("Enter contact number and OTP.");
@@ -197,6 +202,7 @@ export default function RegisterBuyer() {
     }
 
     try {
+      otpInFlightRef.current = true;
       const widgetId = getEfruitMandiWidgetId();
       const tokenAuth = getEfruitMandiTokenAuth();
       if (!otpSent) {
@@ -211,10 +217,13 @@ export default function RegisterBuyer() {
       }
       setVerifiedPhone(contactValue);
       setOtpVerificationToken(result.data?.otpVerificationToken || "");
+      startCooldown(60);
       setMessage("Contact number verified.");
     } catch (err) {
       setVerifiedPhone("");
       setMessage(err.response?.data?.msg || err.message || "Phone OTP verification failed.");
+    } finally {
+      otpInFlightRef.current = false;
     }
   };
 
@@ -443,6 +452,8 @@ export default function RegisterBuyer() {
 }
 
 function PhoneOtpControl({ otp, verified, cooldown, onOtpChange, onSend, onVerify }) {
+  const isLocked = cooldown > 0;
+  const cooldownLabel = `00:${String(cooldown).padStart(2, "0")}`;
   return (
     <div>
       <div className="mb-1 flex items-center justify-between gap-2 text-sm font-semibold text-gray-700">
@@ -463,18 +474,19 @@ function PhoneOtpControl({ otp, verified, cooldown, onOtpChange, onSend, onVerif
         />
         <button
           type="button"
-          disabled={cooldown > 0}
+          disabled={isLocked}
           onClick={onSend}
           className="inline-flex min-h-11 items-center justify-center gap-1 rounded-md bg-green-50 px-3 py-3 text-sm font-bold text-green-700 transition hover:bg-green-100 disabled:opacity-50"
         >
-          <FaPaperPlane /> {cooldown > 0 ? `${cooldown}s` : "Request OTP"}
+          <FaPaperPlane /> {isLocked ? `🔒 Request OTP (${cooldownLabel})` : "Request OTP"}
         </button>
         <button
           type="button"
+          disabled={isLocked}
           onClick={onVerify}
           className="min-h-11 rounded-md bg-green-700 px-3 py-3 text-sm font-bold text-white transition hover:bg-green-800"
         >
-          Verify
+          {isLocked ? `🔒 Verify (${cooldownLabel})` : "Verify"}
         </button>
       </div>
     </div>

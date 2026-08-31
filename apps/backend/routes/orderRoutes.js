@@ -55,8 +55,8 @@ const getOrderVisibilityFilter = (user) => {
 
 const populateOrder = (query) =>
   query
-    .populate("product")
-    .populate("items.product")
+    .populate("product", "-basePrice")
+    .populate("items.product", "-basePrice")
     .populate("buyer", "name businessName")
     .populate("grower", "name orchardName")
     .populate("driver", "name email phone contact logisticsName logisticsOwnerName driverName driverContact vehicleNumber vehicleType driverVerified kycByRole accountStatus")

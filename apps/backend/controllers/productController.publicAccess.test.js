@@ -3,6 +3,7 @@ import Product from "../models/Product.js";
 import {
   canAccessNonPublicLot,
   getProductById,
+  serializeProduct,
 } from "./productController.js";
 
 const createResponse = () => ({
@@ -51,5 +52,20 @@ describe("product detail public access prerequisites", () => {
     expect(canAccessNonPublicLot(product, { id: "64b000000000000000000003", role: "buyer" })).toBe(true);
     expect(canAccessNonPublicLot(product, { id: "64b000000000000000000002", role: "buyer" })).toBe(false);
     expect(canAccessNonPublicLot(product, null)).toBe(false);
+  });
+
+  it("enforces private base pricing in the actual public Product serializer", () => {
+    const product = {
+      _id: "64b000000000000000000010",
+      createdBy: "64b000000000000000000001",
+      createdSource: "grower",
+      basePrice: 125,
+      finalPrice: 175,
+    };
+    expect(serializeProduct(product, null)).not.toHaveProperty("basePrice");
+    expect(serializeProduct(product, { id: "buyer", role: "buyer" })).not.toHaveProperty("basePrice");
+    expect(serializeProduct(product, { id: product.createdBy, role: "grower" }).basePrice).toBe(125);
+    expect(serializeProduct(product, { id: "admin", role: "ADMIN" }).basePrice).toBe(125);
+    expect(serializeProduct(product, null).finalPrice).toBe(175);
   });
 });

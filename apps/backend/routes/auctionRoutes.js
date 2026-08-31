@@ -25,15 +25,14 @@ import {
   hasTransactionEligibleKyc,
   PAN_KYC_REQUIRED_MESSAGE,
 } from "../services/kycEligibilityService.js";
+import { sanitizeLotPricing } from "../services/lotPricePrivacyService.js";
+import {
+  DEVELOPMENT_PUBLIC_MARKETPLACE_RESPONSE_HEADER,
+  loadDevelopmentPublicAuctions,
+} from "../services/developmentPublicMarketplaceService.js";
 
 const router = express.Router();
 const PAYMENT_CONFIRMATION_WINDOW_MS = 15 * 60 * 1000;
-
-const canSeeProductBasePrice = (product, user) =>
-  (user?.role === "grower" ||
-    (Array.isArray(user?.profileTypes) && user.profileTypes.includes("grower"))) &&
-  product?.createdBy &&
-  (product.createdBy._id || product.createdBy)?.toString() === user.id?.toString();
 
 const canSeeBuyerDealBreakdown = (auction, user) => {
   const bidderId = auction?.highestBidder?._id || auction?.highestBidder;
@@ -93,15 +92,12 @@ const buildOrderFromAuction = (auction, product) => ({
 });
 
 const serializeAuction = (auction, user, completedOrder = null) => {
-  const data = auction.toObject ? auction.toObject() : { ...auction };
+  let data = auction.toObject ? auction.toObject() : { ...auction };
   if (completedOrder) {
     Object.assign(data, buildMarketplaceLifecycle(completedOrder));
   }
 
-  if (data.product && !canSeeProductBasePrice(data.product, user)) {
-    delete data.product.basePrice;
-    delete data.startingPrice;
-  }
+  data = sanitizeLotPricing(data, { product: data.product, viewer: user });
 
   if (data.dealBreakdown && !canSeeBuyerDealBreakdown(data, user)) {
     data.sellerReceivable = data.dealBreakdown.sellerReceivable;
@@ -126,7 +122,7 @@ const emitEfruitMandiMarketUpdate = (req, action, payload = {}) => {
 // ================= CREATE DEAL =================
 router.post("/", protect, authorize("grower"), async (req, res) => {
   try {
-    const { product, startingPrice, currentBid, startTime, distanceKm = 0 } = req.body;
+    const { product, startingPrice, startTime, distanceKm = 0 } = req.body;
 
     console.log("Incoming product:", product);
 
@@ -149,18 +145,12 @@ router.post("/", protect, authorize("grower"), async (req, res) => {
     const auctionEndTime = dealSchedule.endTime;
     const status = dealSchedule.isLiveNow ? "ACTIVE" : "SCHEDULED";
     const openingPrice = Number(startingPrice || productExists.basePrice || 0);
-    const openingBreakdown = calculateProductDeal
-      ? await calculateProductDeal(productExists, Number(currentBid || openingPrice), distanceKm)
-      : null;
-
     const auction = await Auction.create({
       product,
       startingPrice: openingPrice,
-      currentBid: openingBreakdown?.dealAmount ?? Number(currentBid || openingPrice),
-      highestGrade: openingBreakdown?.highestGrade,
-      highestGradeRate: Number(currentBid || openingPrice),
+      currentBid: 0,
+      highestGradeRate: 0,
       distanceKm: Number(distanceKm || 0),
-      dealBreakdown: openingBreakdown,
       status,
       startTime: auctionStartTime,
       endTime: auctionEndTime,
@@ -217,6 +207,12 @@ router.post("/:id/calculate", protect, authorize("buyer"), async (req, res) => {
 // ================= GET ALL DEALS =================
 router.get("/", optionalProtect, async (req, res) => {
   try {
+    const developmentAuctions = await loadDevelopmentPublicAuctions(req);
+    if (developmentAuctions) {
+      res.setHeader(DEVELOPMENT_PUBLIC_MARKETPLACE_RESPONSE_HEADER, "production-sanitized");
+      return res.json(developmentAuctions);
+    }
+
     const auctions = await Auction.find()
       .populate({
         path: "product",

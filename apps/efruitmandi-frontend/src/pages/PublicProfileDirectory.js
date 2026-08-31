@@ -80,8 +80,8 @@ export default function PublicProfileDirectory({ role }) {
     setStates([]);
 
     Promise.all([
-      API.get(`/user/public-profiles?role=${encodeURIComponent(role)}&limit=all`),
-      API.get(`/user/public-profile-locations?role=${encodeURIComponent(role)}`).catch(() => ({ data: { states: [] } })),
+      API.get(`/user/public-profiles?role=${encodeURIComponent(role)}&limit=all&devPublicMarketplace=1`),
+      API.get(`/user/public-profile-locations?role=${encodeURIComponent(role)}&devPublicMarketplace=1`).catch(() => ({ data: { states: [] } })),
     ])
       .then(([response, locationResponse]) => {
         if (!active) return;

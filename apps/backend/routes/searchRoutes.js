@@ -1,4 +1,5 @@
 import express from "express";
+import { PUBLIC_LOT_SEARCH_SELECT } from "../services/publicLotProjectionService.js";
 import User from "../models/User.js";
 import Product from "../models/Product.js";
 import MandiRate from "../models/MandiRate.js";
@@ -135,9 +136,7 @@ router.get("/", async (req, res) => {
               ],
             }
       )
-        .select(
-          "title fruitName variety description location lotNo quantity status images imageObjects gradeLots createdBy createdAt"
-        )
+        .select(PUBLIC_LOT_SEARCH_SELECT)
         .populate("createdBy", "name orchardName businessName")
         .limit(Math.min(limit * 3, 100))
         .lean(),

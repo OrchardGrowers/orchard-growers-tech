@@ -69,4 +69,30 @@ describe("mandatory PAN KYC eligibility", () => {
     };
     expect(hasTransactionEligibleKyc(user, "driver")).toBe(true);
   });
+
+  it("keeps an approved legacy KYC record eligible for its matching role", () => {
+    const user = {
+      growerVerified: true,
+      kyc: completeKyc({ roleType: "grower" }),
+    };
+
+    expect(getKycEligibility(user, "grower")).toMatchObject({
+      status: "APPROVED",
+      approved: true,
+      panComplete: true,
+      eligible: true,
+    });
+  });
+
+  it("does not reuse a legacy KYC record for a different role", () => {
+    const user = {
+      buyerVerified: true,
+      kyc: completeKyc({ roleType: "grower" }),
+    };
+
+    expect(getKycEligibility(user, "buyer")).toMatchObject({
+      status: "NOT_SUBMITTED",
+      eligible: false,
+    });
+  });
 });

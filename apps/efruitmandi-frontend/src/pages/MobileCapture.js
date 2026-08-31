@@ -35,6 +35,10 @@ import {
 } from "../utils/scaleCalibration";
 import { analyzeSubjectPlacement, smoothSubjectPlacement } from "../utils/subjectPlacement";
 import { evaluateScanReadiness, SCAN_LOCK_DURATION_MS } from "../utils/scanReadiness";
+import {
+  getFruitScanStatusCopy,
+  getNormalizedDetectionBoxStyle,
+} from "../utils/fruitScanningReport";
 
 let fruitRecognitionModulePromise;
 
@@ -292,6 +296,7 @@ export default function MobileCapture() {
   const [uploaded, setUploaded] = useState(false);
   const [retakeActive, setRetakeActive] = useState(false);
   const [message, setMessage] = useState("");
+  const [scanAccepted, setScanAccepted] = useState(false);
   const [frameQuality, setFrameQuality] = useState(INITIAL_FRAME_QUALITY);
   const [subjectPlacement, setSubjectPlacement] = useState(INITIAL_SUBJECT_PLACEMENT);
   const [boundaryCandidates, setBoundaryCandidates] = useState(
@@ -603,6 +608,28 @@ export default function MobileCapture() {
       active = false;
     };
   }, [sessionId]);
+
+  useEffect(() => {
+    const analysisStatus = String(session?.scanRecord?.analysis?.status || "").toUpperCase();
+    if (!uploaded || ["COMPLETED", "REVIEW_REQUIRED", "FAILED"].includes(analysisStatus)) {
+      return undefined;
+    }
+
+    let active = true;
+    const refreshAnalysis = async () => {
+      try {
+        const response = await API.get(`/capture-sessions/${sessionId}`);
+        if (active) setSession(response.data);
+      } catch {
+        // Preserve the last upload state when a low-bandwidth poll fails.
+      }
+    };
+    const intervalId = window.setInterval(refreshAnalysis, 4000);
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [session?.scanRecord?.analysis?.status, sessionId, uploaded]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -1350,7 +1377,9 @@ export default function MobileCapture() {
       }
 
       if (!recognition?.accepted) {
-        setMessage("Fruit not recognized - reposition fruit and try again.");
+        setMessage(
+          recognition?.warning || "Fruit not recognized - reposition fruit and try again."
+        );
         updateScannerUi({ captureStatus: "RETRY" });
         updateCaptureMetadata(captureId, { uploadStatus: "RECOGNITION_REJECTED" });
         return { success: false, reason: "recognition" };
@@ -1364,7 +1393,7 @@ export default function MobileCapture() {
       data.append("media", file);
       data.append("scanMetadata", JSON.stringify(scanMetadata));
 
-      await API.post(`/capture-sessions/${sessionId}/media`, data, {
+      const response = await API.post(`/capture-sessions/${sessionId}/media`, data, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
@@ -1373,6 +1402,8 @@ export default function MobileCapture() {
       }
 
       setUploaded(true);
+      setSession(response.data);
+      setScanAccepted(false);
       setRetakeActive(false);
       clearAutoCaptureTimers();
       if (source === "AUTO") {
@@ -2131,17 +2162,6 @@ export default function MobileCapture() {
       ? `${candidateMeasurements.averageDiameterMm.toFixed(1)} mm estimated`
       : "No measurable candidate";
   })();
-  const candidateMeasurementLabels = new Map(
-    scaleCalibration.status === SCALE_CALIBRATION_STATUS.READY
-      ? candidateMeasurements.measurements
-          .filter(
-            (measurement) =>
-              measurement.validForMeasurement &&
-              Number.isFinite(measurement.estimatedEquivalentDiameterMm)
-          )
-          .map((measurement) => [measurement.candidateId, measurement])
-      : []
-  );
   const measurementTiltWarning = candidateMeasurements.measurements.some(
     (measurement) => measurement.tiltWarning
   );
@@ -2150,7 +2170,7 @@ export default function MobileCapture() {
     { label: "Calibration", value: calibrationStatus },
     { label: "Scale Calibration", value: scaleCalibrationStatus },
     { label: "Boundary Estimate", value: boundaryEstimateStatus },
-    { label: "Estimated Fruit Count", value: estimatedFruitCountStatus },
+    { label: "Provisional Region Count", value: estimatedFruitCountStatus },
     { label: "Estimated Diameter", value: estimatedDiameterStatus },
     { label: "Guide Area", value: guideAreaLabel },
     { label: "Guide Lock", value: guideLockStatus },
@@ -2240,9 +2260,7 @@ export default function MobileCapture() {
           {isImage ? <FaCamera /> : <FaVideo />}
         </div>
         <h1 className="mt-2 text-xl font-extrabold text-black">Live Fruit Scanner</h1>
-        <p className="mt-1 text-xs font-semibold text-gray-500">
-          Guided live capture for Fruit Lot media
-        </p>
+        <p className="mt-1 text-xs font-semibold text-gray-500">Scan Fruits · Upload · Analyze · Review</p>
         {scannerUi.scannerStatus === "ACTIVE" && (
           <p className="mx-auto mt-2 w-fit rounded-full bg-red-50 px-3 py-1 text-xs font-extrabold text-red-700" role="status">
             <span className="mr-1.5 inline-block h-2 w-2 animate-pulse rounded-full bg-red-600 motion-reduce:animate-none" />
@@ -2315,6 +2333,11 @@ export default function MobileCapture() {
 
       {!loading && isMobile && session && !uploaded && isImage && !scannerUi.cancelled && (
         <div className="mt-3 space-y-3">
+          <section className="rounded-md border border-green-200 bg-white p-3 text-center">
+            <p className="text-sm font-extrabold text-gray-950">Place fruits inside the frame</p>
+            <p className="mt-1 text-xs font-semibold text-gray-600">Keep all fruits clearly visible</p>
+            <p className="mt-1 text-xs font-semibold text-gray-600">Ensure good lighting</p>
+          </section>
           <section className="rounded-md border border-green-200 bg-green-50 p-3">
             <label htmlFor="scan-mode" className="text-xs font-extrabold text-green-950">
               Scan mode
@@ -2542,40 +2565,6 @@ export default function MobileCapture() {
                 >
                   <div className={`absolute inset-0 animate-pulse rounded-[inherit] border motion-reduce:animate-none ${guideAccentClass}`} />
                   <div className={`absolute left-[8%] right-[8%] top-1/2 h-0.5 animate-pulse opacity-80 motion-reduce:animate-none ${guideLineClass}`} />
-                  {boundaryCandidates.candidates.map((candidate) => (
-                    <div
-                      key={candidate.id}
-                      className={`absolute rounded-full border ${
-                        candidate.partialCandidate
-                          ? "border-dashed border-amber-300/70"
-                          : candidate.confidence >= 0.68
-                            ? "border-green-300/70"
-                            : "border-white/60"
-                      }`}
-                      style={{
-                        left: `${candidate.boundingBox.xRatio * 100}%`,
-                        top: `${candidate.boundingBox.yRatio * 100}%`,
-                        width: `${candidate.boundingBox.widthRatio * 100}%`,
-                        height: `${candidate.boundingBox.heightRatio * 100}%`,
-                      }}
-                      aria-hidden="true"
-                    >
-                      <span
-                        className="absolute h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/70"
-                        style={{
-                          left: `${((candidate.center.xRatio - candidate.boundingBox.xRatio) / Math.max(candidate.boundingBox.widthRatio, 0.001)) * 100}%`,
-                          top: `${((candidate.center.yRatio - candidate.boundingBox.yRatio) / Math.max(candidate.boundingBox.heightRatio, 0.001)) * 100}%`,
-                        }}
-                      />
-                      {candidateMeasurementLabels.has(candidate.id) && (
-                        <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-emerald-950/80 px-1.5 py-0.5 text-[9px] font-extrabold text-emerald-100">
-                          {candidateMeasurementLabels
-                            .get(candidate.id)
-                            .estimatedEquivalentDiameterMm.toFixed(1)} mm
-                        </span>
-                      )}
-                    </div>
-                  ))}
                   {scaleCalibration.referenceBoundingBox && (
                     <div
                       className="absolute border-2 border-cyan-300/90 bg-cyan-300/5"
@@ -2707,7 +2696,7 @@ export default function MobileCapture() {
                   ? "Count estimation is unavailable. You can continue scanning manually."
                   : fruitCountEstimate.partialCandidateCount > 0
                     ? "Keep all fruits fully inside the guide for a better count."
-                    : "Provisional estimate based on visible boundary candidates."}
+                    : "Provisional region estimate from contrast and shape; it is not a fruit-object detection result."}
             </p>
             <p className="mt-1 text-[10px] font-semibold text-gray-500">
               Calibrated visual estimate; not a certified physical measurement.
@@ -2776,7 +2765,103 @@ export default function MobileCapture() {
           <span>{uploadProgressLabel} · 1 Scan Frame Uploaded</span>
         </div>
       )}
+      {uploaded && (
+        <FruitScanReview
+          session={session}
+          accepted={scanAccepted}
+          retakeAllowed={retakeAllowed}
+          onRetake={retakeScanFrame}
+          onAccept={() => {
+            setScanAccepted(true);
+            setMessage("Scan accepted for this Fruit Lot. Return to the listing form to continue.");
+          }}
+          onContinue={() => {
+            window.close();
+            window.setTimeout(() => window.history.back(), 150);
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function FruitScanReview({ session, accepted, retakeAllowed, onRetake, onAccept, onContinue }) {
+  const analysis = session?.scanRecord?.analysis || {};
+  const status = String(analysis.status || "UPLOADED").toUpperCase();
+  const detections = (analysis.detections || []).filter(
+    (item) => item.category === "FRUIT" && !item.obstruction && item.boundingBox
+  );
+  const obstructionDetected = (analysis.detections || []).some(
+    (item) => item.category === "OBSTRUCTION" || item.obstruction
+  );
+  const providerUnavailable = (analysis.warningCodes || []).includes("ANALYSIS_PROVIDER_NOT_CONFIGURED");
+  const processing = ["PENDING", "PROCESSING", "UPLOADED"].includes(status);
+
+  return (
+    <section className="mt-3 space-y-3 rounded-md border border-green-200 bg-white p-3" aria-live="polite">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-extrabold text-gray-950">Review Fruit Scan</h2>
+          <p className="mt-1 text-[11px] font-semibold text-gray-600">1 of 1 scan frames uploaded</p>
+        </div>
+        <span className={`rounded px-2 py-1 text-[9px] font-extrabold ${status === "COMPLETED" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-900"}`}>
+          {getFruitScanStatusCopy(status)}
+        </span>
+      </div>
+
+      {processing && (
+        <div className="rounded-md bg-green-50 p-3 text-xs font-bold text-green-800">
+          <div className="flex items-center gap-2"><FaSpinner className="animate-spin" /> Analyzing fruits...</div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white">
+            <div className="h-full w-2/3 animate-pulse rounded-full bg-green-700" />
+          </div>
+          <p className="mt-2 text-[10px] font-semibold">No percentage is shown while exact provider progress is unavailable.</p>
+        </div>
+      )}
+
+      {analysis.imageUrl && (
+        <div className="relative mx-auto inline-flex max-w-full overflow-hidden rounded-md bg-black">
+          <img src={analysis.imageUrl} alt="Captured fruit scan" className="max-h-96 max-w-full object-contain" />
+          {detections.map((item, index) => {
+            const style = getNormalizedDetectionBoxStyle(item.boundingBox);
+            if (!style) return null;
+            return (
+              <span key={`${item.label}-${index}`} className="absolute border-2 border-green-400" style={style}>
+                <span className="absolute -top-5 left-0 whitespace-nowrap bg-green-800 px-1 text-[8px] font-bold text-white">
+                  {item.label || "Fruit"}{item.confidence != null ? ` ${Math.round(item.confidence * 100)}%` : ""}
+                </span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {obstructionDetected && (
+        <p className="rounded-md bg-red-50 px-3 py-2 text-xs font-extrabold text-red-700">
+          Hand/object is obstructing the fruit. Please retake this image.
+        </p>
+      )}
+      {providerUnavailable && (
+        <p className="rounded-md bg-amber-50 px-3 py-2 text-xs font-extrabold text-amber-900">
+          Fruit analysis provider is not configured. Analysis requires review; no measurements were fabricated.
+        </p>
+      )}
+      {status === "FAILED" && (
+        <p className="rounded-md bg-red-50 px-3 py-2 text-xs font-extrabold text-red-700">
+          Analysis failed. You can safely retry or return to the lot form and continue under review.
+        </p>
+      )}
+
+      <div className="grid gap-2 sm:grid-cols-3">
+        {retakeAllowed && (
+          <button type="button" onClick={onRetake} className="min-h-11 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-extrabold text-amber-900">Retake Image</button>
+        )}
+        <button type="button" onClick={onAccept} disabled={processing || obstructionDetected} className="min-h-11 rounded-md border border-green-300 bg-green-50 px-3 py-2 text-xs font-extrabold text-green-800 disabled:bg-gray-100 disabled:text-gray-400">
+          {accepted ? "Scan Accepted" : "Accept Scan"}
+        </button>
+        <button type="button" onClick={onContinue} className="min-h-11 rounded-md bg-green-700 px-3 py-2 text-xs font-extrabold text-white">Continue Lot Listing</button>
+      </div>
+    </section>
   );
 }
 

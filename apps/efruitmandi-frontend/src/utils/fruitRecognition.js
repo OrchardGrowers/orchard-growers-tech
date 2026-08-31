@@ -43,6 +43,15 @@ const FRUIT_WORDS = [
   "strawberry",
   "walnut",
 ];
+const OBSTRUCTION_WORDS = [
+  "arm",
+  "carton",
+  "hand",
+  "person",
+  "people",
+  "tray",
+  "box",
+];
 
 let modelPromise;
 
@@ -104,17 +113,35 @@ export const recognizeFruitVideo = async (file) => {
 const classifyElement = async (element) => {
   const model = await getModel();
   const predictions = await model.classify(element, 5);
+  return summarizeFruitRecognitionPredictions(predictions);
+};
+
+export const summarizeFruitRecognitionPredictions = (predictions = []) => {
   const matched = predictions.find((prediction) =>
     FRUIT_WORDS.some((word) =>
       prediction.className.toLowerCase().includes(word)
     )
   );
+  const obstruction = predictions.find((prediction) =>
+    OBSTRUCTION_WORDS.some((word) => prediction.className.toLowerCase().includes(word))
+  );
+  const obstructionConfidence = Number(obstruction?.probability || 0);
+  const fruitConfidence = Number(matched?.probability || 0);
+  const significantObstruction = Boolean(
+    obstruction && obstructionConfidence >= 0.45 && obstructionConfidence >= fruitConfidence * 0.8
+  );
 
   if (matched) {
     return {
-      accepted: true,
+      accepted: !significantObstruction,
       label: matched.className,
       probability: matched.probability,
+      obstruction: obstruction
+        ? { label: obstruction.className, probability: obstructionConfidence, significant: significantObstruction }
+        : null,
+      warning: obstruction
+        ? "Please keep hands and other objects away from the fruit before capturing."
+        : "",
     };
   }
 
@@ -122,6 +149,12 @@ const classifyElement = async (element) => {
     accepted: false,
     label: predictions[0]?.className || "unknown object",
     probability: predictions[0]?.probability || 0,
+    obstruction: obstruction
+      ? { label: obstruction.className, probability: obstructionConfidence, significant: true }
+      : null,
+    warning: obstruction
+      ? "Please keep hands and other objects away from the fruit before capturing."
+      : "",
   };
 };
 

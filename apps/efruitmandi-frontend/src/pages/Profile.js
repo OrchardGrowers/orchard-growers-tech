@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   FaCheck,
@@ -22,6 +22,7 @@ import {
   sendMsg91WidgetOtp,
   verifyMsg91WidgetOtp,
 } from "../utils/msg91OtpWidget";
+import useOtpVerificationCooldown from "../hooks/useOtpVerificationCooldown";
 
 const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-240.webp`;
 const stripApiSuffix = (value = "") =>
@@ -33,6 +34,10 @@ const EFRUIT_APP_NAME = process.env.VITE_APP_NAME || "efruitmandi";
 const OTP_RESEND_SECONDS = 60;
 const OTP_EXPIRY_SECONDS = Number(process.env.VITE_OTP_EXPIRY_SECONDS || 300);
 const OTP_MAX_ATTEMPTS = 5;
+const defaultApiOrigin =
+  typeof window !== "undefined" && ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)
+    ? "http://localhost:5000"
+    : "https://api.efruitmandi.live";
 const withOAuthAppParam = (url, appName) => {
   try {
     const nextUrl = new URL(url);
@@ -63,7 +68,7 @@ const getEfruitOAuthUrl = (provider, mode, termsAccepted) => {
       process.env.REACT_APP_API_BASE_URL ||
       process.env.VITE_API_URL ||
       process.env.REACT_APP_API_URL ||
-      "https://api.efruitmandi.live",
+      defaultApiOrigin,
   );
   if (apiOrigin) {
     const configuredUrl =
@@ -218,6 +223,9 @@ export default function Profile() {
     type: routeMessage ? "error" : "",
     text: routeMessage,
   });
+  const loginPhoneCooldown = useOtpVerificationCooldown();
+  const signupPhoneCooldown = useOtpVerificationCooldown();
+  const otpActionInFlightRef = useRef(false);
 
   useEffect(() => {
     if (!otpCooldown.login && !otpCooldown.signup) return undefined;
@@ -460,12 +468,17 @@ export default function Profile() {
 
   const requestPasswordResetOtp = async () => {
     const identifier = getAuthIdentifier(loginForm.identifier);
+    if (
+      otpActionInFlightRef.current ||
+      (isPhoneIdentifier(identifier) && loginPhoneCooldown.isLocked)
+    ) return;
     if (!identifier) {
       showError("Enter email or phone number first.");
       return;
     }
 
     try {
+      otpActionInFlightRef.current = true;
       setLoading(true);
       const res = await API.post("/auth/forgot-password", {
         identifier,
@@ -495,6 +508,7 @@ export default function Profile() {
         sanitizeAuthMessage(err, "Could not send OTP. Please try again."),
       );
     } finally {
+      otpActionInFlightRef.current = false;
       setLoading(false);
     }
   };
@@ -503,6 +517,8 @@ export default function Profile() {
     const form = targetMode === "login" ? loginForm : signupForm;
     const identifier = getAuthIdentifier(form.identifier);
 
+    const phoneCooldown = targetMode === "login" ? loginPhoneCooldown : signupPhoneCooldown;
+    if (otpActionInFlightRef.current || (isPhoneIdentifier(identifier) && phoneCooldown.isLocked)) return;
     if (otpCooldown[targetMode] > 0) return;
 
     if (targetMode === "signup" && !signupForm.name.trim()) {
@@ -516,6 +532,7 @@ export default function Profile() {
     }
 
     try {
+      otpActionInFlightRef.current = true;
       setLoading(true);
       const setForm = targetMode === "login" ? setLoginForm : setSignupForm;
       setForm((current) => ({ ...current, otp: "" }));
@@ -583,6 +600,7 @@ export default function Profile() {
         sanitizeAuthMessage(err, "Could not send OTP. Please try again."),
       );
     } finally {
+      otpActionInFlightRef.current = false;
       setLoading(false);
     }
   };
@@ -592,6 +610,9 @@ export default function Profile() {
     const identifier = getAuthIdentifier(form.identifier);
     const otpPurpose =
       resetMode && targetMode === "login" ? "forgot-password" : "auth";
+    const phoneCooldown = targetMode === "login" ? loginPhoneCooldown : signupPhoneCooldown;
+
+    if (otpActionInFlightRef.current || (isPhoneIdentifier(identifier) && phoneCooldown.isLocked)) return;
 
     if (!identifier || !form.otp.trim()) {
       showError("Enter email/phone and OTP.");
@@ -616,6 +637,7 @@ export default function Profile() {
     }
 
     try {
+      otpActionInFlightRef.current = true;
       setLoading(true);
       if (
         isPhoneIdentifier(identifier) &&
@@ -650,6 +672,7 @@ export default function Profile() {
           [targetMode]: result.data?.otpVerificationToken || "",
         }));
         setOtpAttemptCount((current) => ({ ...current, [targetMode]: 0 }));
+        phoneCooldown.startCooldown(60);
         showSuccess("OTP verified successfully.");
         return;
       }
@@ -672,6 +695,7 @@ export default function Profile() {
         [targetMode]: res.data?.otpVerificationToken || "",
       }));
       setOtpAttemptCount((current) => ({ ...current, [targetMode]: 0 }));
+      if (isPhoneIdentifier(identifier)) phoneCooldown.startCooldown(60);
       showSuccess("OTP verified successfully.");
     } catch (err) {
       setVerifiedContact((current) => ({ ...current, [targetMode]: "" }));
@@ -682,6 +706,7 @@ export default function Profile() {
       }));
       showError(sanitizeAuthMessage(err, "Invalid or expired OTP."));
     } finally {
+      otpActionInFlightRef.current = false;
       setLoading(false);
     }
   };
@@ -997,6 +1022,7 @@ export default function Profile() {
                     verified={activeVerified}
                     loading={loading}
                     otpCooldown={otpCooldown.login}
+                    phoneCooldown={loginPhoneCooldown}
                     otpSent={hasOtpRequest("login")}
                     onSendOtp={() =>
                       resetMode
@@ -1080,6 +1106,7 @@ export default function Profile() {
                     verified={activeVerified}
                     loading={loading}
                     otpCooldown={otpCooldown.signup}
+                    phoneCooldown={signupPhoneCooldown}
                     otpSent={hasOtpRequest("signup")}
                     onSendOtp={() => handleSendOtp("signup")}
                     onVerifyOtp={() => handleVerifyOtp("signup")}
@@ -1233,6 +1260,7 @@ function ContactOtpFields({
   loading,
   otpCooldown,
   otpSent,
+  phoneCooldown,
   onSendOtp,
   onVerifyOtp,
   disableAutofill = false,
@@ -1240,6 +1268,10 @@ function ContactOtpFields({
   const contactType = /^\+?\d[\d\s-]{5,}$/.test(form.identifier.trim())
     ? "phone"
     : "email";
+  const phoneLocked = contactType === "phone" && phoneCooldown?.isLocked;
+  const phoneCooldownLabel = phoneCooldown
+    ? `00:${String(phoneCooldown.remainingSeconds).padStart(2, "0")}`
+    : "";
 
   return (
     <>
@@ -1283,20 +1315,20 @@ function ContactOtpFields({
           />
           <button
             type="button"
-            disabled={loading || otpCooldown > 0}
+            disabled={loading || otpCooldown > 0 || phoneLocked}
             onClick={onSendOtp}
             className="rounded-md bg-green-50 px-2 py-1.5 text-[11px] font-bold text-green-700 disabled:opacity-50 sm:px-3 sm:text-xs lg:py-1"
           >
             <FaPaperPlane className="inline-block" />{" "}
-            {otpCooldown > 0 ? `${otpCooldown}s` : "Request OTP"}
+            {phoneLocked ? <><FaLock className="inline-block" /> Request OTP ({phoneCooldownLabel})</> : otpCooldown > 0 ? `${otpCooldown}s` : "Request OTP"}
           </button>
           <button
             type="button"
-            disabled={loading || verified || !otpSent || !form.otp.trim()}
+            disabled={loading || verified || !otpSent || !form.otp.trim() || phoneLocked}
             onClick={onVerifyOtp}
             className="rounded-md bg-[#15883f] px-2 py-1.5 text-[11px] font-bold text-white disabled:opacity-50 sm:px-3 sm:text-xs lg:py-1"
           >
-            {verified ? "Verified" : "Verify"}
+            {phoneLocked ? <><FaLock className="inline-block" /> Verified — Locked ({phoneCooldownLabel})</> : verified ? "Verified" : "Verify"}
           </button>
         </div>
       </div>

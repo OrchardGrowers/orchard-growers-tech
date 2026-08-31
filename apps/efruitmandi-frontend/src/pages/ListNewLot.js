@@ -41,6 +41,7 @@ import {
 import { isMobileDevice, prepareUploadFile } from "../utils/mobileMedia";
 import { requestMediaPermission } from "../utils/mobilePermissions";
 import { calculatePackingTotals } from "../utils/packingCalculations";
+import { getFruitScanStatusCopy } from "../utils/fruitScanningReport";
 
 let fruitRecognitionModulePromise;
 
@@ -521,6 +522,7 @@ const createRemoteCaptureMedia = (payload = {}) => ({
   slotIndex: payload.slotIndex,
   url: payload.media?.url || payload.media?.secure_url || "",
   publicId: payload.media?.publicId || "",
+  scanRecord: payload.scanRecord || null,
   name:
     payload.media?.originalName ||
     (payload.mediaType === "video" ? "Mobile captured video" : "Mobile captured photo"),
@@ -715,6 +717,17 @@ export default function ListNewLot() {
     : selectedPacking && Number(ungradedPacking.packageCount) > 0
       ? [{ key: "UN_GRADED", label: "Ungraded", packageCount: Number(ungradedPacking.packageCount) }]
       : [];
+  const lotScanSummary = activeMediaRows.reduce((summary, grade) => {
+    (gradeLots[grade.key]?.images || []).filter(Boolean).forEach((image) => {
+      const status = String(image?.scanRecord?.analysis?.status || "UPLOADED").toUpperCase();
+      summary.selected += 1;
+      if (["COMPLETED", "REVIEW_REQUIRED", "FAILED"].includes(status)) summary.final += 1;
+      if (status === "COMPLETED") summary.completed += 1;
+      if (status === "REVIEW_REQUIRED") summary.reviewRequired += 1;
+      if (["PENDING", "PROCESSING", "UPLOADED"].includes(status)) summary.processing += 1;
+    });
+    return summary;
+  }, { selected: 0, final: 0, completed: 0, reviewRequired: 0, processing: 0 });
   const needsOrganicCertificate = requiresQualityCertificate(form.quality);
   const isDesktopLotDevice = !isMobileLotDevice;
 
@@ -811,7 +824,9 @@ export default function ListNewLot() {
 
         setMessage(
           res.data.mediaType === "image"
-            ? "Scan captured. Analysis not yet available."
+            ? res.data.scanRecord?.analysis?.status === "REVIEW_REQUIRED"
+              ? "Scan uploaded. Fruit analysis requires review. You may continue listing."
+              : "Scan uploaded. Analysis status will update automatically."
             : "Live media captured."
         );
         setCaptureModal(null);
@@ -832,6 +847,44 @@ export default function ListNewLot() {
       window.clearInterval(intervalId);
     };
   }, [captureModal?.sessionId]);
+
+  useEffect(() => {
+    const pendingCaptures = activeMediaRows.flatMap((grade) =>
+      (gradeLots[grade.key]?.images || [])
+        .filter(isRemoteCaptureMedia)
+        .filter((image) => !["COMPLETED", "REVIEW_REQUIRED", "FAILED"].includes(
+          String(image.scanRecord?.analysis?.status || "").toUpperCase()
+        ))
+    );
+    if (!pendingCaptures.length) return undefined;
+
+    let active = true;
+    const refreshScanStates = async () => {
+      const responses = await Promise.allSettled(
+        pendingCaptures.map((image) => API.get(`/capture-sessions/${image.captureSessionId}/media`))
+      );
+      if (!active) return;
+      responses.forEach((result) => {
+        if (result.status !== "fulfilled" || !result.value.data?.media) return;
+        const payload = result.value.data;
+        const capturedMedia = createRemoteCaptureMedia(payload);
+        setGradeLots((current) => {
+          const images = [...(current[payload.gradeKey]?.images || Array(5).fill(null))];
+          while (images.length < 5) images.push(null);
+          images[Number(payload.slotIndex)] = capturedMedia;
+          return {
+            ...current,
+            [payload.gradeKey]: { ...current[payload.gradeKey], images },
+          };
+        });
+      });
+    };
+    const intervalId = window.setInterval(refreshScanStates, 4000);
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [activeMediaRows, gradeLots]);
 
   const resetPackingDetails = (quality, packingType) => {
     const group = getQualityPackingGroup(quality);
@@ -1380,7 +1433,8 @@ export default function ListNewLot() {
         category: form.fruitName,
       });
       setUploadProgress(100);
-      navigate("/profile-dashboard");
+      const createdLotId = res?.data?.product?._id || res?.data?._id || res?.data?.id;
+      navigate(createdLotId ? `/lots/${createdLotId}#fruit-scanning-report` : "/profile-dashboard");
     } catch (err) {
       setMessage(
         err.response?.data?.msg ||
@@ -1830,7 +1884,29 @@ export default function ListNewLot() {
           <div>
             <div className="mb-2 flex items-center gap-2 text-sm font-bold text-gray-700">
               <FaImage className="text-gray-400" />
-              {packingGroup === "graded" ? "Size-wise sample pictures" : "Fruit Lot sample pictures"}
+              Fruit Lot Scan
+            </div>
+            <div className="mb-3 rounded-md border border-green-200 bg-green-50 p-3">
+              <p className="text-xs font-extrabold text-green-950">Scan fruits for this same Fruit Lot</p>
+              <ul className="mt-2 space-y-1 text-[11px] font-semibold text-green-900">
+                <li>Place fruits inside the frame.</li>
+                <li>Keep all fruits clearly visible.</li>
+                <li>Ensure good lighting and avoid hands or other obstructions.</li>
+              </ul>
+              <p className="mt-2 text-[10px] font-semibold text-green-800">
+                Each selected image is stored as one scan in the final lot-wide report. Provider-unavailable scans remain Review Required and do not fabricate measurements.
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] sm:grid-cols-4">
+                <SummaryTile label="Images selected" value={lotScanSummary.selected} />
+                <SummaryTile label="Final states" value={`${lotScanSummary.final}/${lotScanSummary.selected}`} />
+                <SummaryTile label="Completed" value={lotScanSummary.completed} />
+                <SummaryTile label="Review required" value={lotScanSummary.reviewRequired} />
+              </div>
+              {lotScanSummary.processing > 0 && (
+                <p className="mt-2 flex items-center gap-2 text-[10px] font-extrabold text-green-800">
+                  <FaSpinner className="animate-spin" /> Analyzing {lotScanSummary.processing} image(s). Status refreshes automatically.
+                </p>
+              )}
             </div>
             {isDesktopLotDevice && (
               <div className="mb-2 rounded-md bg-green-50 px-3 py-2 text-xs font-bold text-green-800">
@@ -1863,78 +1939,42 @@ export default function ListNewLot() {
                           slotIndex: index,
                         });
                         const isCreatingCapture = captureStartingKey === captureTargetKey;
-
-                        if (isDesktopLotDevice) {
-                          return (
-                            <button
-                              key={`${grade.key}-${index}`}
-                              type="button"
-                              disabled={isCreatingCapture}
-                              onClick={() =>
-                                openMobileCaptureSession({
-                                  mediaType: "image",
-                                  gradeKey: grade.key,
-                                  slotIndex: index,
-                                })
-                              }
-                              className={`flex min-h-[44px] w-full items-center gap-3 rounded-md border border-dashed px-3 py-3 text-left ${
-                                isCreatingCapture
-                                  ? "cursor-wait border-orange-300 bg-orange-50 text-orange-700"
-                                  : "border-green-300 bg-green-50 text-green-700"
-                              }`}
-                            >
-                              {isCreatingCapture ? <FaSpinner className="animate-spin" /> : <FaImage />}
-                              <span className="text-xs font-semibold">
-                                {isCreatingCapture
-                                  ? "Creating camera link..."
-                                  : image
-                                  ? form.packingType === "Tray Packed Carton"
-                                    ? `Sample pic ${trayLayerLabel} selected`
-                                    : `Sample ${grade.label} pic ${index + 1} selected`
-                                  : form.packingType === "Tray Packed Carton"
-                                    ? `Connect mobile camera for pic ${trayLayerLabel}`
-                                    : `Connect mobile camera for pic ${grade.label} ${index + 1}`}
-                              </span>
-                            </button>
-                          );
-                        }
-
                         return (
-                          <label key={`${grade.key}-${index}`} className="block">
-                            <span className={`flex min-h-[44px] items-center gap-3 rounded-md border border-dashed px-3 py-3 ${
-                              isUploading
-                                ? "cursor-wait border-orange-300 bg-orange-50 text-orange-700"
-                                : "border-green-300 bg-green-50 text-green-700"
-                            }`}>
-                              {isUploading ? <FaSpinner className="animate-spin" /> : <FaImage />}
-                              <span className="text-xs font-semibold">
-                                {isUploading
-                                  ? "Processing image..."
+                          <button
+                            key={`${grade.key}-${index}`}
+                            type="button"
+                            disabled={isCreatingCapture || isUploading}
+                            onClick={() => openMobileCaptureSession({
+                              mediaType: "image",
+                              gradeKey: grade.key,
+                              slotIndex: index,
+                            })}
+                            className={`min-h-[56px] w-full rounded-md border border-dashed px-3 py-3 text-left ${isCreatingCapture ? "cursor-wait border-orange-300 bg-orange-50 text-orange-700" : image ? "border-green-400 bg-white text-green-800" : "border-green-300 bg-green-50 text-green-700"}`}
+                          >
+                            <span className="flex items-center gap-3">
+                              {isCreatingCapture ? <FaSpinner className="animate-spin" /> : <FaImage />}
+                              <span className="min-w-0 flex-1 text-xs font-semibold">
+                                {isCreatingCapture
+                                  ? "Creating scanner session..."
                                   : image
-                                  ? form.packingType === "Tray Packed Carton"
-                                    ? `Sample pic ${trayLayerLabel} selected`
-                                    : `Sample ${grade.label} pic ${index + 1} selected`
-                                  : form.packingType === "Tray Packed Carton"
-                                    ? `Take live sample pic ${trayLayerLabel}`
-                                    : `Take live sample pic ${grade.label} ${index + 1}`}
+                                    ? `Image ${index + 1} · ${getFruitScanStatusCopy(image.scanRecord?.analysis?.status || image.scanRecord?.uploadStatus || "UPLOADED")}`
+                                    : form.packingType === "Tray Packed Carton"
+                                      ? `Scan ${trayLayerLabel}`
+                                      : `Scan ${grade.label} image ${index + 1}`}
                               </span>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                capture="environment"
-                                multiple={false}
-                                disabled={isUploading}
-                                onChange={(e) =>
-                                  updateGradeImage(
-                                    grade.key,
-                                    index,
-                                    e.target.files?.[0]
-                                  )
-                                }
-                                className="hidden"
-                              />
+                              {image && <span className="text-[9px] font-extrabold uppercase">Retake</span>}
                             </span>
-                          </label>
+                            {image?.url && (
+                              <img src={image.url} alt={`${grade.label} scan ${index + 1}`} className="mt-2 h-20 w-full rounded object-cover" />
+                            )}
+                            {image?.scanRecord?.analysis?.warningCodes?.length > 0 && (
+                              <span className="mt-2 block text-[10px] font-bold text-amber-800">
+                                {image.scanRecord.analysis.warningCodes.includes("ANALYSIS_PROVIDER_NOT_CONFIGURED")
+                                  ? "Fruit analysis provider is not configured. Analysis requires review."
+                                  : image.scanRecord.analysis.warningCodes.join(", ").replace(/_/g, " ")}
+                              </span>
+                            )}
+                          </button>
                         );
                       })}
                     </div>
@@ -2036,6 +2076,14 @@ export default function ListNewLot() {
               className="mt-3 block break-all rounded-md bg-green-50 px-3 py-2 text-center text-xs font-bold text-green-800"
             >
               {captureModal.captureUrl}
+            </a>
+            <a
+              href={captureModal.captureUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 flex min-h-11 items-center justify-center rounded-md bg-green-700 px-4 py-3 text-sm font-extrabold text-white"
+            >
+              Open Live Fruit Scanner
             </a>
             <p className="mt-3 text-center text-[11px] font-semibold text-gray-500">
               Waiting for mobile capture. This link expires in 15 minutes.

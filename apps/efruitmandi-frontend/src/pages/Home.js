@@ -35,7 +35,7 @@ import {
   normalizeDealStatus,
 } from "../utils/marketplaceVisibility";
 import SEO from "../components/SEO";
-import { getQualityLabel } from "../config/appleGrading";
+import { getQualityLabel, isCertifiedQuality } from "../config/appleGrading";
 import { getPackingTypeLabel } from "../config/packingSpecifications";
 
 const categories = [
@@ -110,23 +110,50 @@ const previousSections = [
 ];
 
 const categoryKeywords = categories.map((category) => category.name);
+export const HOME_LISTING_FILTERS = Object.freeze({
+  LIVE_FRUIT_LOTS: "LIVE_FRUIT_LOTS",
+  VERIFIED_FRUIT_GROWERS: "VERIFIED_FRUIT_GROWERS",
+  VERIFIED_FRUIT_BUYERS: "VERIFIED_FRUIT_BUYERS",
+  OG_VERIFIED_FRUIT_GROWERS: "OG_VERIFIED_FRUIT_GROWERS",
+  OG_VERIFIED_FRUIT_BUYERS: "OG_VERIFIED_FRUIT_BUYERS",
+  REGISTERED_FRUIT_GROWERS: "REGISTERED_FRUIT_GROWERS",
+  REGISTERED_FRUIT_BUYERS: "REGISTERED_FRUIT_BUYERS",
+  OG_VERIFIED_ORGANIC_FRUIT_GROWERS: "OG_VERIFIED_ORGANIC_FRUIT_GROWERS",
+  OG_VERIFIED_PREMIUM_ORGANIC_FRUIT_GROWERS: "OG_VERIFIED_PREMIUM_ORGANIC_FRUIT_GROWERS",
+});
 const listingFilterOptions = [
-  { value: "live-fruit-lots", label: "Live Fruit Lots" },
-  { value: "og-verified-fruit-growers", label: "OG Verified Fruit Growers" },
-  { value: "og-verified-fruit-buyers", label: "OG Verified Fruit Buyers" },
-  { value: "registered-fruit-growers", label: "Registered Fruit Growers" },
-  { value: "registered-fruit-buyers", label: "Registered Fruit Buyers" },
+  { value: "", label: "Default Home" },
+  { value: HOME_LISTING_FILTERS.LIVE_FRUIT_LOTS, label: "Live Fruit Lots" },
+  { value: HOME_LISTING_FILTERS.VERIFIED_FRUIT_GROWERS, label: "Verified Fruit Growers" },
+  { value: HOME_LISTING_FILTERS.VERIFIED_FRUIT_BUYERS, label: "Verified Fruit Buyers" },
+  { value: HOME_LISTING_FILTERS.OG_VERIFIED_FRUIT_GROWERS, label: "OG Verified Fruit Growers" },
+  { value: HOME_LISTING_FILTERS.OG_VERIFIED_FRUIT_BUYERS, label: "OG Verified Fruit Buyers" },
+  { value: HOME_LISTING_FILTERS.REGISTERED_FRUIT_GROWERS, label: "Registered Fruit Growers" },
+  { value: HOME_LISTING_FILTERS.REGISTERED_FRUIT_BUYERS, label: "Registered Fruit Buyers" },
   {
-    value: "og-verified-organic-fruit-growers",
+    value: HOME_LISTING_FILTERS.OG_VERIFIED_ORGANIC_FRUIT_GROWERS,
     label: "OG Verified Organic Fruit Growers",
   },
   {
-    value: "og-verified-premium-organic-fruit-growers",
+    value: HOME_LISTING_FILTERS.OG_VERIFIED_PREMIUM_ORGANIC_FRUIT_GROWERS,
     label: "OG Verified Premium Organic Fruit Growers",
   },
 ];
-const listingFilterValues = new Set(listingFilterOptions.map((option) => option.value));
-const DEFAULT_LISTING_FILTER = listingFilterOptions[0].value;
+const listingFilterValues = new Set(listingFilterOptions.map((option) => option.value).filter(Boolean));
+const profileListingFilterValues = new Set(
+  Object.values(HOME_LISTING_FILTERS).filter((value) => value !== HOME_LISTING_FILTERS.LIVE_FRUIT_LOTS)
+);
+const legacyListingFilterValues = {
+  "live-fruit-lots": HOME_LISTING_FILTERS.LIVE_FRUIT_LOTS,
+  "verified-fruit-growers": HOME_LISTING_FILTERS.VERIFIED_FRUIT_GROWERS,
+  "verified-fruit-buyers": HOME_LISTING_FILTERS.VERIFIED_FRUIT_BUYERS,
+  "og-verified-fruit-growers": HOME_LISTING_FILTERS.OG_VERIFIED_FRUIT_GROWERS,
+  "og-verified-fruit-buyers": HOME_LISTING_FILTERS.OG_VERIFIED_FRUIT_BUYERS,
+  "registered-fruit-growers": HOME_LISTING_FILTERS.REGISTERED_FRUIT_GROWERS,
+  "registered-fruit-buyers": HOME_LISTING_FILTERS.REGISTERED_FRUIT_BUYERS,
+  "og-verified-organic-fruit-growers": HOME_LISTING_FILTERS.OG_VERIFIED_ORGANIC_FRUIT_GROWERS,
+  "og-verified-premium-organic-fruit-growers": HOME_LISTING_FILTERS.OG_VERIFIED_PREMIUM_ORGANIC_FRUIT_GROWERS,
+};
 
 const desktopSections = [
   { key: "liveLots", label: "Live Fruit Deals" },
@@ -157,12 +184,16 @@ const normalizeApiUrl = (value = "") => {
   if (!normalized) return "";
   return /\/api$/i.test(normalized) ? normalized : `${normalized}/api`;
 };
+const defaultApiOrigin =
+  typeof window !== "undefined" && ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)
+    ? "http://localhost:5000"
+    : "https://api.efruitmandi.live";
 const API_ORIGIN = normalizeBaseUrl(
   process.env.VITE_API_BASE_URL ||
     process.env.REACT_APP_API_BASE_URL ||
     stripApiSuffix(process.env.VITE_API_URL || "") ||
     stripApiSuffix(process.env.REACT_APP_API_URL || "") ||
-    "https://api.efruitmandi.live"
+    defaultApiOrigin
 );
 const API_BASE_URL = normalizeApiUrl(
   process.env.VITE_API_BASE_URL ||
@@ -428,7 +459,7 @@ const policyLinkGroups = [
 
 const LOT_OPEN_HOUR = 9;
 const LOT_CLOSE_HOUR = 16;
-const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
+const LOGIN_REQUIRED_MESSAGE = "Please login or Sign up first to continue.";
 let homeMarketDataPromise = null;
 const scheduleAfterPaint = (callback, delay = 0) => {
   let timeoutId;
@@ -444,8 +475,8 @@ const scheduleAfterPaint = (callback, delay = 0) => {
 const fetchHomeMarketData = ({ force = false } = {}) => {
   if (force || !homeMarketDataPromise) {
     homeMarketDataPromise = Promise.all([
-      getPublicJson("/products?platform=efruitmandi").catch(() => ({ data: [] })),
-      getPublicJson("/auctions").catch(() => ({ data: [] })),
+      getPublicJson("/products?platform=efruitmandi&devPublicMarketplace=1").catch(() => ({ data: [] })),
+      getPublicJson("/auctions?devPublicMarketplace=1").catch(() => ({ data: [] })),
     ]);
   }
 
@@ -609,9 +640,10 @@ export default function Home() {
   const listingFilterParam = searchParams.get("listingFilter") || "";
   const listingSearchParam = searchParams.get("listingSearch") || "";
   const profileModeQueryParam = searchParams.get("mode") || "";
-  const activeListingFilter = listingFilterValues.has(listingFilterParam)
-    ? listingFilterParam
-    : DEFAULT_LISTING_FILTER;
+  const normalizedListingFilterParam = legacyListingFilterValues[listingFilterParam] || listingFilterParam;
+  const activeListingFilter = listingFilterValues.has(normalizedListingFilterParam)
+    ? normalizedListingFilterParam
+    : "";
   const [listingSearch, setListingSearch] = useState(listingSearchParam);
   const [user, setUser] = useState(() => getCurrentUser());
   const [profileModePreference, setProfileModePreference] = useState("");
@@ -631,6 +663,7 @@ export default function Home() {
   const [deferredSectionsReady, setDeferredSectionsReady] = useState(false);
   const [showDesktopLayout, setShowDesktopLayout] = useState(() => isDesktopViewport());
   const fullMarketDataRef = useRef({ products: [], auctions: [] });
+  const listingFilterModeRef = useRef(Boolean(activeListingFilter));
   const deferredSectionsReadyRef = useRef(false);
   const leftColumnRef = useRef(null);
   const centerColumnRef = useRef(null);
@@ -648,8 +681,9 @@ export default function Home() {
       setSearchParams(
         (currentParams) => {
           const nextParams = new URLSearchParams(currentParams);
-          if (nextFilter === DEFAULT_LISTING_FILTER) {
+          if (!nextFilter) {
             nextParams.delete("listingFilter");
+            nextParams.delete("listingSearch");
           } else {
             nextParams.set("listingFilter", nextFilter);
           }
@@ -657,6 +691,7 @@ export default function Home() {
         },
         { replace: true }
       );
+      if (!nextFilter) setListingSearch("");
     },
     [setSearchParams]
   );
@@ -675,7 +710,7 @@ export default function Home() {
         auctions: nextAuctions,
       };
 
-      if (isMobileViewport() && !deferredSectionsReadyRef.current) {
+      if (isMobileViewport() && !deferredSectionsReadyRef.current && !listingFilterModeRef.current) {
         const initialData = getInitialMobileMarketData(nextProducts, nextAuctions);
         setProducts(initialData.products);
         setAuctions(initialData.auctions);
@@ -695,11 +730,11 @@ export default function Home() {
     setRatesError("");
 
     const [growerRes, buyerRes, ratesRes] = await Promise.all([
-      getPublicJson("/user/public-profiles?role=grower&limit=all").catch(() => {
+      getPublicJson("/user/public-profiles?role=grower&limit=all&devPublicMarketplace=1").catch(() => {
         setProfilesError("Unable to load latest public profiles.");
         return { data: { profiles: [] } };
       }),
-      getPublicJson("/user/public-profiles?role=buyer&limit=all").catch(() => {
+      getPublicJson("/user/public-profiles?role=buyer&limit=all&devPublicMarketplace=1").catch(() => {
         setProfilesError("Unable to load latest public profiles.");
         return { data: { profiles: [] } };
       }),
@@ -824,6 +859,29 @@ export default function Home() {
   useEffect(() => {
     return scheduleAfterPaint(() => loadSupplementalHomeData(), isMobileViewport() ? 0 : 600);
   }, [loadSupplementalHomeData]);
+
+  useEffect(() => {
+    listingFilterModeRef.current = Boolean(activeListingFilter);
+    if (!activeListingFilter) return undefined;
+
+    const cachedData = fullMarketDataRef.current;
+    if (cachedData.products.length || cachedData.auctions.length) {
+      setProducts(cachedData.products);
+      setAuctions(cachedData.auctions);
+    } else {
+      loadMarketData();
+    }
+
+    if (!profileListingFilterValues.has(activeListingFilter)) return undefined;
+    loadSupplementalHomeData();
+    const refreshProfiles = () => loadSupplementalHomeData();
+    const timer = window.setInterval(refreshProfiles, 60000);
+    window.addEventListener("focus", refreshProfiles);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshProfiles);
+    };
+  }, [activeListingFilter, loadMarketData, loadSupplementalHomeData]);
 
   useEffect(() => {
     let active = true;
@@ -997,14 +1055,14 @@ export default function Home() {
   );
   const filteredListingResult = useMemo(
     () =>
-      getHomepageFilteredListings({
+      activeListingFilter ? getHomepageFilteredListings({
         filter: activeListingFilter,
         search: listingSearch,
         liveLots,
         allDealListings: homeDealListings,
         growers: publicGrowers,
         buyers: publicBuyers,
-      }),
+      }) : null,
     [
       activeListingFilter,
       listingSearch,
@@ -1014,8 +1072,7 @@ export default function Home() {
       publicBuyers,
     ]
   );
-  const showFilteredListingResult =
-    activeListingFilter !== DEFAULT_LISTING_FILTER || Boolean(listingSearch.trim());
+  const showFilteredListingResult = Boolean(activeListingFilter);
   const canQuoteFromFeed = isPublicVisitor || hasBuyerProfile(user);
   const canRateFromFeed = hasBuyerProfile(user);
   const currentUserId = user?._id || user?.id || "";
@@ -1130,45 +1187,50 @@ export default function Home() {
           className="-mx-3 pt-1"
           onSelect={(name) => navigate(`/search?q=${encodeURIComponent(name)}`)}
         />
-        {showFilteredListingResult && (
-          <FilteredListingResults
-            className="pt-2"
-            result={filteredListingResult}
-            dealLoading={loading}
-            profilesLoading={profilesLoading}
-            profilesError={profilesError}
-            onOpenLotById={openLotDetails}
-            onQuoteLot={openQuoteFlow}
-            onRateLot={openRateGrowerFlow}
-            onOpenProfile={openPublicProfileFlow}
-            onRateProfile={openRateProfileFlow}
-            canQuoteLot={canQuoteFromFeed}
-            canRateLot={canRateFromFeed}
-            currentUserId={currentUserId}
-          />
-        )}
-        <PublicHomeFeed
-          className="pt-2"
-          liveLots={liveLots}
-          closedLots={closedLots}
-          dealLoading={loading}
-          growers={publicGrowers}
-          buyers={publicBuyers}
-          profilesLoading={profilesLoading}
-          profilesError={profilesError}
-          rates={offlineMandiRates}
-          ratesLoading={ratesLoading}
-          ratesError={ratesError}
-          showProfiles
-          showRates={deferredSectionsReady}
-          onOpenLotById={openLotDetails}
-          onQuoteLot={openQuoteFlow}
-          onRateLot={openRateGrowerFlow}
-          onOpenProfile={openPublicProfileFlow}
-          onRateProfile={openRateProfileFlow}
-          canQuoteLot={canQuoteFromFeed}
-          canRateLot={canRateFromFeed}
-          currentUserId={currentUserId}
+        <ExclusiveHomeListingMode
+          filterActive={showFilteredListingResult}
+          filteredContent={(
+            <FilteredListingResults
+              className="pt-2"
+              result={filteredListingResult}
+              dealLoading={loading}
+              profilesLoading={profilesLoading}
+              profilesError={profilesError}
+              onOpenLotById={openLotDetails}
+              onQuoteLot={openQuoteFlow}
+              onRateLot={openRateGrowerFlow}
+              onOpenProfile={openPublicProfileFlow}
+              onRateProfile={openRateProfileFlow}
+              canQuoteLot={canQuoteFromFeed}
+              canRateLot={canRateFromFeed}
+              currentUserId={currentUserId}
+            />
+          )}
+          defaultContent={(
+            <PublicHomeFeed
+              className="pt-2"
+              liveLots={liveLots}
+              closedLots={closedLots}
+              dealLoading={loading}
+              growers={publicGrowers}
+              buyers={publicBuyers}
+              profilesLoading={profilesLoading}
+              profilesError={profilesError}
+              rates={offlineMandiRates}
+              ratesLoading={ratesLoading}
+              ratesError={ratesError}
+              showProfiles
+              showRates={deferredSectionsReady}
+              onOpenLotById={openLotDetails}
+              onQuoteLot={openQuoteFlow}
+              onRateLot={openRateGrowerFlow}
+              onOpenProfile={openPublicProfileFlow}
+              onRateProfile={openRateProfileFlow}
+              canQuoteLot={canQuoteFromFeed}
+              canRateLot={canRateFromFeed}
+              currentUserId={currentUserId}
+            />
+          )}
         />
       </div>
 
@@ -1210,43 +1272,47 @@ export default function Home() {
           onFilterChange={updateListingFilter}
           onSearchChange={setListingSearch}
         />
-        {showFilteredListingResult && (
-          <FilteredListingResults
-            result={filteredListingResult}
-            dealLoading={loading}
-            profilesLoading={profilesLoading}
-            profilesError={profilesError}
-            onOpenLotById={openLotDetails}
-            onQuoteLot={openQuoteFlow}
-            onRateLot={openRateGrowerFlow}
-            onOpenProfile={openPublicProfileFlow}
-            onRateProfile={openRateProfileFlow}
-            canQuoteLot={canQuoteFromFeed}
-            canRateLot={canRateFromFeed}
-            currentUserId={currentUserId}
-          />
-        )}
-
-        <PublicHomeFeed
-          liveLots={liveLots}
-          closedLots={closedLots}
-          dealLoading={loading}
-          growers={publicGrowers}
-          buyers={publicBuyers}
-          profilesLoading={profilesLoading}
-          profilesError={profilesError}
-          rates={offlineMandiRates}
-          ratesLoading={ratesLoading}
-          ratesError={ratesError}
-          showProfiles
-          onOpenLotById={openLotDetails}
-          onQuoteLot={openQuoteFlow}
-          onRateLot={openRateGrowerFlow}
-          onOpenProfile={openPublicProfileFlow}
-          onRateProfile={openRateProfileFlow}
-          canQuoteLot={canQuoteFromFeed}
-          canRateLot={canRateFromFeed}
-          currentUserId={currentUserId}
+        <ExclusiveHomeListingMode
+          filterActive={showFilteredListingResult}
+          filteredContent={(
+            <FilteredListingResults
+              result={filteredListingResult}
+              dealLoading={loading}
+              profilesLoading={profilesLoading}
+              profilesError={profilesError}
+              onOpenLotById={openLotDetails}
+              onQuoteLot={openQuoteFlow}
+              onRateLot={openRateGrowerFlow}
+              onOpenProfile={openPublicProfileFlow}
+              onRateProfile={openRateProfileFlow}
+              canQuoteLot={canQuoteFromFeed}
+              canRateLot={canRateFromFeed}
+              currentUserId={currentUserId}
+            />
+          )}
+          defaultContent={(
+            <PublicHomeFeed
+              liveLots={liveLots}
+              closedLots={closedLots}
+              dealLoading={loading}
+              growers={publicGrowers}
+              buyers={publicBuyers}
+              profilesLoading={profilesLoading}
+              profilesError={profilesError}
+              rates={offlineMandiRates}
+              ratesLoading={ratesLoading}
+              ratesError={ratesError}
+              showProfiles
+              onOpenLotById={openLotDetails}
+              onQuoteLot={openQuoteFlow}
+              onRateLot={openRateGrowerFlow}
+              onOpenProfile={openPublicProfileFlow}
+              onRateProfile={openRateProfileFlow}
+              canQuoteLot={canQuoteFromFeed}
+              canRateLot={canRateFromFeed}
+              currentUserId={currentUserId}
+            />
+          )}
         />
       </section>
 
@@ -1428,13 +1494,18 @@ function ListingFilterSearchRow({
             type="search"
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search by Firm/company/Growers"
+            disabled={!activeFilter}
+            placeholder={activeFilter ? "Search inside selected category" : "Select a filter to search"}
             className="min-w-0 flex-1 bg-transparent text-[11px] text-gray-900 outline-none placeholder:text-gray-500 sm:text-xs"
           />
         </span>
       </label>
     </section>
   );
+}
+
+export function ExclusiveHomeListingMode({ filterActive, filteredContent, defaultContent }) {
+  return filterActive ? filteredContent : defaultContent;
 }
 
 function FilteredListingResults({
@@ -1859,6 +1930,7 @@ function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile }) {
   const bannerImageSrcSet = buildProfileBannerSrcSet(rawBannerImageUrl);
   const badgeText = role === "grower" ? "Registered Grower" : "Registered Buyer";
   const roleTitle = role === "grower" ? "Fruit Grower Profile" : "Fruit Buyer Profile";
+  const showOgVerifiedBadge = isOgVerifiedProfile(profile, role);
 
   return (
     <article className="overflow-hidden border border-gray-200 bg-white md:rounded-md">
@@ -1880,7 +1952,7 @@ function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile }) {
             <span className="rounded bg-green-100 px-2 py-1 text-[10px] font-extrabold uppercase text-green-800">
               {badgeText}
             </span>
-            {safeProfile.isOgVerified && (
+            {showOgVerifiedBadge && (
               <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-1 text-[10px] font-extrabold text-amber-700">
                 <FaShieldAlt />
                 OG Verified
@@ -2088,10 +2160,15 @@ function getProfileListingId(profile = {}) {
 }
 
 function isOgVerifiedProfile(profile = {}, role = "") {
-  return getSafePublicProfile({ ...profile, businessType: role }).isOgVerified;
+  const safeProfile = getSafePublicProfile({ ...profile, businessType: role });
+  return safeProfile.isKycVerified && safeProfile.isOgVerified;
 }
 
-function getHomepageFilteredListings({
+function isKycVerifiedProfile(profile = {}, role = "") {
+  return getSafePublicProfile({ ...profile, businessType: role }).isKycVerified;
+}
+
+export function getHomepageFilteredListings({
   filter,
   search,
   liveLots = [],
@@ -2101,9 +2178,9 @@ function getHomepageFilteredListings({
 }) {
   const filterOption =
     listingFilterOptions.find((option) => option.value === filter) ||
-    listingFilterOptions[0];
+    listingFilterOptions[1];
 
-  if (filter === "live-fruit-lots") {
+  if (filter === HOME_LISTING_FILTERS.LIVE_FRUIT_LOTS) {
     return {
       kind: "deals",
       title: filterOption.label,
@@ -2113,18 +2190,27 @@ function getHomepageFilteredListings({
   }
 
   const isBuyerFilter =
-    filter === "og-verified-fruit-buyers" || filter === "registered-fruit-buyers";
+    filter === HOME_LISTING_FILTERS.VERIFIED_FRUIT_BUYERS ||
+    filter === HOME_LISTING_FILTERS.OG_VERIFIED_FRUIT_BUYERS ||
+    filter === HOME_LISTING_FILTERS.REGISTERED_FRUIT_BUYERS;
   const role = isBuyerFilter ? "buyer" : "grower";
   let profiles = isBuyerFilter ? buyers : growers;
 
   if (
-    filter === "og-verified-fruit-growers" ||
-    filter === "og-verified-fruit-buyers"
+    filter === HOME_LISTING_FILTERS.VERIFIED_FRUIT_GROWERS ||
+    filter === HOME_LISTING_FILTERS.VERIFIED_FRUIT_BUYERS
+  ) {
+    profiles = profiles.filter((profile) => isKycVerifiedProfile(profile, role));
+  }
+
+  if (
+    filter === HOME_LISTING_FILTERS.OG_VERIFIED_FRUIT_GROWERS ||
+    filter === HOME_LISTING_FILTERS.OG_VERIFIED_FRUIT_BUYERS
   ) {
     profiles = profiles.filter((profile) => isOgVerifiedProfile(profile, role));
   }
 
-  if (filter === "og-verified-organic-fruit-growers") {
+  if (filter === HOME_LISTING_FILTERS.OG_VERIFIED_ORGANIC_FRUIT_GROWERS) {
     const organicGrowerIds = new Set(
       allDealListings.filter(isOrganicLot).map(getLotOwnerId).filter(Boolean)
     );
@@ -2135,7 +2221,7 @@ function getHomepageFilteredListings({
     );
   }
 
-  if (filter === "og-verified-premium-organic-fruit-growers") {
+  if (filter === HOME_LISTING_FILTERS.OG_VERIFIED_PREMIUM_ORGANIC_FRUIT_GROWERS) {
     const premiumOrganicGrowerIds = new Set(
       allDealListings.filter(isPremiumOrganicLot).map(getLotOwnerId).filter(Boolean)
     );
@@ -2153,22 +2239,23 @@ function getHomepageFilteredListings({
     items: profiles.filter((profile) =>
       profileMatchesListingSearch(profile, role, search)
     ),
-    emptyText:
-      role === "grower"
-        ? "Latest grower profiles will appear soon."
-        : "Latest buyer profiles will appear soon.",
+    emptyText: `No ${filterOption.label} are available.`,
   };
 }
 
-function isOrganicLot(lot = {}) {
-  const quality = String(lot.quality || "").toLowerCase();
-  return (
-    quality.includes("organic") ||
-    Boolean(lot.organicCertificationNo || lot.organicCertificateUrl)
+export function isOrganicLot(lot = {}) {
+  const normalizedQuality = String(lot.quality || "").trim().toLowerCase();
+  const hasCertifiedOrganicQuality =
+    isCertifiedQuality(lot.quality) ||
+    normalizedQuality === "premium certified organic export quality" ||
+    normalizedQuality === "certified organic";
+  return Boolean(
+    hasCertifiedOrganicQuality &&
+      (lot.hasOrganicCertificateProof || lot.organicCertificationNo || lot.organicCertificateUrl)
   );
 }
 
-function isPremiumOrganicLot(lot = {}) {
+export function isPremiumOrganicLot(lot = {}) {
   const quality = String(lot.quality || "").toLowerCase();
   return quality.includes("premium") && isOrganicLot(lot);
 }

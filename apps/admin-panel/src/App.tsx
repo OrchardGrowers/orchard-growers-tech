@@ -411,6 +411,27 @@ type AdminProduct = {
   createdSource?: string;
   createdBy?: { name?: string; orchardName?: string; businessName?: string } | string;
   createdAt?: string;
+  fruitScanningReport?: {
+    available?: boolean;
+    status?: string;
+    imagesCaptured?: number;
+    imagesAnalyzed?: number;
+    imagesReviewRequired?: number;
+    totalFruitCount?: number;
+    warningCodes?: string[];
+    analyses?: Array<{
+      status?: string;
+      grade?: string;
+      fruitCount?: number | null;
+      analyzedAt?: string | null;
+      modelProvider?: string;
+      modelVersion?: string;
+      warningCodes?: string[];
+      failureCode?: string;
+      imageQuality?: { confidence?: number | null } | null;
+      detections?: unknown[];
+    }>;
+  };
 };
 type OrchardPartyRecord = {
   id?: string;
@@ -422,6 +443,12 @@ type OrchardPartyRecord = {
   gstin?: string;
   status?: string;
   productMapping?: string;
+};
+
+const formatAdminDate = (value?: string | null) => {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleString("en-IN");
 };
 
 const getStoredPartyString = (record: Record<string, unknown>, field: string) => {
@@ -7596,7 +7623,9 @@ function EfruitMandiLotsPanel({
               <th className="px-4 py-3">Fruit / Variety</th>
               <th className="px-4 py-3">Quality</th>
               <th className="px-4 py-3">Quantity</th>
+              <th className="px-4 py-3">Private Base Price</th>
               <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Fruit Analysis</th>
               <th className="px-4 py-3">Organic Certificate</th>
             </tr>
           </thead>
@@ -7620,10 +7649,31 @@ function EfruitMandiLotsPanel({
                     </p>
                   ) : null}
                 </td>
+                <td className="px-4 py-3 font-bold text-amber-300">
+                  {product.basePrice != null ? `Rs. ${product.basePrice}` : 'Restricted'}
+                </td>
                 <td className="px-4 py-3">
                   <span className="rounded-full bg-slate-800 px-2 py-1 text-xs font-bold text-slate-300">
                     {formatProductStatus(product.status || 'SOLD')}
                   </span>
+                </td>
+                <td className="px-4 py-3 text-xs text-slate-300">
+                  <p className="font-black text-white">{product.fruitScanningReport?.status || 'NOT_AVAILABLE'}</p>
+                  <p>{product.fruitScanningReport?.imagesAnalyzed || 0} / {product.fruitScanningReport?.imagesCaptured || 0} image(s) analysed</p>
+                  {product.fruitScanningReport?.totalFruitCount != null && <p>Fruit detections: {product.fruitScanningReport.totalFruitCount}</p>}
+                  {(product.fruitScanningReport?.imagesReviewRequired || 0) > 0 && <p className="text-amber-300">Review required: {product.fruitScanningReport?.imagesReviewRequired}</p>}
+                  {product.fruitScanningReport?.analyses?.find((analysis) => analysis.status === 'COMPLETED')?.imageQuality?.confidence != null && (
+                    <p>Confidence: {product.fruitScanningReport.analyses.find((analysis) => analysis.status === 'COMPLETED')?.imageQuality?.confidence}%</p>
+                  )}
+                  {product.fruitScanningReport?.analyses?.find((analysis) => analysis.modelProvider)?.modelProvider && (
+                    <p>Provider: {product.fruitScanningReport.analyses.find((analysis) => analysis.modelProvider)?.modelProvider} / {product.fruitScanningReport.analyses.find((analysis) => analysis.modelVersion)?.modelVersion || 'unknown model'}</p>
+                  )}
+                  {product.fruitScanningReport?.warningCodes?.length ? (
+                    <p className="text-amber-300">{product.fruitScanningReport.warningCodes.join(', ').replace(/_/g, ' ')}</p>
+                  ) : null}
+                  {product.fruitScanningReport?.analyses?.find((analysis) => analysis.status === 'COMPLETED')?.analyzedAt && (
+                    <p>{formatAdminDate(product.fruitScanningReport.analyses.find((analysis) => analysis.status === 'COMPLETED')?.analyzedAt)}</p>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <OrganicCertificationCell product={product} onViewFile={onViewFile} />

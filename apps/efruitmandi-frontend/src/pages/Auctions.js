@@ -36,7 +36,7 @@ const sortOptions = [
 ];
 
 const LOT_OPEN_HOUR = 12;
-const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
+const LOGIN_REQUIRED_MESSAGE = "Please login or Sign up first to continue.";
 
 export default function Auctions() {
   const navigate = useNavigate();
@@ -60,8 +60,8 @@ export default function Auctions() {
     try {
       setLoading(true);
       const [auctionRes, productRes] = await Promise.all([
-        API.get("/auctions"),
-        API.get("/products?platform=efruitmandi").catch(() => ({ data: [] })),
+        API.get("/auctions?devPublicMarketplace=1"),
+        API.get("/products?platform=efruitmandi&devPublicMarketplace=1").catch(() => ({ data: [] })),
       ]);
       setAuctions(auctionRes.data || []);
       setProducts(getEfruitMandiProducts(productRes.data));

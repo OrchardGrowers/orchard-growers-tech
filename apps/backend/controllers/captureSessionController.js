@@ -7,6 +7,8 @@ import {
 } from "../services/cloudinaryService.js";
 import { preprocessFruitImage } from "../services/imagePreprocessingService.js";
 import { createScanRecord } from "../utils/createScanRecord.js";
+import { runConfiguredFruitAnalysis } from "../services/fruitAnalysisProviderService.js";
+import { toPublicScanAnalysis } from "../services/fruitScanningReportService.js";
 import {
   CAPTURE_IMAGE_MIME_TYPES,
   CAPTURE_VIDEO_MIME_TYPES,
@@ -124,7 +126,15 @@ const assertSessionUploadable = (session) => {
   }
 };
 
-const serializeSession = (session) => ({
+const serializeScanState = (scan) => scan
+  ? {
+      scanRecordId: scan._id,
+      uploadStatus: scan.status,
+      analysis: toPublicScanAnalysis(scan),
+    }
+  : null;
+
+const serializeSession = (session, scan = null) => ({
   sessionId: session.sessionId,
   mediaType: session.mediaType,
   gradeKey: session.gradeKey,
@@ -134,10 +144,11 @@ const serializeSession = (session) => ({
   scanPurpose: session.scanPurpose || "",
   status: session.status,
   expiresAt: session.expiresAt,
+  scanRecord: serializeScanState(scan),
 });
 
-const serializeMedia = (session) => ({
-  ...serializeSession(session),
+const serializeMedia = (session, scan = null) => ({
+  ...serializeSession(session, scan),
   media: session.media?.url
     ? {
         url: session.media.url,
@@ -248,7 +259,12 @@ export const getCaptureSession = async (req, res, next) => {
     const session = await CaptureSession.findOne({ sessionId: req.params.sessionId });
     assertSessionUsable(session);
 
-    res.json(serializeSession(session));
+    const scan = await ScanRecord.findOne({
+      captureSessionId: session.sessionId,
+      status: { $ne: "SUPERSEDED" },
+    }).sort({ createdAt: -1 }).lean();
+
+    res.json(serializeSession(session, scan));
   } catch (error) {
     next(error);
   }
@@ -357,7 +373,12 @@ export const uploadCaptureSessionMedia = async (req, res, next) => {
     await session.save();
     committed = true;
 
-    res.json(serializeMedia(session));
+    res.json(serializeMedia(session, createdScanRecord));
+    if (process.env.FRUIT_ANALYSIS_PROVIDER_URL) {
+      setImmediate(() => runConfiguredFruitAnalysis(createdScanRecord._id).catch((error) => {
+        console.error(`[fruit-analysis] ${boundedText(error?.message || "Provider execution failed", 200)}`);
+      }));
+    }
   } catch (error) {
     if (!committed) {
       await Promise.allSettled([
@@ -387,7 +408,13 @@ export const getCaptureSessionMedia = async (req, res, next) => {
     assertSessionUsable(session);
     validateSessionOwner(session, req.user.id);
 
-    res.json(serializeMedia(session));
+    const scan = await ScanRecord.findOne({
+      captureSessionId: session.sessionId,
+      growerId: req.user.id,
+      status: { $ne: "SUPERSEDED" },
+    }).sort({ createdAt: -1 }).lean();
+
+    res.json(serializeMedia(session, scan));
   } catch (error) {
     next(error);
   }

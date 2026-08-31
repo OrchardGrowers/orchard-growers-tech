@@ -144,7 +144,7 @@ router.post("/callback", protect, authorize("buyer"), async (req, res) => {
 router.get("/escrow/:orderId", protect, async (req, res) => {
   try {
     const order = await Order.findById(req.params.orderId)
-      .populate("product")
+      .populate("product", "-basePrice")
       .populate("buyer", "name businessName buyerContactPerson phone email location")
       .populate("grower", "name orchardName phone email location")
       .populate("driver", "name logisticsName vehicleNumber driverName driverContact");

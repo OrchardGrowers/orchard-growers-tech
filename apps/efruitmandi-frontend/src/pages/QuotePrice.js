@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { FaCalculator, FaMapMarkerAlt, FaSeedling, FaVideo } from "react-icons/fa";
+import { FaCalculator, FaDownload, FaFileAlt, FaMapMarkerAlt, FaSeedling, FaVideo } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
 import { trackDealCreated } from "../services/analytics";
 import BackHomeButton from "../components/BackHomeButton";
 import { canQuote, getCurrentUser, getKycStatusLabel, hasBuyerProfile } from "../utils/auth";
 import { saveUserToStorage } from "../utils/userStorage";
+import { canDownloadCompletedFruitScanningReport } from "../utils/fruitScanningReport";
 
-const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
+const LOGIN_REQUIRED_MESSAGE = "Please login or Sign up first to continue.";
 const DISTANCE_PENDING_MESSAGE = "Delivery distance will be calculated after buyer and grower business locations are available.";
 
 export default function QuotePrice() {
@@ -19,6 +20,7 @@ export default function QuotePrice() {
   const isKycApproved = canQuote(profileUser);
   const kycStatusLabel = getKycStatusLabel(profileUser);
   const [product, setProduct] = useState(null);
+  const [fruitScanningReport, setFruitScanningReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState(null);
   const [gradePrices, setGradePrices] = useState({});
@@ -27,6 +29,7 @@ export default function QuotePrice() {
   const [quotation, setQuotation] = useState(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [reportDownloading, setReportDownloading] = useState(false);
 
   useEffect(() => {
     const loadLot = async () => {
@@ -44,7 +47,7 @@ export default function QuotePrice() {
         }
 
         const [lotRes, profileRes, offersRes] = await Promise.all([
-          API.get(`/products/${lotId}?platform=efruitmandi`),
+          API.get(`/products/${lotId}?platform=efruitmandi&devPublicMarketplace=1`),
           API.get("/user/profile").catch(() => ({ data: user })),
           API.get(`/quotes/lots/${lotId}`).catch(() => ({ data: { quotations: [] } })),
         ]);
@@ -53,6 +56,7 @@ export default function QuotePrice() {
         saveUserToStorage(freshUser);
         const lot = lotRes.data?.product || null;
         setProduct(lot);
+        setFruitScanningReport(lotRes.data?.fruitScanningReport || null);
         setOtherBuyerOffers(Array.isArray(offersRes.data?.quotations) ? offersRes.data.quotations : []);
         setActiveImage(getLotImages(lot)[0] || null);
         setAutoDistanceKm(calculateDistanceKm(lot?.createdBy, freshUser));
@@ -81,6 +85,28 @@ export default function QuotePrice() {
     () => calculateBuyerPreview(availableGrades, gradePrices),
     [availableGrades, gradePrices]
   );
+
+  const downloadScanningReport = async () => {
+    if (!canDownloadCompletedFruitScanningReport(fruitScanningReport) || reportDownloading) return;
+    try {
+      setReportDownloading(true);
+      const response = await API.get(`/products/${lotId}/pdf?platform=efruitmandi`, {
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `eFruitMandi-lot-${product?.lotNo || lotId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      setMessage("Fruit scanning report PDF could not be downloaded.");
+    } finally {
+      setReportDownloading(false);
+    }
+  };
 
   const updateGradePrice = (grade, value) => {
     setQuotation(null);
@@ -213,6 +239,12 @@ export default function QuotePrice() {
               activeImage={activeImage}
               onSelectImage={setActiveImage}
             />
+            <BuyerScanningReportPanel
+              report={fruitScanningReport}
+              downloading={reportDownloading}
+              onView={() => navigate(`/lots/${lotId}#fruit-scanning-report`)}
+              onDownload={downloadScanningReport}
+            />
           </div>
 
           <form onSubmit={submitQuote} className="quote-panel min-w-0 rounded-md border border-gray-200 bg-white p-3 md:p-4 lg:sticky lg:top-20 lg:self-start">
@@ -299,6 +331,61 @@ export default function QuotePrice() {
         </section>
       )}
     </div>
+  );
+}
+
+function BuyerScanningReportPanel({ report, downloading, onView, onDownload }) {
+  const status = String(report?.status || "NOT_AVAILABLE").toUpperCase();
+  const downloadAvailable = canDownloadCompletedFruitScanningReport(report);
+  const statusMessage = {
+    COMPLETED: "The completed lot-wide visual quality report is available before you submit an offer.",
+    PENDING: "Fruit scanning report is being prepared.",
+    PROCESSING: "Fruit scanning report is being prepared.",
+    REVIEW_REQUIRED: "Fruit scanning report requires review.",
+    FAILED: "Fruit scanning report is currently unavailable because analysis failed.",
+    NOT_AVAILABLE: "Fruit scanning report not available for this lot.",
+  }[status] || "Fruit scanning report not available for this lot.";
+
+  return (
+    <section className="rounded-md border border-green-200 bg-white p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="flex items-center gap-2 text-sm font-extrabold text-gray-950">
+            <FaFileAlt className="text-green-700" /> Fruit Scanning Report
+          </h2>
+          <p className="mt-1 text-xs font-semibold leading-5 text-gray-600">{statusMessage}</p>
+        </div>
+        <span className={`shrink-0 rounded px-2 py-1 text-[9px] font-extrabold ${status === "COMPLETED" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-900"}`}>
+          {status.replace(/_/g, " ")}
+        </span>
+      </div>
+      {status === "COMPLETED" && (
+        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+          <InfoTile label="Images analyzed" value={report?.imagesAnalyzed || 0} />
+          <InfoTile label="Fruits detected" value={report?.totalFruitCount || 0} />
+        </div>
+      )}
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={onView}
+          className="min-h-11 rounded-md border border-green-300 bg-green-50 px-3 py-2 text-xs font-extrabold text-green-800"
+        >
+          View Scanning Report
+        </button>
+        <button
+          type="button"
+          onClick={onDownload}
+          disabled={!downloadAvailable || downloading}
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-green-700 px-3 py-2 text-xs font-extrabold text-white disabled:cursor-not-allowed disabled:bg-gray-300"
+        >
+          <FaDownload /> {downloading ? "Preparing PDF..." : "Download PDF"}
+        </button>
+      </div>
+      <p className="mt-2 text-[10px] font-semibold text-gray-500">
+        Buyer reports exclude the Grower&apos;s private base or reserve price.
+      </p>
+    </section>
   );
 }
 

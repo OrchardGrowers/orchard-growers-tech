@@ -40,7 +40,7 @@ export default function PublicProfileLocation({ role }) {
       return () => { active = false; };
     }
 
-    API.get(`/user/public-profile-locations?role=${encodeURIComponent(role)}`)
+    API.get(`/user/public-profile-locations?role=${encodeURIComponent(role)}&devPublicMarketplace=1`)
       .then(async (response) => {
         const states = Array.isArray(response.data?.states) ? response.data.states : [];
         const matchingStates = states.filter((state) => state.slug === normalizedStateSlug);
@@ -53,6 +53,7 @@ export default function PublicProfileLocation({ role }) {
         const resolvedDistrict = matchingDistricts[0] || null;
         const query = new URLSearchParams({ role, limit: "all", state: resolvedState.name });
         if (resolvedDistrict) query.set("district", resolvedDistrict.name);
+        query.set("devPublicMarketplace", "1");
         const profileResponse = await API.get(`/user/public-profiles?${query.toString()}`);
         if (!active) return;
         setStateEntry(resolvedState);

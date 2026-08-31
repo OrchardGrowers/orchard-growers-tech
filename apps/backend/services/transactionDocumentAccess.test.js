@@ -66,4 +66,25 @@ describe("transaction document authorization", () => {
     expect(buyerDocument.snapshot.financial.buyerTotalPayable).toBe(107_000);
     expect(buyerDocument.snapshot.financial.platformRevenue).toBeUndefined();
   });
+
+  it("keeps lot base-rate snapshots private from buyers and unrelated staff", () => {
+    const document = {
+      documentType: "SALES_INVOICE",
+      grower: growerId,
+      buyer: buyerId,
+      snapshot: {
+        lot: { baseRate: 125, estimatedValue: 12_500, fruit: "Apple" },
+        financial: {},
+      },
+    };
+    const buyerDocument = sanitizeDocumentForViewer(document, { id: buyerId, role: "buyer" });
+    const employeeDocument = sanitizeDocumentForViewer(document, { id: unrelatedId, role: "EMPLOYEE" }, true);
+    const growerDocument = sanitizeDocumentForViewer(document, { id: growerId, role: "grower" });
+    const adminDocument = sanitizeDocumentForViewer(document, { id: unrelatedId, role: "ADMIN" }, true);
+
+    expect(buyerDocument.snapshot.lot).toEqual({ fruit: "Apple" });
+    expect(employeeDocument.snapshot.lot).toEqual({ fruit: "Apple" });
+    expect(growerDocument.snapshot.lot.baseRate).toBe(125);
+    expect(adminDocument.snapshot.lot.baseRate).toBe(125);
+  });
 });

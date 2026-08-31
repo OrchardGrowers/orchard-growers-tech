@@ -616,13 +616,13 @@ setInterval(async () => {
           });
           io.to(auction._id.toString()).emit("auctionEnded", {
             winner: null,
-            finalPrice: auction.currentBid,
+            finalPrice: null,
             orderId: null,
           });
           // Alias for business naming
           io.to(auction._id.toString()).emit("dealEnded", {
             winner: null,
-            finalPrice: auction.currentBid,
+            finalPrice: null,
             orderId: null,
           });
           emitEfruitMandiMarketUpdate("deal-ended", {

@@ -6,6 +6,7 @@ import {
   getDocumentAccessFilter,
 } from "../services/transactionDocumentService.js";
 import { createTransactionDocumentPdf } from "../services/transactionDocumentPdfService.js";
+import { canViewPrivateLotPrice } from "../services/lotPricePrivacyService.js";
 
 const clampLimit = (value) => Math.min(Math.max(Number(value) || 100, 1), 250);
 const TRANSACTION_DOCUMENT_TYPES = [
@@ -36,7 +37,13 @@ const adminFilter = (query = {}) => {
 };
 
 export const sanitizeDocumentForViewer = (documentValue, user = {}, isAdmin = false) => {
-  const document = documentValue?.toObject ? documentValue.toObject() : { ...documentValue };
+  let document = documentValue?.toObject ? documentValue.toObject() : { ...documentValue };
+  if (!canViewPrivateLotPrice({ createdBy: document.grower }, user) && document.snapshot?.lot) {
+    const lot = { ...document.snapshot.lot };
+    delete lot.baseRate;
+    delete lot.estimatedValue;
+    document = { ...document, snapshot: { ...document.snapshot, lot } };
+  }
   if (isAdmin || document.documentType !== "SALES_INVOICE" || !document.snapshot?.financial) {
     return document;
   }
@@ -130,5 +137,9 @@ export const downloadTransactionDocumentPdf = async (req, res) => {
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `${disposition}; filename="${safeNumber}.pdf"`);
   res.setHeader("Cache-Control", "private, no-store");
-  createTransactionDocumentPdf(document).pipe(res);
+  createTransactionDocumentPdf(sanitizeDocumentForViewer(
+    document,
+    req.user,
+    isAdminRole(req.user?.role)
+  )).pipe(res);
 };

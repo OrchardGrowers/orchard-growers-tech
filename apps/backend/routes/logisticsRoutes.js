@@ -49,7 +49,7 @@ const hasDriverProfile = (user = {}) =>
 
 const populateAssignmentOrder = (query) =>
   query
-    .populate("product")
+    .populate("product", "-basePrice")
     .populate("buyer", "name businessName")
     .populate("grower", "name orchardName")
     .populate("driver", "name email phone contact logisticsName logisticsOwnerName driverName driverContact vehicleNumber vehicleType driverVerified kycByRole accountStatus")

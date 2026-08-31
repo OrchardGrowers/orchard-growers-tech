@@ -25,6 +25,13 @@ import {
 } from "../services/publicLotAccessService.js";
 import { hasTransactionEligibleKyc } from "../services/kycEligibilityService.js";
 import { ensureLotListingChallan } from "../services/transactionDocumentService.js";
+import { sanitizeLotPricing } from "../services/lotPricePrivacyService.js";
+import { getFruitScanningReportForLot } from "../services/fruitScanningReportService.js";
+import {
+  DEVELOPMENT_PUBLIC_MARKETPLACE_RESPONSE_HEADER,
+  loadDevelopmentPublicProduct,
+  loadDevelopmentPublicProducts,
+} from "../services/developmentPublicMarketplaceService.js";
 
 const PUBLIC_PROFILE_SELECT =
   "name orchardName businessName buyerContactPerson companyLogoUrl bannerUrl buyerCompanyLogoUrl role profileTypes growerVerified buyerVerified growerOgVerified buyerOgVerified driverOgVerified ogVerificationByRole growerRatingAverage growerRatingCount mapLatitude mapLongitude createdAt";
@@ -50,27 +57,19 @@ const emitEfruitMandiMarketUpdate = (req, action, payload = {}) => {
   });
 };
 
-const canSeeBasePrice = (product, user) =>
-  (user?.role === "grower" ||
-    (Array.isArray(user?.profileTypes) && user.profileTypes.includes("grower"))) &&
-  product?.createdBy &&
-  (product.createdBy._id || product.createdBy)?.toString() === user.id?.toString();
-
 const canSeePrivateCertificate = (product, user) => {
   if (["admin", "super_admin"].includes(String(user?.role || "").toLowerCase())) return true;
   const ownerId = product?.createdBy?._id || product?.createdBy;
   return Boolean(ownerId && user?.id && ownerId.toString() === user.id.toString());
 };
 
-const serializeProduct = (product, user, completedOrder = null) => {
-  const data = product.toObject ? product.toObject() : { ...product };
+export const serializeProduct = (product, user, completedOrder = null) => {
+  let data = product.toObject ? product.toObject() : { ...product };
   if (completedOrder) {
     Object.assign(data, buildMarketplaceLifecycle(completedOrder));
   }
 
-  if (!canSeeBasePrice(data, user) && data.createdSource !== "admin-panel") {
-    delete data.basePrice;
-  }
+  data = sanitizeLotPricing(data, { product: data, viewer: user });
 
   data.hasOrganicCertificateProof = Boolean(
     data.organicCertificationNo || data.organicCertificateUrl
@@ -732,7 +731,7 @@ export const createProduct = async (req, res) => {
     const auction = await Auction.create({
       product: product._id,
       startingPrice: Number(basePrice || 0),
-      currentBid: Number(basePrice || 0),
+      currentBid: 0,
       status: dealSchedule.isLiveNow ? "ACTIVE" : "SCHEDULED",
       startTime: auctionStartAt,
       endTime: auctionEndAt,
@@ -814,6 +813,13 @@ export const createProduct = async (req, res) => {
 export const getProducts = async (req, res) => {
   try {
     const platform = String(req.query.platform || "").trim().toLowerCase();
+    if (["efruitmandi", "efruit", "mandi"].includes(platform)) {
+      const developmentProducts = await loadDevelopmentPublicProducts(req);
+      if (developmentProducts) {
+        res.setHeader(DEVELOPMENT_PUBLIC_MARKETPLACE_RESPONSE_HEADER, "production-sanitized");
+        return res.json(developmentProducts);
+      }
+    }
     const filters = { active: { $ne: false }, inventoryType: { $ne: "raw_material" } };
 
     if (["orchard", "orchardgrowers", "orchard-growers"].includes(platform)) {
@@ -880,6 +886,12 @@ export const getProducts = async (req, res) => {
 // GET SINGLE PRODUCT WITH AUCTION DETAIL
 export const getProductById = async (req, res) => {
   try {
+    const developmentProduct = await loadDevelopmentPublicProduct(req, req.params.id);
+    if (developmentProduct) {
+      res.setHeader(DEVELOPMENT_PUBLIC_MARKETPLACE_RESPONSE_HEADER, "production-sanitized");
+      return res.json(developmentProduct);
+    }
+
     if (!isValidLotLookupId(req.params.id)) {
       return res.status(404).json({ msg: "Product not found" });
     }
@@ -961,11 +973,12 @@ export const getProductById = async (req, res) => {
       order,
     });
 
-    if (serializedAuction && !canSeeBasePrice(serializedProduct, req.user)) {
-      delete serializedAuction.startingPrice;
-    }
+    const safeAuction = serializedAuction
+      ? sanitizeLotPricing(serializedAuction, { product, viewer: req.user })
+      : null;
 
-    res.json({ product: serializedProduct, auction: serializedAuction, closedDeal });
+    const fruitScanningReport = await getFruitScanningReportForLot(product._id);
+    res.json({ product: serializedProduct, auction: safeAuction, closedDeal, fruitScanningReport });
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }
@@ -1135,7 +1148,9 @@ export const updateProduct = async (req, res) => {
     const linkedAuction = await Auction.findOne({ product: product._id, status: "SCHEDULED" });
     if (linkedAuction) {
       linkedAuction.startingPrice = basePrice;
-      linkedAuction.currentBid = basePrice;
+      linkedAuction.currentBid = 0;
+      linkedAuction.highestGradeRate = 0;
+      linkedAuction.dealBreakdown = undefined;
       await linkedAuction.save();
     }
 

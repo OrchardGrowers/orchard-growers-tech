@@ -91,8 +91,8 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
     setClosedDeals([]);
 
     const profileEndpoint = slug
-      ? `/user/public-profiles/by-slug/${encodeURIComponent(businessType)}/${encodeURIComponent(slug)}`
-      : `/user/public-profiles/${encodeURIComponent(businessType)}/${encodeURIComponent(userId)}`;
+      ? `/user/public-profiles/by-slug/${encodeURIComponent(businessType)}/${encodeURIComponent(slug)}?devPublicMarketplace=1`
+      : `/user/public-profiles/${encodeURIComponent(businessType)}/${encodeURIComponent(userId)}?devPublicMarketplace=1`;
 
     API.get(profileEndpoint)
       .then((response) => {

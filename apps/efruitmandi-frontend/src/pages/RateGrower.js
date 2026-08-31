@@ -5,7 +5,7 @@ import API from "../services/api";
 import BackHomeButton from "../components/BackHomeButton";
 import { getCurrentUser, hasBuyerProfile } from "../utils/auth";
 
-const LOGIN_REQUIRED_MESSAGE = "Please login first to continue.";
+const LOGIN_REQUIRED_MESSAGE = "Please login or Sign up first to continue.";
 
 export default function RateGrower() {
   const { lotId } = useParams();
@@ -37,7 +37,7 @@ export default function RateGrower() {
 
     const loadLot = async () => {
       try {
-        const res = await API.get(`/products/${lotId}?platform=efruitmandi`);
+        const res = await API.get(`/products/${lotId}?platform=efruitmandi&devPublicMarketplace=1`);
         setProduct(res.data?.product || null);
       } catch {
         setProduct(null);

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   FaArrowLeft,
   FaCertificate,
+  FaDownload,
   FaMapMarkerAlt,
   FaSearchMinus,
   FaSearchPlus,
@@ -23,6 +24,10 @@ import { canQuote, getCurrentUser, hasBuyerProfile } from "../utils/auth";
 import { trackLotContact, trackLotView } from "../services/analytics";
 import { saveUserToStorage } from "../utils/userStorage";
 import { getSafePublicProfile, isClosedDeal } from "../utils/marketplaceVisibility";
+import {
+  canDownloadCompletedFruitScanningReport,
+  getNormalizedDetectionBoxStyle,
+} from "../utils/fruitScanningReport";
 
 const LOGIN_REQUIRED_MESSAGE = "Please login or Sign up first to continue.";
 const isDevelopment = process.env.NODE_ENV !== "production";
@@ -43,12 +48,14 @@ export default function LotDetails() {
   const [product, setProduct] = useState(null);
   const [auction, setAuction] = useState(null);
   const [closedDeal, setClosedDeal] = useState(null);
+  const [fruitScanningReport, setFruitScanningReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState("");
   const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
   const [imageZoom, setImageZoom] = useState(1);
   const [user, setUser] = useState(() => getCurrentUser());
   const [errorMessage, setErrorMessage] = useState("");
+  const [pdfDownloading, setPdfDownloading] = useState(false);
 
   useEffect(() => {
     const loadLot = async () => {
@@ -70,7 +77,7 @@ export default function LotDetails() {
         const [res, profileRes] = await Promise.all([
           cachedLot
             ? Promise.resolve({ data: cachedLot })
-            : API.get(`/products/${lotId}?platform=efruitmandi`),
+            : API.get(`/products/${lotId}?platform=efruitmandi&devPublicMarketplace=1`),
           localStorage.getItem("accessToken")
             ? API.get("/user/profile").catch(() => ({ data: getCurrentUser() }))
             : Promise.resolve({ data: getCurrentUser() }),
@@ -81,6 +88,7 @@ export default function LotDetails() {
         const lot = res.data?.product || null;
         const linkedAuction = res.data?.auction || null;
         const linkedClosedDeal = res.data?.closedDeal || null;
+        const linkedScanningReport = res.data?.fruitScanningReport || null;
 
         if (!lot) {
           setErrorMessage("Lot not found");
@@ -91,6 +99,7 @@ export default function LotDetails() {
         setProduct(lot);
         setAuction(linkedAuction);
         setClosedDeal(linkedClosedDeal);
+        setFruitScanningReport(linkedScanningReport);
         setActiveImage(getAllImages(lot)[0] || "");
       } catch (err) {
         if (isDevelopment) {
@@ -108,12 +117,31 @@ export default function LotDetails() {
     loadLot();
   }, [lotId]);
 
+  useEffect(() => {
+    if (!["PENDING", "PROCESSING"].includes(fruitScanningReport?.status) || !lotId) {
+      return undefined;
+    }
+
+    let active = true;
+    const refreshScanningReport = async () => {
+      try {
+      const response = await API.get(`/products/${lotId}?platform=efruitmandi&devPublicMarketplace=1`);
+        if (active) setFruitScanningReport(response.data?.fruitScanningReport || null);
+      } catch {
+        // Keep the last persisted state visible during a transient polling failure.
+      }
+    };
+    const intervalId = window.setInterval(refreshScanningReport, 5000);
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [fruitScanningReport?.status, lotId]);
+
   const images = useMemo(() => getAllImages(product), [product]);
   const hasActiveImage = Boolean(activeImage);
   const createdBy = product?.createdBy || {};
-  const ownerId = createdBy._id || createdBy.id;
-  const currentUserId = user?._id || user?.id;
-  const canSeeBasePrice = ownerId && currentUserId && ownerId === currentUserId;
+  const canSeeBasePrice = product?.basePrice !== undefined;
   const isOrganicCertified =
     isCertifiedQuality(product?.quality) &&
     Boolean(
@@ -191,6 +219,27 @@ export default function LotDetails() {
     }
 
     navigate(ratingPath);
+  };
+  const downloadLotPdf = async () => {
+    if (!detailProductId || pdfDownloading) return;
+    try {
+      setPdfDownloading(true);
+      const response = await API.get(`/products/${detailProductId}/pdf?platform=efruitmandi`, {
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `eFruitMandi-lot-${product?.lotNo || detailProductId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setErrorMessage("Lot PDF could not be downloaded. Please try again.");
+    } finally {
+      setPdfDownloading(false);
+    }
   };
 
   if (loading) {
@@ -484,6 +533,11 @@ export default function LotDetails() {
 
       <AuctionPanel auction={auction} product={product} closedDeal={closedDeal} isClosed={isClosedLot} />
       <GradeLots lots={product.gradeLots || []} />
+      <FruitScanningReport
+        report={fruitScanningReport}
+        downloading={pdfDownloading}
+        onDownload={downloadLotPdf}
+      />
       <SampleVideo video={product.sampleVideo} />
 
       <div className="mt-3">
@@ -495,6 +549,15 @@ export default function LotDetails() {
           resolveImageUrl={(url) => getOptimizedAssetUrl(url, 160)}
         />
       </div>
+      <button
+        type="button"
+        onClick={downloadLotPdf}
+        disabled={pdfDownloading}
+        className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-green-700 px-4 py-3 text-sm font-extrabold text-white disabled:cursor-wait disabled:bg-gray-400"
+      >
+        <FaDownload />
+        {pdfDownloading ? "Preparing Lot PDF..." : "Download Lot PDF"}
+      </button>
       {imagePreviewOpen && (
         <ImageZoomModal
           imageUrl={toAssetUrl(activeImage)}
@@ -842,6 +905,134 @@ function getImageGradeLabel(product = {}, imageUrl = "") {
 function isClosedLotStatus(product = {}, auction = {}, closedDeal = null) {
   if (closedDeal) return true;
   return isClosedDeal(product || {}) || isClosedDeal(auction || {});
+}
+
+function FruitScanningReport({ report, downloading = false, onDownload }) {
+  const analyses = Array.isArray(report?.analyses) ? report.analyses : [];
+  const completed = analyses.filter((item) => item.status === "COMPLETED");
+  const statusMessages = {
+    PENDING: "Fruit scanning report is being prepared.",
+    PROCESSING: "Fruit images are being analyzed.",
+    FAILED: "Fruit scanning analysis failed. Retry or review is required.",
+    REVIEW_REQUIRED: "Fruit scanning report requires review.",
+  };
+  const reportDownloadAvailable = canDownloadCompletedFruitScanningReport(report);
+
+  return (
+    <section id="fruit-scanning-report" className="section mt-3 w-full max-w-full rounded-md border border-gray-200 bg-white p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="text-xs font-extrabold text-black">Fruit Scanning &amp; Quality Report</h2>
+          <p className="mt-1 text-[10px] font-semibold text-gray-600">
+            Visual estimates only. This report is not laboratory certification.
+          </p>
+        </div>
+        <span className={`rounded px-2 py-1 text-[9px] font-extrabold ${report?.status === "COMPLETED" ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-900"}`}>
+          {String(report?.status || "NOT_AVAILABLE").replace(/_/g, " ")}
+        </span>
+      </div>
+      {!completed.length ? (
+        <div className="mt-3 rounded-md bg-amber-50 p-3 text-xs font-bold text-amber-900">
+          <p>{statusMessages[report?.status] || "Fruit scanning report not available for this lot."}</p>
+          {report?.status === "REVIEW_REQUIRED" && (
+            <p className="mt-1 text-[10px]">A trained fruit-analysis provider or authorized manual review is required.</p>
+          )}
+        </div>
+      ) : (
+        <div className="mt-3 space-y-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <ScanningMetric label="Images captured" value={report?.imagesCaptured} />
+            <ScanningMetric label="Images analyzed" value={report?.imagesAnalyzed} />
+            <ScanningMetric label="Total fruits" value={report?.totalFruitCount} />
+            <ScanningMetric label="Review flags" value={report?.imagesReviewRequired || 0} />
+          </div>
+          {completed.map((analysis) => (
+            <div key={analysis.scanId} className="rounded-md bg-green-50 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-extrabold text-green-950">{analysis.grade || "Ungraded sample"}</p>
+                <span className="rounded bg-white px-2 py-1 text-[9px] font-extrabold text-green-800">COMPLETED</span>
+              </div>
+              {analysis.imageUrl && <ScanningDetectionImage analysis={analysis} />}
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <ScanningMetric label="Fruits detected" value={analysis.fruitCount} />
+                <ScanningMetric label="Colour" value={analysis.colour?.dominant || analysis.colour?.label} />
+                <ScanningMetric label="Colour distribution" value={formatDistribution(analysis.colour?.distribution)} />
+                <ScanningMetric label="Estimated size" value={analysis.size?.category} />
+                <ScanningMetric label="Estimated diameter" value={formatDiameter(analysis.size)} />
+                <ScanningMetric label="Shape" value={analysis.shape?.label} />
+                <ScanningMetric label="Shape uniformity" value={percent(analysis.shape?.uniformityScore ?? analysis.shape?.uniformity)} />
+                <ScanningMetric label="Surface condition" value={analysis.surface?.condition || analysis.surface?.label} />
+                <ScanningMetric label="Estimated maturity" value={analysis.maturity?.label || (analysis.maturity?.percent != null ? `${analysis.maturity.percent}%` : null)} />
+                <ScanningMetric label="Suspected russeting" value={percent(analysis.russetingPercent)} />
+                <ScanningMetric label="Suspected decay" value={percent(analysis.decayPercent)} />
+                <ScanningMetric label="Visible defects" value={percent(analysis.defectPercent)} />
+                <ScanningMetric label="Uniformity" value={percent(analysis.uniformityScore)} />
+                <ScanningMetric label="Analysis confidence" value={percent(analysis.imageQuality?.confidence)} />
+                <ScanningMetric label="Images analysed" value={analysis.imagesAnalyzed} />
+                <ScanningMetric label="Analysed at" value={formatDate(analysis.analyzedAt)} />
+              </div>
+            </div>
+          ))}
+          {reportDownloadAvailable && (
+            <button
+              type="button"
+              onClick={onDownload}
+              disabled={downloading}
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-green-700 px-4 py-3 text-xs font-extrabold text-white disabled:bg-gray-400"
+            >
+              <FaDownload />
+              {downloading ? "Preparing Report PDF..." : "Download Fruit Scanning Report PDF"}
+            </button>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ScanningDetectionImage({ analysis }) {
+  return (
+    <div className="relative mt-3 inline-flex max-w-full overflow-hidden rounded-md bg-black">
+      <img src={analysis.imageUrl} alt="Fruit scan analysed sample" className="max-h-80 max-w-full object-contain" loading="lazy" />
+      {(analysis.detections || []).filter((item) => item.category === "FRUIT" && !item.obstruction && item.boundingBox).map((item, index) => {
+        const style = getNormalizedDetectionBoxStyle(item.boundingBox);
+        if (!style) return null;
+        return (
+          <span
+            key={`${item.label}-${index}`}
+            className="absolute border-2 border-green-400"
+            style={style}
+          >
+            <span className="absolute -top-5 left-0 whitespace-nowrap bg-green-800 px-1 text-[8px] font-bold text-white">
+              {item.label || "Fruit"}{item.confidence != null ? ` ${Math.round(item.confidence * 100)}%` : ""}
+            </span>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+const percent = (value) => value == null ? null : `${Number(value).toFixed(1)}%`;
+const formatDiameter = (size = {}) => {
+  if (size?.minimumDiameterMm != null && size?.maximumDiameterMm != null) {
+    return `${size.minimumDiameterMm}\u2013${size.maximumDiameterMm} mm estimated`;
+  }
+  return size?.diameterMm != null ? `${size.diameterMm} mm estimated` : null;
+};
+const formatDistribution = (distribution) => {
+  if (Array.isArray(distribution)) {
+    return distribution.map((item) => {
+      if (typeof item === "string") return item;
+      const label = item?.label || item?.colour || item?.color;
+      return label ? `${label}${item?.percent != null ? ` ${item.percent}%` : ""}` : "";
+    }).filter(Boolean).join(", ");
+  }
+  return typeof distribution === "string" ? distribution : null;
+};
+function ScanningMetric({ label, value }) {
+  if (value === undefined || value === null || value === "") return null;
+  return <InfoTile label={label} value={value} />;
 }
 
 function getPublicLotStatus(product = {}, auction = {}, closedDeal = null) {

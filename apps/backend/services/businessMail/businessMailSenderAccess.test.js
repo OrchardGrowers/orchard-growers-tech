@@ -33,7 +33,7 @@ beforeEach(() => {
   process.env.BUSINESS_MAIL_SALES_ORCHARD_EMAIL = "sales@orchardgrowers.in";
   process.env.BUSINESS_MAIL_SUPPORT_EFRUITMANDI_EMAIL = "support@efruitmandi.live";
   process.env.BUSINESS_MAIL_EFRUITMANDI_CAREER_EMAIL = "career@efruitmandi.live";
-  process.env.BUSINESS_MAIL_ORCHARD_CAREER_EMAIL = "career@orchardgrowers.in";
+  process.env.BUSINESS_MAIL_ORCHARD_CAREER_EMAIL = "careers@orchardgrowers.in";
   process.env.BUSINESS_MAIL_ADMINHO_ORCHARD_EMAIL = "adminho@orchardgrowers.in";
 });
 

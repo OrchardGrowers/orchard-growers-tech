@@ -34,6 +34,7 @@ const normalizeApiUrl = (value = "") => {
   return /\/api$/i.test(normalized) ? normalized : `${normalized}/api`;
 };
 const PUBLIC_API_ORIGIN = "https://api.efruitmandi.live";
+const LOCAL_API_ORIGIN = "http://localhost:5000";
 const isLocalBrowserHost = () => {
   if (typeof window === "undefined") return true;
   return ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
@@ -47,7 +48,7 @@ const isLoopbackUrl = (value = "") => {
   }
 };
 const usePublicApiWhenNeeded = (value = "") => {
-  const normalized = normalizeBaseUrl(value || PUBLIC_API_ORIGIN);
+  const normalized = normalizeBaseUrl(value || (isLocalBrowserHost() ? LOCAL_API_ORIGIN : PUBLIC_API_ORIGIN));
   if (!isLocalBrowserHost() && isLoopbackUrl(normalized)) return PUBLIC_API_ORIGIN;
   return normalized;
 };
@@ -55,7 +56,7 @@ const API_BASE_URL = normalizeApiUrl(
   usePublicApiWhenNeeded(
     getEnvValue("VITE_API_BASE_URL", "REACT_APP_API_BASE_URL") ||
     getEnvValue("VITE_API_URL", "REACT_APP_API_URL") ||
-    PUBLIC_API_ORIGIN
+    (isLocalBrowserHost() ? LOCAL_API_ORIGIN : PUBLIC_API_ORIGIN)
   )
 );
 const efruitOtpPhonesByReqId = new Map();

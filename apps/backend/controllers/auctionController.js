@@ -17,7 +17,7 @@ export const createAuction = async (req, res) => {
     const auction = await Auction.create({
       product: productId,
       startingPrice,
-      currentBid: startingPrice,
+      currentBid: 0,
       status: dealSchedule.isLiveNow ? "ACTIVE" : "SCHEDULED",
       startTime,
       endTime,

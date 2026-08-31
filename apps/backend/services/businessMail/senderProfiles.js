@@ -34,7 +34,7 @@ const PROFILE_DEFINITIONS = Object.freeze({
   [BUSINESS_MAIL_SENDER_PROFILE_KEYS.ORCHARD_CAREER]: {
     envPrefix: "BUSINESS_MAIL_ORCHARD_CAREER",
     defaultName: "Orchard Growers Careers",
-    defaultEmail: "career@orchardgrowers.in",
+    defaultEmail: "careers@orchardgrowers.in",
     replyCapable: true,
   },
   [BUSINESS_MAIL_SENDER_PROFILE_KEYS.ADMINHO_ORCHARD]: {

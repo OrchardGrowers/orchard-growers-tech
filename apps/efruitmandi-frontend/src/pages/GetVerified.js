@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FaCertificate,
   FaCheckCircle,
   FaIdCard,
+  FaLock,
   FaPhoneAlt,
   FaRupeeSign,
   FaShieldAlt,
@@ -25,6 +26,7 @@ import {
   sendMsg91WidgetOtp,
   verifyMsg91WidgetOtp,
 } from "../utils/msg91OtpWidget";
+import useOtpVerificationCooldown from "../hooks/useOtpVerificationCooldown";
 
 export default function GetVerified() {
   const navigate = useNavigate();
@@ -44,7 +46,13 @@ export default function GetVerified() {
   });
   const [otpSent, setOtpSent] = useState(false);
   const [otpReqId, setOtpReqId] = useState("");
-  const [otpCooldown, setOtpCooldown] = useState(0);
+  const otpInFlightRef = useRef(false);
+  const {
+    remainingSeconds: otpCooldown,
+    isLocked: otpLocked,
+    startCooldown,
+    resetCooldown,
+  } = useOtpVerificationCooldown();
   const [phoneVerified, setPhoneVerified] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpMessage, setOtpMessage] = useState({ type: "", text: "" });
@@ -80,18 +88,12 @@ export default function GetVerified() {
   const taxAmount = Math.round(verificationFee * taxRate);
   const totalFee = verificationFee + taxAmount;
 
-  useEffect(() => {
-    if (otpCooldown <= 0) return undefined;
-    const timer = window.setTimeout(() => setOtpCooldown((seconds) => Math.max(0, seconds - 1)), 1000);
-    return () => window.clearTimeout(timer);
-  }, [otpCooldown]);
-
   const updateForm = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
     if (field === "phone") {
       setOtpSent(false);
       setOtpReqId("");
-      setOtpCooldown(0);
+      if (!otpLocked) resetCooldown();
       setPhoneVerified(false);
       setFeePaid(false);
       setOtpMessage({ type: "", text: "" });
@@ -101,8 +103,9 @@ export default function GetVerified() {
   const sendOtp = async () => {
     const identifier = form.phone.trim();
 
-    if (!identifier || otpLoading || otpCooldown > 0) return;
+    if (!identifier || otpLoading || otpLocked || otpInFlightRef.current) return;
 
+    otpInFlightRef.current = true;
     setOtpLoading(true);
     setOtpMessage({ type: "", text: "" });
     setSubmitError("");
@@ -124,7 +127,6 @@ export default function GetVerified() {
         : await sendMsg91WidgetOtp({ widgetId, tokenAuth, phone, mode: "signup" });
       setOtpReqId(result.reqId || "");
       setOtpSent(true);
-      setOtpCooldown(60);
       setPhoneVerified(false);
       setFeePaid(false);
       setOtpMessage({
@@ -137,6 +139,7 @@ export default function GetVerified() {
         text: err.response?.data?.msg || err.message || "Could not send OTP.",
       });
     } finally {
+      otpInFlightRef.current = false;
       setOtpLoading(false);
     }
   };
@@ -145,8 +148,9 @@ export default function GetVerified() {
     const identifier = form.phone.trim();
     const otp = form.otp.trim();
 
-    if (!identifier || !otp || otpLoading) return;
+    if (!identifier || !otp || otpLoading || otpLocked || otpInFlightRef.current) return;
 
+    otpInFlightRef.current = true;
     setOtpLoading(true);
     setOtpMessage({ type: "", text: "" });
     setSubmitError("");
@@ -161,6 +165,7 @@ export default function GetVerified() {
 
       await verifyMsg91WidgetOtp({ widgetId, tokenAuth, otp, reqId: otpReqId, phone: normalizeIndianMobile(identifier) || identifier, mode: "signup" });
       setPhoneVerified(true);
+      startCooldown(60);
       setFeePaid(false);
       setOtpMessage({ type: "success", text: "Phone verified." });
     } catch (err) {
@@ -170,6 +175,7 @@ export default function GetVerified() {
         text: err.response?.data?.msg || err.message || "OTP verification failed.",
       });
     } finally {
+      otpInFlightRef.current = false;
       setOtpLoading(false);
     }
   };
@@ -306,11 +312,11 @@ export default function GetVerified() {
               <div className="mt-3 grid gap-2 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
                 <button
                   type="button"
-                  disabled={!orchardDetailComplete || otpLoading || otpCooldown > 0}
+                  disabled={!orchardDetailComplete || otpLoading || otpLocked}
                   onClick={sendOtp}
                   className="min-h-11 rounded-full bg-green-800 px-4 py-2 text-xs font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {otpLoading ? "Sending..." : otpCooldown > 0 ? `Resend in ${otpCooldown}s` : otpSent ? "Resend OTP" : "Send OTP"}
+                  {otpLocked ? <><FaLock className="mr-1 inline-block" /> Phone verified ({`00:${String(otpCooldown).padStart(2, "0")}`})</> : otpLoading ? "Sending..." : otpSent ? "Resend OTP" : "Send OTP"}
                 </button>
                 <input
                   value={form.otp}
@@ -322,11 +328,11 @@ export default function GetVerified() {
                 />
                 <button
                   type="button"
-                  disabled={!orchardDetailComplete || !otpSent || !form.otp || phoneVerified || otpLoading}
+                  disabled={!orchardDetailComplete || !otpSent || !form.otp || phoneVerified || otpLoading || otpLocked}
                   onClick={verifyOtp}
                   className="min-h-11 rounded-full bg-green-800 px-4 py-2 text-xs font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {phoneVerified ? "Verified" : otpLoading ? "Verifying..." : "Verify"}
+                  {otpLocked ? `🔒 Verified — Locked (00:${String(otpCooldown).padStart(2, "0")})` : phoneVerified ? "Verified" : otpLoading ? "Verifying..." : "Verify"}
                 </button>
               </div>
               {otpMessage.text && (
