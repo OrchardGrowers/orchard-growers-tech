@@ -988,7 +988,7 @@ export default function Profile() {
               <button
                 type="button"
                 onClick={() => changeMode("login")}
-                className={`rounded-md py-1.5 text-xs font-bold ${
+                className={`rounded-md py-1.5 text-sm font-bold lg:text-base ${
                   mode === "login"
                     ? "bg-white text-blue-700 shadow-sm"
                     : "text-blue-600 hover:text-blue-800"
@@ -999,7 +999,7 @@ export default function Profile() {
               <button
                 type="button"
                 onClick={() => changeMode("signup")}
-                className={`rounded-md py-1.5 text-xs font-bold ${
+                className={`rounded-md py-1.5 text-sm font-bold lg:text-base ${
                   mode === "signup"
                     ? "bg-white text-blue-700 shadow-sm"
                     : "text-blue-600 hover:text-blue-800"
