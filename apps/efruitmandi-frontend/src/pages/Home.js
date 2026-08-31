@@ -20,7 +20,6 @@ import BannerSlider from "../components/BannerSlider";
 import {
   getCurrentUser,
   canQuote,
-  getFruitLotListingAccess,
   hasAccessToken,
   hasBuyerProfile,
   hasDriverProfile,
@@ -766,14 +765,15 @@ export default function Home() {
   });
   const openListLotFlow = () => {
     const listPath = "/list-new-lot";
-    const access = getFruitLotListingAccess(user, { authenticated: hasAccessToken() });
-    if (!access.allowed) {
+    if (!hasAccessToken()) {
       navigate("/profile", {
-        state: { ...buildLoginState(listPath, "grower"), message: access.message },
+        state: buildLoginState(listPath, "grower"),
       });
       return;
     }
 
+    // The guarded route hydrates the current user and resolves canonical KYC.
+    // Cached Home data must never make the final lot-listing decision.
     navigate(listPath);
   };
 

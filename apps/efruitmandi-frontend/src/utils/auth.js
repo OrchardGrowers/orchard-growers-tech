@@ -106,7 +106,22 @@ export const LOT_LISTING_ACCESS_MESSAGES = Object.freeze({
   KYC_INCOMPLETE: "Please complete your KYC to list a fruit lot.",
   KYC_APPROVAL_REQUIRED: "Your KYC must be approved before you can list a fruit lot.",
 });
+export const LOT_LISTING_ACCESS_STATES = Object.freeze({
+  LOADING: "LOADING",
+  UNAUTHENTICATED: "UNAUTHENTICATED",
+  NOT_GROWER: "NOT_GROWER",
+  KYC_INCOMPLETE: "KYC_INCOMPLETE",
+  KYC_PENDING: "KYC_PENDING",
+  AUTHORIZED: "AUTHORIZED",
+});
 const KYC_AWAITING_APPROVAL_STATUSES = new Set(["PENDING", "COMPLETED", "UNDER_REVIEW"]);
+
+const lotListingAccessResult = (state, message = "") => ({
+  allowed: state === LOT_LISTING_ACCESS_STATES.AUTHORIZED,
+  state,
+  code: state,
+  message,
+});
 
 export const canListFruitLot = (user = getCurrentUser()) => {
   const growerKycStatus = String(getRoleKyc(user, "grower")?.status || "NOT_SUBMITTED")
@@ -123,40 +138,60 @@ export const canListFruitLot = (user = getCurrentUser()) => {
 
 export const getFruitLotListingAccess = (
   user = getCurrentUser(),
-  { authenticated = hasAccessToken(), canonicalStatus, canonicalEligible } = {}
+  {
+    authResolved = true,
+    authenticated = hasAccessToken(),
+    userResolved = true,
+    canonicalResolved,
+    canonicalStatus,
+    canonicalEligible,
+  } = {}
 ) => {
+  if (!authResolved) {
+    return lotListingAccessResult(LOT_LISTING_ACCESS_STATES.LOADING);
+  }
+
   if (!authenticated) {
-    return { allowed: false, code: "VISITOR", message: LOT_LISTING_ACCESS_MESSAGES.VISITOR };
+    return lotListingAccessResult(
+      LOT_LISTING_ACCESS_STATES.UNAUTHENTICATED,
+      LOT_LISTING_ACCESS_MESSAGES.VISITOR
+    );
+  }
+
+  if (!userResolved) {
+    return lotListingAccessResult(LOT_LISTING_ACCESS_STATES.LOADING);
   }
 
   const activeRole = String(user.activeRole || user.role || "").trim().toLowerCase();
   if (activeRole !== "grower" || !hasGrowerProfile(user)) {
-    return {
-      allowed: false,
-      code: "GROWER_REQUIRED",
-      message: LOT_LISTING_ACCESS_MESSAGES.GROWER_REQUIRED,
-    };
+    return lotListingAccessResult(
+      LOT_LISTING_ACCESS_STATES.NOT_GROWER,
+      LOT_LISTING_ACCESS_MESSAGES.GROWER_REQUIRED
+    );
+  }
+
+  const hasCanonicalResolution = canonicalResolved ??
+    (canonicalEligible !== undefined || canonicalStatus !== undefined);
+  if (!hasCanonicalResolution) {
+    return lotListingAccessResult(LOT_LISTING_ACCESS_STATES.LOADING);
   }
 
   const normalizedCanonicalStatus = String(canonicalStatus || "").trim().toUpperCase();
-  if (
-    (canonicalEligible === true && ["APPROVED", "NOT_SUBMITTED"].includes(normalizedCanonicalStatus)) ||
-    (canonicalEligible === undefined && canListFruitLot(user))
-  ) {
-    return { allowed: true, code: "AUTHORIZED", message: "" };
+  if (canonicalEligible === true) {
+    return lotListingAccessResult(LOT_LISTING_ACCESS_STATES.AUTHORIZED);
   }
 
-  const status = String(normalizedCanonicalStatus || getRoleKyc(user, "grower")?.status || "NOT_SUBMITTED")
-    .trim()
-    .toUpperCase();
-  const awaitingApproval = KYC_AWAITING_APPROVAL_STATUSES.has(status);
-  return {
-    allowed: false,
-    code: awaitingApproval ? "KYC_APPROVAL_REQUIRED" : "KYC_INCOMPLETE",
-    message: awaitingApproval
-      ? LOT_LISTING_ACCESS_MESSAGES.KYC_APPROVAL_REQUIRED
-      : LOT_LISTING_ACCESS_MESSAGES.KYC_INCOMPLETE,
-  };
+  if (KYC_AWAITING_APPROVAL_STATUSES.has(normalizedCanonicalStatus)) {
+    return lotListingAccessResult(
+      LOT_LISTING_ACCESS_STATES.KYC_PENDING,
+      LOT_LISTING_ACCESS_MESSAGES.KYC_APPROVAL_REQUIRED
+    );
+  }
+
+  return lotListingAccessResult(
+    LOT_LISTING_ACCESS_STATES.KYC_INCOMPLETE,
+    LOT_LISTING_ACCESS_MESSAGES.KYC_INCOMPLETE
+  );
 };
 
 export const isGrowerAccount = (user = getCurrentUser()) =>

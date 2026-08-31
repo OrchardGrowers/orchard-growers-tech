@@ -64,4 +64,59 @@ describe("PAN data access boundaries", () => {
       kyc: expect.objectContaining({ panNumber: "ABCDE1234F" }),
     }));
   });
+
+  it("returns canonical lot-listing authorization for an approved grower", async () => {
+    const owner = {
+      _id: "grower-1",
+      role: "grower",
+      activeRole: "grower",
+      profileTypes: ["grower"],
+      growerVerified: true,
+      kyc: {},
+      kycByRole: {
+        grower: {
+          roleType: "grower",
+          status: "APPROVED",
+          panNumber: "ABCDE1234F",
+          panImage: "secure/pan-card",
+        },
+      },
+    };
+    vi.spyOn(User, "findById").mockReturnValue({
+      select: vi.fn().mockResolvedValue(owner),
+    });
+    vi.spyOn(VerificationRemark, "find").mockReturnValue({
+      sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue([]) }),
+    });
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
+
+    await getMyKyc(
+      {
+        user: { id: "grower-1" },
+        query: { roleType: "grower", authorizationOnly: "1" },
+      },
+      res
+    );
+
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      eligibility: {
+        status: "APPROVED",
+        approved: true,
+        panComplete: true,
+        eligible: true,
+      },
+      lotListingAuthorization: {
+        allowed: true,
+        code: "AUTHORIZED",
+        message: "",
+      },
+    }));
+    const authorizationPayload = res.json.mock.calls[0][0];
+    const serialized = JSON.stringify(authorizationPayload);
+    expect(serialized).not.toContain("ABCDE1234F");
+    expect(serialized).not.toContain("secure/pan-card");
+    expect(authorizationPayload).not.toHaveProperty("kyc");
+    expect(authorizationPayload.user).not.toHaveProperty("phone");
+    expect(authorizationPayload.user).not.toHaveProperty("email");
+  });
 });

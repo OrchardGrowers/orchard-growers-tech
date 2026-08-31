@@ -3,6 +3,7 @@ import {
   canListFruitLot,
   getFruitLotListingAccess,
   LOT_LISTING_ACCESS_MESSAGES,
+  LOT_LISTING_ACCESS_STATES,
 } from "./auth";
 
 const approvedGrower = {
@@ -23,10 +24,12 @@ describe("fruit lot listing access", () => {
     expect(canListFruitLot({ role: "user", profileTypes: ["user"] })).toBe(false);
     expect(getFruitLotListingAccess({}, { authenticated: false })).toMatchObject({
       allowed: false,
+      state: LOT_LISTING_ACCESS_STATES.UNAUTHENTICATED,
       message: LOT_LISTING_ACCESS_MESSAGES.VISITOR,
     });
     expect(getFruitLotListingAccess({ role: "user" }, { authenticated: true })).toMatchObject({
       allowed: false,
+      state: LOT_LISTING_ACCESS_STATES.NOT_GROWER,
       message: LOT_LISTING_ACCESS_MESSAGES.GROWER_REQUIRED,
     });
   });
@@ -44,8 +47,21 @@ describe("fruit lot listing access", () => {
       profileTypes: ["buyer", "grower"],
     }, { authenticated: true, canonicalEligible: true })).toMatchObject({
       allowed: false,
+      state: LOT_LISTING_ACCESS_STATES.NOT_GROWER,
       message: LOT_LISTING_ACCESS_MESSAGES.GROWER_REQUIRED,
     });
+  });
+
+  it("keeps unresolved auth and canonical KYC in LOADING", () => {
+    expect(getFruitLotListingAccess({}, {
+      authResolved: false,
+      authenticated: true,
+    })).toMatchObject({ state: LOT_LISTING_ACCESS_STATES.LOADING });
+    expect(getFruitLotListingAccess(approvedGrower, {
+      authenticated: true,
+      userResolved: true,
+      canonicalResolved: false,
+    })).toMatchObject({ state: LOT_LISTING_ACCESS_STATES.LOADING });
   });
 
   it("uses separate incomplete and pending KYC messages", () => {
@@ -58,7 +74,24 @@ describe("fruit lot listing access", () => {
       authenticated: true,
       canonicalEligible: false,
       canonicalStatus: "PENDING",
-    }).message).toBe(LOT_LISTING_ACCESS_MESSAGES.KYC_APPROVAL_REQUIRED);
+    })).toMatchObject({
+      state: LOT_LISTING_ACCESS_STATES.KYC_PENDING,
+      message: LOT_LISTING_ACCESS_MESSAGES.KYC_APPROVAL_REQUIRED,
+    });
+  });
+
+  it("uses canonical eligibility as the final authority", () => {
+    expect(getFruitLotListingAccess(approvedGrower, {
+      authenticated: true,
+      canonicalResolved: true,
+      canonicalStatus: "APPROVED",
+      canonicalEligible: true,
+    })).toEqual({
+      allowed: true,
+      state: LOT_LISTING_ACCESS_STATES.AUTHORIZED,
+      code: LOT_LISTING_ACCESS_STATES.AUTHORIZED,
+      message: "",
+    });
   });
 
   it("allows only a grower with approved KYC and complete PAN proof", () => {

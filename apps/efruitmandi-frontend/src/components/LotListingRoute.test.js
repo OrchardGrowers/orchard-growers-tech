@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { getFruitLotListingAccess } from "../utils/auth";
-import { getLotListingRedirectState } from "./LotListingRoute";
+import {
+  getFruitLotListingAccess,
+  LOT_LISTING_ACCESS_STATES,
+} from "../utils/auth";
+import {
+  getCanonicalLotListingOptions,
+  getLotListingDebugSnapshot,
+  getLotListingRedirectState,
+} from "./LotListingRoute";
 
 const directLocation = { pathname: "/list-new-lot", search: "", hash: "" };
 const grower = { role: "grower", activeRole: "grower", profileTypes: ["grower"] };
@@ -34,6 +41,43 @@ describe("direct /list-new-lot route decisions", () => {
     }, directLocation).message).toBe("Please login or Sign up first to continue.");
   });
 
+  it("does not redirect while auth hydration is delayed", () => {
+    const access = getFruitLotListingAccess({}, {
+      authResolved: false,
+      authenticated: true,
+    });
+    expect(access.state).toBe(LOT_LISTING_ACCESS_STATES.LOADING);
+    expect(getLotListingRedirectState(access, directLocation)).toBeNull();
+  });
+
+  it("does not redirect an approved grower while canonical KYC is delayed", () => {
+    const access = getFruitLotListingAccess(grower, {
+      authenticated: true,
+      userResolved: true,
+      canonicalResolved: false,
+    });
+    expect(access.state).toBe(LOT_LISTING_ACCESS_STATES.LOADING);
+    expect(getLotListingRedirectState(access, directLocation)).toBeNull();
+  });
+
+  it("keeps a partial canonical response loading instead of treating it as incomplete", () => {
+    const canonicalOptions = getCanonicalLotListingOptions({
+      lotListingAuthorization: {
+        allowed: false,
+        code: "KYC_INCOMPLETE",
+      },
+    });
+    const access = getFruitLotListingAccess(grower, {
+      authenticated: true,
+      userResolved: true,
+      ...canonicalOptions,
+    });
+
+    expect(canonicalOptions.canonicalResolved).toBe(false);
+    expect(access.state).toBe(LOT_LISTING_ACCESS_STATES.LOADING);
+    expect(getLotListingRedirectState(access, directLocation)).toBeNull();
+  });
+
   it.each([
     ["generic user", { role: "user", profileTypes: [] }],
     ["buyer", { role: "buyer", activeRole: "buyer", profileTypes: ["buyer"] }],
@@ -45,7 +89,7 @@ describe("direct /list-new-lot route decisions", () => {
     }],
   ])("denies %s", (_label, user) => {
     expect(directRouteResult(user, { authenticated: true })).toMatchObject({
-      access: { allowed: false, code: "GROWER_REQUIRED" },
+      access: { allowed: false, code: "NOT_GROWER" },
       redirect: { message: "Only verified growers can list fruit lots." },
     });
   });
@@ -69,8 +113,77 @@ describe("direct /list-new-lot route decisions", () => {
       canonicalStatus: "APPROVED",
       canonicalEligible: true,
     })).toEqual({
-      access: { allowed: true, code: "AUTHORIZED", message: "" },
+      access: {
+        allowed: true,
+        state: "AUTHORIZED",
+        code: "AUTHORIZED",
+        message: "",
+      },
       redirect: null,
+    });
+  });
+
+  it("keeps a direct authenticated refresh loading until profile and KYC resolve", () => {
+    const beforeProfile = getFruitLotListingAccess({}, {
+      authenticated: true,
+      userResolved: false,
+      canonicalResolved: false,
+    });
+    const afterProfile = getFruitLotListingAccess(grower, {
+      authenticated: true,
+      userResolved: true,
+      canonicalResolved: false,
+    });
+    const afterKyc = getFruitLotListingAccess(grower, {
+      authenticated: true,
+      userResolved: true,
+      canonicalResolved: true,
+      canonicalStatus: "APPROVED",
+      canonicalEligible: true,
+    });
+
+    expect([beforeProfile.state, afterProfile.state, afterKyc.state]).toEqual([
+      "LOADING",
+      "LOADING",
+      "AUTHORIZED",
+    ]);
+  });
+
+  it("reads the minimal backend authorization payload without receiving PAN values", () => {
+    const payload = {
+      eligibility: {
+        status: "APPROVED",
+        approved: true,
+        panComplete: true,
+        eligible: true,
+      },
+      lotListingAuthorization: {
+        allowed: true,
+        code: "AUTHORIZED",
+        message: "",
+      },
+    };
+
+    expect(getCanonicalLotListingOptions(payload)).toEqual({
+      canonicalResolved: true,
+      canonicalStatus: "APPROVED",
+      canonicalEligible: true,
+    });
+    expect(getLotListingDebugSnapshot({
+      role: "grower",
+      activeRole: "grower",
+      profileTypes: ["grower"],
+    }, payload)).toMatchObject({
+      user: {
+        role: "grower",
+        activeRole: "grower",
+        profileTypes: ["grower"],
+      },
+      canonical: {
+        status: "APPROVED",
+        eligible: true,
+        authorizationAllowed: true,
+      },
     });
   });
 });

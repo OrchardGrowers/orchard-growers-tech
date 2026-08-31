@@ -18,6 +18,7 @@ import {
 } from "../services/verificationFeedbackService.js";
 import {
   getKycEligibility,
+  getGrowerLotListingAuthorization,
   normalizePanNumber,
   validateKycSubmission,
 } from "../services/kycEligibilityService.js";
@@ -1086,6 +1087,14 @@ export const getProfile = async (req, res) => {
       return res.status(404).json({ msg: "User not found" });
     }
 
+    if (String(req.query?.authorizationOnly || "") === "1") {
+      return res.json({
+        role: user.role,
+        activeRole: user.activeRole,
+        profileTypes: user.profileTypes || [],
+      });
+    }
+
     res.json(user);
 
   } catch (err) {
@@ -1104,6 +1113,35 @@ export const getMyKyc = async (req, res) => {
       roleType,
       status: normalizeKycStatus(roleKyc.status),
     };
+    const eligibility = getKycEligibility(user, roleType);
+    const lotListingAuthorization = roleType === "grower"
+      ? getGrowerLotListingAuthorization(user)
+      : null;
+
+    if (String(req.query?.authorizationOnly || "") === "1") {
+      return res.json({
+        success: true,
+        user: {
+          role: user.role,
+          activeRole: user.activeRole,
+          profileTypes: user.profileTypes || [],
+        },
+        eligibility: {
+          status: eligibility.status,
+          approved: eligibility.approved,
+          panComplete: eligibility.panComplete,
+          eligible: eligibility.eligible,
+        },
+        lotListingAuthorization: lotListingAuthorization
+          ? {
+              allowed: lotListingAuthorization.allowed,
+              code: lotListingAuthorization.code,
+              message: lotListingAuthorization.message,
+            }
+          : null,
+      });
+    }
+
     const feedback = await getVerificationFeedback({
       userId: req.user.id,
       sections: ["kyc", "pan", "bank", "document"],
@@ -1115,8 +1153,6 @@ export const getMyKyc = async (req, res) => {
       roleType,
       kyc,
     });
-    const eligibility = getKycEligibility(user, roleType);
-
     res.json({
       success: true,
       user: {
