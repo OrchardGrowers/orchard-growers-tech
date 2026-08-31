@@ -8,15 +8,26 @@ import {
   LOT_LISTING_ACCESS_MESSAGES,
 } from "../utils/auth";
 
-export const getLotListingRedirectState = (access, location = {}) =>
-  access?.allowed
-    ? null
-    : {
-        mode: "login",
-        from: `${location.pathname || "/list-new-lot"}${location.search || ""}${location.hash || ""}`,
-        requiredProfile: "grower",
-        message: access?.message || LOT_LISTING_ACCESS_MESSAGES.KYC_INCOMPLETE,
-      };
+export const getLotListingRedirectState = (access, location = {}) => {
+  if (access?.allowed) return null;
+
+  const messageByCode = {
+    VISITOR: LOT_LISTING_ACCESS_MESSAGES.VISITOR,
+    GROWER_REQUIRED: LOT_LISTING_ACCESS_MESSAGES.GROWER_REQUIRED,
+    KYC_INCOMPLETE: LOT_LISTING_ACCESS_MESSAGES.KYC_INCOMPLETE,
+    KYC_APPROVAL_REQUIRED: LOT_LISTING_ACCESS_MESSAGES.KYC_APPROVAL_REQUIRED,
+  };
+
+  return {
+    mode: "login",
+    from: `${location.pathname || "/list-new-lot"}${location.search || ""}${location.hash || ""}`,
+    requiredProfile: "grower",
+    message:
+      messageByCode[access?.code] ||
+      access?.message ||
+      LOT_LISTING_ACCESS_MESSAGES.KYC_INCOMPLETE,
+  };
+};
 
 export default function LotListingRoute({ children }) {
   const location = useLocation();

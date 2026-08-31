@@ -13,8 +13,13 @@ import {
   FaUser,
 } from "react-icons/fa";
 import API from "../services/api";
+import EscrowSecurityIcon from "../components/EscrowSecurityIcon";
 import { hasBuyerProfile, hasGrowerProfile } from "../utils/auth";
 import { openEFruitInstallPrompt } from "../utils/installPrompt";
+import {
+  consumedProfileRouteState,
+  readProfileRouteState,
+} from "../utils/profileRouteState";
 import {
   getEfruitMandiWidgetId,
   getEfruitMandiTokenAuth,
@@ -127,10 +132,7 @@ const trustBadges = [
   {
     title: "eFruitMandi Escrow Protected",
     detail: "Secure - Trusted - Transparent",
-    mark: "✓",
-    logoClass: "h-9 w-9 rounded-md bg-white object-contain p-1",
-    mobileLogoClass:
-      "h-5 w-5 rounded-sm bg-white object-contain p-0.5 lg:h-9 lg:w-9 lg:rounded-md lg:p-1",
+    icon: <EscrowSecurityIcon />,
   },
   {
     title: "Orchard Growers",
@@ -174,11 +176,9 @@ const getPasswordStrength = (password) => {
 export default function Profile() {
   const navigate = useNavigate();
   const location = useLocation();
-  const initialMode = location.state?.mode === "signup" ? "signup" : "login";
-  const returnTo = location.state?.from || "/profile-dashboard";
-  const requiredProfile = location.state?.requiredProfile || "";
-  const routeMessage = location.state?.message || "";
-  const [mode, setMode] = useState(initialMode);
+  const initialRouteState = readProfileRouteState(location.state);
+  const [mode, setMode] = useState(initialRouteState.mode);
+  const [authRedirect, setAuthRedirect] = useState(initialRouteState.redirect);
   const [loginForm, setLoginForm] = useState(initialLogin);
   const [signupForm, setSignupForm] = useState(initialSignup);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
@@ -219,13 +219,12 @@ export default function Profile() {
   });
   const [resetMode, setResetMode] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState({
-    type: routeMessage ? "error" : "",
-    text: routeMessage,
-  });
+  const [message, setMessage] = useState(initialRouteState.notice);
   const loginPhoneCooldown = useOtpVerificationCooldown();
   const signupPhoneCooldown = useOtpVerificationCooldown();
   const otpActionInFlightRef = useRef(false);
+  const routeNoticeTextRef = useRef("");
+  const awaitingConsumedRouteStateRef = useRef(false);
 
   useEffect(() => {
     if (!otpCooldown.login && !otpCooldown.signup) return undefined;
@@ -375,8 +374,8 @@ export default function Profile() {
     sessionStorage.removeItem("efruitmandiPendingAuthRedirect");
   };
   const navigateAfterAuth = (authUser, override = {}) => {
-    const targetPath = override.from || returnTo;
-    const targetProfile = override.requiredProfile || requiredProfile;
+    const targetPath = override.from || authRedirect.from;
+    const targetProfile = override.requiredProfile || authRedirect.requiredProfile;
 
     if (targetProfile === "buyer" && !hasBuyerProfile(authUser)) {
       navigate("/register-buyer", {
@@ -398,13 +397,40 @@ export default function Profile() {
   };
 
   useEffect(() => {
-    if (location.state?.mode === "signup" || location.state?.mode === "login") {
-      setMode(location.state.mode);
+    const routeState = readProfileRouteState(location.state);
+
+    if (routeState.hasExplicitMode) {
+      setMode(routeState.mode);
     }
-    if (routeMessage) {
-      setMessage({ type: "error", text: routeMessage });
+    if (routeState.hasRedirectTarget) {
+      setAuthRedirect(routeState.redirect);
     }
-  }, [location.state?.mode, routeMessage]);
+    if (routeState.shouldConsume) {
+      routeNoticeTextRef.current = routeState.notice.text;
+      awaitingConsumedRouteStateRef.current = true;
+      setMessage(routeState.notice);
+      navigate(
+        `${location.pathname}${location.search || ""}${location.hash || ""}`,
+        { replace: true, state: consumedProfileRouteState },
+      );
+      return;
+    }
+
+    if (awaitingConsumedRouteStateRef.current) {
+      awaitingConsumedRouteStateRef.current = false;
+      return;
+    }
+
+    if (routeNoticeTextRef.current) {
+      const staleRouteNotice = routeNoticeTextRef.current;
+      routeNoticeTextRef.current = "";
+      setMessage((current) =>
+        current.type === "error" && current.text === staleRouteNotice
+          ? { type: "", text: "" }
+          : current,
+      );
+    }
+  }, [location.hash, location.key, location.pathname, location.search, location.state, navigate]);
 
   useEffect(() => {
     const hashParams = new URLSearchParams(
@@ -928,7 +954,9 @@ export default function Profile() {
                   className="rounded-md border border-white/15 bg-white/10 p-1.5 shadow-sm backdrop-blur lg:rounded-lg lg:p-3"
                 >
                   <div className="flex h-5 items-center lg:h-10">
-                    {item.logo ? (
+                    {item.icon ? (
+                      item.icon
+                    ) : item.logo ? (
                       <img
                         src={item.logo}
                         alt={item.title}
@@ -960,10 +988,10 @@ export default function Profile() {
               <button
                 type="button"
                 onClick={() => changeMode("login")}
-                className={`rounded-md py-1.5 text-xs font-semibold ${
+                className={`rounded-md py-1.5 text-xs font-bold ${
                   mode === "login"
-                    ? "bg-white text-green-800 shadow-sm"
-                    : "text-gray-500"
+                    ? "bg-white text-blue-700 shadow-sm"
+                    : "text-blue-600 hover:text-blue-800"
                 }`}
               >
                 Login
@@ -971,10 +999,10 @@ export default function Profile() {
               <button
                 type="button"
                 onClick={() => changeMode("signup")}
-                className={`rounded-md py-1.5 text-xs font-semibold ${
+                className={`rounded-md py-1.5 text-xs font-bold ${
                   mode === "signup"
-                    ? "bg-white text-green-800 shadow-sm"
-                    : "text-gray-500"
+                    ? "bg-white text-blue-700 shadow-sm"
+                    : "text-blue-600 hover:text-blue-800"
                 }`}
               >
                 Signup

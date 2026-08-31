@@ -26,6 +26,14 @@ describe("direct /list-new-lot route decisions", () => {
     });
   });
 
+  it("uses the visitor message by authorization code even if stale KYC text is supplied", () => {
+    expect(getLotListingRedirectState({
+      allowed: false,
+      code: "VISITOR",
+      message: "Please complete your KYC to list a fruit lot.",
+    }, directLocation).message).toBe("Please login or Sign up first to continue.");
+  });
+
   it.each([
     ["generic user", { role: "user", profileTypes: [] }],
     ["buyer", { role: "buyer", activeRole: "buyer", profileTypes: ["buyer"] }],
