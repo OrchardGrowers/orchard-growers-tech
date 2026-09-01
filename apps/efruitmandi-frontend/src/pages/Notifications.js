@@ -18,6 +18,10 @@ import {
   PAYMENT_UNAVAILABLE_MESSAGE,
 } from "../config/payment";
 import { getEfruitMandiProducts } from "../utils/marketProducts";
+import {
+  getCurrentlyLiveTradableLots,
+  getNotificationsDashboardMetrics,
+} from "../utils/latestLots";
 
 const filters = [
   { key: "all", label: "All" },
@@ -33,6 +37,7 @@ const NOTIFICATION_STATE_EVENT = "efruitmandi-notifications-updated";
 export default function Notifications() {
   const navigate = useNavigate();
   const [lots, setLots] = useState([]);
+  const [latestLotsCount, setLatestLotsCount] = useState(0);
   const [buyerQuotes, setBuyerQuotes] = useState([]);
   const [userNotifications, setUserNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -50,7 +55,7 @@ export default function Notifications() {
     const loadLots = async () => {
       try {
         const [lotRes, quoteRes, notificationRes] = await Promise.all([
-          API.get("/products?platform=efruitmandi"),
+          API.get("/products?platform=efruitmandi&devPublicMarketplace=1"),
           localStorage.getItem("accessToken")
             ? API.get("/quotes/buyer").catch(() => ({ data: { quotes: [] } }))
             : Promise.resolve({ data: { quotes: [] } }),
@@ -58,16 +63,20 @@ export default function Notifications() {
             ? API.get("/user/notifications").catch(() => ({ data: { notifications: [] } }))
             : Promise.resolve({ data: { notifications: [] } }),
         ]);
-        const latestLots = getEfruitMandiProducts(lotRes.data)
+        const marketplaceLots = getEfruitMandiProducts(lotRes.data);
+        const liveLots = getCurrentlyLiveTradableLots(marketplaceLots)
           .slice()
-          .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
-          .slice(0, 24);
+          .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
-        setLots(latestLots);
+        setLatestLotsCount(
+          getNotificationsDashboardMetrics({ marketplaceLots }).latestLots
+        );
+        setLots(liveLots.slice(0, 24));
         setBuyerQuotes(quoteRes.data?.quotes || []);
         setUserNotifications(notificationRes.data?.notifications || []);
       } catch (err) {
         console.error(err);
+        setLatestLotsCount(0);
         setLots([]);
         setBuyerQuotes([]);
         setUserNotifications([]);
@@ -183,7 +192,7 @@ export default function Notifications() {
           <div className="mt-5 grid grid-cols-3 gap-2 text-center">
             <Metric label="Unread" value={unreadCount} />
             <Metric label="Deal Open" value={dealOpenCount} />
-            <Metric label="Latest Lots" value={notifications.length} />
+            <Metric label="Latest Lots" value={latestLotsCount} />
           </div>
         </div>
       </header>
