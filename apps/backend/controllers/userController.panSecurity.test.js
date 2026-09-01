@@ -1,11 +1,43 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import User from "../models/User.js";
 import VerificationRemark from "../models/VerificationRemark.js";
-import { getMyKyc, toPublicProfile } from "./userController.js";
+import { getMyKyc, getProfile, toPublicProfile } from "./userController.js";
 
 afterEach(() => vi.restoreAllMocks());
 
 describe("PAN data access boundaries", () => {
+  it("returns only correlated, minimal account authorization fields", async () => {
+    const owner = {
+      _id: "local-user-12345678",
+      role: "grower",
+      activeRole: "grower",
+      profileTypes: ["grower"],
+      phone: "9999999999",
+      email: "private@example.test",
+      kycByRole: { grower: { panNumber: "ABCDE1234F" } },
+    };
+    vi.spyOn(User, "findById").mockReturnValue({
+      select: vi.fn().mockResolvedValue(owner),
+    });
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
+
+    await getProfile(
+      { user: { id: owner._id }, query: { authorizationOnly: "1" } },
+      res
+    );
+
+    expect(res.json).toHaveBeenCalledWith({
+      identityRef: "12345678",
+      role: "grower",
+      activeRole: "grower",
+      profileTypes: ["grower"],
+    });
+    const serialized = JSON.stringify(res.json.mock.calls[0][0]);
+    expect(serialized).not.toContain("9999999999");
+    expect(serialized).not.toContain("private@example.test");
+    expect(serialized).not.toContain("ABCDE1234F");
+  });
+
   it("never serializes PAN details or documents into a public profile", () => {
     const profile = toPublicProfile({
       _id: "user-1",
@@ -112,6 +144,7 @@ describe("PAN data access boundaries", () => {
       },
     }));
     const authorizationPayload = res.json.mock.calls[0][0];
+    expect(authorizationPayload.user.identityRef).toBe("grower-1");
     const serialized = JSON.stringify(authorizationPayload);
     expect(serialized).not.toContain("ABCDE1234F");
     expect(serialized).not.toContain("secure/pan-card");

@@ -29,11 +29,13 @@ export const getCanonicalLotListingOptions = (payload = {}) => {
 export const getLotListingDebugSnapshot = (user = {}, payload = {}) => {
   return {
     user: {
+      identityRef: user?.identityRef || null,
       role: user?.role || null,
       activeRole: user?.activeRole || null,
       profileTypes: Array.isArray(user?.profileTypes) ? user.profileTypes : [],
     },
     canonical: {
+      identityRef: payload?.user?.identityRef || null,
       status: payload?.eligibility?.status || null,
       approved: payload?.eligibility?.approved,
       panComplete: payload?.eligibility?.panComplete,
@@ -43,6 +45,13 @@ export const getLotListingDebugSnapshot = (user = {}, payload = {}) => {
     },
   };
 };
+
+export const isSameAuthorizationIdentity = (profile = {}, kycPayload = {}) =>
+  Boolean(
+    profile?.identityRef &&
+    kycPayload?.user?.identityRef &&
+    profile.identityRef === kycPayload.user.identityRef
+  );
 
 export const getLotListingRedirectState = (access, location = {}) => {
   if (access?.allowed || access?.state === LOT_LISTING_ACCESS_STATES.LOADING) return null;
@@ -66,6 +75,35 @@ export const getLotListingRedirectState = (access, location = {}) => {
       access?.message ||
       LOT_LISTING_ACCESS_MESSAGES.KYC_INCOMPLETE,
   };
+};
+
+export const getLotListingRedirect = (access, location = {}) => {
+  const state = getLotListingRedirectState(access, location);
+  if (!state) return null;
+
+  if (
+    access?.state === LOT_LISTING_ACCESS_STATES.KYC_INCOMPLETE ||
+    access?.state === LOT_LISTING_ACCESS_STATES.KYC_PENDING
+  ) {
+    return {
+      to: "/kyc",
+      state: {
+        from: state.from,
+        roleType: "grower",
+        intent: "list-lot",
+        message: state.message,
+      },
+    };
+  }
+
+  if (access?.state === LOT_LISTING_ACCESS_STATES.NOT_GROWER) {
+    return {
+      to: "/profile-dashboard",
+      state: { from: state.from, message: state.message },
+    };
+  }
+
+  return { to: "/profile", state };
 };
 
 export default function LotListingRoute({ children }) {
@@ -126,6 +164,17 @@ export default function LotListingRoute({ children }) {
         if (!active) return;
 
         const canonicalOptions = getCanonicalLotListingOptions(kycResponse.data);
+        if (!isSameAuthorizationIdentity(freshUser, kycResponse.data)) {
+          console.warn("[ListLot] profile and KYC identity did not resolve together");
+          setAccess({
+            ...getFruitLotListingAccess({}, {
+              authResolved: false,
+              authenticated: true,
+            }),
+            message: "Unable to verify Grower KYC. Please try again.",
+          });
+          return;
+        }
         if (process.env.NODE_ENV === "development") {
           console.debug(
             "[ListLot] hydrated authorization inputs",
@@ -179,12 +228,12 @@ export default function LotListingRoute({ children }) {
   }
 
   if (!access.allowed) {
-    const redirectState = getLotListingRedirectState(access, location);
+    const redirect = getLotListingRedirect(access, location);
     return (
       <Navigate
-        to="/profile"
+        to={redirect.to}
         replace
-        state={redirectState}
+        state={redirect.state}
       />
     );
   }

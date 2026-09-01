@@ -18,7 +18,6 @@ import {
 } from "react-icons/fa";
 import BannerSlider from "../components/BannerSlider";
 import {
-  getCurrentUser,
   canQuote,
   hasAccessToken,
   hasBuyerProfile,
@@ -26,6 +25,7 @@ import {
   hasGrowerProfile,
 } from "../utils/auth";
 import { getEfruitMandiProducts } from "../utils/marketProducts";
+import { resolvePrivateApiUrls } from "../utils/apiOrigin";
 import { saveUserToStorage } from "../utils/userStorage";
 import {
   getSafePublicProfile,
@@ -176,31 +176,17 @@ const orchardCover = `${process.env.PUBLIC_URL || ""}/profile-banners/efruitmand
 const fallbackLotImage =
   "https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?auto=format&fit=crop&w=640&q=70";
 const logoUrl = `${process.env.PUBLIC_URL || ""}/logo-240.webp`;
-const normalizeBaseUrl = (value = "") => value.trim().replace(/\/+$/, "");
-const stripApiSuffix = (value = "") => normalizeBaseUrl(value).replace(/\/api$/i, "");
-const normalizeApiUrl = (value = "") => {
-  const normalized = normalizeBaseUrl(value);
-  if (!normalized) return "";
-  return /\/api$/i.test(normalized) ? normalized : `${normalized}/api`;
-};
-const defaultApiOrigin =
-  typeof window !== "undefined" && ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)
-    ? "http://localhost:5000"
-    : "https://api.efruitmandi.live";
-const API_ORIGIN = normalizeBaseUrl(
+const configuredApiUrl =
   process.env.VITE_API_BASE_URL ||
-    process.env.REACT_APP_API_BASE_URL ||
-    stripApiSuffix(process.env.VITE_API_URL || "") ||
-    stripApiSuffix(process.env.REACT_APP_API_URL || "") ||
-    defaultApiOrigin
-);
-const API_BASE_URL = normalizeApiUrl(
-  process.env.VITE_API_BASE_URL ||
-    process.env.REACT_APP_API_BASE_URL ||
-    process.env.VITE_API_URL ||
-    process.env.REACT_APP_API_URL ||
-    API_ORIGIN
-);
+  process.env.REACT_APP_API_BASE_URL ||
+  process.env.VITE_API_URL ||
+  process.env.REACT_APP_API_URL ||
+  "";
+const { apiOrigin: API_ORIGIN, apiBaseUrl: API_BASE_URL } = resolvePrivateApiUrls({
+  hostname: typeof window === "undefined" ? "localhost" : window.location.hostname,
+  configuredUrl: configuredApiUrl,
+});
+const normalizeBaseUrl = (value = "") => String(value || "").trim().replace(/\/+$/, "");
 const FILE_BASE_URL = normalizeBaseUrl(
   process.env.VITE_FILE_BASE_URL || process.env.REACT_APP_FILE_BASE_URL || API_ORIGIN
 );
@@ -644,7 +630,10 @@ export default function Home() {
     ? normalizedListingFilterParam
     : "";
   const [listingSearch, setListingSearch] = useState(listingSearchParam);
-  const [user, setUser] = useState(() => getCurrentUser());
+  // Cached user data can belong to an older backend/session. It may improve
+  // rendering, but it must not be displayed as the authenticated account until
+  // the private local profile endpoint confirms the current token.
+  const [user, setUser] = useState({});
   const [profileModePreference, setProfileModePreference] = useState("");
   const [storedProfileMode, setStoredProfileMode] = useState(() => getStoredProfileMode());
   const [products, setProducts] = useState([]);
@@ -943,24 +932,22 @@ export default function Home() {
   }, [loadMarketData, marketSocket]);
 
   useEffect(() => {
-    const syncLocalUser = () => {
-      setUser(getCurrentUser());
-    };
-
     const loadProfile = async () => {
       if (!hasAccessToken()) {
-        syncLocalUser();
+        setUser({});
         return;
       }
 
       try {
         const api = await getApiClient();
         const res = await api.get("/user/profile");
-        const freshUser = res.data || getCurrentUser();
+        const freshUser = res.data || {};
         setUser(freshUser);
         saveUserToStorage(freshUser);
       } catch {
-        syncLocalUser();
+        // Never promote stale localStorage profile data after a failed private
+        // hydration. The token interceptor handles an actual 401/logout.
+        setUser({});
       }
     };
 

@@ -89,6 +89,8 @@ const getUserProfileTypes = (user) => {
   return profiles;
 };
 
+const getAuthorizationIdentityRef = (user) => String(user?._id || "").slice(-8);
+
 const PUBLIC_PROFILE_SELECT = [
   "name",
   "role",
@@ -1089,6 +1091,7 @@ export const getProfile = async (req, res) => {
 
     if (String(req.query?.authorizationOnly || "") === "1") {
       return res.json({
+        identityRef: getAuthorizationIdentityRef(user),
         role: user.role,
         activeRole: user.activeRole,
         profileTypes: user.profileTypes || [],
@@ -1122,6 +1125,7 @@ export const getMyKyc = async (req, res) => {
       return res.json({
         success: true,
         user: {
+          identityRef: getAuthorizationIdentityRef(user),
           role: user.role,
           activeRole: user.activeRole,
           profileTypes: user.profileTypes || [],

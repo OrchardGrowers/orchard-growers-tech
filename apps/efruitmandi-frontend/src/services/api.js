@@ -4,52 +4,25 @@ import {
   createPaymentUnavailableError,
   isPaymentPartnerDisabledPath,
 } from "../config/payment";
+import {
+  isLoopbackUrl,
+  normalizeBaseUrl,
+  resolvePrivateApiUrls,
+} from "../utils/apiOrigin";
 
-const normalizeBaseUrl = (value = "") => value.trim().replace(/\/+$/, "");
-const stripApiSuffix = (value = "") => normalizeBaseUrl(value).replace(/\/api$/i, "");
-const normalizeApiUrl = (value = "") => {
-  const normalized = normalizeBaseUrl(value);
-  if (!normalized) return "";
-  return /\/api$/i.test(normalized) ? normalized : `${normalized}/api`;
-};
-const PUBLIC_API_ORIGIN = "https://api.efruitmandi.live";
-const LOCAL_API_ORIGIN = "http://localhost:5000";
-const isLocalBrowserHost = () => {
-  if (typeof window === "undefined") return true;
-  return ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
-};
-const isLoopbackUrl = (value = "") => {
-  try {
-    const { hostname } = new URL(value);
-    return ["localhost", "127.0.0.1", "::1"].includes(hostname);
-  } catch {
-    return false;
-  }
-};
-const usePublicApiWhenNeeded = (value = "") => {
-  const normalized = normalizeBaseUrl(value || (isLocalBrowserHost() ? LOCAL_API_ORIGIN : PUBLIC_API_ORIGIN));
-  if (!isLocalBrowserHost() && isLoopbackUrl(normalized)) return PUBLIC_API_ORIGIN;
-  return normalized;
-};
+const configuredApiUrl =
+  process.env.VITE_API_BASE_URL ||
+  process.env.REACT_APP_API_BASE_URL ||
+  process.env.VITE_API_URL ||
+  process.env.REACT_APP_API_URL ||
+  "";
+const privateApiUrls = resolvePrivateApiUrls({
+  hostname: typeof window === "undefined" ? "localhost" : window.location.hostname,
+  configuredUrl: configuredApiUrl,
+});
 
-export const API_ORIGIN = normalizeBaseUrl(
-  stripApiSuffix(usePublicApiWhenNeeded(
-    process.env.VITE_API_BASE_URL ||
-    process.env.REACT_APP_API_BASE_URL ||
-    stripApiSuffix(process.env.VITE_API_URL || "") ||
-    stripApiSuffix(process.env.REACT_APP_API_URL || "") ||
-    (isLocalBrowserHost() ? LOCAL_API_ORIGIN : PUBLIC_API_ORIGIN)
-  ))
-);
-export const API_BASE_URL = normalizeApiUrl(
-  usePublicApiWhenNeeded(
-    process.env.VITE_API_BASE_URL ||
-    process.env.REACT_APP_API_BASE_URL ||
-    process.env.VITE_API_URL ||
-    process.env.REACT_APP_API_URL ||
-    API_ORIGIN
-  )
-);
+export const API_ORIGIN = privateApiUrls.apiOrigin;
+export const API_BASE_URL = privateApiUrls.apiBaseUrl;
 export const FILE_BASE_URL = normalizeBaseUrl(process.env.VITE_FILE_BASE_URL || process.env.REACT_APP_FILE_BASE_URL || API_ORIGIN);
 export const SOCKET_URL = normalizeBaseUrl(process.env.VITE_SOCKET_URL || process.env.REACT_APP_SOCKET_URL || API_ORIGIN);
 const EFRUITMANDI_PLATFORM = "efruitmandi";
@@ -100,7 +73,7 @@ export const getApiErrorMessage = (error, fallback = "Request failed.") => {
     console.error("API request failed", {
       status: error.response.status,
       url: error.config?.url,
-      data,
+      code: data?.code || null,
     });
   }
 
@@ -123,8 +96,29 @@ API.interceptors.request.use((config) => {
 
   const token = localStorage.getItem("accessToken");
 
+  if (
+    privateApiUrls.localBrowser &&
+    /^https?:\/\//i.test(String(config.url || "")) &&
+    !isLoopbackUrl(config.url)
+  ) {
+    return Promise.reject(new Error("Blocked non-local private API request from localhost."));
+  }
+
+  config.baseURL = API_BASE_URL;
+
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  if (
+    isDevelopment &&
+    ["/user/profile", "/kyc/me"].includes(String(config.url || "").split("?")[0])
+  ) {
+    console.debug("[Private API] account authorization request", {
+      origin: API_ORIGIN,
+      path: String(config.url || "").split("?")[0],
+      tokenPresent: Boolean(token),
+    });
   }
 
   if (shouldTagAuthPlatform(config.url)) {

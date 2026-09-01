@@ -6,7 +6,9 @@ import {
 import {
   getCanonicalLotListingOptions,
   getLotListingDebugSnapshot,
+  getLotListingRedirect,
   getLotListingRedirectState,
+  isSameAuthorizationIdentity,
 } from "./LotListingRoute";
 
 const directLocation = { pathname: "/list-new-lot", search: "", hash: "" };
@@ -31,6 +33,10 @@ describe("direct /list-new-lot route decisions", () => {
         message: "Please login or Sign up first to continue.",
       },
     });
+    expect(getLotListingRedirect(
+      getFruitLotListingAccess({}, { authenticated: false }),
+      directLocation
+    ).to).toBe("/profile");
   });
 
   it("uses the visitor message by authorization code even if stale KYC text is supplied", () => {
@@ -100,11 +106,36 @@ describe("direct /list-new-lot route decisions", () => {
     ["pending", "PENDING", "Your KYC must be approved before you can list a fruit lot."],
     ["under review", "UNDER_REVIEW", "Your KYC must be approved before you can list a fruit lot."],
   ])("denies a grower whose KYC is %s", (_label, canonicalStatus, message) => {
-    expect(directRouteResult(grower, {
+    const result = directRouteResult(grower, {
       authenticated: true,
       canonicalStatus,
       canonicalEligible: false,
-    })).toMatchObject({ access: { allowed: false }, redirect: { message } });
+    });
+    expect(result).toMatchObject({ access: { allowed: false }, redirect: { message } });
+    expect(getLotListingRedirect(result.access, directLocation)).toMatchObject({
+      to: "/kyc",
+      state: { roleType: "grower", message },
+    });
+  });
+
+  it("keeps an authenticated non-grower out of the Login/Signup view", () => {
+    const access = getFruitLotListingAccess(
+      { role: "buyer", activeRole: "buyer", profileTypes: ["buyer"] },
+      { authenticated: true }
+    );
+    expect(getLotListingRedirect(access, directLocation).to).toBe("/profile-dashboard");
+  });
+
+  it("requires profile and canonical KYC to resolve for the same identity", () => {
+    expect(isSameAuthorizationIdentity(
+      { identityRef: "a1b2c3d4" },
+      { user: { identityRef: "a1b2c3d4" } }
+    )).toBe(true);
+    expect(isSameAuthorizationIdentity(
+      { identityRef: "a1b2c3d4" },
+      { user: { identityRef: "different" } }
+    )).toBe(false);
+    expect(isSameAuthorizationIdentity({}, {})).toBe(false);
   });
 
   it("allows an approved, canonically eligible grower without a redirect", () => {
@@ -170,11 +201,13 @@ describe("direct /list-new-lot route decisions", () => {
       canonicalEligible: true,
     });
     expect(getLotListingDebugSnapshot({
+      identityRef: "a1b2c3d4",
       role: "grower",
       activeRole: "grower",
       profileTypes: ["grower"],
     }, payload)).toMatchObject({
       user: {
+        identityRef: "a1b2c3d4",
         role: "grower",
         activeRole: "grower",
         profileTypes: ["grower"],
