@@ -16,6 +16,7 @@ import {
   hasTransactionEligibleKyc,
   PAN_KYC_REQUIRED_MESSAGE,
 } from "../services/kycEligibilityService.js";
+import { canLotAcceptOffers } from "../services/dealLifecycleService.js";
 
 const router = express.Router();
 const PAYMENT_CONFIRMATION_WINDOW_MS = 15 * 60 * 1000;
@@ -407,7 +408,7 @@ const isOwnListedLot = (product = {}, buyer = {}, authenticatedUser = {}) => {
   return Boolean(sameUserId || (buyerPhone && growerPhone && buyerPhone === growerPhone));
 };
 
-const createQuoteForLot = async (req, res) => {
+export const createQuoteForLot = async (req, res) => {
   try {
     const lotId = req.params.lotId || req.body.lotId;
     const [product, buyer] = await Promise.all([
@@ -417,6 +418,13 @@ const createQuoteForLot = async (req, res) => {
 
     if (!product || product.createdSource === "admin-panel") {
       return res.status(404).json({ msg: "Fruit lot not found" });
+    }
+
+    if (!canLotAcceptOffers(product)) {
+      return res.status(409).json({
+        code: "LOT_CLOSED",
+        msg: "This historical fruit lot is read-only and cannot accept new offers.",
+      });
     }
 
     if (!buyer || !getProfileTypes(buyer).has("buyer")) {

@@ -340,6 +340,19 @@ export default function ProfileDashboard() {
     }
   }, [routeLocation.search]);
 
+  useEffect(() => {
+    const routeMessage = typeof locationState?.message === "string"
+      ? locationState.message.trim()
+      : "";
+    if (!routeMessage) return;
+
+    setNotice(routeMessage);
+    navigate(`${routeLocation.pathname}${routeLocation.search || ""}`, {
+      replace: true,
+      state: null,
+    });
+  }, [locationState, navigate, routeLocation.pathname, routeLocation.search]);
+
   const storedUser = useMemo(() => {
     try {
       const parsedUser = JSON.parse(localStorage.getItem("user")) || {};

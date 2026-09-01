@@ -358,10 +358,10 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
             onOpenLot={(lotId) => navigate(`/lots/${lotId}`)}
           />
           <PublicMarketSection
-            title="Closed Deals"
+            title="Lot History"
             icon={<FaHandshake />}
             items={closedDeals}
-            emptyText="No completed public deals are visible for this profile yet."
+            emptyText="No public historical lots are visible for this profile yet."
             onOpenLot={(lotId) => navigate(`/lots/${lotId}`)}
           />
         </div>
@@ -394,9 +394,9 @@ function PublicMarketSection({ title, icon, items = [], emptyText, onOpenLot }) 
 
       {items.length ? (
         <div className="grid gap-3 sm:grid-cols-2">
-          {items.map((item) => (
+          {items.map((item, index) => (
             <PublicMarketLotCard
-              key={item._id}
+              key={item._id || item.publicHistoryKey || `${item.fruitName || "lot"}-${item.listingDate || index}`}
               item={item}
               onOpen={() => item._id && onOpenLot?.(item._id)}
             />
@@ -416,11 +416,14 @@ function PublicMarketLotCard({ item, onOpen }) {
   const title = item.title || item.fruitName || "Fruit Lot";
   const detailLine = [item.variety, item.grade].filter(Boolean).join(" / ");
   const price = formatPrice(item.price);
+  const readOnly = item.readOnly === true || item.historical === true || item.tradable === false;
+  const CardElement = readOnly ? "article" : "button";
+  const historyDate = item.tradingDate || item.closedAt || item.listingDate;
 
   return (
-    <button
-      type="button"
-      onClick={onOpen}
+    <CardElement
+      type={readOnly ? undefined : "button"}
+      onClick={readOnly ? undefined : onOpen}
       className="overflow-hidden rounded-xl border border-gray-100 bg-white text-left shadow-sm transition hover:border-green-200 hover:shadow-md"
     >
       <div className="h-32 bg-green-50">
@@ -445,7 +448,7 @@ function PublicMarketLotCard({ item, onOpen }) {
             {title}
           </h3>
           <span className="shrink-0 rounded-full bg-green-50 px-2 py-1 text-[10px] font-extrabold uppercase text-green-800">
-            {item.status || "Live"}
+            {item.historyOutcome || item.finalLifecycleStatus || item.status || "Live"}
           </span>
         </div>
 
@@ -466,7 +469,14 @@ function PublicMarketLotCard({ item, onOpen }) {
               {item.quantity || 0} {item.unit || "boxes"}
             </span>
           </p>
-          {price && (
+          {readOnly && (
+            <>
+              <p>{Number(item.offerCount || 0)} interested buyer offer(s)</p>
+              {historyDate && <p>{new Date(historyDate).toLocaleDateString("en-IN")}</p>}
+              <p className="font-extrabold text-gray-700">Historical record · Read only</p>
+            </>
+          )}
+          {price && !readOnly && (
             <p className="flex items-center gap-1 text-green-800">
               <FaRupeeSign />
               <span>{price}</span>
@@ -474,6 +484,6 @@ function PublicMarketLotCard({ item, onOpen }) {
           )}
         </div>
       </div>
-    </button>
+    </CardElement>
   );
 }

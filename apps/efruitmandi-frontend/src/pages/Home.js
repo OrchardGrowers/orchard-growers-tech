@@ -1751,7 +1751,7 @@ function PublicDealList({
   const remainingDeals = hasItemLimit ? deals.slice(initialItemLimit) : [];
   const renderDeal = (deal, index, imagePriority = false) => (
     <DesktopLotPost
-      key={getLotDetailId(deal) || deal.id || deal.lotNo || deal.title}
+      key={getLotDetailId(deal) || deal.publicHistoryKey || deal.id || deal.lotNo || deal.title}
       items={[deal]}
       emptyText={emptyText}
       onOpenLot={onOpenLotById}
@@ -2278,7 +2278,7 @@ function ListingScroller({ items, emptyText, onView }) {
     <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
       {items.slice(0, 6).map((product) => (
         <MarketCard
-          key={product._id}
+          key={product._id || product.publicHistoryKey}
           item={product}
           badge={formatLotStatus(product.status, product.dealTiming, product)}
           buttonLabel="View Listing"
@@ -2322,7 +2322,7 @@ decoding="async"
 
       <div className="mb-1 flex items-center justify-between gap-2">
         <h3 className="line-clamp-1 text-xs font-extrabold text-black">
-          {item.title || "Fruit Lot"}
+          {item.title || item.fruitName || "Fruit Lot"}
         </h3>
         <span className={`rounded px-2 py-0.5 text-[8px] font-extrabold ${getLotStatusBadgeClass(item)}`}>
           {formatLotStatus(item.status, item.dealTiming, item)}
@@ -2575,7 +2575,7 @@ function DesktopLotPost({
             className="min-w-0 flex-1 text-left"
           >
             <h3 className="line-clamp-1 text-base font-extrabold text-black">
-              {product.title || "Fruit Lot"}
+              {product.title || product.fruitName || "Fruit Lot"}
             </h3>
             <p className="mt-1 truncate text-sm font-semibold text-gray-600">
               {product.location || "Fruit Mandi"}
@@ -3515,7 +3515,7 @@ function getLotOwnerId(lot = {}) {
 function mergeUniqueLots(lots = []) {
   const seen = new Set();
   return lots.filter((lot) => {
-    const key = getLotProductId(lot) || lot?.auctionId || lot?._id || lot?.id || lot?.lotNo || lot?.title;
+    const key = getLotProductId(lot) || lot?.auctionId || lot?._id || lot?.id || lot?.publicHistoryKey || lot?.lotNo || lot?.title;
     if (!key) return false;
     const normalizedKey = String(key);
     if (seen.has(normalizedKey)) return false;
@@ -3660,6 +3660,7 @@ function LotCountdownText({ timing, compact = false }) {
 }
 
 function formatLotStatus(status = "", timing = null, deal = null) {
+  if (deal?.historyOutcome) return deal.historyOutcome;
   if (deal && isClosedDeal(deal)) return "Deal Closed";
   if (timing?.label) return timing.label;
 
@@ -3709,6 +3710,11 @@ function getLotDetails(product = {}) {
     "";
 
   return [
+    { label: "History outcome", value: product.historyOutcome },
+    { label: "Final status", value: product.finalLifecycleStatus },
+    { label: "Buyer interest", value: product.historical ? `${Number(product.offerCount || 0)} offer(s)` : "" },
+    { label: "Listing date", value: product.listingDate ? new Date(product.listingDate).toLocaleDateString("en-IN") : "" },
+    { label: "Trading date", value: product.tradingDate ? new Date(product.tradingDate).toLocaleDateString("en-IN") : "" },
     { label: "Fruit", value: product.fruitName },
     { label: "Variety", value: product.variety },
     { label: "Quality", value: getQualityLabel(product.quality) },

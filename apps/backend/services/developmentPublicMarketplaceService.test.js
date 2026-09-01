@@ -129,4 +129,38 @@ describe("development public marketplace boundary", () => {
     expect(result).not.toHaveProperty("highestBidder");
     expect(result).not.toHaveProperty("dealBreakdown");
   });
+
+  it("preserves only read-only public fields for historical lots", () => {
+    const result = sanitizeDevelopmentPublicProduct({
+      publicHistoryKey: "history_safe",
+      fruitName: "Apple",
+      variety: "Gala",
+      quantity: 20,
+      location: "Secret Road, Shimla, Himachal Pradesh, 171001",
+      offerCount: 0,
+      historyOutcome: "No Buyer Interested",
+      finalLifecycleStatus: "EXPIRED",
+      historical: true,
+      readOnly: true,
+      tradable: false,
+      _id: "507f1f77bcf86cd799439012",
+      basePrice: 900,
+      finalPrice: 1200,
+      acceptedBuyerId: "507f1f77bcf86cd799439013",
+      phone: "9999999999",
+    });
+
+    expect(result).toMatchObject({
+      fruitName: "Apple",
+      location: "Shimla, Himachal Pradesh",
+      historyOutcome: "No Buyer Interested",
+      readOnly: true,
+      tradable: false,
+    });
+    expect(result).not.toHaveProperty("_id");
+    expect(result).not.toHaveProperty("basePrice");
+    expect(result).not.toHaveProperty("finalPrice");
+    expect(result).not.toHaveProperty("acceptedBuyerId");
+    expect(result).not.toHaveProperty("phone");
+  });
 });

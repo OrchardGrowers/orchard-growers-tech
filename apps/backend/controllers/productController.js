@@ -14,10 +14,12 @@ import {
 import {
   buildMarketplaceLifecycle,
   getCompletedMarketplaceOrder,
+  isHistoricalLot,
   isOrderCompletedForMarketplace,
   isOrderProtectedFromGrowerDelete,
   resolveDealSchedule,
 } from "../services/dealLifecycleService.js";
+import { sanitizePublicHistoricalLot } from "../services/publicLotHistoryService.js";
 import {
   canAccessLotDetail,
   isLotResourceEligible,
@@ -63,13 +65,23 @@ const canSeePrivateCertificate = (product, user) => {
   return Boolean(ownerId && user?.id && ownerId.toString() === user.id.toString());
 };
 
-export const serializeProduct = (product, user, completedOrder = null) => {
+export const serializeProduct = (product, user, completedOrder = null, { offerCount = 0 } = {}) => {
   let data = product.toObject ? product.toObject() : { ...product };
   if (completedOrder) {
     Object.assign(data, buildMarketplaceLifecycle(completedOrder));
   }
 
   data = sanitizeLotPricing(data, { product: data, viewer: user });
+
+  if (isHistoricalLot(data, completedOrder)) {
+    data.historical = true;
+    data.readOnly = true;
+    data.tradable = false;
+    data.offerCount = Math.max(0, Number(offerCount || 0));
+    if (!canAccessNonPublicLot(data, user)) {
+      return sanitizePublicHistoricalLot(data, { offerCount, completedOrder });
+    }
+  }
 
   data.hasOrganicCertificateProof = Boolean(
     data.organicCertificationNo || data.organicCertificateUrl
@@ -805,7 +817,7 @@ export const getProducts = async (req, res) => {
         return res.json(developmentProducts);
       }
     }
-    const filters = { active: { $ne: false }, inventoryType: { $ne: "raw_material" } };
+    const filters = { inventoryType: { $ne: "raw_material" }, status: { $ne: "DELETED" } };
 
     if (["orchard", "orchardgrowers", "orchard-growers"].includes(platform)) {
       filters.$or = [
@@ -839,13 +851,21 @@ export const getProducts = async (req, res) => {
       }
       return map;
     }, new Map());
+    const quotations = productIds.length
+      ? await Quotation.find({ lot: { $in: productIds } }).select("lot").lean()
+      : [];
+    const offerCountByProductId = quotations.reduce((map, quote) => {
+      const key = String(quote.lot || "");
+      if (key) map.set(key, (map.get(key) || 0) + 1);
+      return map;
+    }, new Map());
 
     const requesterId = req.user?.id?.toString();
     const now = new Date();
     const visibleProducts = products.filter((product) => {
       const productObject = product.toObject ? product.toObject() : product;
       const status = String(productObject.status || "").trim().toUpperCase();
-      if (productObject.active === false || ["EXPIRED", "CANCELLED", "DELETED"].includes(status)) {
+      if (status === "DELETED") {
         return false;
       }
       const creator = productObject.createdBy?._id || productObject.createdBy;
@@ -860,7 +880,12 @@ export const getProducts = async (req, res) => {
 
     res.json(
       visibleProducts.map((product) =>
-        serializeProduct(product, req.user, completedOrderByProductId.get(String(product._id)))
+        serializeProduct(
+          product,
+          req.user,
+          completedOrderByProductId.get(String(product._id)),
+          { offerCount: offerCountByProductId.get(String(product._id)) || 0 }
+        )
       )
     );
   } catch (err) {
@@ -944,7 +969,11 @@ export const getProductById = async (req, res) => {
       return res.status(404).json({ msg: "Product not found" });
     }
 
-    const serializedProduct = serializeProduct(product, req.user, completedOrder);
+    const offerCount = await Quotation.countDocuments({ lot: product._id });
+    const serializedProduct = serializeProduct(product, req.user, completedOrder, { offerCount });
+    const publicHistoricalView = Boolean(
+      isHistoricalLot(product, completedOrder) && !canAccessNonPublicLot(product, req.user)
+    );
     const serializedAuction = auction?.toObject ? auction.toObject() : auction;
     if (serializedAuction) {
       if (completedOrder) {
@@ -962,8 +991,15 @@ export const getProductById = async (req, res) => {
       ? sanitizeLotPricing(serializedAuction, { product, viewer: req.user })
       : null;
 
-    const fruitScanningReport = await getFruitScanningReportForLot(product._id);
-    res.json({ product: serializedProduct, auction: safeAuction, closedDeal, fruitScanningReport });
+    const fruitScanningReport = publicHistoricalView
+      ? null
+      : await getFruitScanningReportForLot(product._id);
+    res.json({
+      product: serializedProduct,
+      auction: publicHistoricalView ? null : safeAuction,
+      closedDeal: publicHistoricalView ? null : closedDeal,
+      fruitScanningReport,
+    });
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }

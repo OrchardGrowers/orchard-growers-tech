@@ -5,8 +5,13 @@ const DEFAULT_DEAL_CLOSE_HOUR = 16;
 export const COMPLETED_PAYMENT_STATUSES = new Set(["ESCROW", "PAID", "RELEASED"]);
 export const COMPLETED_DELIVERY_STATUSES = new Set(["DELIVERED"]);
 export const TERMINAL_INCOMPLETE_AUCTION_STATUSES = new Set(["EXPIRED", "CANCELLED"]);
-export const HIDDEN_LOT_STATUSES = new Set(["EXPIRED", "CANCELLED", "DELETED"]);
+export const HIDDEN_LOT_STATUSES = new Set(["DELETED"]);
 export const COMPLETION_REQUIRED_LOT_STATUSES = new Set(["SOLD", "QUOTE_ACCEPTED", "DEAL_CONFIRMED"]);
+export const TERMINAL_HISTORICAL_LOT_STATUSES = new Set([
+  "EXPIRED",
+  "CANCELLED",
+  ...COMPLETION_REQUIRED_LOT_STATUSES,
+]);
 
 const toInt = (value, fallback) => {
   const number = Number(value);
@@ -179,10 +184,28 @@ export const isPublicAuctionVisible = (auction = {}, completedOrderByAuctionId =
 
 export const isPublicLotVisible = (product = {}, completedOrder = null, now = new Date()) => {
   const status = normalizeStatus(product.status);
-  if (product.active === false || HIDDEN_LOT_STATUSES.has(status)) return false;
-  const hasCompletedOrder = isOrderCompletedForMarketplace(completedOrder);
-  if (COMPLETION_REQUIRED_LOT_STATUSES.has(status)) return hasCompletedOrder;
-  if (hasPassedEndTime(product.auctionEndTime || product.endTime, now)) return hasCompletedOrder;
+  if (HIDDEN_LOT_STATUSES.has(status)) return false;
+  if (isHistoricalLot(product, completedOrder, now)) return true;
   return true;
+};
+
+export const isHistoricalLot = (product = {}, completedOrder = null, now = new Date()) => {
+  const status = normalizeStatus(product.status);
+  if (HIDDEN_LOT_STATUSES.has(status)) return false;
+  return Boolean(
+    isOrderCompletedForMarketplace(completedOrder) ||
+    product.active === false ||
+    TERMINAL_HISTORICAL_LOT_STATUSES.has(status) ||
+    hasPassedEndTime(product.auctionEndTime || product.endTime, now)
+  );
+};
+
+export const canLotAcceptOffers = (product = {}, now = new Date()) => {
+  const status = normalizeStatus(product?.status);
+  return Boolean(
+    product &&
+    !HIDDEN_LOT_STATUSES.has(status) &&
+    !isHistoricalLot(product, null, now)
+  );
 };
 

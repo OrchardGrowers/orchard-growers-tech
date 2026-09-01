@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import User from "../models/User.js";
 import Product from "../models/Product.js";
 import Order from "../models/Order.js";
+import Quotation from "../models/Quotation.js";
 import {
   getResourceType,
   uploadBufferToCloudinary,
@@ -49,9 +50,11 @@ import {
   loadDevelopmentPublicProfiles,
 } from "../services/developmentPublicMarketplaceService.js";
 import {
+  isHistoricalLot,
   isOrderCompletedForMarketplace,
   isPublicLotVisible,
 } from "../services/dealLifecycleService.js";
+import { sanitizePublicHistoricalLot } from "../services/publicLotHistoryService.js";
 import { isRoleOgPubliclyVerified } from "../utils/publicProfileVerification.js";
 
 const getVerifiedPhone = (contact, user = null, otpVerificationToken = "", platform = "efruitmandi") => {
@@ -306,9 +309,6 @@ const toPublicMarketLot = (product = {}, order = null) => ({
   location: getPublicLocationFromText(product.location),
   quantity: product.quantity || 0,
   unit: product.unit || "boxes",
-  price: order
-    ? order.totalAmount || order.finalPrice || product.finalDealValue || product.finalPrice || 0
-    : product.finalDealValue || product.finalPrice || 0,
   status: order ? "Completed Deal" : product.status || "AVAILABLE",
   imageUrl: getPrimaryProductImage(product),
   createdAt: product.createdAt,
@@ -321,36 +321,53 @@ const getPublicProfileMarketActivity = async (userId, role) => {
     return { liveLots: [], closedDeals: [] };
   }
 
-  const liveLots =
+  const marketLots =
     role === "grower"
       ? await Product.find({
           createdBy: userId,
-          active: { $ne: false },
           inventoryType: { $ne: "raw_material" },
           createdSource: { $ne: "admin-panel" },
+          status: { $ne: "DELETED" },
         })
           .select(PUBLIC_PROFILE_MARKET_LOT_SELECT)
           .sort({ createdAt: -1, _id: -1 })
-          .limit(PUBLIC_PROFILE_MARKET_LIMIT)
+          .limit(PUBLIC_PROFILE_MARKET_LIMIT * 2)
           .lean()
       : [];
 
-  const liveLotIds = liveLots.map((lot) => lot._id).filter(Boolean);
-  const liveLotOrders = liveLotIds.length
-    ? await Order.find({ product: { $in: liveLotIds } })
+  const marketLotIds = marketLots.map((lot) => lot._id).filter(Boolean);
+  const marketLotOrders = marketLotIds.length
+    ? await Order.find({ product: { $in: marketLotIds } })
         .select("_id product paymentStatus deliveryStatus")
         .lean()
     : [];
-  const completedOrderByProductId = liveLotOrders.reduce((map, order) => {
+  const completedOrderByProductId = marketLotOrders.reduce((map, order) => {
     if (isOrderCompletedForMarketplace(order)) map.set(String(order.product), order);
+    return map;
+  }, new Map());
+  const marketLotQuotes = marketLotIds.length
+    ? await Quotation.find({ lot: { $in: marketLotIds } }).select("lot").lean()
+    : [];
+  const offerCountByProductId = marketLotQuotes.reduce((map, quote) => {
+    const key = String(quote.lot || "");
+    if (key) map.set(key, (map.get(key) || 0) + 1);
     return map;
   }, new Map());
   const now = new Date();
 
-  const visibleLiveLots = liveLots
+  const visibleLiveLots = marketLots
     .filter((lot) => isPublicLotVisible(lot, completedOrderByProductId.get(String(lot._id)) || null, now))
-    .filter((lot) => !completedOrderByProductId.has(String(lot._id)))
+    .filter((lot) => !isHistoricalLot(lot, completedOrderByProductId.get(String(lot._id)) || null, now))
+    .slice(0, PUBLIC_PROFILE_MARKET_LIMIT)
     .map((lot) => toPublicMarketLot(lot));
+
+  const growerHistory = marketLots
+    .filter((lot) => isHistoricalLot(lot, completedOrderByProductId.get(String(lot._id)) || null, now))
+    .slice(0, PUBLIC_PROFILE_MARKET_LIMIT)
+    .map((lot) => sanitizePublicHistoricalLot(lot, {
+      completedOrder: completedOrderByProductId.get(String(lot._id)) || null,
+      offerCount: offerCountByProductId.get(String(lot._id)) || 0,
+    }));
 
   const closedOrders = await Order.find({ [role]: userId })
     .select("_id product finalPrice totalAmount paymentStatus deliveryStatus invoiceDate updatedAt createdAt")
@@ -359,10 +376,15 @@ const getPublicProfileMarketActivity = async (userId, role) => {
     .limit(PUBLIC_PROFILE_MARKET_LIMIT)
     .lean();
 
-  const closedDeals = closedOrders
+  const buyerHistory = closedOrders
     .filter(isOrderCompletedForMarketplace)
     .filter((order) => order.product)
-    .map((order) => toPublicMarketLot(order.product, order));
+    .map((order) => sanitizePublicHistoricalLot(order.product, {
+      completedOrder: order,
+      offerCount: 1,
+    }));
+
+  const closedDeals = role === "grower" ? growerHistory : buyerHistory;
 
   return { liveLots: visibleLiveLots, closedDeals };
 };

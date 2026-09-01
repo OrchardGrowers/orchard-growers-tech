@@ -35,23 +35,23 @@ describe("public lot access", () => {
     })).toBe(true);
   });
 
-  it("rejects nonexistent, inactive, and hidden lots for anonymous access", () => {
+  it("allows sanitized historical lots while rejecting nonexistent and hidden lots", () => {
     expect(canAccessLotDetail({ product: null, platform: "efruitmandi", now: NOW })).toBe(false);
-    expect(canAccessLotDetail({ product: baseProduct({ active: false }), platform: "efruitmandi", now: NOW })).toBe(false);
-    expect(canAccessLotDetail({ product: baseProduct({ active: false }), platform: "efruitmandi", completedOrder, now: NOW })).toBe(false);
-    for (const status of ["EXPIRED", "CANCELLED", "DELETED"]) {
-      expect(canAccessLotDetail({ product: baseProduct({ status }), platform: "efruitmandi", now: NOW })).toBe(false);
-    }
+    expect(canAccessLotDetail({ product: baseProduct({ active: false }), platform: "efruitmandi", now: NOW })).toBe(true);
+    expect(canAccessLotDetail({ product: baseProduct({ active: false }), platform: "efruitmandi", completedOrder, now: NOW })).toBe(true);
+    expect(canAccessLotDetail({ product: baseProduct({ status: "EXPIRED" }), platform: "efruitmandi", now: NOW })).toBe(true);
+    expect(canAccessLotDetail({ product: baseProduct({ status: "CANCELLED" }), platform: "efruitmandi", now: NOW })).toBe(true);
+    expect(canAccessLotDetail({ product: baseProduct({ status: "DELETED" }), platform: "efruitmandi", now: NOW })).toBe(false);
   });
 
-  it("requires a completed order for elapsed and completion-required lots", () => {
+  it("keeps elapsed and sold lots publicly visible as read-only history regardless of deal completion", () => {
     const elapsed = baseProduct({ auctionEndTime: new Date("2026-08-07T08:00:00.000Z") });
     const sold = baseProduct({ status: "SOLD" });
     const pendingOrder = { product: PRODUCT_ID, paymentStatus: "PENDING", deliveryStatus: "PENDING" };
 
-    expect(canAccessLotDetail({ product: elapsed, platform: "efruitmandi", now: NOW })).toBe(false);
+    expect(canAccessLotDetail({ product: elapsed, platform: "efruitmandi", now: NOW })).toBe(true);
     expect(canAccessLotDetail({ product: elapsed, platform: "efruitmandi", completedOrder, now: NOW })).toBe(true);
-    expect(canAccessLotDetail({ product: sold, platform: "efruitmandi", completedOrder: pendingOrder, now: NOW })).toBe(false);
+    expect(canAccessLotDetail({ product: sold, platform: "efruitmandi", completedOrder: pendingOrder, now: NOW })).toBe(true);
     expect(canAccessLotDetail({ product: sold, platform: "efruitmandi", completedOrder, now: NOW })).toBe(true);
   });
 

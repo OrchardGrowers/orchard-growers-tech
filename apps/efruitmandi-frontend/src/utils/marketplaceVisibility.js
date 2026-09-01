@@ -98,6 +98,9 @@ export const hasCompletedDealSignal = (deal = {}) => {
 };
 
 export const normalizeDealStatus = (deal = {}) => {
+  if (deal.historical === true || deal.readOnly === true || deal.tradable === false) {
+    return "closed";
+  }
   if (hasCompletedDealSignal(deal)) return "closed";
 
   const candidates = [

@@ -318,6 +318,25 @@ const sanitizeFruitScanningReport = (value) => {
 
 export const sanitizeDevelopmentPublicProduct = (value) => {
   const product = asObject(value);
+  if (product.historical === true || product.readOnly === true) {
+    return compact({
+      publicHistoryKey: cleanText(product.publicHistoryKey, 80),
+      fruitName: cleanText(product.fruitName, 120),
+      variety: cleanText(product.variety, 120),
+      quantity: cleanNumber(product.quantity),
+      unit: cleanText(product.unit, 40),
+      location: cleanLocation(product.location),
+      listingDate: cleanDate(product.listingDate),
+      tradingDate: cleanDate(product.tradingDate),
+      closedAt: cleanDate(product.closedAt),
+      finalLifecycleStatus: cleanText(product.finalLifecycleStatus, 50),
+      offerCount: Math.max(0, cleanNumber(product.offerCount) || 0),
+      historyOutcome: cleanText(product.historyOutcome, 80),
+      historical: true,
+      readOnly: true,
+      tradable: false,
+    });
+  }
   const createdBy = sanitizePublicParty(product.createdBy, "grower");
   return compact({
     _id: encodePublicId(product._id || product.id, "product"),
@@ -477,6 +496,25 @@ export const loadDevelopmentPublicProfileLocations = async (req, role) => {
 
 const sanitizePublicMarketLot = (value, { closed = false } = {}) => {
   const lot = asObject(value);
+  if (closed || lot.historical === true || lot.readOnly === true) {
+    return compact({
+      publicHistoryKey: cleanText(lot.publicHistoryKey, 80),
+      fruitName: cleanText(lot.fruitName, 120),
+      variety: cleanText(lot.variety, 120),
+      quantity: cleanNumber(lot.quantity),
+      unit: cleanText(lot.unit, 40),
+      location: cleanLocation(lot.location),
+      listingDate: cleanDate(lot.listingDate),
+      tradingDate: cleanDate(lot.tradingDate),
+      closedAt: cleanDate(lot.closedAt),
+      finalLifecycleStatus: cleanText(lot.finalLifecycleStatus || (closed ? "COMPLETED" : ""), 50),
+      offerCount: Math.max(0, cleanNumber(lot.offerCount) || 0),
+      historyOutcome: cleanText(lot.historyOutcome || (closed ? "Deal Completed" : ""), 80),
+      historical: true,
+      readOnly: true,
+      tradable: false,
+    });
+  }
   return compact({
     _id: encodePublicId(lot._id || lot.id, "product"),
     title: cleanText(lot.title, 240),
@@ -485,9 +523,6 @@ const sanitizePublicMarketLot = (value, { closed = false } = {}) => {
     grade: cleanText(lot.grade || lot.quality, 120),
     quantity: cleanNumber(lot.quantity),
     unit: cleanText(lot.unit, 40),
-    price: closed ? cleanNumber(lot.price || lot.finalDealValue || lot.finalPrice) : undefined,
-    finalPrice: closed ? cleanNumber(lot.finalPrice) : undefined,
-    finalDealValue: closed ? cleanNumber(lot.finalDealValue) : undefined,
     status: cleanText(lot.status, 60),
     imageUrl: cleanUrl(lot.imageUrl),
     createdAt: cleanDate(lot.createdAt),

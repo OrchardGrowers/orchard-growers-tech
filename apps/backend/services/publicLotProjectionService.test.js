@@ -12,6 +12,8 @@ describe("public fruit-lot database projections", () => {
       expect(selected.has("basePrice")).toBe(false);
       expect(selected.has("startingPrice")).toBe(false);
       expect(selected.has("reservePrice")).toBe(false);
+      expect(selected.has("finalPrice")).toBe(false);
+      expect(selected.has("finalDealValue")).toBe(false);
     }
   );
 });
