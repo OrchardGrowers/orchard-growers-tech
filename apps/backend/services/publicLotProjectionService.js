@@ -7,6 +7,7 @@ export const PUBLIC_LOT_SEARCH_SELECT = fields([
 
 export const PUBLIC_PROFILE_MARKET_LOT_SELECT = fields([
   "_id", "title", "fruitName", "variety", "quality", "gradeLots", "quantity", "unit",
-  "location", "images", "imageObjects", "status", "active",
+  "description", "location", "images", "imageObjects", "sampleVideo", "status", "active",
+  "packingType", "packingWeightKg", "totalWeightKg", "packingBreakdown", "packingSummary",
   "auctionEndTime", "createdAt", "updatedAt", "createdBy", "createdSource", "inventoryType",
 ]);

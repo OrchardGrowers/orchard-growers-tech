@@ -54,7 +54,10 @@ import {
   isOrderCompletedForMarketplace,
   isPublicLotVisible,
 } from "../services/dealLifecycleService.js";
-import { sanitizePublicHistoricalLot } from "../services/publicLotHistoryService.js";
+import {
+  partitionPublicHistoricalLots,
+  sanitizePublicHistoricalLot,
+} from "../services/publicLotHistoryService.js";
 import { isRoleOgPubliclyVerified } from "../utils/publicProfileVerification.js";
 
 const getVerifiedPhone = (contact, user = null, otpVerificationToken = "", platform = "efruitmandi") => {
@@ -316,9 +319,9 @@ const toPublicMarketLot = (product = {}, order = null) => ({
   closedAt: order?.updatedAt || order?.invoiceDate || "",
 });
 
-const getPublicProfileMarketActivity = async (userId, role) => {
+export const getPublicProfileMarketActivity = async (userId, role) => {
   if (!["grower", "buyer"].includes(role)) {
-    return { liveLots: [], closedDeals: [] };
+    return { liveLots: [], lotHistory: [], closedDeals: [], historicalLots: [] };
   }
 
   const marketLots =
@@ -338,7 +341,7 @@ const getPublicProfileMarketActivity = async (userId, role) => {
   const marketLotIds = marketLots.map((lot) => lot._id).filter(Boolean);
   const marketLotOrders = marketLotIds.length
     ? await Order.find({ product: { $in: marketLotIds } })
-        .select("_id product paymentStatus deliveryStatus")
+        .select("_id product paymentStatus deliveryStatus invoiceDate updatedAt createdAt")
         .lean()
     : [];
   const completedOrderByProductId = marketLotOrders.reduce((map, order) => {
@@ -361,20 +364,20 @@ const getPublicProfileMarketActivity = async (userId, role) => {
     .slice(0, PUBLIC_PROFILE_MARKET_LIMIT)
     .map((lot) => toPublicMarketLot(lot));
 
-  const growerHistory = marketLots
-    .filter((lot) => isHistoricalLot(lot, completedOrderByProductId.get(String(lot._id)) || null, now))
-    .slice(0, PUBLIC_PROFILE_MARKET_LIMIT)
-    .map((lot) => sanitizePublicHistoricalLot(lot, {
-      completedOrder: completedOrderByProductId.get(String(lot._id)) || null,
-      offerCount: offerCountByProductId.get(String(lot._id)) || 0,
-    }));
+  const growerHistory = partitionPublicHistoricalLots(marketLots, {
+    completedOrderByProductId,
+    offerCountByProductId,
+    now,
+  });
 
-  const closedOrders = await Order.find({ [role]: userId })
-    .select("_id product finalPrice totalAmount paymentStatus deliveryStatus invoiceDate updatedAt createdAt")
-    .populate("product", PUBLIC_PROFILE_MARKET_LOT_SELECT)
-    .sort({ updatedAt: -1, _id: -1 })
-    .limit(PUBLIC_PROFILE_MARKET_LIMIT)
-    .lean();
+  const closedOrders = role === "buyer"
+    ? await Order.find({ buyer: userId })
+        .select("_id product paymentStatus deliveryStatus invoiceDate updatedAt createdAt")
+        .populate("product", PUBLIC_PROFILE_MARKET_LOT_SELECT)
+        .sort({ updatedAt: -1, _id: -1 })
+        .limit(PUBLIC_PROFILE_MARKET_LIMIT)
+        .lean()
+    : [];
 
   const buyerHistory = closedOrders
     .filter(isOrderCompletedForMarketplace)
@@ -384,9 +387,21 @@ const getPublicProfileMarketActivity = async (userId, role) => {
       offerCount: 1,
     }));
 
-  const closedDeals = role === "grower" ? growerHistory : buyerHistory;
+  const lotHistory = role === "grower"
+    ? growerHistory.lotHistory.slice(0, PUBLIC_PROFILE_MARKET_LIMIT)
+    : [];
+  const closedDeals = role === "grower"
+    ? growerHistory.closedDeals.slice(0, PUBLIC_PROFILE_MARKET_LIMIT)
+    : buyerHistory;
 
-  return { liveLots: visibleLiveLots, closedDeals };
+  return {
+    liveLots: visibleLiveLots,
+    lotHistory,
+    closedDeals,
+    // Explicit compatibility alias for consumers introduced during the
+    // initial history rollout. `closedDeals` now means completed deals only.
+    historicalLots: lotHistory,
+  };
 };
 
 const hasGrowerKycPayload = (body = {}, files = {}) =>
@@ -644,7 +659,10 @@ const getPublicProfile = async (req, res, lookup) => {
     return res.json({
       profile: {
         ...profile,
-        totalLots: marketActivity.liveLots.length,
+        totalLots:
+          marketActivity.liveLots.length +
+          marketActivity.lotHistory.length +
+          marketActivity.closedDeals.length,
         totalDeals: marketActivity.closedDeals.length,
       },
       ...marketActivity,

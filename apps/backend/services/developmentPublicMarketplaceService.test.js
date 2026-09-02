@@ -143,6 +143,17 @@ describe("development public marketplace boundary", () => {
       historical: true,
       readOnly: true,
       tradable: false,
+      images: ["https://cdn.example.test/history.jpg", "javascript:alert(1)"],
+      imageObjects: [{
+        url: "https://cdn.example.test/history-secondary.jpg",
+        publicId: "private-media-id",
+        isPrimary: true,
+      }],
+      sampleVideo: "https://cdn.example.test/history.mp4",
+      videos: ["file:///private/history.mp4"],
+      description: "Public orchard lot description.",
+      quality: "Grade A",
+      packingType: "Carton",
       _id: "507f1f77bcf86cd799439012",
       basePrice: 900,
       finalPrice: 1200,
@@ -156,7 +167,18 @@ describe("development public marketplace boundary", () => {
       historyOutcome: "No Buyer Interested",
       readOnly: true,
       tradable: false,
+      imageUrl: "https://cdn.example.test/history-secondary.jpg",
+      sampleVideo: "https://cdn.example.test/history.mp4",
+      description: "Public orchard lot description.",
+      packingType: "Carton",
     });
+    expect(result.images).toEqual([
+      "https://cdn.example.test/history.jpg",
+      "https://cdn.example.test/history-secondary.jpg",
+    ]);
+    expect(result.videos).toEqual(["https://cdn.example.test/history.mp4"]);
+    expect(JSON.stringify(result)).not.toContain("private-media-id");
+    expect(JSON.stringify(result)).not.toContain("file:///private/history.mp4");
     expect(result).not.toHaveProperty("_id");
     expect(result).not.toHaveProperty("basePrice");
     expect(result).not.toHaveProperty("finalPrice");

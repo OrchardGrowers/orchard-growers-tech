@@ -252,14 +252,17 @@ function App() {
             <Route path="/kyc" element={<Kyc />} />
             <Route path="/kyc/status" element={<Kyc />} />
             <Route path="/profile/kyc" element={<Kyc />} />
+            <Route path="/profiles/:businessType/:userId/records/:publicHistoryKey" element={<PublicBusinessProfile />} />
             <Route path="/profiles/:businessType/:userId" element={<PublicBusinessProfile />} />
             <Route path="/growers" element={<PublicProfileDirectory role="grower" />} />
             <Route path="/growers/state/:stateSlug" element={<PublicProfileLocation role="grower" />} />
             <Route path="/growers/state/:stateSlug/district/:districtSlug" element={<PublicProfileLocation role="grower" />} />
+            <Route path="/growers/:slug/records/:publicHistoryKey" element={<PublicBusinessProfile publicBusinessType="grower" />} />
             <Route path="/growers/:slug" element={<PublicBusinessProfile publicBusinessType="grower" />} />
             <Route path="/buyers" element={<PublicProfileDirectory role="buyer" />} />
             <Route path="/buyers/state/:stateSlug" element={<PublicProfileLocation role="buyer" />} />
             <Route path="/buyers/state/:stateSlug/district/:districtSlug" element={<PublicProfileLocation role="buyer" />} />
+            <Route path="/buyers/:slug/records/:publicHistoryKey" element={<PublicBusinessProfile publicBusinessType="buyer" />} />
             <Route path="/buyers/:slug" element={<PublicBusinessProfile publicBusinessType="buyer" />} />
             <Route path="/fruits" element={<PublicFruitDiscovery view="directory" />} />
             <Route path="/fruits/:fruitSlug/varieties/:varietySlug/growers" element={<PublicFruitDiscovery role="grower" />} />

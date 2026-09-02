@@ -88,6 +88,14 @@ const cleanUrl = (value) => {
   }
 };
 
+const PRIVATE_DESCRIPTION_PATTERN =
+  /(\b(?:phone|mobile|whatsapp|contact|email|e-mail|pan|aadhaar|kyc|bank|account|ifsc|upi|address)\b|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|(?:\+?91[\s-]?)?[6-9](?:[\s-]?\d){9})/i;
+
+const cleanPublicDescription = (value) => {
+  const description = cleanText(value, 2_000);
+  return description && !PRIVATE_DESCRIPTION_PATTERN.test(description) ? description : undefined;
+};
+
 const cleanLocation = (value) => {
   const parts = cleanText(value, 240)
     .replace(/\b\d{4,}\b/g, "")
@@ -316,26 +324,71 @@ const sanitizeFruitScanningReport = (value) => {
   });
 };
 
+const sanitizeDevelopmentHistoricalLot = (value, { closed = false } = {}) => {
+  const lot = asObject(value);
+  const images = Array.from(new Set([
+    ...cleanStringArray(lot.images, cleanUrl),
+    ...(Array.isArray(lot.imageObjects)
+      ? lot.imageObjects.map(sanitizeImageObject).filter(Boolean).map((image) => image.url)
+      : []),
+    ...(Array.isArray(lot.gradeLots)
+      ? lot.gradeLots.flatMap((gradeLot) => [
+          ...cleanStringArray(gradeLot?.images, cleanUrl),
+          ...(Array.isArray(gradeLot?.imageObjects)
+            ? gradeLot.imageObjects.map(sanitizeImageObject).filter(Boolean).map((image) => image.url)
+            : []),
+        ])
+      : []),
+  ].filter(Boolean)));
+  const imageObjects = Array.isArray(lot.imageObjects)
+    ? lot.imageObjects.map(sanitizeImageObject).filter(Boolean)
+    : [];
+  const videos = Array.from(new Set([
+    cleanUrl(lot.sampleVideo),
+    ...cleanStringArray(lot.videos, cleanUrl),
+  ].filter(Boolean)));
+
+  return compact({
+    publicHistoryKey: cleanText(lot.publicHistoryKey, 80),
+    title: cleanText(lot.title || lot.fruitName, 240),
+    fruitName: cleanText(lot.fruitName, 120),
+    variety: cleanText(lot.variety, 120),
+    grade: cleanText(lot.grade || lot.quality, 160),
+    quality: cleanText(lot.quality || lot.grade, 160),
+    quantity: cleanNumber(lot.quantity),
+    unit: cleanText(lot.unit, 40),
+    description: cleanPublicDescription(lot.description),
+    location: cleanLocation(lot.location),
+    imageUrl: cleanUrl(lot.imageUrl) || imageObjects.find((image) => image.isPrimary)?.url || images[0],
+    images,
+    imageObjects,
+    sampleVideo: videos[0],
+    videos,
+    gradeLots: Array.isArray(lot.gradeLots) ? lot.gradeLots.map(sanitizeGradeLot) : [],
+    packingType: cleanText(lot.packingType, 100),
+    packingWeightKg: cleanNumber(lot.packingWeightKg),
+    totalWeightKg: cleanNumber(lot.totalWeightKg),
+    packingBreakdown: Array.isArray(lot.packingBreakdown)
+      ? lot.packingBreakdown.map(sanitizePackingBreakdown)
+      : [],
+    packingSummary: sanitizePackingSummary(lot.packingSummary),
+    hasOrganicCertificateProof: cleanBoolean(lot.hasOrganicCertificateProof),
+    listingDate: cleanDate(lot.listingDate),
+    tradingDate: cleanDate(lot.tradingDate),
+    closedAt: cleanDate(lot.closedAt),
+    finalLifecycleStatus: cleanText(lot.finalLifecycleStatus || (closed ? "COMPLETED" : ""), 50),
+    offerCount: Math.max(0, cleanNumber(lot.offerCount) || 0),
+    historyOutcome: cleanText(lot.historyOutcome || (closed ? "Deal Completed" : ""), 80),
+    historical: true,
+    readOnly: true,
+    tradable: false,
+  });
+};
+
 export const sanitizeDevelopmentPublicProduct = (value) => {
   const product = asObject(value);
   if (product.historical === true || product.readOnly === true) {
-    return compact({
-      publicHistoryKey: cleanText(product.publicHistoryKey, 80),
-      fruitName: cleanText(product.fruitName, 120),
-      variety: cleanText(product.variety, 120),
-      quantity: cleanNumber(product.quantity),
-      unit: cleanText(product.unit, 40),
-      location: cleanLocation(product.location),
-      listingDate: cleanDate(product.listingDate),
-      tradingDate: cleanDate(product.tradingDate),
-      closedAt: cleanDate(product.closedAt),
-      finalLifecycleStatus: cleanText(product.finalLifecycleStatus, 50),
-      offerCount: Math.max(0, cleanNumber(product.offerCount) || 0),
-      historyOutcome: cleanText(product.historyOutcome, 80),
-      historical: true,
-      readOnly: true,
-      tradable: false,
-    });
+    return sanitizeDevelopmentHistoricalLot(product);
   }
   const createdBy = sanitizePublicParty(product.createdBy, "grower");
   return compact({
@@ -497,23 +550,7 @@ export const loadDevelopmentPublicProfileLocations = async (req, role) => {
 const sanitizePublicMarketLot = (value, { closed = false } = {}) => {
   const lot = asObject(value);
   if (closed || lot.historical === true || lot.readOnly === true) {
-    return compact({
-      publicHistoryKey: cleanText(lot.publicHistoryKey, 80),
-      fruitName: cleanText(lot.fruitName, 120),
-      variety: cleanText(lot.variety, 120),
-      quantity: cleanNumber(lot.quantity),
-      unit: cleanText(lot.unit, 40),
-      location: cleanLocation(lot.location),
-      listingDate: cleanDate(lot.listingDate),
-      tradingDate: cleanDate(lot.tradingDate),
-      closedAt: cleanDate(lot.closedAt),
-      finalLifecycleStatus: cleanText(lot.finalLifecycleStatus || (closed ? "COMPLETED" : ""), 50),
-      offerCount: Math.max(0, cleanNumber(lot.offerCount) || 0),
-      historyOutcome: cleanText(lot.historyOutcome || (closed ? "Deal Completed" : ""), 80),
-      historical: true,
-      readOnly: true,
-      tradable: false,
-    });
+    return sanitizeDevelopmentHistoricalLot(lot, { closed });
   }
   return compact({
     _id: encodePublicId(lot._id || lot.id, "product"),
@@ -545,13 +582,28 @@ export const loadDevelopmentPublicProfile = async (req, { businessType, slug, us
     const liveLots = Array.isArray(data.liveLots)
       ? data.liveLots.map((lot) => sanitizePublicMarketLot(lot, { closed: false }))
       : [];
-    const closedDeals = Array.isArray(data.closedDeals)
-      ? data.closedDeals.map((lot) => sanitizePublicMarketLot(lot, { closed: true }))
-      : [];
+    const legacyClosedDeals = Array.isArray(data.closedDeals) ? data.closedDeals : [];
+    const hasDistinctHistory = Array.isArray(data.lotHistory) || Array.isArray(data.historicalLots);
+    const lotHistorySource = Array.isArray(data.lotHistory)
+      ? data.lotHistory
+      : Array.isArray(data.historicalLots)
+        ? data.historicalLots
+        : legacyClosedDeals.filter((lot) => cleanText(lot?.historyOutcome, 80) !== "Deal Completed");
+    const closedDealsSource = hasDistinctHistory
+      ? legacyClosedDeals
+      : legacyClosedDeals.filter((lot) => cleanText(lot?.historyOutcome, 80) === "Deal Completed");
+    const lotHistory = lotHistorySource.map((lot) => sanitizePublicMarketLot(lot));
+    const closedDeals = closedDealsSource.map((lot) => sanitizePublicMarketLot(lot, { closed: true }));
     return {
-      profile: { ...profile, totalLots: liveLots.length, totalDeals: closedDeals.length },
+      profile: {
+        ...profile,
+        totalLots: liveLots.length + lotHistory.length + closedDeals.length,
+        totalDeals: closedDeals.length,
+      },
       liveLots,
+      lotHistory,
       closedDeals,
+      historicalLots: lotHistory,
     };
   });
 };
