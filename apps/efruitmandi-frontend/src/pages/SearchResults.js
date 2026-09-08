@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { FaChartLine, FaEye, FaFileAlt, FaSearch, FaSeedling, FaUserCircle } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
 import SEO from "../components/SEO";
+import GrowerVerificationBadge from "../components/GrowerVerificationBadge";
 import { staticPages } from "../data/staticPages";
 import { fruitSeoPages } from "../data/fruitSeoPages";
 import {
@@ -473,9 +474,12 @@ export default function SearchResults() {
                     </p>
 
                     <div className="mt-2 flex flex-wrap gap-1">
-                      {profile.isKycVerified && <Badge text="KYC" />}
-                      {profile.isOgVerified && <Badge text="OG Verified" />}
-                      {profile.isTrustedBadge && <Badge text="Trusted" />}
+                      {String(profile.type || "").toLowerCase() === "grower" && (
+                        <GrowerVerificationBadge level={profile.growerVerificationLevel} size="compact" />
+                      )}
+                      {String(profile.type || "").toLowerCase() !== "grower" && profile.isKycVerified && <Badge text="KYC" />}
+                      {String(profile.type || "").toLowerCase() !== "grower" && profile.isOgVerified && <Badge text="OG Verified" />}
+                      {String(profile.type || "").toLowerCase() !== "grower" && profile.isTrustedBadge && <Badge text="Trusted" />}
                     </div>
                   </div>
                 </div>

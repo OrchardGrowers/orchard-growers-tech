@@ -253,19 +253,17 @@ export const getSafePublicProfile = (user = {}, fallback = {}) => {
   const roleKyc = getRoleRecord(source.kycByRole, role);
   const legacyKyc = source.kyc || {};
   const roleOg = getRoleRecord(source.ogVerificationByRole, role);
-  const kycVerified = Boolean(
+  const kycVerified = role !== "grower" && Boolean(
     source.isKycVerified ||
       source.kycVerified ||
       (role === "buyer" && source.buyerVerified) ||
-      (role === "grower" && source.growerVerified) ||
       isApproved(roleKyc.status) ||
       isApproved(legacyKyc.status)
   );
-  const ogVerified = Boolean(
+  const ogVerified = role !== "grower" && Boolean(
     source.isOgVerified ||
       source.ogVerified ||
       (role === "buyer" && source.buyerOgVerified) ||
-      (role === "grower" && source.growerOgVerified) ||
       hasApprovedRequest(roleOg)
   );
 
@@ -303,9 +301,14 @@ export const getSafePublicProfile = (user = {}, fallback = {}) => {
     avatar: logoUrl,
     photoURL: logoUrl,
     mainLocation: getSafeMainLocation(source, role) || cleanText(fallback.mainLocation),
-    isKycVerified: kycVerified,
-    isOgVerified: ogVerified,
-    isTrusted: Boolean(source.isTrusted || source.trusted || source.isTrustedBuyer || source.trustedBuyer || ogVerified),
+    ...(role === "grower" ? {
+      growerVerificationLevel: ["REGISTERED", "VERIFIED", "OG_VERIFIED"].includes(source.growerVerificationLevel)
+        ? source.growerVerificationLevel : "",
+    } : {
+      isKycVerified: kycVerified,
+      isOgVerified: ogVerified,
+      isTrusted: Boolean(source.isTrusted || source.trusted || source.isTrustedBuyer || source.trustedBuyer || ogVerified),
+    }),
     memberSince: firstText(source.memberSince, source.createdAt, fallback.memberSince),
     totalLots: firstNumber(source.totalLots, source.totalListedLots, source.listedLotsCount, fallback.totalLots),
     totalDeals: firstNumber(source.totalDeals, source.totalQuotes, source.quoteCount, source.dealCount, fallback.totalDeals),

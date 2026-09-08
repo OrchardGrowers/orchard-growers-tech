@@ -62,6 +62,7 @@ describe("development public marketplace boundary", () => {
       kyc: { aadhaar: "secret" },
       kycByRole: { grower: { pan: "SECRET" } },
       adminNotes: "private",
+      growerVerificationLevel: "OG_VERIFIED",
       location: "House 12, Secret Road, Shimla, Himachal Pradesh, 171001",
     });
 
@@ -69,6 +70,9 @@ describe("development public marketplace boundary", () => {
     expect(result._id).toMatch(/^pub_/);
     expect(result._id).not.toContain("507f1f77bcf86cd799439011");
     expect(result.location).toBe("Shimla, Himachal Pradesh");
+    expect(result.growerVerificationLevel).toBe("OG_VERIFIED");
+    expect(result).not.toHaveProperty("isKycVerified");
+    expect(result).not.toHaveProperty("isOgVerified");
     expect(JSON.stringify(result)).not.toContain("private@example.com");
     expect(result).not.toHaveProperty("phone");
     expect(result).not.toHaveProperty("kyc");

@@ -4,6 +4,7 @@ import User from "../models/User.js";
 import Product from "../models/Product.js";
 import MandiRate from "../models/MandiRate.js";
 import { getFruitCommodityNames } from "../services/mandiRateService.js";
+import { getGrowerVerificationLevel, getPublicGrowerKycEligibility } from "../utils/publicProfileVerification.js";
 import {
   getSearchContext,
   normalizeSearchText,
@@ -113,7 +114,7 @@ router.get("/", async (req, res) => {
         ],
       })
         .select(
-          "name role activeRole profileTypes orchardName businessName buyerContactPerson buyerLocation logisticsName driverName vehicleNumber location companyLogoUrl buyerCompanyLogoUrl isKycVerified isOgVerified isTrustedBadge createdAt"
+          "name role activeRole profileTypes orchardName businessName buyerContactPerson buyerLocation logisticsName driverName vehicleNumber location companyLogoUrl buyerCompanyLogoUrl isKycVerified isOgVerified isTrustedBadge kyc kycByRole ogVerificationByRole createdAt"
         )
         .limit(Math.min(limit * 3, 100))
         .lean(),
@@ -161,6 +162,15 @@ router.get("/", async (req, res) => {
 
     const profileResults = rankSearchResults(profiles.map((user) => {
       const type = getProfileRole(user);
+      const normalizedType = String(type).toLowerCase();
+      const growerKyc = normalizedType === "grower" ? getPublicGrowerKycEligibility(user) : null;
+      const growerVerificationLevel = growerKyc
+        ? getGrowerVerificationLevel({
+            kycStatus: growerKyc.status,
+            isKycEligible: growerKyc.eligible,
+            roleOg: user.ogVerificationByRole?.grower || {},
+          })
+        : undefined;
       return {
         _id: user._id,
         type,
@@ -171,11 +181,14 @@ router.get("/", async (req, res) => {
         profileTypes: user.profileTypes || [],
         location: user.buyerLocation || user.location || "",
         image: user.buyerCompanyLogoUrl || user.companyLogoUrl || "",
-        isKycVerified: Boolean(user.isKycVerified),
-        isOgVerified: Boolean(user.isOgVerified),
-        isTrustedBadge: Boolean(user.isTrustedBadge),
+        ...(growerVerificationLevel ? { growerVerificationLevel } : {}),
+        ...(normalizedType !== "grower" ? {
+          isKycVerified: Boolean(user.isKycVerified),
+          isOgVerified: Boolean(user.isOgVerified),
+          isTrustedBadge: Boolean(user.isTrustedBadge),
+        } : {}),
         createdAt: user.createdAt,
-        resultType: String(type).toLowerCase(),
+        resultType: normalizedType,
       };
     }), searchContext).slice(0, limit);
 

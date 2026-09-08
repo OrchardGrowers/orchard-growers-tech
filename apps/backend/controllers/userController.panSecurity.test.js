@@ -62,6 +62,40 @@ describe("PAN data access boundaries", () => {
     expect(serialized).not.toContain("pan.jpg");
     expect(profile).not.toHaveProperty("panNumber");
     expect(profile).not.toHaveProperty("panImage");
+    expect(profile.growerVerificationLevel).toBe("VERIFIED");
+    expect(profile).not.toHaveProperty("isKycVerified");
+    expect(profile).not.toHaveProperty("isOgVerified");
+  });
+
+  it("does not let legacy Grower booleans or Buyer KYC promote the public Grower badge", () => {
+    const base = {
+      _id: "user-legacy",
+      role: "grower",
+      profileTypes: ["grower", "buyer"],
+      orchardName: "Legacy Orchard",
+      growerVerified: true,
+      growerOgVerified: true,
+      kycByRole: {
+        buyer: {
+          status: "APPROVED",
+          panNumber: "ABCDE1234F",
+          panImage: "private-buyer-pan",
+        },
+      },
+      ogVerificationByRole: {
+        grower: { status: "APPROVED", requestId: "request-1", decidedAt: new Date() },
+      },
+    };
+
+    expect(toPublicProfile(base, "grower").growerVerificationLevel).toBe("REGISTERED");
+    expect(toPublicProfile({
+      ...base,
+      kycByRole: {
+        ...base.kycByRole,
+        grower: { status: "APPROVED", panNumber: "ABCDE1234F", panImage: "private-grower-pan" },
+      },
+      ogVerificationByRole: { grower: { status: "APPROVED", decidedAt: new Date() } },
+    }, "grower").growerVerificationLevel).toBe("VERIFIED");
   });
 
   it("loads secure KYC only for req.user.id and ignores another requested user id", async () => {
@@ -152,4 +186,17 @@ describe("PAN data access boundaries", () => {
     expect(authorizationPayload.user).not.toHaveProperty("phone");
     expect(authorizationPayload.user).not.toHaveProperty("email");
   });
+});
+
+it("preserves public Buyer verification independently of Grower state", () => {
+  const profile = toPublicProfile({
+    role: "grower", profileTypes: ["grower", "buyer"], buyerVerified: true,
+    growerVerificationLevel: "REGISTERED",
+    kycByRole: { buyer: { status: "APPROVED", panNumber: "ABCDE1234F", panImage: "private-pan" } },
+    ogVerificationByRole: { buyer: { status: "APPROVED", requestId: "private-request", decidedAt: new Date() } },
+    phone: "private-phone", adminNotes: "private-admin", paymentDetails: "private-payment",
+  }, "buyer");
+  expect(profile).toMatchObject({ isKycVerified: true, isOgVerified: true, isTrusted: true });
+  expect(profile).not.toHaveProperty("growerVerificationLevel");
+  expect(JSON.stringify(profile)).not.toMatch(/ABCDE1234F|private-/);
 });

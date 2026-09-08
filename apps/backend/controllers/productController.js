@@ -26,6 +26,7 @@ import {
   isValidLotLookupId,
 } from "../services/publicLotAccessService.js";
 import { getGrowerLotListingAuthorization } from "../services/kycEligibilityService.js";
+import { getGrowerVerificationLevel, getPublicGrowerKycEligibility } from "../utils/publicProfileVerification.js";
 import { ensureLotListingChallan } from "../services/transactionDocumentService.js";
 import { sanitizeLotPricing } from "../services/lotPricePrivacyService.js";
 import { getFruitScanningReportForLot } from "../services/fruitScanningReportService.js";
@@ -37,6 +38,7 @@ import {
 
 const PUBLIC_PROFILE_SELECT =
   "name orchardName businessName buyerContactPerson companyLogoUrl bannerUrl buyerCompanyLogoUrl role profileTypes growerVerified buyerVerified growerOgVerified buyerOgVerified driverOgVerified ogVerificationByRole growerRatingAverage growerRatingCount mapLatitude mapLongitude createdAt";
+const PUBLIC_GROWER_PROFILE_SELECT = `${PUBLIC_PROFILE_SELECT} kyc kycByRole`;
 const CLOSED_PRODUCT_STATUSES = new Set(["SOLD", "QUOTE_ACCEPTED", "DEAL_CONFIRMED", "quote_accepted", "deal_confirmed"]);
 const CLOSED_AUCTION_STATUSES = new Set(["ENDED", "CLOSED", "COMPLETED"]);
 const ACCEPTED_QUOTE_STATUSES = ["accepted", "ACCEPTED"];
@@ -65,6 +67,38 @@ const canSeePrivateCertificate = (product, user) => {
   return Boolean(ownerId && user?.id && ownerId.toString() === user.id.toString());
 };
 
+// Project public identity separately from Grower-only verification normalization.
+export const sanitizePublicParty = (party, role = "") => {
+  if (!party || typeof party !== "object" || party._bsontype === "ObjectId") return party;
+  const source = party.toObject ? party.toObject() : party;
+  const fields = "_id name orchardName businessName buyerContactPerson companyLogoUrl bannerUrl buyerCompanyLogoUrl role profileTypes buyerVerified buyerOgVerified driverOgVerified growerRatingAverage growerRatingCount createdAt isKycVerified isOgVerified isTrusted isTrustedBadge kycVerified ogVerified trusted isTrustedBuyer trustedBuyer".split(" ");
+  const result = Object.fromEntries(fields.filter((key) => source[key] !== undefined).map((key) => [key, source[key]]));
+  if (role) result.role = role;
+  // Keep the Buyer OG signal consumed by public cards, without internal request metadata.
+  if (source.ogVerificationByRole?.buyer?.requestId &&
+      String(source.ogVerificationByRole.buyer.status || "").trim().toUpperCase() === "APPROVED") {
+    result.ogVerified = true;
+  }
+  return result;
+};
+
+export const sanitizePublicGrowerVerification = (party) => {
+  const result = sanitizePublicParty(party);
+  if (!result || typeof result !== "object" || result._bsontype === "ObjectId") return result;
+  const source = party.toObject ? party.toObject() : party;
+  const isGrower = source.role === "grower" || source.profileTypes?.includes("grower") || (!source.role && Boolean(source.orchardName));
+  if (!isGrower) return result;
+  const eligibility = getPublicGrowerKycEligibility(source);
+  result.growerVerificationLevel = getGrowerVerificationLevel({
+    kycStatus: eligibility.status,
+    isKycEligible: eligibility.eligible,
+    roleOg: source.ogVerificationByRole?.grower || {},
+  });
+  result.role = "grower";
+  for (const key of ["buyerVerified", "buyerOgVerified", "driverOgVerified", "isKycVerified", "isOgVerified", "isTrusted", "isTrustedBadge", "kycVerified", "ogVerified", "trusted", "isTrustedBuyer", "trustedBuyer"]) delete result[key];
+  return result;
+};
+
 export const serializeProduct = (product, user, completedOrder = null, { offerCount = 0 } = {}) => {
   let data = product.toObject ? product.toObject() : { ...product };
   if (completedOrder) {
@@ -72,6 +106,8 @@ export const serializeProduct = (product, user, completedOrder = null, { offerCo
   }
 
   data = sanitizeLotPricing(data, { product: data, viewer: user });
+  data.createdBy = sanitizePublicGrowerVerification(data.createdBy);
+  data.acceptedBuyerId = sanitizePublicParty(data.acceptedBuyerId, "buyer");
 
   if (isHistoricalLot(data, completedOrder)) {
     data.historical = true;
@@ -155,8 +191,8 @@ const buildClosedDealSummary = ({ product, auction, acceptedQuote, order }) => {
     status: "Deal Closed",
     closedRate,
     finalDealValue: finalValue,
-    soldBy: grower,
-    purchasedBy: buyer,
+    soldBy: sanitizePublicGrowerVerification(grower),
+    purchasedBy: sanitizePublicParty(buyer, "buyer"),
     grade: auction?.highestGrade || completedOrder?.highestGrade || primaryQuoteGrade?.grade || "",
     closedAt:
       acceptedQuote?.acceptedAt ||
@@ -837,7 +873,7 @@ export const getProducts = async (req, res) => {
     }
 
     const products = await Product.find(filters)
-      .populate("createdBy", "name orchardName businessName companyLogoUrl bannerUrl role location growerRatingAverage growerRatingCount growerOgVerified buyerOgVerified driverOgVerified ogVerificationByRole")
+      .populate("createdBy", PUBLIC_GROWER_PROFILE_SELECT)
       .sort({ createdAt: -1 });
     const productIds = products.map((product) => product._id).filter(Boolean);
     const completedOrders = productIds.length
@@ -908,7 +944,7 @@ export const getProductById = async (req, res) => {
 
     const platform = String(req.query.platform || "").trim().toLowerCase();
     let product = await Product.findById(req.params.id)
-      .populate("createdBy", PUBLIC_PROFILE_SELECT)
+      .populate("createdBy", PUBLIC_GROWER_PROFILE_SELECT)
       .populate("acceptedBuyerId", PUBLIC_PROFILE_SELECT);
     let auction = null;
 
@@ -917,7 +953,7 @@ export const getProductById = async (req, res) => {
         .populate({
           path: "product",
           populate: [
-            { path: "createdBy", select: PUBLIC_PROFILE_SELECT },
+            { path: "createdBy", select: PUBLIC_GROWER_PROFILE_SELECT },
             { path: "acceptedBuyerId", select: PUBLIC_PROFILE_SELECT },
           ],
         })
@@ -943,7 +979,7 @@ export const getProductById = async (req, res) => {
         "_id lot buyer grower grades quotedPrice quotedTotalValue dealAmount buyerPayable buyerPayableThroughPlatform status acceptedAt createdAt updatedAt"
       )
       .populate("buyer", PUBLIC_PROFILE_SELECT)
-      .populate("grower", PUBLIC_PROFILE_SELECT)
+      .populate("grower", PUBLIC_GROWER_PROFILE_SELECT)
       .sort({ acceptedAt: -1, updatedAt: -1 })
       .lean();
 
@@ -955,7 +991,7 @@ export const getProductById = async (req, res) => {
         "_id auction quote product buyer grower auctionPrice finalPrice totalAmount highestGrade highestGradeRate dealBreakdown paymentStatus deliveryStatus createdAt updatedAt"
       )
       .populate("buyer", PUBLIC_PROFILE_SELECT)
-      .populate("grower", PUBLIC_PROFILE_SELECT)
+      .populate("grower", PUBLIC_GROWER_PROFILE_SELECT)
       .sort({ updatedAt: -1, createdAt: -1 })
       .lean();
 
@@ -981,7 +1017,7 @@ export const getProductById = async (req, res) => {
       }
     }
     const closedDeal = buildClosedDealSummary({
-      product: serializedProduct,
+      product: { ...serializedProduct, createdBy: product.createdBy },
       auction: serializedAuction,
       acceptedQuote,
       order,
@@ -990,6 +1026,15 @@ export const getProductById = async (req, res) => {
     const safeAuction = serializedAuction
       ? sanitizeLotPricing(serializedAuction, { product, viewer: req.user })
       : null;
+    if (safeAuction?.product?.createdBy) {
+      safeAuction.product.createdBy = sanitizePublicGrowerVerification(safeAuction.product.createdBy);
+    }
+    if (safeAuction?.product?.acceptedBuyerId) {
+      safeAuction.product.acceptedBuyerId = sanitizePublicParty(safeAuction.product.acceptedBuyerId, "buyer");
+    }
+    if (safeAuction?.highestBidder) {
+      safeAuction.highestBidder = sanitizePublicParty(safeAuction.highestBidder, "buyer");
+    }
 
     const fruitScanningReport = publicHistoricalView
       ? null

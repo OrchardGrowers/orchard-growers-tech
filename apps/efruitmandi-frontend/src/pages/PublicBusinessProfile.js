@@ -14,6 +14,7 @@ import {
 import API, { FILE_BASE_URL } from "../services/api";
 import SEO, { getInitialRobotsDirective } from "../components/SEO";
 import ProfileShareButton from "../components/ProfileShareButton";
+import GrowerVerificationBadge from "../components/GrowerVerificationBadge";
 import { buildBreadcrumbSchema, buildBusinessOrganizationSchema, buildLocalBusinessSchema } from "../utils/schemaGenerators";
 
 const BUSINESS_TYPE_LABELS = {
@@ -443,12 +444,13 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
                   slug={canonicalSlug}
                   canonicalUrl={canonicalUrl}
                 />
-                {(profile.isKycVerified || profile.isOgVerified) && (
+                {profileRole !== "grower" && (profile.isKycVerified || profile.isOgVerified) && (
                   <div className="rounded-lg bg-green-50 px-4 py-3 text-sm font-bold text-green-800">
-                    <span className="inline-flex items-center gap-2">
-                      <FaCheckCircle /> Verified profile
-                    </span>
+                    <span className="inline-flex items-center gap-2"><FaCheckCircle /> Verified profile</span>
                   </div>
+                )}
+                {profileRole === "grower" && (
+                  <GrowerVerificationBadge level={profile.growerVerificationLevel} size="full" />
                 )}
               </div>
             </div>

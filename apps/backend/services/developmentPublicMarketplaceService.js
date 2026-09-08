@@ -22,6 +22,11 @@ const cleanNumber = (value) => {
 
 const cleanBoolean = (value) => (typeof value === "boolean" ? value : undefined);
 
+const cleanGrowerVerificationLevel = (value) => {
+  const level = cleanText(value, 20).toUpperCase();
+  return ["REGISTERED", "VERIFIED", "OG_VERIFIED"].includes(level) ? level : undefined;
+};
+
 const cleanDate = (value) => {
   if (!value) return undefined;
   const date = new Date(value);
@@ -193,9 +198,13 @@ export const sanitizeDevelopmentPublicProfile = (value) => {
     district: cleanLocation(profile.district),
     state: cleanLocation(profile.state),
     location: mainLocation,
-    isKycVerified: cleanBoolean(profile.isKycVerified),
-    isOgVerified: cleanBoolean(profile.isOgVerified),
-    isTrusted: cleanBoolean(profile.isTrusted),
+    ...(role === "grower"
+      ? { growerVerificationLevel: cleanGrowerVerificationLevel(profile.growerVerificationLevel) }
+      : {
+          isKycVerified: cleanBoolean(profile.isKycVerified),
+          isOgVerified: cleanBoolean(profile.isOgVerified),
+          isTrusted: cleanBoolean(profile.isTrusted),
+        }),
     registeredAt: cleanDate(profile.registeredAt),
     createdAt: cleanDate(profile.createdAt || profile.registeredAt),
   });

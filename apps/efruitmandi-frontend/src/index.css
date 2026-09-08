@@ -2,6 +2,243 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Public Grower trust system: shared geometry with tier-specific artwork. */
+.grower-verification-badge {
+  --gvb-height: 86px;
+  --gvb-emblem: 70px;
+  --gvb-radius: 22px;
+  --gvb-border: 2px;
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  width: min(100%, 520px);
+  min-width: 0;
+  height: var(--gvb-height);
+  align-items: center;
+  overflow: hidden;
+  border: var(--gvb-border) solid var(--gvb-border-color);
+  border-radius: var(--gvb-radius);
+  background: var(--gvb-surface);
+  color: var(--gvb-title-color);
+  box-shadow: var(--gvb-shadow);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.grower-verification-badge::before,
+.grower-verification-badge::after {
+  position: absolute;
+  z-index: -1;
+  content: "";
+  pointer-events: none;
+}
+
+.grower-verification-badge::before {
+  inset: 0;
+  background: linear-gradient(115deg, rgb(255 255 255 / 42%), transparent 42%);
+}
+
+.grower-verification-badge::after {
+  right: -12px;
+  bottom: -18px;
+  width: 92px;
+  height: 62px;
+  border: 1px solid var(--gvb-decoration);
+  border-radius: 70% 0 0;
+  transform: rotate(-8deg);
+  opacity: .55;
+}
+
+.grower-verification-badge__emblem {
+  display: grid;
+  width: var(--gvb-emblem);
+  height: var(--gvb-emblem);
+  margin-left: 7px;
+  flex: 0 0 var(--gvb-emblem);
+  place-items: center;
+  border: 3px solid var(--gvb-emblem-ring);
+  border-radius: 50%;
+  background: var(--gvb-emblem-surface);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 70%), 0 4px 12px rgb(15 74 42 / 17%);
+}
+
+.grower-verification-badge__emblem svg {
+  width: 76%;
+  height: 76%;
+  overflow: visible;
+}
+
+.grower-verification-badge__copy {
+  display: flex;
+  min-width: 0;
+  padding: 8px 18px 8px 14px;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1;
+}
+
+.grower-verification-badge__eyebrow {
+  margin-bottom: 4px;
+  color: var(--gvb-meta-color);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .19em;
+}
+
+.grower-verification-badge__title {
+  overflow: hidden;
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: .025em;
+  line-height: 1.08;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.grower-verification-badge__subtitle {
+  margin-top: 6px;
+  color: var(--gvb-meta-color);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .105em;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.grower-verification-badge__promise {
+  display: grid;
+  height: 100%;
+  min-width: 112px;
+  padding: 0 16px 0 26px;
+  place-items: center;
+  clip-path: polygon(23% 0, 100% 0, 100% 100%, 0 100%);
+  background: linear-gradient(145deg, #f7da73, #bd7d12 68%, #f9df82);
+  color: #143b28;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .09em;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.grower-verification-badge--registered {
+  --gvb-border-color: #a5dbc0;
+  --gvb-decoration: #7ecaa6;
+  --gvb-emblem-ring: #b8e5cd;
+  --gvb-emblem-surface: linear-gradient(145deg, #fff, #dff7e9);
+  --gvb-meta-color: #487563;
+  --gvb-shadow: 0 7px 20px rgb(42 128 83 / 11%), 0 0 0 3px rgb(217 245 229 / 44%);
+  --gvb-surface: linear-gradient(105deg, #fbfffd 0%, #effbf4 58%, #ddf5e8 100%);
+  --gvb-title-color: #145c39;
+}
+
+.grower-verification-badge--registered .badge-icon-ground,
+.grower-verification-badge--registered .badge-icon-stem {
+  fill: none;
+  stroke: #276d49;
+  stroke-linecap: round;
+  stroke-width: 3;
+}
+
+.badge-icon-leaf { fill: #45a86c; }
+.badge-icon-leaf--light { fill: #7bcf91; }
+.badge-icon-dot { fill: #9bd8b4; }
+
+.grower-verification-badge--verified {
+  --gvb-border-color: #4caa73;
+  --gvb-decoration: #31985d;
+  --gvb-emblem-ring: #78c997;
+  --gvb-emblem-surface: linear-gradient(145deg, #f7fff9, #bce8ca);
+  --gvb-meta-color: #356d50;
+  --gvb-shadow: 0 8px 22px rgb(22 112 61 / 17%), inset 0 0 0 1px rgb(255 255 255 / 60%);
+  --gvb-surface: linear-gradient(105deg, #f1fff6 0%, #ccefd8 61%, #a6dfbc 100%);
+  --gvb-title-color: #07572e;
+  border-radius: var(--gvb-radius) 12px 26px var(--gvb-radius);
+}
+
+.badge-icon-shield { fill: #187b48; stroke: #07572e; stroke-width: 1.5; }
+.badge-icon-check { fill: none; stroke: #fff; stroke-linecap: round; stroke-linejoin: round; stroke-width: 5; }
+.badge-icon-accent-leaf { fill: #68c584; stroke: #fff; stroke-width: 1; }
+
+.grower-verification-badge--og_verified {
+  --gvb-border-color: #d8ac43;
+  --gvb-decoration: #eac861;
+  --gvb-emblem-ring: #e9c258;
+  --gvb-emblem-surface: radial-gradient(circle at 34% 27%, #326e4c, #0b3825 72%);
+  --gvb-meta-color: #edd789;
+  --gvb-shadow: 0 9px 25px rgb(5 48 29 / 29%), inset 0 0 0 1px rgb(255 235 157 / 15%);
+  --gvb-surface: linear-gradient(110deg, #0a3422 0%, #125036 60%, #082d1d 100%);
+  --gvb-title-color: #fff8d7;
+  border-width: 2px;
+}
+
+.grower-verification-badge--og_verified .grower-verification-badge__emblem {
+  border-width: 4px;
+  box-shadow: inset 0 0 0 2px #6e521b, 0 4px 13px rgb(0 0 0 / 32%);
+}
+
+.badge-icon-og-leaf { fill: #f0cc65; }
+.badge-icon-og-stem,
+.badge-icon-og-underline { fill: none; stroke: #d6a93e; stroke-linecap: round; stroke-width: 2; }
+.badge-icon-og-text { fill: #ffe99a; font-family: Georgia, serif; font-size: 25px; font-weight: 800; letter-spacing: -2px; }
+
+.grower-verification-badge--compact {
+  --gvb-height: 42px;
+  --gvb-emblem: 34px;
+  --gvb-radius: 11px;
+  --gvb-border: 1px;
+  width: auto;
+  max-width: 100%;
+  min-width: min(142px, 100%);
+  box-shadow: 0 3px 9px rgb(22 92 55 / 13%);
+}
+
+.grower-verification-badge--compact .grower-verification-badge__emblem {
+  margin-left: 3px;
+  border-width: 2px;
+}
+
+.grower-verification-badge--compact .grower-verification-badge__copy {
+  padding: 4px 9px 4px 7px;
+}
+
+.grower-verification-badge--compact .grower-verification-badge__eyebrow,
+.grower-verification-badge--compact .grower-verification-badge__subtitle,
+.grower-verification-badge--compact .grower-verification-badge__promise {
+  display: none;
+}
+
+.grower-verification-badge--compact .grower-verification-badge__title {
+  font-size: 9px;
+  letter-spacing: .015em;
+}
+
+.grower-verification-badge--compact.grower-verification-badge--og_verified {
+  min-width: min(166px, 100%);
+}
+
+@media (max-width: 480px) {
+  .grower-verification-badge--full {
+    --gvb-height: 74px;
+    --gvb-emblem: 60px;
+    --gvb-radius: 18px;
+  }
+
+  .grower-verification-badge--full .grower-verification-badge__copy {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .grower-verification-badge--full .grower-verification-badge__title { font-size: 13px; }
+  .grower-verification-badge--full .grower-verification-badge__subtitle { font-size: 6.5px; letter-spacing: .055em; }
+  .grower-verification-badge--full .grower-verification-badge__eyebrow { font-size: 7px; }
+  .grower-verification-badge--full .grower-verification-badge__promise { display: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .grower-verification-badge { transition: box-shadow 160ms ease, transform 160ms ease; }
+}
+
 /* ============================= */
 /* 🌍 GLOBAL RESET / BASE STYLES */
 /* ============================= */

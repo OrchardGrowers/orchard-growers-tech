@@ -9,9 +9,9 @@ import {
 } from "./Home";
 
 const growers = [
-  { _id: "registered", orchardName: "Registered Orchard", isKycVerified: false, isOgVerified: false },
-  { _id: "verified", orchardName: "Verified Valley", isKycVerified: true, isOgVerified: false },
-  { _id: "og", orchardName: "Organic Heights", isKycVerified: true, isOgVerified: true },
+  { _id: "registered", orchardName: "Registered Orchard", growerVerificationLevel: "REGISTERED" },
+  { _id: "verified", orchardName: "Verified Valley", growerVerificationLevel: "VERIFIED" },
+  { _id: "og", orchardName: "Organic Heights", growerVerificationLevel: "OG_VERIFIED" },
 ];
 
 const buyers = [
@@ -96,8 +96,7 @@ describe("Home listing filters", () => {
     const allGrowers = Array.from({ length: 38 }, (_, index) => ({
       _id: `grower-${index}`,
       orchardName: `Orchard ${index}`,
-      isKycVerified: true,
-      isOgVerified: false,
+      growerVerificationLevel: "VERIFIED",
     }));
 
     expect(

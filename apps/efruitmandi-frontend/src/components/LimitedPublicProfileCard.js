@@ -1,5 +1,6 @@
 import { FaCalendarAlt, FaHandshake, FaMapMarkerAlt, FaSeedling, FaShieldAlt } from "react-icons/fa";
 import { getSafePublicProfile } from "../utils/marketplaceVisibility";
+import GrowerVerificationBadge from "./GrowerVerificationBadge";
 
 export default function LimitedPublicProfileCard({
   profile,
@@ -59,13 +60,15 @@ export default function LimitedPublicProfileCard({
           )}
 
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {safeProfile.isKycVerified && (
+            {safeProfile.businessType === "grower" ? (
+              <GrowerVerificationBadge level={safeProfile.growerVerificationLevel} size="compact" />
+            ) : safeProfile.isKycVerified ? (
               <ProfileBadge icon={<FaShieldAlt />} label="KYC Verified" />
-            )}
-            {safeProfile.isOgVerified && (
+            ) : null}
+            {safeProfile.businessType !== "grower" && safeProfile.isOgVerified && (
               <ProfileBadge icon={<FaShieldAlt />} label="OG Verified" />
             )}
-            {safeProfile.isTrusted && !safeProfile.isOgVerified && (
+            {safeProfile.businessType !== "grower" && safeProfile.isTrusted && !safeProfile.isOgVerified && (
               <ProfileBadge icon={<FaHandshake />} label={trustedLabel} />
             )}
           </div>

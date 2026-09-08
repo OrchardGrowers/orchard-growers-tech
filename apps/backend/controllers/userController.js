@@ -58,7 +58,11 @@ import {
   partitionPublicHistoricalLots,
   sanitizePublicHistoricalLot,
 } from "../services/publicLotHistoryService.js";
-import { isRoleOgPubliclyVerified } from "../utils/publicProfileVerification.js";
+import {
+  getGrowerVerificationLevel,
+  getPublicGrowerKycEligibility,
+  isRoleOgPubliclyVerified,
+} from "../utils/publicProfileVerification.js";
 
 const getVerifiedPhone = (contact, user = null, otpVerificationToken = "", platform = "efruitmandi") => {
   const parsed = parseIdentifier(contact);
@@ -246,7 +250,17 @@ export const toPublicProfile = (user = {}, role = "") => {
       : cleanPublicText(user.companyLogoUrl);
   const registeredAt = user.profileRegisteredAtByRole?.[role] || user.createdAt;
 
-  const isKycVerified = getKycEligibility(user, role).eligible;
+  const kycEligibility = role === "grower" ? getPublicGrowerKycEligibility(user) : getKycEligibility(user, role);
+  const growerVerificationLevel = role === "grower"
+    ? getGrowerVerificationLevel({
+        kycStatus: kycEligibility.status,
+        isKycEligible: kycEligibility.eligible,
+        roleOg,
+      })
+    : undefined;
+  const isKycVerified = role === "grower"
+    ? growerVerificationLevel !== "REGISTERED"
+    : kycEligibility.eligible;
   const isOgVerified = isRoleOgPubliclyVerified({ isKycVerified, roleOg });
 
   return {
@@ -278,9 +292,9 @@ export const toPublicProfile = (user = {}, role = "") => {
     district,
     state,
     location: mainLocation,
-    isKycVerified,
-    isOgVerified,
-    isTrusted: isOgVerified,
+    ...(role === "grower"
+      ? { growerVerificationLevel }
+      : { isKycVerified, isOgVerified, isTrusted: isOgVerified }),
     registeredAt,
     createdAt: registeredAt || user.createdAt,
   };
@@ -783,8 +797,9 @@ export const buildPublicFruitDiscovery = async () => {
       district: profile.district,
       state: profile.state,
       logoUrl: profile.logoUrl,
-      isKycVerified: profile.isKycVerified,
-      isOgVerified: profile.isOgVerified,
+      ...(role === "grower"
+        ? { growerVerificationLevel: profile.growerVerificationLevel }
+        : { isKycVerified: profile.isKycVerified, isOgVerified: profile.isOgVerified }),
     };
   };
   const growerMap = new Map(growers.map((user) => [String(user._id), toFruitDiscoveryProfile(user, "grower")]));

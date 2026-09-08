@@ -13,9 +13,11 @@ import {
   mergeDealSettings,
 } from "../services/dealCalculationService.js";
 import {
+  getKycEligibility,
   hasTransactionEligibleKyc,
   PAN_KYC_REQUIRED_MESSAGE,
 } from "../services/kycEligibilityService.js";
+import { getGrowerVerificationLevel, getPublicGrowerKycEligibility } from "../utils/publicProfileVerification.js";
 import { canLotAcceptOffers } from "../services/dealLifecycleService.js";
 
 const router = express.Router();
@@ -191,12 +193,20 @@ const formatPublicProfile = (user = {}, role = "", fallback = {}) => {
   const roleOg = getRoleRecord(user.ogVerificationByRole, role);
   const isBuyer = role === "buyer";
   const isGrower = role === "grower";
-  const isKycVerified = getKycEligibility(user, role).eligible;
-  const isOgVerified = Boolean(
-    (isBuyer && user.buyerOgVerified) ||
-      (isGrower && user.growerOgVerified) ||
-      hasApprovedOgRequest(roleOg)
-  );
+  const kycEligibility = role === "grower" ? getPublicGrowerKycEligibility(user) : getKycEligibility(user, role);
+  const growerVerificationLevel = isGrower
+    ? getGrowerVerificationLevel({
+        kycStatus: kycEligibility.status,
+        isKycEligible: kycEligibility.eligible,
+        roleOg,
+      })
+    : undefined;
+  const isKycVerified = isGrower
+    ? growerVerificationLevel !== "REGISTERED"
+    : kycEligibility.eligible;
+  const isOgVerified = isGrower
+    ? growerVerificationLevel === "OG_VERIFIED"
+    : Boolean((isBuyer && user.buyerOgVerified) || hasApprovedOgRequest(roleOg));
 
   return {
     name: pickText(user.name, user.buyerContactPerson, fallback.name),
@@ -205,9 +215,9 @@ const formatPublicProfile = (user = {}, role = "", fallback = {}) => {
       ? pickText(user.buyerCompanyLogoUrl, user.companyLogoUrl)
       : pickText(user.companyLogoUrl),
     mainLocation: getSafeMainLocation(user, role),
-    isKycVerified,
-    isOgVerified,
-    isTrusted: isOgVerified,
+    ...(isGrower
+      ? { growerVerificationLevel }
+      : { isKycVerified, isOgVerified, isTrusted: isOgVerified }),
     memberSince: user.createdAt,
     businessType: role,
   };

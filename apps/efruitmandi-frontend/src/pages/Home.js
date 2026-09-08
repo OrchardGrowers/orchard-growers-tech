@@ -17,6 +17,7 @@ import {
   FaTimes,
 } from "react-icons/fa";
 import BannerSlider from "../components/BannerSlider";
+import GrowerVerificationBadge from "../components/GrowerVerificationBadge";
 import {
   canQuote,
   hasAccessToken,
@@ -1912,14 +1913,12 @@ function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile }) {
   );
   const bannerImageUrl = optimizeImageUrl(rawBannerImageUrl, 640);
   const bannerImageSrcSet = buildProfileBannerSrcSet(rawBannerImageUrl);
-  const badgeText = role === "grower" ? "Registered Grower" : "Registered Buyer";
   const roleTitle = role === "grower" ? "Fruit Grower Profile" : "Fruit Buyer Profile";
-  const showOgVerifiedBadge = isOgVerifiedProfile(profile, role);
 
   return (
     <article className="overflow-hidden border border-gray-200 bg-white md:rounded-md">
       <div className="p-3">
-        <div className="flex items-start justify-between gap-3">
+        <div className={role === "grower" ? "flex flex-col items-start gap-3 sm:flex-row sm:justify-between" : "flex items-start justify-between gap-3"}>
           <div className="min-w-0 flex-1">
             <h3 className="line-clamp-1 text-base font-extrabold text-black">
               {displayName}
@@ -1932,14 +1931,17 @@ function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile }) {
             </p>
           </div>
 
-          <div className="flex shrink-0 flex-col items-end gap-2">
-            <span className="rounded bg-green-100 px-2 py-1 text-[10px] font-extrabold uppercase text-green-800">
-              {badgeText}
-            </span>
-            {showOgVerifiedBadge && (
+          <div className={role === "grower" ? "flex max-w-full shrink-0 flex-col items-start gap-2 sm:items-end" : "flex shrink-0 flex-col items-end gap-2"}>
+            {role === "grower" ? (
+              <GrowerVerificationBadge level={profile.growerVerificationLevel} size="compact" />
+            ) : (
+              <span className="rounded bg-green-100 px-2 py-1 text-[10px] font-extrabold uppercase text-green-800">
+                Registered Buyer
+              </span>
+            )}
+            {role !== "grower" && isOgVerifiedProfile(profile, role) && (
               <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-1 text-[10px] font-extrabold text-amber-700">
-                <FaShieldAlt />
-                OG Verified
+                <FaShieldAlt /> OG Verified
               </span>
             )}
           </div>
@@ -1990,7 +1992,7 @@ function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile }) {
             <p className="font-extrabold text-gray-950">{displayName}</p>
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 font-bold text-gray-600">
               <span>{location}</span>
-              <span>{role === "grower" ? "Latest registered grower" : "Latest registered buyer"}</span>
+              <span>{role === "grower" ? "Public grower profile" : "Latest registered buyer"}</span>
             </p>
           </div>
 
@@ -2144,11 +2146,15 @@ function getProfileListingId(profile = {}) {
 }
 
 function isOgVerifiedProfile(profile = {}, role = "") {
+  if (role === "grower") return profile.growerVerificationLevel === "OG_VERIFIED";
   const safeProfile = getSafePublicProfile({ ...profile, businessType: role });
   return safeProfile.isKycVerified && safeProfile.isOgVerified;
 }
 
 function isKycVerifiedProfile(profile = {}, role = "") {
+  if (role === "grower") {
+    return ["VERIFIED", "OG_VERIFIED"].includes(profile.growerVerificationLevel);
+  }
   return getSafePublicProfile({ ...profile, businessType: role }).isKycVerified;
 }
 

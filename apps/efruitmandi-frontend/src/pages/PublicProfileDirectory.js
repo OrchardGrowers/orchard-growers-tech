@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { FaCheckCircle, FaMapMarkerAlt, FaSeedling } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
 import SEO, { getInitialRobotsDirective } from "../components/SEO";
+import GrowerVerificationBadge from "../components/GrowerVerificationBadge";
 import { buildBreadcrumbSchema, buildCollectionPageSchema, buildItemListSchema } from "../utils/schemaGenerators";
 
 const SITE_URL = "https://www.efruitmandi.live";
@@ -197,7 +198,14 @@ export function DirectoryCard({ profile, role, label }) {
             <h2 className="text-base font-extrabold text-gray-950">{name}</h2>
             <p className="mt-1 text-xs font-bold text-green-800">{buyerSubtype}</p>
             {location && <p className="mt-2 flex items-center gap-2 text-sm font-semibold text-gray-600"><FaMapMarkerAlt className="shrink-0 text-green-700" />{location}</p>}
-            {(profile.isKycVerified || profile.isOgVerified) && <p className="mt-2 inline-flex items-center gap-2 text-xs font-bold text-green-800"><FaCheckCircle /> Verified profile</p>}
+            {role !== "grower" && (profile.isKycVerified || profile.isOgVerified) && <p className="mt-2 inline-flex items-center gap-2 text-xs font-bold text-green-800"><FaCheckCircle /> Verified profile</p>}
+            {role === "grower" && (
+              <GrowerVerificationBadge
+                level={profile.growerVerificationLevel}
+                size="compact"
+                className="mt-3"
+              />
+            )}
           </div>
         </div>
       </Link>
