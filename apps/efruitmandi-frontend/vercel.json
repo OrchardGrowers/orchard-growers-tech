@@ -176,12 +176,31 @@
           "value": "public, max-age=31536000, immutable"
         }
       ]
+    },
+    {
+      "source": "/search",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
     }
   ],
   "redirects": [
     {
       "source": "/contact",
       "destination": "/contact-us",
+      "permanent": true
+    },
+    {
+      "source": "/fruit-growers",
+      "destination": "/growers",
+      "permanent": true
+    },
+    {
+      "source": "/fruit-buyers/apple",
+      "destination": "/blog/fruit-buyers/apple",
       "permanent": true
     }
   ],
@@ -319,7 +338,19 @@
       "destination": "/contact-us/index.html"
     },
     {
-      "source": "/((?!assets/|lots/[^/]+/?$|growers/|buyers/).*)",
+      "source": "/blog/fruit-buyers/:fruitSlug",
+      "destination": "/blog/fruit-buyers/:fruitSlug/index.html"
+    },
+    {
+      "source": "/blog/fruit-growers/:fruitSlug",
+      "destination": "/blog/fruit-growers/:fruitSlug/index.html"
+    },
+    {
+      "source": "/blog/fruit-transport",
+      "destination": "/blog/fruit-transport/index.html"
+    },
+    {
+      "source": "/((?!assets/|lots/[^/]+/?$|growers/|buyers/|fruits/|mandi-rates/|fruit-lots/|fruit-buyers/|blog/fruit-buyers/|blog/fruit-growers/|blog/market-price/).*)",
       "destination": "/index.html"
     }
   ]

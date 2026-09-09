@@ -46,14 +46,6 @@ function buildHomepageSchema() {
         name: "eFruitMandi",
         url: homepageUrl,
         publisher: { "@id": ORGANIZATION_ID },
-        potentialAction: {
-          "@type": "SearchAction",
-          target: {
-            "@type": "EntryPoint",
-            urlTemplate: `${SITE_URL}/search?q={search_term_string}`,
-          },
-          "query-input": "required name=search_term_string",
-        },
       },
       {
         "@type": "WebPage",
@@ -202,7 +194,8 @@ const staticRoutes = [
     h1: "Search eFruitMandi",
     body: "Search public fruit lots, growers, buyers, mandi rates, guides and marketplace information on eFruitMandi.",
     noIndex: true,
-    robots: "noindex,nofollow",
+    noCanonical: true,
+    robots: "noindex,follow",
   },
   {
     path: "/grower-guide",
@@ -388,6 +381,19 @@ const staticRoutes = [
   }),
 ];
 
+async function getEditorialRoutes() {
+  // Load the existing browser ESM data without relying on require(ESM) support.
+  const source = fs.readFileSync(path.join(appRoot, "src/data/fruitSeoPages.js"), "utf8");
+  const { fruitSeoPages } = await import("data:text/javascript;base64," + Buffer.from(source).toString("base64"));
+  const prefixes = { buyers: "/blog/fruit-buyers", growers: "/blog/fruit-growers", marketPrice: "/blog/market-price", transport: "/blog/fruit-transport" };
+  return Object.entries(fruitSeoPages).flatMap(([type, pages]) =>
+    Object.entries(pages).map(([slug, page]) => ({
+      path: prefixes[type] + (type === "transport" ? "" : "/" + slug),
+      title: page.title, description: page.description, h1: page.h1,
+      body: page.intro, sections: page.sections,
+    }))
+  );
+}
 const routes = [...staticRoutes, ...fruitLotRoutes];
 const routePaths = new Set();
 routes.forEach((route) => {
@@ -411,6 +417,7 @@ function absoluteUrl(routePath) {
 }
 
 function replaceUnique(html, regex, replacement) {
+  replacement = replacement.replace(/^<(meta|link)\b(?![^>]*data-rh=)/, '<$1 data-rh="true"');
   let found = false;
   const nextHtml = html.replace(regex, () => {
     if (found) return "";
@@ -448,6 +455,10 @@ function replaceHeadTags(html, meta) {
   nextHtml = replaceUnique(nextHtml, /<meta\s+(?=[^>]*\bname=["']twitter:description["'])[^>]*>\s*/gi, `<meta name="twitter:description" content="${escapeHtml(meta.description)}" />\n    `);
   nextHtml = replaceUnique(nextHtml, /<meta\s+(?=[^>]*\bname=["']robots["'])[^>]*>\s*/gi, `<meta name="robots" content="${escapeHtml(robots)}" />\n    `);
   nextHtml = replaceUnique(nextHtml, /<meta\s+(?=[^>]*\bname=["']googlebot["'])[^>]*>\s*/gi, `<meta name="googlebot" content="${escapeHtml(robots)}" />\n    `);
+  if (meta.noCanonical) {
+    nextHtml = removeHeadTag(nextHtml, /<link\s+(?=[^>]*\brel=["']canonical["'])[^>]*>\s*/gi);
+    nextHtml = removeHeadTag(nextHtml, /<meta\s+(?=[^>]*\bproperty=["']og:url["'])[^>]*>\s*/gi);
+  }
   return nextHtml;
 }
 
@@ -456,6 +467,7 @@ function removeHeadTag(html, regex) {
 }
 
 function appendToHead(html, markup) {
+  markup = markup.replace(/<(meta|link|script)\b(?![^>]*data-rh=)/g, '<$1 data-rh="true"');
   return html.replace(/<\/head>/i, `    ${markup}\n  </head>`);
 }
 
@@ -570,7 +582,10 @@ function outputPathForRoute(routePath) {
 
 function prerenderRoute(baseHtml, meta) {
   const withHead = meta.schemas ? replaceProfileHeadTags(baseHtml, meta) : replaceHeadTags(baseHtml, meta);
-  const withFallback = replaceRootContent(withHead, renderFallback(meta));
+  const fallback = meta.sections ? renderFallback(meta).replace("</main>",
+    meta.sections.map((section) => "<section><h2>" + escapeHtml(section.title) + "</h2>" +
+      section.body.map((paragraph) => "<p>" + escapeHtml(paragraph) + "</p>").join("") + "</section>").join("") + "</main>") : renderFallback(meta);
+  const withFallback = replaceRootContent(withHead, fallback);
   const outputPath = outputPathForRoute(meta.path);
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, withFallback, "utf8");
@@ -943,7 +958,8 @@ async function fetchPublicProfiles(role) {
   const response = await fetch(endpoint, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const payload = await response.json();
-  return Array.isArray(payload?.profiles) ? payload.profiles : [];
+  if (!Array.isArray(payload?.profiles)) throw new Error("Invalid public profiles response");
+  return payload.profiles;
 }
 
 async function fetchPublicLots() {
@@ -958,7 +974,9 @@ async function fetchPublicLots() {
 async function fetchPublicFruitDiscovery() {
   const response = await fetch(`${API_BASE_URL}/user/public-fruit-discovery`, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json();
+  const payload = await response.json();
+  if (!Array.isArray(payload?.fruits)) throw new Error("Invalid public fruit discovery response");
+  return payload;
 }
 
 async function fetchAvailableMandiSlugs() {
@@ -967,7 +985,8 @@ async function fetchAvailableMandiSlugs() {
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   const payload = await response.json();
-  return Array.isArray(payload?.slugs) ? payload.slugs : [];
+  if (!Array.isArray(payload?.slugs)) throw new Error("Invalid mandi availability response");
+  return payload.slugs;
 }
 
 function getFruitPrerenderMetas(discovery) {
@@ -1060,15 +1079,8 @@ async function prerenderPublicProfiles(baseHtml) {
       }
     }
   }
-  try {
-    const discovery = await fetchPublicFruitDiscovery();
-    getFruitPrerenderMetas(discovery).forEach((meta) => {
-      try { prerenderPublicDirectoryMeta(baseHtml, meta); }
-      catch (error) { console.warn(`prerender-seo: skipped ${meta.path} (${error.message || "write failed"})`); }
-    });
-  } catch (error) {
-    console.warn(`prerender-seo: fruit pages skipped (${error.message || "public API unavailable"})`);
-  }
+  const discovery = await fetchPublicFruitDiscovery();
+  getFruitPrerenderMetas(discovery).forEach((meta) => prerenderPublicDirectoryMeta(baseHtml, meta));
 }
 
 async function prerenderPublicLots(baseHtml) {
@@ -1082,7 +1094,7 @@ async function prerenderPublicLots(baseHtml) {
   });
 }
 
-function generateNotFoundPage(baseHtml) {
+function renderNotFoundPage(baseHtml) {
   let html = replaceHeadTags(baseHtml, {
     path: "/404",
     title: "Page Not Found | eFruitMandi",
@@ -1096,29 +1108,20 @@ function generateNotFoundPage(baseHtml) {
         <p>The requested fruit lot, public profile or page is unavailable or is no longer publicly listed.</p>
         <p><a href="/auctions">Browse public fruit lots</a> | <a href="/growers">Browse growers</a> | <a href="/buyers">Browse buyers</a></p>
       </main>`);
-  fs.writeFileSync(path.join(buildDir, "404.html"), html, "utf8");
+  return html;
 }
-
-if (!fs.existsSync(indexPath)) {
-  throw new Error(`Missing ${indexPath}. Run vite build before prerender-seo.`);
-}
-
-const baseHtml = synchronizeHomepageSchema(fs.readFileSync(indexPath, "utf8"));
-fs.writeFileSync(indexPath, baseHtml, "utf8");
-generateNotFoundPage(baseHtml);
 
 async function prerenderAll() {
-  let availableMandiSlugs = [];
-  try {
-    availableMandiSlugs = await fetchAvailableMandiSlugs();
-  } catch (error) {
-    console.warn(
-      `prerender-seo: mandi availability unavailable; fruit mandi pages remain noindex (${error.message || "public API unavailable"})`
-    );
-  }
+  if (!fs.existsSync(indexPath)) throw new Error("Run vite build before prerender-seo.");
+  const baseHtml = synchronizeHomepageSchema(fs.readFileSync(indexPath, "utf8"));
+  fs.writeFileSync(indexPath, baseHtml, "utf8");
+  fs.writeFileSync(path.join(buildDir, "404.html"), renderNotFoundPage(baseHtml), "utf8");
+  const availableMandiSlugs = await fetchAvailableMandiSlugs();
   const availableSet = new Set(availableMandiSlugs);
 
-  routes.forEach((route) => {
+  const editorialRoutes = await getEditorialRoutes();
+  const allRoutes = [...routes.filter((route) => !editorialRoutes.some((page) => page.path === route.path)), ...editorialRoutes];
+  allRoutes.forEach((route) => {
     if (!route.mandiFruit || !availableSet.has(route.fruitSlug)) {
       prerenderRoute(baseHtml, route);
       return;
@@ -1138,9 +1141,18 @@ async function prerenderAll() {
     prerenderPublicProfiles(baseHtml),
     prerenderPublicLots(baseHtml),
   ]);
+  // Check the existing backend sitemap against this exact generated build.
+  const sitemapResponse = await fetch(API_BASE_URL.replace(/\/api$/, "") + "/sitemap.xml");
+  if (!sitemapResponse.ok) throw new Error("Sitemap HTTP " + sitemapResponse.status);
+  const { validateBuild } = require("./validate-seo-build.cjs");
+  const count = validateBuild(buildDir, await sitemapResponse.text(),
+    JSON.parse(fs.readFileSync(path.join(appRoot, "vercel.json"), "utf8")),
+    fs.readFileSync(path.join(buildDir, "robots.txt"), "utf8"));
+  console.log("prerender-seo: validated " + count + " sitemap URLs against generated HTML");
 }
 
-prerenderAll().catch((error) => {
+module.exports = { fetchAvailableMandiSlugs, fetchPublicFruitDiscovery, fetchPublicProfiles, getEditorialRoutes, renderNotFoundPage, routes, buildHomepageSchema, replaceHeadTags, replaceProfileHeadTags, replaceRootContent, getPublicProfileMeta, getPublicDirectoryMeta, getPublicLocationMetas, getFruitPrerenderMetas, getPublicLotMeta, renderFallback, renderPublicProfileFallback, renderPublicDirectoryFallback, renderPublicLotFallback, prerenderAll };
+if (require.main === module) prerenderAll().catch((error) => {
   console.error(`prerender-seo: generation failed (${error.message || "unexpected error"})`);
   process.exitCode = 1;
 });

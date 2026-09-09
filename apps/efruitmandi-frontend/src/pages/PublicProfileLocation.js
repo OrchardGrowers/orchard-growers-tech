@@ -109,7 +109,7 @@ export default function PublicProfileLocation({ role }) {
 
   return (
     <>
-      <SEO title={title} description={description} canonical={canonicalPath} noIndex={!indexable} schema={schema} />
+      <SEO title={title} description={description} canonical={canonicalPath} loading={loading} noIndex={!indexable} schema={schema} />
       <main className="mx-auto min-h-[65vh] max-w-7xl px-4 py-10">
         <h1 className="text-2xl font-extrabold text-gray-950 sm:text-3xl">{locationName ? `${roleHeading} in ${locationName}` : roleHeading}</h1>
         <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-gray-600">{description}</p>

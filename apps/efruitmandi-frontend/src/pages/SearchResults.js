@@ -371,15 +371,14 @@ export default function SearchResults() {
     ...(cleanQuery ? { keywords: cleanQuery } : {}),
     ...(itemListSchema ? { mainEntity: { "@id": itemListId } } : {}),
   };
-  const noIndex = true;
 
   return (
     <>
     <SEO
       title={seoTitle}
       description={seoDescription}
-      canonical={canonicalPath}
-      noIndex={noIndex}
+      canonical={null}
+      robots="noindex,follow"
       schema={[searchResultsPageSchema, itemListSchema]}
       schemaId="efruitmandi-search-schema"
     />

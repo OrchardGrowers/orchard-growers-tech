@@ -28,7 +28,9 @@
     "postbuild": "node scripts/prerender-seo.cjs",
     "preview": "vite preview --host 0.0.0.0",
     "test": "echo \"No tests configured for eFruitMandi frontend\"",
-    "test:fruit-search": "node scripts/test-fruit-search-ranking.cjs"
+    "test:fruit-search": "node scripts/test-fruit-search-ranking.cjs",
+    "test:seo": "node --test scripts/seo-indexing.test.cjs",
+    "validate:seo": "node scripts/validate-seo.cjs"
   },
   "browserslist": {
     "production": [

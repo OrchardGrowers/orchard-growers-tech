@@ -27,9 +27,8 @@ export const buildOrganizationSchema = (values = {}) => base("Organization", {
 
 export const publisherReference = () => ({ "@id": ORGANIZATION_ID });
 export const buildBusinessOrganizationSchema = (values = {}) => base("Organization", values);
-export const buildWebSiteSchema = ({ searchPath = "/search?q={search_term_string}", ...values } = {}) => base("WebSite", {
+export const buildWebSiteSchema = (values = {}) => base("WebSite", {
   "@id": `${SITE_URL}/#website`, name: "eFruitMandi", url: SITE_URL, publisher: publisherReference(),
-  potentialAction: { "@type": "SearchAction", target: { "@type": "EntryPoint", urlTemplate: normalizeCanonicalUrl(searchPath) }, "query-input": "required name=search_term_string" },
   ...values,
 });
 export const buildLocalBusinessSchema = (values = {}) => base("LocalBusiness", values);

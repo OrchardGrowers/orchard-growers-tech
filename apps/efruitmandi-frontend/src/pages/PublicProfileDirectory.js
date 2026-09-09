@@ -133,7 +133,7 @@ export default function PublicProfileDirectory({ role }) {
 
   return (
     <>
-      <SEO
+      <SEO loading={loading}
         title={meta.title}
         description={meta.description}
         canonical={meta.path}

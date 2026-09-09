@@ -33,6 +33,19 @@ export function getInitialRobotsDirective(canonical, fallback = "noindex,nofollo
     : fallback;
 }
 
+// Use only metadata whose server canonical matches this route; never reuse the homepage.
+export function getInitialPublicMetadata(canonical) {
+  if (canonical === null || typeof document === "undefined") return null;
+  const link = document.querySelector('link[rel="canonical"]');
+  if (!link || normalizeUrl(link.href) !== normalizeUrl(canonical)) return null;
+  return {
+    canonical: normalizeUrl(canonical),
+    title: document.title,
+    description: document.querySelector('meta[name="description"]')?.getAttribute("content") || "",
+    robots: getInitialRobotsDirective(canonical, "noindex,follow"),
+  };
+}
+
 export default function SEO({
   title = DEFAULT_TITLE,
   description = DEFAULT_DESCRIPTION,
@@ -40,10 +53,17 @@ export default function SEO({
   image = DEFAULT_IMAGE,
   type = "website",
   noIndex = false,
+  loading = false,
   robots,
   schema,
   schemaId = "",
 }) {
+  const [initialMetadata] = React.useState(() => getInitialPublicMetadata(canonical));
+  if (loading && initialMetadata?.canonical === normalizeUrl(canonical)) {
+    title = initialMetadata.title;
+    description = initialMetadata.description;
+    robots = initialMetadata.robots;
+  }
   const fullCanonical = canonical === null ? "" : normalizeUrl(canonical);
   const fullImage = image && (/^https?:\/\//i.test(image) || image.startsWith("/")) ? normalizeUrl(image) : "";
   const schemaList = prepareSchemas(schema);

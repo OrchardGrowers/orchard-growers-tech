@@ -330,7 +330,7 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
   if (loading) {
     return (
       <>
-        <SEO canonical={routeCanonical} robots={initialRobots} image={null} />
+        <SEO canonical={routeCanonical} robots={initialRobots} loading image={null} />
         <main className="mx-auto min-h-[60vh] max-w-3xl px-4 py-14">
           <p className="text-center text-sm font-semibold text-gray-500">Loading public profile...</p>
         </main>

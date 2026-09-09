@@ -246,14 +246,6 @@ const homePageSchemas = {
       name: "eFruitMandi",
       url: HOME_URL,
       publisher: { "@id": `${HOME_URL}#organization` },
-      potentialAction: {
-        "@type": "SearchAction",
-        target: {
-          "@type": "EntryPoint",
-          urlTemplate: "https://www.efruitmandi.live/search?q={search_term_string}",
-        },
-        "query-input": "required name=search_term_string",
-      },
     },
     {
       "@type": "WebPage",

@@ -5,10 +5,12 @@ import { getFruitSeoPage } from "../data/fruitSeoPages";
 export default function FruitSeoPage({ type }) {
   const { fruitSlug } = useParams();
   const page = getFruitSeoPage(type, fruitSlug);
+  const canonical = type === "transport" ? "/blog/fruit-transport" : "/blog/" + ({ buyers: "fruit-buyers", growers: "fruit-growers", marketPrice: "market-price" }[type]) + "/" + fruitSlug;
 
   if (!page) {
     return (
       <div className="min-h-screen bg-[#eef3ef] px-4 py-16">
+          <SEO title="Page Not Found | eFruitMandi" canonical={null} robots="noindex,follow" />
           <div className="mx-auto max-w-4xl rounded-2xl bg-white p-5 shadow sm:rounded-3xl sm:p-8">
           <h1 className="text-2xl font-black text-gray-900 sm:text-3xl">Page not available</h1>
           <p className="mt-4 text-gray-700">This fruit SEO page is not available yet.</p>
@@ -22,7 +24,7 @@ export default function FruitSeoPage({ type }) {
 
   return (
     <>
-      <SEO title={page.title} description={page.description} keywords={`${page.h1}, eFruitMandi, fruit marketplace India, fruit growers, fruit buyers, mandi bhav`} />
+      <SEO canonical={canonical} title={page.title} description={page.description} keywords={`${page.h1}, eFruitMandi, fruit marketplace India, fruit growers, fruit buyers, mandi bhav`} />
 
       <div className="min-h-screen bg-[#eef3ef]">
         <section className="bg-gradient-to-br from-green-900 via-green-700 to-lime-600 px-4 py-16 text-white">

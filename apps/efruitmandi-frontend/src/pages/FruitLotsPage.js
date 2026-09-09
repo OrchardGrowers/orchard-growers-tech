@@ -259,10 +259,10 @@ export default function FruitLotsPage() {
               <Link to="/list-new-lot">List Fruit Lots</Link>
             </li>
             <li>
-              <Link to="/fruit-buyers">Fruit Buyers</Link>
+              <Link to="/buyers">Fruit Buyers</Link>
             </li>
             <li>
-              <Link to="/fruit-growers">Fruit Growers</Link>
+              <Link to="/growers">Fruit Growers</Link>
             </li>
           </ul>
         </section>

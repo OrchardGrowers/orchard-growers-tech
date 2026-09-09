@@ -279,7 +279,7 @@ function App() {
             <Route path="/our-story" element={<PolicyPage type="story" />} />
             <Route path="/vision-mission" element={<PolicyPage type="visionMission" />} />
             <Route path="/why-efruitmandi" element={<PolicyPage type="why" />} />
-            <Route path="/contact" element={<PolicyPage type="contact" />} />
+            <Route path="/contact" element={<Navigate to="/contact-us" replace />} />
             <Route path="/contact-us" element={<PolicyPage type="contact" />} />
             <Route path="/faqs" element={<PolicyPage type="faqs" />} />
             <Route path="/privacy-policy" element={<PolicyPage type="privacy" />} />

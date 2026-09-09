@@ -8,7 +8,7 @@ const horticultureCards = [
       "Find apple buyers, traders, wholesalers and procurement opportunities for apple growers across India.",
     image:
       "https://res.cloudinary.com/doprdp6bi/image/upload/f_auto,q_auto,w_1200/v1781716974/noname_13-apple-2788616_lihydh.jpg",
-    link: "/fruit-buyers/apple",
+    link: "/blog/fruit-buyers/apple",
     buttonText: "Explore Apple Buyers",
   },
   {
@@ -17,7 +17,7 @@ const horticultureCards = [
       "Explore apple farming, orchard management, grading, packing and marketing information for apple growers.",
     image:
       "https://res.cloudinary.com/doprdp6bi/image/upload/f_auto,q_auto,w_1200/v1781717271/alandsmann-harvest-7458975_g3knnc.jpg",
-    link: "/fruit-growers/apple",
+    link: "/blog/fruit-growers/apple",
     buttonText: "Explore Grower Guide",
   },
   {

@@ -77,12 +77,13 @@ export default function MandiRates() {
     Boolean(selectedFruitSlug) &&
     availabilityResolved &&
     availableMandiSlugs.includes(selectedFruitSlug);
-  const pageTitle = selectedCommodity
+  const invalidCommodity = Boolean(commoditySlug && !findFruitEntity(commoditySlug));
+  const pageTitle = invalidCommodity ? "Mandi rate page unavailable | eFruitMandi" : selectedCommodity
     ? hasResolvedRates
       ? `${selectedCommodity} Mandi Rates Today | eFruitMandi`
       : `${selectedCommodity} Mandi Rates | eFruitMandi`
     : "Fruit Mandi Rates Today | eFruitMandi";
-  const pageDescription = selectedCommodity
+  const pageDescription = invalidCommodity ? "This mandi-rate page is unavailable." : selectedCommodity
     ? hasResolvedRates
       ? `Check latest ${selectedCommodity.toLowerCase()} mandi rates from AGMARKNET markets across India with min, modal and max price per kg.`
       : `Check available ${selectedCommodity.toLowerCase()} mandi-rate information and related fruit marketplace pages on eFruitMandi.`
@@ -113,7 +114,7 @@ export default function MandiRates() {
         ]);
       })
       .catch(() =>
-        setAvailableMandiSlugs((current) => (Array.isArray(current) ? current : []))
+        setAvailableMandiSlugs((current) => current)
       );
   }, []);
 
@@ -169,10 +170,10 @@ export default function MandiRates() {
 
   return (
     <>
-      <SEO
+      <SEO loading={Boolean(commoditySlug) && !availabilityResolved}
         title={pageTitle}
         description={pageDescription}
-        canonical={canonicalPath}
+        canonical={invalidCommodity ? null : canonicalPath}
         robots={robots}
       />
 
@@ -186,7 +187,7 @@ export default function MandiRates() {
             <div className="mt-2 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div>
                 <h1 className="text-2xl font-black leading-tight md:text-3xl">
-                  {selectedCommodity ? `${selectedCommodity} Mandi Rates` : "Fruit Mandi Rates"}
+                  {invalidCommodity ? "Mandi rate page unavailable" : selectedCommodity ? `${selectedCommodity} Mandi Rates` : "Fruit Mandi Rates"}
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-green-50">
                   Stored Government of India mandi prices for fruit markets across India.

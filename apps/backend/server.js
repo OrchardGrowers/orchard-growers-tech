@@ -7,6 +7,7 @@ import multer from "multer";
 import cron from "node-cron";
 import connectDB from "./config/db.js";
 import sitemapRoutes from "./routes/sitemapRoutes.js";
+import { apiRobotsPolicy } from "./middleware/apiRobotsPolicy.js";
 
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
@@ -78,6 +79,7 @@ try {
 let dbConnected = false;
 const app = express();
 app.set("trust proxy", 1);
+app.use(apiRobotsPolicy);
 
 // Initialize DB connection
 const databaseInitialization = (async () => {
