@@ -18,6 +18,8 @@ import {
 } from "react-icons/fa";
 import BannerSlider from "../components/BannerSlider";
 import GrowerVerificationBadge from "../components/GrowerVerificationBadge";
+import SafeProfileImage from "../components/SafeProfileImage";
+import { getProfileMedia, resolveProfileMediaUrl as resolvePublicProfileMediaUrl } from "../utils/profileMedia";
 import {
   canQuote,
   hasAccessToken,
@@ -1833,18 +1835,20 @@ function PublicProfilesSection({ title, role, profiles = [], loading, error, emp
         <div className="space-y-3" aria-hidden="true">
           {[0, 1].map((item) => (
             <div key={item} className="overflow-hidden border border-gray-200 bg-white motion-reduce:animate-none md:rounded-md">
-              <div className="animate-pulse p-3 motion-reduce:animate-none">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="h-4 w-2/3 rounded bg-gray-200" />
-                    <div className="mt-2 h-3 w-1/2 rounded bg-gray-100" />
-                    <div className="mt-3 h-3 w-1/3 rounded bg-gray-100" />
+              <div className="relative h-64 animate-pulse bg-green-50 motion-reduce:animate-none sm:h-72">
+                <div className="absolute inset-x-0 top-0 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="h-4 w-2/3 rounded bg-gray-200" />
+                      <div className="mt-2 h-3 w-1/2 rounded bg-gray-100" />
+                      <div className="mt-3 h-3 w-1/3 rounded bg-gray-100" />
+                    </div>
+                    <div className="h-6 w-28 rounded bg-green-100" />
                   </div>
-                  <div className="h-6 w-28 rounded bg-green-100" />
                 </div>
-              </div>
-              <div className="flex h-64 animate-pulse items-center justify-center bg-green-50 motion-reduce:animate-none md:h-80">
-                <div className="h-32 w-32 rounded-full border-4 border-white bg-gray-200 md:h-40 md:w-40" />
+                <div className="absolute inset-x-0 bottom-5 flex justify-center">
+                  <div className="h-20 w-20 rounded-full border-4 border-white bg-gray-200 sm:h-24 sm:w-24" />
+                </div>
               </div>
               <div className="animate-pulse border-t border-gray-100 p-3 motion-reduce:animate-none">
                 <div className="rounded-md bg-green-50 px-3 py-3">
@@ -1880,7 +1884,7 @@ function PublicProfilesSection({ title, role, profiles = [], loading, error, emp
   );
 }
 
-function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile }) {
+export function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile }) {
   const safeProfile = getSafePublicProfile({ ...profile, businessType: role });
   const safeProfileReference = {
     ...safeProfile,
@@ -1893,32 +1897,36 @@ function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile }) {
     safeProfile.name ||
     (role === "grower" ? "Grower Profile" : "Buyer Profile");
   const location = safeProfile.mainLocation || safeProfile.city || safeProfile.state || "India";
-  const imageUrl = optimizeProfileLogoUrl(
-    resolveProfileMediaUrl(
-      safeProfile.logoUrl || safeProfile.profileImage || safeProfile.avatar
-    )
-  );
-  const rawBannerImageUrl = resolveProfileMediaUrl(
-    role === "buyer"
-      ? profile.buyerBannerUrl || profile.bannerUrl
-      : profile.bannerUrl
-  );
+  const media = getProfileMedia(profile, role);
+  const imageUrl = optimizeProfileLogoUrl(resolvePublicProfileMediaUrl(media.logo, FILE_BASE_URL));
+  const rawBannerImageUrl = resolvePublicProfileMediaUrl(media.banner, FILE_BASE_URL);
   const bannerImageUrl = optimizeImageUrl(rawBannerImageUrl, 640);
   const bannerImageSrcSet = buildProfileBannerSrcSet(rawBannerImageUrl);
   const roleTitle = role === "grower" ? "Fruit Grower Profile" : "Fruit Buyer Profile";
 
   return (
     <article className="overflow-hidden border border-gray-200 bg-white md:rounded-md">
-      <div className="p-3">
+      <div className="relative h-64 sm:h-72">
+        <SafeProfileImage
+          src={bannerImageUrl}
+          srcSet={bannerImageSrcSet || undefined}
+          sizes="(max-width: 767px) 100vw, 640px"
+          role={role}
+          kind="banner"
+          businessName={displayName}
+          className="h-full w-full"
+        />
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-b from-green-950/80 via-green-950/30 to-transparent" />
+        <div className="absolute inset-x-0 top-0 p-3">
         <div className={role === "grower" ? "flex flex-col items-start gap-3 sm:flex-row sm:justify-between" : "flex items-start justify-between gap-3"}>
           <div className="min-w-0 flex-1">
-            <h3 className="line-clamp-1 text-base font-extrabold text-black">
+            <h3 className="line-clamp-1 text-base font-extrabold text-white">
               {displayName}
             </h3>
-            <p className="mt-1 truncate text-sm font-semibold text-gray-600">
+            <p className="mt-1 truncate text-sm font-semibold text-white">
               {location}
             </p>
-            <p className="mt-2 text-sm font-bold text-black">
+            <p className="mt-2 text-sm font-bold text-white">
               {roleTitle}
             </p>
           </div>
@@ -1938,44 +1946,15 @@ function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile }) {
             )}
           </div>
         </div>
-      </div>
-
-      <div
-        className="relative flex h-64 items-center justify-center bg-gradient-to-br from-green-50 via-white to-amber-50 bg-cover bg-center p-4 md:h-80"
-      >
-        {bannerImageUrl && (
-          <img
-            src={bannerImageUrl}
-            srcSet={bannerImageSrcSet || undefined}
-            sizes="(max-width: 767px) 100vw, 640px"
-            alt=""
-            width="640"
-            height="320"
-            loading="lazy"
-            decoding="async"
-            aria-hidden="true"
-            className="absolute inset-0 h-full w-full object-cover"
+        </div>
+        <div className="absolute inset-x-0 bottom-5 flex justify-center">
+          <SafeProfileImage
+            src={imageUrl}
+            role={role}
+            businessName={displayName}
+            className="h-20 w-20 border-4 border-white shadow-lg sm:h-24 sm:w-24"
           />
-        )}
-        {imageUrl ? (
-          <div className="relative z-10 flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-white p-2 shadow-xl md:h-40 md:w-40">
-            <img
-              src={imageUrl}
-              alt={displayName}
-              width="160"
-              height="160"
-              loading="lazy"
-              decoding="async"
-              className="h-full w-full rounded-full object-contain"
-            />
-          </div>
-        ) : (
-          <Avatar
-            name={displayName}
-            imageUrl={imageUrl}
-            className="relative z-10 h-24 w-24 border-4 border-white text-3xl shadow-lg"
-          />
-        )}
+        </div>
       </div>
 
       <div className="border-t border-gray-100 p-3">

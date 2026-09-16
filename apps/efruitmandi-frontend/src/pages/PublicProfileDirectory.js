@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { FaCheckCircle, FaMapMarkerAlt, FaSeedling } from "react-icons/fa";
-import API, { FILE_BASE_URL } from "../services/api";
+import { FaCheckCircle, FaMapMarkerAlt } from "react-icons/fa";
+import API from "../services/api";
 import SEO, { getInitialRobotsDirective } from "../components/SEO";
 import GrowerVerificationBadge from "../components/GrowerVerificationBadge";
+import SafeProfileImage from "../components/SafeProfileImage";
+import { getProfileMedia } from "../utils/profileMedia";
 import { buildBreadcrumbSchema, buildCollectionPageSchema, buildItemListSchema } from "../utils/schemaGenerators";
 
 const SITE_URL = "https://www.efruitmandi.live";
@@ -26,15 +28,6 @@ const DIRECTORY_META = {
     path: "/buyers",
     label: "Buyer",
   },
-};
-
-const resolveProfileImage = (value = "") => {
-  const image = String(value || "").trim().replace(/\\/g, "/");
-  if (!image) return "";
-  if (/^https?:/i.test(image)) return image;
-  if (image.startsWith("/uploads/")) return `${FILE_BASE_URL}${image}`;
-  if (image.startsWith("/")) return image;
-  return `${FILE_BASE_URL}/${image}`;
 };
 
 export const getProfileName = (profile, role) => String(
@@ -178,7 +171,7 @@ export function DirectoryCard({ profile, role, label }) {
   const name = getProfileName(profile, role);
   const profilePath = getProfilePath(profile, role);
   const location = String(profile.mainLocation || "").trim();
-  const image = resolveProfileImage(profile.logoUrl || profile.buyerCompanyLogoUrl || profile.companyLogoUrl);
+  const { logo } = getProfileMedia(profile, role);
   const buyerSubtype = role === "buyer"
     ? String(profile.businessType || "buyer").replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
     : "Fruit Grower";
@@ -191,9 +184,12 @@ export function DirectoryCard({ profile, role, label }) {
         className="block h-full p-5 transition hover:bg-green-50"
       >
         <div className="flex items-start gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-green-50 text-2xl text-green-700">
-            {image ? <img src={image} alt={`${name} public profile`} className="h-full w-full object-contain" loading="lazy" /> : <FaSeedling />}
-          </div>
+          <SafeProfileImage
+            src={logo}
+            role={role}
+            businessName={name}
+            className="h-20 w-20 shrink-0 ring-1 ring-green-100 sm:h-24 sm:w-24"
+          />
           <div className="min-w-0">
             <h2 className="text-base font-extrabold text-gray-950">{name}</h2>
             <p className="mt-1 text-xs font-bold text-green-800">{buyerSubtype}</p>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192" fill="none">
+  <title>Buyer fruit business profile placeholder</title>
+  <circle cx="96" cy="96" r="96" fill="#EDF4F0"/>
+  <circle cx="96" cy="96" r="84" stroke="#B8D1C4" stroke-width="2"/>
+  <path d="M53 85V135H139V85" fill="#D4E5DB" stroke="#31674C" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M46 84L56 57H136L146 84H46Z" fill="#3C805E"/>
+  <path d="M73 57L68 84M96 57V84M119 57L124 84" stroke="#E8F1EB" stroke-width="9"/>
+  <path d="M47 84V91C47 98 61 100 68 93C74 101 89 101 96 93C103 101 118 101 124 93C131 100 145 98 145 91V84" fill="#3C805E"/>
+  <path d="M65 116H127L122 141H70L65 116Z" fill="#E7B86C" stroke="#825E35" stroke-width="3" stroke-linejoin="round"/>
+  <circle cx="83" cy="113" r="10" fill="#70934F"/>
+  <circle cx="108" cy="113" r="10" fill="#DB9442"/>
+  <path d="M82 103C79 96 89 94 90 98C89 102 86 104 82 103Z" fill="#31674C"/>
+  <path d="M75 123H117M78 131H114" stroke="#A57C45" stroke-width="3" stroke-linecap="round"/>
+</svg>

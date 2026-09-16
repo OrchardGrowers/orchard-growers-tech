@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192" fill="none">
+  <title>Grower orchard profile placeholder</title>
+  <circle cx="96" cy="96" r="96" fill="#ECF6EB"/>
+  <circle cx="96" cy="96" r="84" stroke="#B8D5B7" stroke-width="2"/>
+  <path d="M45 136C69 121 123 121 147 136M51 146C77 134 115 134 141 146" stroke="#86AC75" stroke-width="5" stroke-linecap="round"/>
+  <path d="M96 130V85M96 112L76 94M96 103L116 82" stroke="#356B3B" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M67 105C54 105 47 96 49 85C50 76 57 71 65 69C65 55 78 46 90 50C99 40 119 46 122 59C139 59 149 72 143 86C150 101 136 113 121 109C110 121 91 120 83 110C78 109 72 108 67 105Z" fill="#3C8050"/>
+  <path d="M96 119V93M96 108L80 95M96 103L114 89" stroke="#245735" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="70" cy="83" r="8" fill="#E6AB4F"/>
+  <circle cx="107" cy="68" r="8" fill="#E6AB4F"/>
+  <circle cx="126" cy="91" r="8" fill="#E6AB4F"/>
+  <path d="M70 75L73 71M107 60L110 56M126 83L129 79" stroke="#245735" stroke-width="3" stroke-linecap="round"/>
+</svg>

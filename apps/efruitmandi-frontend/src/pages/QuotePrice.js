@@ -4,6 +4,8 @@ import { FaCalculator, FaDownload, FaFileAlt, FaMapMarkerAlt, FaSeedling, FaVide
 import API, { FILE_BASE_URL } from "../services/api";
 import { trackDealCreated } from "../services/analytics";
 import BackHomeButton from "../components/BackHomeButton";
+import SafeProfileImage from "../components/SafeProfileImage";
+import { getProfileMedia } from "../utils/profileMedia";
 import { canQuote, getCurrentUser, getKycStatusLabel, hasBuyerProfile } from "../utils/auth";
 import { saveUserToStorage } from "../utils/userStorage";
 import { canDownloadCompletedFruitScanningReport } from "../utils/fruitScanningReport";
@@ -543,19 +545,20 @@ function LotMediaPanel({ product, images, activeImage, onSelectImage }) {
 function GrowerIdentity({ product }) {
   const grower = product?.createdBy || {};
   const name = grower.orchardName || grower.businessName || grower.name || "Grower's Orchard";
-  const logo = resolveProfileMediaUrl(grower.companyLogoUrl);
+  const { logo } = getProfileMedia(grower, "grower");
 
   if (!product) return null;
 
   return (
     <div className="flex w-full min-w-0 items-center gap-2 rounded-md bg-green-50 px-3 py-2 sm:w-auto sm:max-w-[240px] sm:shrink-0">
-      {logo ? (
-        <img src={logo} alt={`${name} logo`} className="h-10 w-10 rounded bg-white object-contain ring-1 ring-green-100" />
-      ) : (
-        <span className="flex h-10 w-10 items-center justify-center rounded bg-green-800 text-xs font-extrabold text-white">
-          {name.slice(0, 1).toUpperCase()}
-        </span>
-      )}
+      <SafeProfileImage
+        src={logo}
+        role="grower"
+        businessName={name}
+        width="40"
+        height="40"
+        className="h-10 w-10 shrink-0 ring-1 ring-green-100"
+      />
       <div className="min-w-0 text-left">
         <p className="text-[10px] font-extrabold uppercase tracking-wide text-green-700">Farm</p>
         <p className="truncate text-sm font-extrabold text-gray-950">{name}</p>
@@ -759,15 +762,6 @@ function toAssetUrl(path = "") {
   const normalized = String(path || "").replace(/\\/g, "/");
   if (/^https?:\/\//i.test(normalized)) return normalized;
   return normalized ? `${FILE_BASE_URL}/${normalized}` : "";
-}
-
-function resolveProfileMediaUrl(value = "") {
-  const url = String(value || "").trim();
-  if (!url) return "";
-  if (/^https?:\/\//i.test(url)) return url;
-  const cleanPath = url.replace(/^\/+/, "");
-  if (cleanPath.startsWith("uploads/")) return `${FILE_BASE_URL}/${cleanPath}`;
-  return url.startsWith("/") ? url : `/${url}`;
 }
 
 function getMapPoint(entity = {}) {

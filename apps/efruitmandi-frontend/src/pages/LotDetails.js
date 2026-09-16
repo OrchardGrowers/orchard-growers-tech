@@ -17,6 +17,7 @@ import CountdownTimer from "../components/CountdownTimer";
 import SEO from "../components/SEO";
 import { buildProductSchema, publisherReference } from "../utils/schemaGenerators";
 import LimitedPublicProfileCard from "../components/LimitedPublicProfileCard";
+import SafeProfileImage from "../components/SafeProfileImage";
 import FruitLotPackingSummary from "../components/FruitLotPackingSummary";
 import { getQualityLabel, isCertifiedQuality } from "../config/appleGrading";
 import { getPackingTypeLabel } from "../config/packingSpecifications";
@@ -620,35 +621,25 @@ function ClosedDealSummary({ product, auction, closedDeal, seller, buyer, resolv
   );
 }
 
-function ClosedPartyCard({ label, profile, fallbackName, businessType, resolveImageUrl }) {
+function ClosedPartyCard({ label, profile, fallbackName, businessType }) {
   const safeProfile = getSafePublicProfile(profile, {
     businessType,
     companyName: fallbackName,
   });
   const displayName = safeProfile.companyName || safeProfile.name || fallbackName;
-  const logoUrl = safeProfile.logoUrl && resolveImageUrl
-    ? resolveImageUrl(safeProfile.logoUrl)
-    : safeProfile.logoUrl;
 
   return (
     <div className="min-w-0 rounded-md bg-white p-3 ring-1 ring-gray-200">
       <p className="text-[9px] font-extrabold uppercase text-gray-500">{label}</p>
       <div className="mt-2 flex min-w-0 items-center gap-2">
-        {logoUrl ? (
-          <img
-            src={logoUrl}
-            alt={`${displayName} logo`}
-            width="40"
-            height="40"
-            className="h-10 w-10 shrink-0 rounded-md object-cover ring-1 ring-green-100"
-            loading="lazy"
-            decoding="async"
-          />
-        ) : (
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-green-50 text-sm font-black text-green-800 ring-1 ring-green-100">
-            {displayName.slice(0, 1).toUpperCase()}
-          </div>
-        )}
+        <SafeProfileImage
+          src={safeProfile.logoUrl}
+          role={businessType}
+          businessName={displayName}
+          width="40"
+          height="40"
+          className="h-10 w-10 shrink-0 ring-1 ring-green-100"
+        />
         <div className="min-w-0">
           <p className="truncate text-xs font-extrabold text-gray-950">{displayName}</p>
           <p className="truncate text-[10px] font-bold text-gray-600">

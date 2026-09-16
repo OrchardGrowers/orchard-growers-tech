@@ -15,6 +15,8 @@ import API, { FILE_BASE_URL } from "../services/api";
 import SEO, { getInitialRobotsDirective } from "../components/SEO";
 import ProfileShareButton from "../components/ProfileShareButton";
 import GrowerVerificationBadge from "../components/GrowerVerificationBadge";
+import SafeProfileImage from "../components/SafeProfileImage";
+import { getProfileMedia, resolveProfileMediaUrl } from "../utils/profileMedia";
 import { buildBreadcrumbSchema, buildBusinessOrganizationSchema, buildLocalBusinessSchema } from "../utils/schemaGenerators";
 
 const BUSINESS_TYPE_LABELS = {
@@ -35,10 +37,9 @@ const BUYER_SEO_ROLE_LABELS = {
   cold_storage: "Cold Storage Business",
 };
 
-const fallbackLogo = "/logo-original.png";
 const siteUrl = "https://www.efruitmandi.live";
 
-const resolveProfileMediaUrl = (value = "") => {
+const resolveLotMediaUrl = (value = "") => {
   const normalized = String(value || "").trim().replace(/\\/g, "/");
   if (!normalized) return "";
   if (/^(https?:|data:|blob:)/i.test(normalized)) return normalized;
@@ -131,11 +132,11 @@ export const getPublicLotMedia = (item = {}) => {
     ...(Array.isArray(item.images) ? item.images : []),
     ...imageObjectUrls,
     ...gradeImages,
-  ].map(resolveProfileMediaUrl).filter(Boolean)));
+  ].map(resolveLotMediaUrl).filter(Boolean)));
   const videos = Array.from(new Set([
     item.sampleVideo,
     ...(Array.isArray(item.videos) ? item.videos : []),
-  ].map(resolveProfileMediaUrl).filter(Boolean)));
+  ].map(resolveLotMediaUrl).filter(Boolean)));
   return { images, videos, primaryImage: images[0] || "" };
 };
 
@@ -240,13 +241,9 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
       (userId || (slug && slug !== canonicalSlug))
   );
   const publicLocation = String(profile?.mainLocation || "").trim();
-  const profileImage = resolveProfileMediaUrl(
-    profile?.logoUrl ||
-      profile?.buyerCompanyLogoUrl ||
-      profile?.companyLogoUrl
-  );
-  const publicProfileImage = profileImage || fallbackLogo;
-  const publicBannerImage = resolveProfileMediaUrl(profile?.bannerUrl);
+  const profileMedia = getProfileMedia(profile, profileRole);
+  const profileImage = resolveProfileMediaUrl(profileMedia.logo, FILE_BASE_URL);
+  const publicBannerImage = resolveProfileMediaUrl(profileMedia.banner, FILE_BASE_URL);
   const profileShareImage = buildProfileShareImage(publicBannerImage, profileImage);
   const schemaImage = profileImage
     ? /^https?:/i.test(profileImage)
@@ -407,18 +404,21 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
       />
       <main className="mx-auto min-h-[65vh] max-w-7xl px-4 py-10">
         <article className="overflow-hidden rounded-2xl border border-green-100 bg-white shadow-sm">
-          <div
-            className="h-48 bg-gradient-to-r from-green-800 via-green-700 to-emerald-500 bg-cover bg-center sm:h-64"
-            style={publicBannerImage ? { backgroundImage: `url(${publicBannerImage})` } : undefined}
+          <SafeProfileImage
+            src={profileMedia.banner}
+            role={profileRole}
+            kind="banner"
+            businessName={firmName}
+            loading="eager"
+            className="w-full"
           />
           <div className="px-5 pb-7 sm:px-8">
-            <img
-              src={publicProfileImage}
-              alt={`${firmName} official firm logo`}
-              onError={(event) => {
-                event.currentTarget.src = fallbackLogo;
-              }}
-              className="-mt-16 h-28 w-28 rounded-xl border-4 border-white bg-white object-contain shadow"
+            <SafeProfileImage
+              src={profileMedia.logo}
+              role={profileRole}
+              businessName={firmName}
+              loading="eager"
+              className="-mt-10 h-20 w-20 border-4 border-white shadow sm:-mt-12 sm:h-24 sm:w-24"
             />
 
             <div className="mt-5 flex flex-wrap items-start justify-between gap-4">

@@ -1,19 +1,17 @@
 import { FaCalendarAlt, FaHandshake, FaMapMarkerAlt, FaSeedling, FaShieldAlt } from "react-icons/fa";
 import { getSafePublicProfile } from "../utils/marketplaceVisibility";
 import GrowerVerificationBadge from "./GrowerVerificationBadge";
+import SafeProfileImage from "./SafeProfileImage";
 
 export default function LimitedPublicProfileCard({
   profile,
   title = "Public Profile",
   emptyName = "Marketplace Profile",
   trustedLabel = "Trusted",
-  resolveImageUrl,
 }) {
   const safeProfile = getSafePublicProfile(profile);
   const displayName = safeProfile.companyName || safeProfile.name || emptyName;
-  const logoUrl = safeProfile.logoUrl && resolveImageUrl
-    ? resolveImageUrl(safeProfile.logoUrl)
-    : safeProfile.logoUrl;
+  const logoUrl = safeProfile.logoUrl;
   const hasProfile = Boolean(
     displayName ||
       logoUrl ||
@@ -33,21 +31,14 @@ export default function LimitedPublicProfileCard({
         {title}
       </p>
       <div className="flex min-w-0 items-start gap-3">
-        {logoUrl ? (
-          <img
-            src={logoUrl}
-            alt={`${displayName} logo`}
-            width="48"
-            height="48"
-            className="h-12 w-12 shrink-0 rounded-md bg-white object-contain p-1 ring-1 ring-green-100"
-            loading="lazy"
-            decoding="async"
-          />
-        ) : (
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-white text-lg font-black text-green-700 ring-1 ring-green-100">
-            {displayName.slice(0, 1).toUpperCase()}
-          </div>
-        )}
+        <SafeProfileImage
+          src={logoUrl}
+          role={safeProfile.businessType}
+          businessName={displayName}
+          width="48"
+          height="48"
+          className="h-12 w-12 shrink-0 ring-1 ring-green-100"
+        />
 
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-sm font-extrabold text-gray-950">
