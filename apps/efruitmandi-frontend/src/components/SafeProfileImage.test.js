@@ -70,7 +70,7 @@ describe("SafeProfileImage", () => {
 describe("homepage profile card banner", () => {
   it.each([
     ["grower", "VERIFIED GROWER", "Rate Grower"],
-    ["buyer", "Registered Buyer", "Rate Buyer"],
+    ["buyer", "REGISTERED BUYER", "Rate Buyer"],
   ])("places the %s identity over the banner and preserves profile buttons", (role, badge, rateLabel) => {
     const html = renderToStaticMarkup(<PublicProfileCard role={role} profile={{
       _id: "profile-123",

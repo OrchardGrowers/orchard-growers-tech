@@ -19,18 +19,29 @@ export const normalizeGrowerVerificationLevel = (value) => {
 };
 
 export default function GrowerVerificationBadge({ level, size = "compact", className = "" }) {
+  return <BusinessVerificationBadge level={level} size={size} className={className} role="grower" />;
+}
+
+// Share the existing badge artwork without changing Grower copy or styling.
+export function BusinessVerificationBadge({ level, role, size = "compact", className = "" }) {
   const normalizedLevel = normalizeGrowerVerificationLevel(level);
   if (!normalizedLevel) return null;
 
-  const copy = LEVELS[normalizedLevel];
+  const isBuyer = role === "buyer";
+  const growerCopy = LEVELS[normalizedLevel];
+  const copy = isBuyer ? {
+    title: growerCopy.title.replace("GROWER", "BUYER"),
+    subtitle: growerCopy.subtitle.replace("GROWER", "BUYER"),
+  } : growerCopy;
   return (
     <div
-      className={`grower-verification-badge grower-verification-badge--${normalizedLevel.toLowerCase()} grower-verification-badge--${size} ${className}`.trim()}
-      data-grower-verification-level={normalizedLevel}
+      className={`grower-verification-badge grower-verification-badge--${normalizedLevel.toLowerCase()} grower-verification-badge--${size} ${isBuyer ? "buyer-verification-badge " : ""}${className}`.trim()}
+      data-grower-verification-level={isBuyer ? undefined : normalizedLevel}
+      data-buyer-verification-level={isBuyer ? normalizedLevel : undefined}
       aria-label={copy.title}
     >
       <span className="grower-verification-badge__emblem" aria-hidden="true">
-        <BadgeIcon level={normalizedLevel} />
+        <BadgeIcon level={normalizedLevel} role={role} />
       </span>
       <span className="grower-verification-badge__copy">
         <span className="grower-verification-badge__eyebrow">EFRUITMANDI.LIVE</span>
@@ -39,15 +50,23 @@ export default function GrowerVerificationBadge({ level, size = "compact", class
       </span>
       {normalizedLevel === "OG_VERIFIED" && (
         <span className="grower-verification-badge__promise" aria-hidden="true">
-          STRONGER FARMERS<br />BRIGHTER FUTURE
+          {isBuyer ? "TRUSTED BUYERS" : "STRONGER FARMERS"}<br />BRIGHTER FUTURE
         </span>
       )}
     </div>
   );
 }
 
-function BadgeIcon({ level }) {
+function BadgeIcon({ level, role }) {
   if (level === "REGISTERED") {
+    if (role === "buyer") {
+      return (
+        <svg viewBox="0 0 64 64" role="presentation">
+          <path className="badge-icon-stem" d="M14 28 32 14l18 14v22H14V28Zm11 22V34h14v16M14 28h36" />
+          <path className="badge-icon-ground" d="M10 51h44" />
+        </svg>
+      );
+    }
     return (
       <svg viewBox="0 0 64 64" role="presentation">
         <path className="badge-icon-ground" d="M15 46c9-5 25-5 34 0" />

@@ -18,6 +18,7 @@ import {
 } from "react-icons/fa";
 import BannerSlider from "../components/BannerSlider";
 import GrowerVerificationBadge from "../components/GrowerVerificationBadge";
+import BuyerVerificationBadge, { getBuyerVerificationLevel } from "../components/BuyerVerificationBadge";
 import SafeProfileImage from "../components/SafeProfileImage";
 import { getProfileMedia, resolveProfileMediaUrl as resolvePublicProfileMediaUrl } from "../utils/profileMedia";
 import {
@@ -1846,7 +1847,7 @@ function PublicProfilesSection({ title, role, profiles = [], loading, error, emp
                     <div className="h-6 w-28 rounded bg-green-100" />
                   </div>
                 </div>
-                <div className="absolute inset-x-0 bottom-5 flex justify-center">
+                <div className="absolute inset-x-0 bottom-5 flex justify-end px-3 md:justify-center">
                   <div className="h-20 w-20 rounded-full border-4 border-white bg-gray-200 sm:h-24 sm:w-24" />
                 </div>
               </div>
@@ -1918,7 +1919,7 @@ export function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile 
         />
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-b from-green-950/80 via-green-950/30 to-transparent" />
         <div className="absolute inset-x-0 top-0 p-3">
-        <div className={role === "grower" ? "flex flex-col items-start gap-3 sm:flex-row sm:justify-between" : "flex items-start justify-between gap-3"}>
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
           <div className="min-w-0 flex-1">
             <h3 className="line-clamp-1 text-base font-extrabold text-white">
               {displayName}
@@ -1931,23 +1932,16 @@ export function PublicProfileCard({ profile, role, onOpenProfile, onRateProfile 
             </p>
           </div>
 
-          <div className={role === "grower" ? "flex max-w-full shrink-0 flex-col items-start gap-2 sm:items-end" : "flex shrink-0 flex-col items-end gap-2"}>
+          <div className="flex max-w-full shrink-0 flex-col items-start gap-2 sm:items-end">
             {role === "grower" ? (
               <GrowerVerificationBadge level={profile.growerVerificationLevel} size="compact" />
             ) : (
-              <span className="rounded bg-green-100 px-2 py-1 text-[10px] font-extrabold uppercase text-green-800">
-                Registered Buyer
-              </span>
-            )}
-            {role !== "grower" && isOgVerifiedProfile(profile, role) && (
-              <span className="inline-flex items-center gap-1 rounded bg-amber-50 px-2 py-1 text-[10px] font-extrabold text-amber-700">
-                <FaShieldAlt /> OG Verified
-              </span>
+              <BuyerVerificationBadge level={getBuyerVerificationLevel(profile)} size="compact" />
             )}
           </div>
         </div>
         </div>
-        <div className="absolute inset-x-0 bottom-5 flex justify-center">
+        <div className="absolute inset-x-0 bottom-5 flex justify-end px-3 md:justify-center">
           <SafeProfileImage
             src={imageUrl}
             role={role}
