@@ -15,7 +15,6 @@ Disallow: /checkout
 Disallow: /notifications
 Disallow: /orders
 Disallow: /invoices-chalan
-Disallow: /delivery
 Disallow: /tracking
 Disallow: /escrow
 Disallow: /register-grower

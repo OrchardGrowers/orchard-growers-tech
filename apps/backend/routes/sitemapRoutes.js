@@ -271,6 +271,7 @@ ${url.lastmod ? `    <lastmod>${escapeXml(url.lastmod)}</lastmod>\n` : ""}    <c
 </urlset>`;
 
     res.header("Content-Type", "application/xml");
+    res.header("Cache-Control", "no-store");
     res.send(xml);
   } catch (error) {
     res.status(500).type("text/plain").send("Unable to generate sitemap");

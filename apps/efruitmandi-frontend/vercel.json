@@ -142,7 +142,7 @@
       ]
     },
     {
-      "source": "/(admin|dashboard|profile-dashboard|profile|login|kyc|payment|checkout|notifications|orders|invoices-chalan|delivery|tracking|escrow|register-grower|register-buyer|register-driver|list-new-lot|get-verified|mobile-capture|quotes)(/.*)?",
+      "source": "/(admin|dashboard|profile-dashboard|profile|login|kyc|payment|checkout|notifications|orders|invoices-chalan|tracking|escrow|register-grower|register-buyer|register-driver|list-new-lot|get-verified|mobile-capture|quotes)(/.*)?",
       "headers": [
         {
           "key": "X-Robots-Tag",
@@ -185,6 +185,15 @@
           "value": "noindex, follow"
         }
       ]
+    },
+    {
+      "source": "/delivery",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
+      ]
     }
   ],
   "redirects": [
@@ -202,9 +211,18 @@
       "source": "/fruit-buyers/apple",
       "destination": "/blog/fruit-buyers/apple",
       "permanent": true
+    },
+    {
+      "source": "/delivery",
+      "destination": "/profile?from=/delivery",
+      "permanent": false
     }
   ],
   "rewrites": [
+    {
+      "source": "/lots/:id",
+      "destination": "/api/lot?id=:id"
+    },
     {
       "source": "/sitemap.xml",
       "destination": "https://api.efruitmandi.live/sitemap.xml"
@@ -350,8 +368,13 @@
       "destination": "/blog/fruit-transport/index.html"
     },
     {
-      "source": "/((?!assets/|lots/[^/]+/?$|growers/|buyers/|fruits/|mandi-rates/|fruit-lots/|fruit-buyers/|blog/fruit-buyers/|blog/fruit-growers/|blog/market-price/).*)",
+      "source": "/((?!api/|assets/|lots/[^/]+/?$|growers/|buyers/|fruits/|mandi-rates/|fruit-lots/|fruit-buyers/|blog/fruit-buyers/|blog/fruit-growers/|blog/market-price/).*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "functions": {
+    "api/lot.js": {
+      "includeFiles": "{build/index.html,src/data/fruitLotsContent.js}"
+    }
+  }
 }

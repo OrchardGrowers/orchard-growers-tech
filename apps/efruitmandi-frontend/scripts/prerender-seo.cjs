@@ -163,15 +163,6 @@ const publicLinks = [
 
 const staticRoutes = [
   {
-    path: "/delivery",
-    title: "Delivery Workspace | eFruitMandi",
-    description: "Sign in to access your private eFruitMandi delivery workspace.",
-    h1: "Delivery Workspace",
-    body: "This workspace requires an authenticated eFruitMandi account.",
-    noIndex: true,
-    robots: "noindex,nofollow",
-  },
-  {
     path: "/auctions",
     title: "Fruit Lots Marketplace | Live Deals on eFruitMandi",
     description: "Browse Fruit Lots, Live Deals, Active Deals and Completed Deals on eFruitMandi, India's fresh fruit marketplace for growers and buyers.",
@@ -745,7 +736,7 @@ function getPublicLotQuantity(lot = {}) {
 
 function getPublicLotMeta(lot) {
   if (!lot || typeof lot !== "object") return null;
-  const id = cleanMetadataText(lot._id || lot.id, 24).toLowerCase();
+  const id = String(lot._id || lot.id || "").toLowerCase();
   if (!/^[a-f0-9]{24}$/.test(id)) return null;
 
   const fruitName = cleanMetadataText(lot.fruitName || lot.name || lot.title || lot.category, 80);
@@ -774,15 +765,6 @@ function getPublicLotMeta(lot) {
     lot.imageUrl || lot.productImage || lot.images?.[0] || lot.productImages?.[0]
   );
   return { path, h1, title, description, status, image };
-}
-
-function prerenderPublicLot(baseHtml, meta) {
-  const withHead = replaceProfileHeadTags(baseHtml, { ...meta, schemas: [] });
-  const withFallback = replaceRootContent(withHead, renderPublicLotFallback(meta));
-  const outputPath = outputPathForRoute(meta.path);
-  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-  fs.writeFileSync(outputPath, withFallback, "utf8");
-  console.log(`prerender-seo: generated ${path.relative(buildDir, outputPath).replace(/\\/g, "/")}`);
 }
 
 function prerenderPublicProfile(baseHtml, meta) {
@@ -962,15 +944,6 @@ async function fetchPublicProfiles(role) {
   return payload.profiles;
 }
 
-async function fetchPublicLots() {
-  const response = await fetch(`${API_BASE_URL}/products?platform=efruitmandi`, {
-    headers: { Accept: "application/json" },
-  });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  const payload = await response.json();
-  return Array.isArray(payload) ? payload : [];
-}
-
 async function fetchPublicFruitDiscovery() {
   const response = await fetch(`${API_BASE_URL}/user/public-fruit-discovery`, { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -1083,36 +1056,40 @@ async function prerenderPublicProfiles(baseHtml) {
   getFruitPrerenderMetas(discovery).forEach((meta) => prerenderPublicDirectoryMeta(baseHtml, meta));
 }
 
-async function prerenderPublicLots(baseHtml) {
-  const lots = await fetchPublicLots();
-  const writtenRoutes = new Set();
-  lots.forEach((lot) => {
-    const meta = getPublicLotMeta(lot);
-    if (!meta || writtenRoutes.has(meta.path)) return;
-    prerenderPublicLot(baseHtml, meta);
-    writtenRoutes.add(meta.path);
-  });
-}
-
-function renderNotFoundPage(baseHtml) {
+function renderNotFoundPage(baseHtml, { lot = false, temporary = false } = {}) {
+  const heading = temporary ? "Fruit Lot Temporarily Unavailable" : lot ? "Fruit Lot Not Found" : "Page Not Found";
+  const description = temporary
+    ? "Fruit lot details are temporarily unavailable. Please try again shortly."
+    : lot ? "The requested eFruitMandi fruit lot could not be found or is no longer available."
+      : "The requested eFruitMandi page could not be found or is no longer publicly available.";
   let html = replaceHeadTags(baseHtml, {
     path: "/404",
-    title: "Page Not Found | eFruitMandi",
-    description: "The requested eFruitMandi page could not be found or is no longer publicly available.",
+    title: `${heading} | eFruitMandi`,
+    description,
     robots: "noindex,follow",
   });
   html = removeHeadTag(html, /<link\s+(?=[^>]*\brel=["']canonical["'])[^>]*>\s*/gi);
   html = removeHeadTag(html, /<meta\s+(?=[^>]*\bproperty=["']og:url["'])[^>]*>\s*/gi);
-  html = replaceRootContent(html, `      <main style="background:#f7fff4;color:#123;padding:32px;font-family:Arial,sans-serif;line-height:1.6;text-align:center">
-        <h1>Page Not Found</h1>
-        <p>The requested fruit lot, public profile or page is unavailable or is no longer publicly listed.</p>
+  const errorContent = `      <main style="background:#f7fff4;color:#123;padding:32px;font-family:Arial,sans-serif;line-height:1.6;text-align:center">
+        <h1>${heading}</h1>
+        <p>${lot ? description : "The requested fruit lot, public profile or page is unavailable or is no longer publicly listed."}</p>
         <p><a href="/auctions">Browse public fruit lots</a> | <a href="/growers">Browse growers</a> | <a href="/buyers">Browse buyers</a></p>
-      </main>`);
+      </main>`;
+  html = replaceRootContent(html, errorContent);
+  if (lot) {
+    // Definitive error documents must not boot React's temporary loading SEO.
+    html = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>\s*/gi, "");
+    html = html.replace(/<body\b[^>]*>[\s\S]*?<\/body>/i, `<body><div id="root">${errorContent}</div></body>`);
+  }
   return html;
 }
 
 async function prerenderAll() {
   if (!fs.existsSync(indexPath)) throw new Error("Run vite build before prerender-seo.");
+  // Static files outrank Vercel rewrites. Never publish stale lot snapshots.
+  for (const route of ["lots", "delivery"]) {
+    if (fs.existsSync(path.join(buildDir, route))) throw new Error(`Stale ${route} output: run a clean vite build before prerender-seo.`);
+  }
   const baseHtml = synchronizeHomepageSchema(fs.readFileSync(indexPath, "utf8"));
   fs.writeFileSync(indexPath, baseHtml, "utf8");
   fs.writeFileSync(path.join(buildDir, "404.html"), renderNotFoundPage(baseHtml), "utf8");
@@ -1137,21 +1114,21 @@ async function prerenderAll() {
     });
   });
 
-  await Promise.all([
-    prerenderPublicProfiles(baseHtml),
-    prerenderPublicLots(baseHtml),
-  ]);
+  await prerenderPublicProfiles(baseHtml);
   // Check the existing backend sitemap against this exact generated build.
   const sitemapResponse = await fetch(API_BASE_URL.replace(/\/api$/, "") + "/sitemap.xml");
   if (!sitemapResponse.ok) throw new Error("Sitemap HTTP " + sitemapResponse.status);
-  const { validateBuild } = require("./validate-seo-build.cjs");
-  const count = validateBuild(buildDir, await sitemapResponse.text(),
+  const sitemapXml = await sitemapResponse.text();
+  const { validateBuild, loadDynamicLotPages } = require("./validate-seo-build.cjs");
+  const dynamicPages = await loadDynamicLotPages(sitemapXml, baseHtml);
+  const count = validateBuild(buildDir, sitemapXml,
     JSON.parse(fs.readFileSync(path.join(appRoot, "vercel.json"), "utf8")),
-    fs.readFileSync(path.join(buildDir, "robots.txt"), "utf8"));
+    fs.readFileSync(path.join(buildDir, "robots.txt"), "utf8"), dynamicPages);
   console.log("prerender-seo: validated " + count + " sitemap URLs against generated HTML");
 }
 
 module.exports = { fetchAvailableMandiSlugs, fetchPublicFruitDiscovery, fetchPublicProfiles, getEditorialRoutes, renderNotFoundPage, routes, buildHomepageSchema, replaceHeadTags, replaceProfileHeadTags, replaceRootContent, getPublicProfileMeta, getPublicDirectoryMeta, getPublicLocationMetas, getFruitPrerenderMetas, getPublicLotMeta, renderFallback, renderPublicProfileFallback, renderPublicDirectoryFallback, renderPublicLotFallback, prerenderAll };
+module.exports.API_BASE_URL = API_BASE_URL;
 if (require.main === module) prerenderAll().catch((error) => {
   console.error(`prerender-seo: generation failed (${error.message || "unexpected error"})`);
   process.exitCode = 1;

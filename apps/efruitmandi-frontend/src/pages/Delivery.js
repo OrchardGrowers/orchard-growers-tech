@@ -317,8 +317,8 @@ export default function Delivery() {
       <SEO
         title="Delivery and Tracking Workspace | eFruitMandi"
         description="Private delivery, consignment tracking, and settlement workspace for eFruitMandi users."
-        canonical="/delivery"
-        noIndex
+        canonical={null}
+        robots="noindex,follow"
         image={null}
       />
       <div className="mx-auto max-w-6xl pb-20">

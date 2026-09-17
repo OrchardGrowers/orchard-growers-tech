@@ -14,7 +14,7 @@ import {
 } from "react-icons/fa";
 import API from "../services/api";
 import EscrowSecurityIcon from "../components/EscrowSecurityIcon";
-import { hasBuyerProfile, hasGrowerProfile } from "../utils/auth";
+import { hasBuyerProfile, hasGrowerProfile, hasAccessToken } from "../utils/auth";
 import { openEFruitInstallPrompt } from "../utils/installPrompt";
 import {
   consumedProfileRouteState,
@@ -176,7 +176,12 @@ const getPasswordStrength = (password) => {
 export default function Profile() {
   const navigate = useNavigate();
   const location = useLocation();
-  const initialRouteState = readProfileRouteState(location.state);
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get("from") === "/delivery" && hasAccessToken()) {
+      navigate("/delivery", { replace: true });
+    }
+  }, [location.search, navigate]);
+  const initialRouteState = readProfileRouteState(location.state, location.search);
   const [mode, setMode] = useState(initialRouteState.mode);
   const [authRedirect, setAuthRedirect] = useState(initialRouteState.redirect);
   const [loginForm, setLoginForm] = useState(initialLogin);
@@ -397,7 +402,7 @@ export default function Profile() {
   };
 
   useEffect(() => {
-    const routeState = readProfileRouteState(location.state);
+    const routeState = readProfileRouteState(location.state, location.search);
 
     if (routeState.hasExplicitMode) {
       setMode(routeState.mode);

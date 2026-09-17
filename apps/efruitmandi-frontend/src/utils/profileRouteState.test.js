@@ -62,3 +62,14 @@ describe("profile List Lot redirect notices", () => {
     });
   });
 });
+
+
+describe("server delivery redirect", () => {
+  it("preserves the delivery destination after login", () => {
+    expect(readProfileRouteState(null, "?from=/delivery")).toMatchObject({hasRedirectTarget:true, redirect:{from:"/delivery"}});
+  });
+  it("does not accept arbitrary query redirect destinations", () => {
+    expect(readProfileRouteState(null, "?from=https://example.com").redirect.from).toBe("/profile-dashboard");
+    expect(readProfileRouteState({from:"/orders"}, "?from=/delivery").redirect.from).toBe("/orders");
+  });
+});

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   FaArrowLeft,
   FaCertificate,
@@ -14,7 +14,7 @@ import {
 } from "react-icons/fa";
 import API, { FILE_BASE_URL } from "../services/api";
 import CountdownTimer from "../components/CountdownTimer";
-import SEO from "../components/SEO";
+import SEO, { getInitialPublicMetadata } from "../components/SEO";
 import { buildProductSchema, publisherReference } from "../utils/schemaGenerators";
 import LimitedPublicProfileCard from "../components/LimitedPublicProfileCard";
 import SafeProfileImage from "../components/SafeProfileImage";
@@ -32,20 +32,10 @@ import {
 
 const LOGIN_REQUIRED_MESSAGE = "Please login or Sign up first to continue.";
 const isDevelopment = process.env.NODE_ENV !== "production";
-const LOT_DETAILS_CACHE_LIMIT = 20;
-const lotDetailsCache = new Map();
-
-function rememberLotDetails(key, value) {
-  if (!key || !value?.product) return;
-  lotDetailsCache.set(key, value);
-  if (lotDetailsCache.size > LOT_DETAILS_CACHE_LIMIT) {
-    lotDetailsCache.delete(lotDetailsCache.keys().next().value);
-  }
-}
-
 export default function LotDetails() {
   const { lotId } = useParams();
   const navigate = useNavigate();
+  const [initialMetadata] = useState(() => getInitialPublicMetadata(`/lots/${lotId}`));
   const [product, setProduct] = useState(null);
   const [auction, setAuction] = useState(null);
   const [closedDeal, setClosedDeal] = useState(null);
@@ -70,15 +60,8 @@ export default function LotDetails() {
           setErrorMessage("Lot not found");
           return;
         }
-        const cacheUser = localStorage.getItem("accessToken")
-          ? getCurrentUser()?._id || getCurrentUser()?.id || "auth"
-          : "public";
-        const cacheKey = `${lotId}:${cacheUser}`;
-        const cachedLot = lotDetailsCache.get(cacheKey);
         const [res, profileRes] = await Promise.all([
-          cachedLot
-            ? Promise.resolve({ data: cachedLot })
-            : API.get(`/products/${lotId}?platform=efruitmandi&devPublicMarketplace=1`),
+          API.get(`/products/${lotId}?platform=efruitmandi&devPublicMarketplace=1`),
           localStorage.getItem("accessToken")
             ? API.get("/user/profile").catch(() => ({ data: getCurrentUser() }))
             : Promise.resolve({ data: getCurrentUser() }),
@@ -93,8 +76,6 @@ export default function LotDetails() {
 
         if (!lot) {
           setErrorMessage("Lot not found");
-        } else if (!cachedLot) {
-          rememberLotDetails(cacheKey, res.data);
         }
 
         setProduct(lot);
@@ -247,10 +228,11 @@ export default function LotDetails() {
     return (
       <>
         <SEO
-          title="Fresh Fruit Lot Details | eFruitMandi"
+          loading
+          title="Loading Fruit Lot | eFruitMandi"
           description="View fresh fruit lot details, grade, packing, quantity and grower information on eFruitMandi."
-          canonical={`/lots/${lotId || ""}`}
-          noIndex
+          canonical={initialMetadata?.canonical?.endsWith(`/lots/${lotId}`) ? `/lots/${lotId}` : null}
+          robots="noindex,follow"
         />
         <div className="w-full max-w-full overflow-x-hidden pb-[calc(160px+env(safe-area-inset-bottom))]">
           <p className="py-3 text-sm font-semibold text-green-700">
@@ -285,6 +267,7 @@ export default function LotDetails() {
             <p className="mt-3 text-sm font-semibold text-gray-600">
               {errorMessage || "This fruit lot is unavailable or is no longer publicly listed."}
             </p>
+            <Link to="/auctions" className="mt-4 inline-block font-bold text-green-700">Browse public fruit lots</Link>
           </section>
         </div>
       </>

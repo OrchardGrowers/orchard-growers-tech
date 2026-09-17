@@ -4,6 +4,7 @@ import { HelmetProvider } from "react-helmet-async";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SEO, { getInitialPublicMetadata } from "./SEO";
+import LotDetails from "../pages/LotDetails";
 import MandiRates from "../pages/MandiRates";
 
 const origin = "https://www.efruitmandi.live";
@@ -116,5 +117,25 @@ describe("public SEO while client data is loading", () => {
     expect(head.meta).not.toContain('property="og:url"');
     expect(head.meta).toContain('name="robots" content="noindex,follow"');
     expect(head.body).toMatch(/not found|unavailable/i);
+  });
+});
+
+
+describe("lot loading metadata", () => {
+  const id="6a1a888824c3a406bc961a3a";
+  const renderLot=()=>renderHead(<MemoryRouter initialEntries={[`/lots/${id}`]}><Routes><Route path="/lots/:lotId" element={<LotDetails />} /></Routes></MemoryRouter>);
+  it("retains the successful server lot title, canonical and indexability", () => {
+    serverMetadata({canonical:origin+"/lots/"+id,title:"Alphonso Mango Lot | eFruitMandi"});
+    const head=renderLot();
+    expect(head.title).toContain("Alphonso Mango Lot");
+    expect(head.meta).toContain('name="robots" content="index,follow"');
+    expect(head.links).toContain(origin+"/lots/"+id);
+  });
+  it("does not invent a canonical before a client-only lot lookup succeeds", () => {
+    serverMetadata({canonical:origin+"/"});
+    const head=renderLot();
+    expect(head.links).not.toContain("canonical");
+    expect(head.meta).toContain('name="robots" content="noindex,follow"');
+    expect(head.title).not.toContain("Fresh Fruit Lot Details");
   });
 });

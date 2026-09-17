@@ -6,7 +6,8 @@ const os = require("node:os");
 const http = require("node:http");
 const seo = require("./prerender-seo.cjs");
 const { inspectHtml, robotsBlocked, validateIndexable, fetchPage } = require("./validate-seo.cjs");
-const { validateBuild } = require("./validate-seo-build.cjs");
+const { getLotPageResponse } = require("../api/lot.js");
+const { validateBuild, loadDynamicLotPages } = require("./validate-seo-build.cjs");
 const app = path.resolve(__dirname, "..");
 const config = JSON.parse(fs.readFileSync(path.join(app, "vercel.json")));
 const robots = fs.readFileSync(path.join(app, "public/robots.txt"), "utf8");
@@ -25,6 +26,7 @@ const fruit = { slug: "apple", name: "Apple", lotCount: 2,
 const metas = [
   ...seo.routes.filter((r) => ["/mandi-rates", "/buyer-guide", "/contact-us", "/search"].includes(r.path)),
   {...seo.routes.find((r) => r.path === "/mandi-rates/apple"), noIndex:false, robots:"index,follow"},
+  {...seo.routes.find((r) => r.path === "/mandi-rates/mango"), noIndex:false, robots:"index,follow"},
   ...seo.getFruitPrerenderMetas({fruits:[fruit]}),
   ...profiles.map((p) => seo.getPublicProfileMeta(p, p.role)),
   ...["grower","buyer"].flatMap((role) => [
@@ -45,18 +47,25 @@ before(async () => {
     fs.mkdirSync(path.dirname(file),{recursive:true}); fs.writeFileSync(file,html);
   }
   fs.writeFileSync(path.join(temp,"404.html"),seo.renderNotFoundPage(base));
-  server = http.createServer((req,res) => {
+  server = http.createServer(async (req,res) => {
     const route = new URL(req.url, origin).pathname;
     const rule = config.redirects.find((r) => new RegExp("^" + r.source.replace(/:[a-zA-Z]+/g, "([^/]+)") + "$").test(route));
     const params = rule && new RegExp("^" + rule.source.replace(/:[a-zA-Z]+/g, "([^/]+)") + "$").exec(route);
     let parameter = 0;
     const redirect = rule && { destination: rule.destination.replace(/:[a-zA-Z]+/g, () => params[++parameter]) };
-    if (redirect) {res.writeHead(308,{Location:redirect.destination});return res.end();}
+    if (redirect) {res.writeHead(rule.permanent ? 308 : 307,{Location:redirect.destination});return res.end();}
     for (const rule of config.headers) {
       if (new RegExp("^" + rule.source + "$").test(route)) for (const header of rule.headers) res.setHeader(header.key,header.value);
     }
     if (route === "/robots.txt") return res.end(robots);
     if (route === "/sitemap.xml") return res.end(sitemap);
+    const lotMatch = /^\/lots\/([^/]+)\/?$/.exec(route);
+    if (lotMatch) {
+      assert.ok(config.rewrites.some((r) => r.source === "/lots/:id" && r.destination === "/api/lot?id=:id"));
+      const result = await getLotPageResponse(lotMatch[1], {template:base, fetchImpl:lotApi});
+      res.writeHead(result.status,result.headers);
+      return res.end(req.method === "HEAD" ? undefined : result.html);
+    }
     const file = path.join(temp,route,"index.html");
     if (fs.existsSync(file)) return res.end(fs.readFileSync(file));
     const fallback = config.rewrites.find((r) => r.source.startsWith("/((?!"));
@@ -74,7 +83,7 @@ for (const route of [
   "/fruits/apple", "/fruits/apple/varieties/royal-delicious",
   "/growers/grower-fixture-1", "/buyers/buyer-fixture-1",
   "/buyers/state/himachal-pradesh", "/growers/state/himachal-pradesh",
-  "/mandi-rates/apple", "/mandi-rates", "/buyer-guide", "/contact-us", "/blog/fruit-buyers/apple",
+  "/mandi-rates/apple", "/mandi-rates/mango", "/mandi-rates", "/buyer-guide", "/contact-us", "/blog/fruit-buyers/apple",
 ]) test("initial HTML and HTTP contract: " + route,async () => {
   const result=await fetchPage(local+route);result.url=origin+route;
   assert.deepEqual(validateIndexable(result,robots),[]);
@@ -175,4 +184,48 @@ test("API failure and malformed responses fail instead of publishing empty/noind
 test("empty successful eligibility data stays excluded rather than being invented", async () => {
   assert.deepEqual(seo.getFruitPrerenderMetas({fruits:[]}),[]);
   assert.equal(seo.routes.find((r) => r.path === "/mandi-rates/pear").noIndex,true);
+});
+
+const publicLot = {_id:"6a0000000000000000000001", fruitName:"Mango", variety:"Alphonso", district:"Ratnagiri", state:"Maharashtra", quantity:100, status:"ACTIVE"};
+const deletedId = "6a0000000000000000000002";
+const lotApi = async (url) => ({status:url.includes(publicLot._id)?200:404, ok:url.includes(publicLot._id), json:async()=>({product:publicLot})});
+test("public lot initial HTTP response is current, indexable and lot-specific", async () => {
+  const result=await fetchPage(local+"/lots/"+publicLot._id); result.url=origin+"/lots/"+publicLot._id;
+  assert.deepEqual(validateIndexable(result,robots),[]);
+  assert.match(result.meta.title,/Alphonso Mango/);
+  const response=await fetch(local+"/lots/"+publicLot._id);
+  assert.match(response.headers.get("cache-control"),/no-store/);
+  assert.match(await response.text(),/Ratnagiri/);
+});
+test("missing, malformed and permanently deleted lots return definitive 404 HTML", async () => {
+  for (const id of ["malformed", "6a1a888824c3a406bc961a3a", "6a1baec4db75b854ef7dc1b2", "6a1bf9f034163ccf61601182", "6a1bc3db36e975767561ca66", deletedId]) {
+    const response=await fetch(local+"/lots/"+id); const html=await response.text(); const meta=inspectHtml(html);
+    assert.equal(response.status,404); assert.equal(meta.title,"Fruit Lot Not Found | eFruitMandi");
+    assert.deepEqual(meta.canonical,[]); assert.ok(meta.robots.every((r)=>r==="noindex,follow"));
+    assert.match(html,/<h1>Fruit Lot Not Found<\/h1>/); assert.match(html,/href="\/auctions"/);
+    assert.doesNotMatch(html,/<script|id="efruitmandi-startup-overlay"/);
+    assert.ok(!sitemap.includes(id));
+  }
+});
+test("availability is checked again after deletion, while API outages remain 503", async () => {
+  let status=200;
+  const fetchImpl=async()=>({status,ok:status===200,json:async()=>({product:publicLot})});
+  assert.equal((await getLotPageResponse(publicLot._id,{template:base,fetchImpl})).status,200);
+  status=404; assert.equal((await getLotPageResponse(publicLot._id,{template:base,fetchImpl})).status,404);
+  status=503; const outage=await getLotPageResponse(publicLot._id,{template:base,fetchImpl});
+  assert.equal(outage.status,503); assert.deepEqual(inspectHtml(outage.html).canonical,[]);
+});
+test("delivery is a crawlable server temporary redirect and never prerendered or in sitemap", async () => {
+  const result=await fetchPage(local+"/delivery");
+  assert.equal(result.status,307); assert.equal(result.location,"/profile?from=/delivery");
+  assert.equal(robotsBlocked(origin+"/delivery",robots),false);
+  assert.equal(robotsBlocked(origin+result.location,robots),false);
+  assert.ok(!sitemap.includes("/delivery")); assert.ok(!seo.routes.some((r)=>r.path==="/delivery"));
+});
+test("sitemap validation checks runtime lot status and rejects unavailable entries", async () => {
+  const xml=`<urlset><url><loc>${origin}/lots/${publicLot._id}</loc></url></urlset>`;
+  const pages=await loadDynamicLotPages(xml,base,{fetchImpl:lotApi});
+  assert.equal(validateBuild(temp,xml,config,robots,pages),1);
+  const missing=xml.replace(publicLot._id,deletedId);
+  await assert.rejects(async()=>validateBuild(temp,missing,config,robots,await loadDynamicLotPages(missing,base,{fetchImpl:lotApi})),/Prerender\/sitemap mismatch/);
 });
