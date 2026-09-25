@@ -8,12 +8,16 @@ function attributes(tag) {
 function inspectHtml(html = "") {
   const metas = [...html.matchAll(/<meta\b[^>]*>/gi)].map((m) => attributes(m[0]));
   return {
+    robotsCount: metas.filter((m) => m.name?.toLowerCase() === "robots").length,
+    googlebotCount: metas.filter((m) => m.name?.toLowerCase() === "googlebot").length,
+    titleCount: [...html.matchAll(/<title\b[^>]*>/gi)].length,
+    descriptionCount: metas.filter((m) => m.name?.toLowerCase() === "description").length,
     robots: metas.filter((m) => ["robots", "googlebot"].includes(m.name?.toLowerCase())).map((m) => m.content),
     canonical: [...html.matchAll(/<link\b[^>]*>/gi)].map((m) => attributes(m[0])).filter((a) => a.rel === "canonical").map((a) => a.href),
     title: decode(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || "").trim(),
     description: metas.find((m) => m.name === "description")?.content || "",
     h1: [...html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi)].map((m) => decode(m[1].replace(/<[^>]+>/g, "")).trim()),
-    placeholder: /search_term_string/.test(html),
+    placeholder: /search(?:\\?_term)(?:\\?_string)|"@type"\s*:\s*"SearchAction"/.test(html),
   };
 }
 function robotsBlocked(url, robots) {
@@ -46,6 +50,8 @@ function validateIndexable(result, robots = "") {
   if (robotsBlocked(url, robots)) errors.push("robots.txt blocked");
   if (/\bnoindex\b|\bnone\b/i.test([...(meta.robots || []), result.xRobots || ""].join(","))) errors.push("noindex");
   if (!meta.robots.some((r) => r.replace(/\s/g, "").toLowerCase() === "index,follow")) errors.push("missing index,follow");
+  if (meta.robotsCount !== 1 || meta.googlebotCount > 1) errors.push("duplicate or missing robots meta");
+  if (meta.titleCount !== 1 || meta.descriptionCount !== 1) errors.push("duplicate or missing title/description");
   if (meta.canonical.length !== 1 || meta.canonical[0] !== url) errors.push("conflicting canonical");
   if (!meta.title || !meta.description || !meta.h1.length) errors.push("missing initial metadata/H1");
   if (url !== SITE_URL + "/" && /eFruitMandi - (Fruit Buyers|Fresh Fruit Marketplace)/.test(meta.title)) errors.push("homepage title fallback");

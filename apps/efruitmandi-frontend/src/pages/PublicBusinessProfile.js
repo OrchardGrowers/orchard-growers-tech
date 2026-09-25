@@ -18,6 +18,7 @@ import GrowerVerificationBadge from "../components/GrowerVerificationBadge";
 import SafeProfileImage from "../components/SafeProfileImage";
 import { getProfileMedia, resolveProfileMediaUrl } from "../utils/profileMedia";
 import { buildBreadcrumbSchema, buildBusinessOrganizationSchema, buildLocalBusinessSchema } from "../utils/schemaGenerators";
+import { fruitLotsContent } from "../data/fruitLotsContent";
 
 const BUSINESS_TYPE_LABELS = {
   grower: "Grower",
@@ -316,7 +317,7 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
       const name = String(lot.fruitName || lot.title || "").trim().replace(/\s+fruit$/i, "");
       const fruitSlug = name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
       return [fruitSlug, { name, slug: fruitSlug }];
-    }).filter(([fruitSlug, fruit]) => fruitSlug && fruit.name)
+    }).filter(([fruitSlug, fruit]) => fruitSlug && fruit.name && Object.prototype.hasOwnProperty.call(fruitLotsContent, fruitSlug))
   ).values());
   const selectedPublicRecord = publicHistoryKey
     ? [...lotHistory, ...closedDeals].find(
@@ -494,7 +495,7 @@ export default function PublicBusinessProfile({ publicBusinessType = "" }) {
         {publicFruits.length > 0 && (
           <nav className="mt-5 flex flex-wrap gap-3" aria-label={`Fruits associated with ${firmName}`}>
             {publicFruits.map((fruit) => (
-              <Link key={fruit.slug} to={`/fruits/${fruit.slug}`} className="text-sm font-bold text-green-800 hover:text-green-900">
+              <Link key={fruit.slug} to={`/fruit-lots/${fruit.slug}`} className="text-sm font-bold text-green-800 hover:text-green-900">
                 View {fruit.name}
               </Link>
             ))}

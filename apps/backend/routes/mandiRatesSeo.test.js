@@ -44,6 +44,15 @@ describe("mandi-rate commodity aliases and sitemap indexing", () => {
     expect(entries.some((entry) => entry.loc === "/mandi-rates/pear")).toBe(false);
   });
 
+  it("excludes unsupported, malformed, and duplicate mandi routes", () => {
+    const entries = buildMandiRateSitemapEntries([
+      "guava", "guava", "pear", "avocado", "Apple", "../search", "{search_term_string}",
+    ]);
+    expect(entries.map((entry) => entry.loc)).toEqual([
+      "/mandi-rates", "/mandi-rates/guava", "/mandi-rates/pear",
+    ]);
+  });
+
   it("keeps existing public profile sitemap sources intact", () => {
     const source = readFileSync(new URL("./sitemapRoutes.js", import.meta.url), "utf8");
     expect(source).toContain('{ loc: "/growers"');
@@ -51,7 +60,7 @@ describe("mandi-rate commodity aliases and sitemap indexing", () => {
     expect(source).toContain("buyerProfiles");
   });
 
-  it("includes buyer and fruit directories only when their existing public datasets are non-empty", () => {
+  it("includes data-backed directories only when the rendered directory has valid destinations", () => {
     expect(buildDataDependentDirectorySitemapEntries()).toEqual([]);
     expect(buildDataDependentDirectorySitemapEntries({
       buyerProfiles: [{ slug: "eligible-buyer" }],
@@ -59,6 +68,9 @@ describe("mandi-rate commodity aliases and sitemap indexing", () => {
     expect(buildDataDependentDirectorySitemapEntries({
       fruitDiscovery: { fruits: [{ slug: "apple" }] },
     }).map((entry) => entry.loc)).toEqual(["/fruits"]);
+    expect(buildDataDependentDirectorySitemapEntries({
+      fruitDiscovery: { fruits: [{ slug: "avocado" }, { slug: "{search_term_string}" }, null] },
+    })).toEqual([]);
     expect(buildDataDependentDirectorySitemapEntries({
       buyerProfiles: [{ slug: "eligible-buyer" }],
       fruitDiscovery: { fruits: [{ slug: "apple" }] },

@@ -7,7 +7,8 @@ const http = require("node:http");
 const seo = require("./prerender-seo.cjs");
 const { inspectHtml, robotsBlocked, validateIndexable, fetchPage } = require("./validate-seo.cjs");
 const { getLotPageResponse } = require("../api/lot.js");
-const { validateBuild, loadDynamicLotPages } = require("./validate-seo-build.cjs");
+const { getPublicPageResponse } = require("../api/public-page.js");
+const { validateBuild, loadDynamicLotPages, loadDynamicPublicPages } = require("./validate-seo-build.cjs");
 const app = path.resolve(__dirname, "..");
 const config = JSON.parse(fs.readFileSync(path.join(app, "vercel.json")));
 const robots = fs.readFileSync(path.join(app, "public/robots.txt"), "utf8");
@@ -23,10 +24,26 @@ const fruit = { slug: "apple", name: "Apple", lotCount: 2,
   growers: profiles.filter((p) => p.role === "grower"),
   buyers: profiles.filter((p) => p.role === "buyer"),
   varieties: [{slug:"royal-delicious", name:"Royal Delicious",lotCount:2,growers:[],buyers:[]}] };
+const mandiRecords = ["Apple", "Mango", "Pear"].map((commodity) => ({
+  commodity, variety: "Local", market: "Shimla Market", district: "Shimla", state: "Himachal Pradesh",
+  minPrice: 4000, maxPrice: 7000, modalPrice: 5500,
+  minPriceKg: 40, maxPriceKg: 70, modalPriceKg: 55, arrivalDate: "2026-09-22T00:00:00.000Z",
+}));
+const publicApi = async (url) => {
+  const request = new URL(url);
+  const profileMatch = /\/user\/public-profiles\/by-slug\/(grower|buyer)\/([^/]+)$/.exec(request.pathname);
+  if (profileMatch) {
+    const profile = profiles.find((entry) => entry.role === profileMatch[1] && entry.slug === profileMatch[2]);
+    return { status: profile ? 200 : 404, ok: Boolean(profile), json: async () => ({profile}) };
+  }
+  assert.equal(request.pathname, new URL(seo.API_BASE_URL).pathname + "/mandi-rates", "Unexpected anonymous public API endpoint");
+  const records = mandiRecords.filter((record) => record.commodity.toLowerCase() === String(request.searchParams.get("commodity")).toLowerCase());
+  return { status: 200, ok: true, json: async () => ({records}) };
+};
+const isDynamicPublic = (route) => /^\/(growers|buyers|mandi-rates)\/[^/]+\/?$/.test(route);
 const metas = [
-  ...seo.routes.filter((r) => ["/mandi-rates", "/buyer-guide", "/contact-us", "/search"].includes(r.path)),
-  {...seo.routes.find((r) => r.path === "/mandi-rates/apple"), noIndex:false, robots:"index,follow"},
-  {...seo.routes.find((r) => r.path === "/mandi-rates/mango"), noIndex:false, robots:"index,follow"},
+  ...seo.routes.filter((r) => ["/mandi-rates", "/buyer-guide", "/contact-us", "/search", "/fruit-lots/apple", "/fruit-lots/guava", "/fruit-lots/pear"].includes(r.path)),
+  ...mandiRecords.map((record) => seo.getPublicMandiMeta(record.commodity.toLowerCase(), [record])),
   ...seo.getFruitPrerenderMetas({fruits:[fruit]}),
   ...profiles.map((p) => seo.getPublicProfileMeta(p, p.role)),
   ...["grower","buyer"].flatMap((role) => [
@@ -41,6 +58,7 @@ before(async () => {
   metas.push(...await seo.getEditorialRoutes());
   sitemap = "<urlset>" + metas.filter((m) => !m.noIndex).map((m) => "<url><loc>" + origin + m.path + "</loc></url>").join("") + "</urlset>";
   for (const meta of metas) {
+    if (isDynamicPublic(meta.path) || meta.path === "/search") continue;
     const body = meta.name ? seo.renderPublicProfileFallback(meta) : meta.profiles ? seo.renderPublicDirectoryFallback(meta) : seo.renderFallback(meta);
     const html = seo.replaceRootContent(seo.replaceProfileHeadTags(base, meta), body);
     const file = path.join(temp, meta.path, "index.html");
@@ -66,6 +84,11 @@ before(async () => {
       res.writeHead(result.status,result.headers);
       return res.end(req.method === "HEAD" ? undefined : result.html);
     }
+    if (isDynamicPublic(route) || /^\/fruits\/[^/]+\/?$/.test(route) || route === "/search") {
+      const result = await getPublicPageResponse(req.url, {template:base, fetchImpl:publicApi, buildDir:temp});
+      res.writeHead(result.status,result.headers);
+      return res.end(req.method === "HEAD" ? undefined : result.html);
+    }
     const file = path.join(temp,route,"index.html");
     if (fs.existsSync(file)) return res.end(fs.readFileSync(file));
     const fallback = config.rewrites.find((r) => r.source.startsWith("/((?!"));
@@ -80,23 +103,157 @@ after(async () => {
   fs.rmSync(temp,{recursive:true,force:true});
 });
 for (const route of [
-  "/fruits/apple", "/fruits/apple/varieties/royal-delicious",
+  "/fruit-lots/apple", "/fruit-lots/guava", "/fruit-lots/pear", "/fruits/apple/varieties/royal-delicious",
   "/growers/grower-fixture-1", "/buyers/buyer-fixture-1",
   "/buyers/state/himachal-pradesh", "/growers/state/himachal-pradesh",
-  "/mandi-rates/apple", "/mandi-rates/mango", "/mandi-rates", "/buyer-guide", "/contact-us", "/blog/fruit-buyers/apple",
+  "/mandi-rates/apple", "/mandi-rates/mango", "/mandi-rates/pear", "/mandi-rates", "/buyer-guide", "/contact-us", "/blog/fruit-buyers/apple",
 ]) test("initial HTML and HTTP contract: " + route,async () => {
   const result=await fetchPage(local+route);result.url=origin+route;
   assert.deepEqual(validateIndexable(result,robots),[]);
   assert.equal(result.meta.canonical.length,1);
   assert.ok(sitemap.includes(result.url));
-  assert.equal(result.xRobots,null);
+  if (isDynamicPublic(route)) assert.match(result.xRobots,/^index,\s*follow$/);
+  else assert.equal(result.xRobots,null);
 });
 test("search remains noindex,follow, without a canonical or placeholder",async () => {
-  for (const route of ["/search","/search?q={search_term_string}"]) {
+  for (const route of ["/search","/search?q=apple", "/search?q=apple%20growers"]) {
     const result=await fetchPage(local+route);
     assert.equal(result.status,200);assert.ok(result.meta.robots.every((r)=>r==="noindex,follow"));
     assert.equal(result.xRobots,"noindex, follow");assert.deepEqual(result.meta.canonical,[]);
     assert.ok(!sitemap.includes("/search"));assert.equal(result.meta.placeholder,false);
+  }
+});
+test("literal unresolved search placeholders receive 400 before hydration", async () => {
+  for (const query of ["{search_term_string}", "{search_term_string", "{search\\_term\\_string", "{search\\_term\\_string}"]) {
+    const result = await fetchPage(local+"/search?q="+encodeURIComponent(query));
+    assert.equal(result.status,400,query);
+    assert.deepEqual(result.meta.canonical,[]);
+    assert.ok(result.meta.robots.length > 0);
+    assert.ok(result.meta.robots.every((value) => value === "noindex,follow"));
+    assert.equal(result.meta.placeholder,false);
+  }
+  const literal = await fetchPage(local+"/search?q={search\\_term\\_string");
+  assert.equal(literal.status,400);
+});
+function assertRawIndexable(html, route, status = 200, headers = {}) {
+  const meta = inspectHtml(html);
+  assert.deepEqual(validateIndexable({url:origin+route,status,meta,xRobots:headers["X-Robots-Tag"]},robots),[]);
+  for (const name of ["robots", "googlebot", "description"]) {
+    const tags = [...html.matchAll(/<meta\b[^>]*>/gi)].filter(([tag]) => new RegExp("\\bname\\s*=\\s*[\"']"+name+"[\"']", "i").test(tag));
+    assert.equal(tags.length,1,route+" must contain exactly one "+name+" meta");
+  }
+  assert.equal([...html.matchAll(/<title\b[^>]*>/gi)].length,1,route+" title count");
+  assert.deepEqual(meta.canonical,[origin+route]);
+  assert.ok(meta.robots.every((value) => value === "index,follow"));
+  assert.doesNotMatch(html,/SearchAction|search\\?_term\\?_string/);
+  return meta;
+}
+test("raw profile and rate HTTP responses contain unique metadata and public content without JavaScript", async () => {
+  for (const [route, title, body] of [
+    ["/growers/grower-fixture-1", /Orchard 1/, /Shimla, Himachal Pradesh/],
+    ["/buyers/buyer-fixture-1", /Buyer 1/, /Shimla, Himachal Pradesh/],
+    ["/mandi-rates/apple", /Apple Mandi Rates/, /Shimla Market/],
+    ["/mandi-rates/pear", /Pear Mandi Rates/, /Shimla Market/],
+  ]) {
+    const response = await fetch(local+route,{redirect:"manual"});
+    const html = await response.text();
+    const meta = assertRawIndexable(html,route,response.status,{"X-Robots-Tag":response.headers.get("x-robots-tag")});
+    assert.match(meta.title,title);
+    assert.match(meta.description,/Orchard 1|Buyer 1|apple|pear/i);
+    const content = html.replace(/<head\b[^>]*>[\s\S]*?<\/head>/i,"").replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,"");
+    assert.match(content,body);
+    assert.match(content,/<h1\b/i);
+    if (route.startsWith("/mandi-rates/")) assert.match(content.replace(/<[^>]+>/g," "),/\b(?:55(?:\.00)?|5,?500)\b/);
+    assert.match(response.headers.get("cache-control"),/no-store/);
+    assert.equal(fs.existsSync(path.join(temp,route,"index.html")),false,"No static snapshot may mask this test");
+    const head = await fetch(local+route,{method:"HEAD",redirect:"manual"});
+    assert.equal(head.status,200);
+    assert.equal(await head.text(),"");
+    assert.match(head.headers.get("x-robots-tag"),/^index,\s*follow$/);
+  }
+});
+test("profiles and fruit rates published after a build become indexable immediately", async () => {
+  const newProfile = {...profiles[0], slug:"newly-published-orchard", orchardName:"Newly Published Orchard"};
+  const newRate = {...mandiRecords[0], commodity:"Guava"};
+  profiles.push(newProfile); mandiRecords.push(newRate);
+  try {
+    for (const route of ["/growers/newly-published-orchard", "/mandi-rates/guava"]) {
+      assert.equal(fs.existsSync(path.join(temp,route,"index.html")),false);
+      const response = await fetch(local+route);
+      assertRawIndexable(await response.text(),route,response.status);
+    }
+  } finally { profiles.pop(); mandiRecords.pop(); }
+  assert.equal((await fetchPage(local+"/growers/newly-published-orchard")).status,404);
+  assert.equal((await fetchPage(local+"/mandi-rates/guava")).status,404);
+});
+test("legacy fruits permanently redirect to a single canonical 200 page, including HEAD", async () => {
+  for (const slug of ["apple", "guava", "pear"]) {
+    const source = "/fruits/"+slug, destination = "/fruit-lots/"+slug;
+    for (const method of ["GET", "HEAD"]) {
+      const response = await fetch(local+source,{method,redirect:"manual"});
+      assert.equal(response.status,308,source);
+      assert.equal(response.headers.get("location"),destination);
+      if (method === "HEAD") assert.equal(await response.text(),"");
+    }
+    const target = await fetch(local+destination,{redirect:"manual"});
+    assert.equal(target.status,200);
+    assert.equal(target.headers.get("location"),null,"The redirect destination must not redirect again");
+    assertRawIndexable(await target.text(),destination,target.status);
+    assert.ok(!sitemap.includes("<loc>"+origin+source+"</loc>"));
+  }
+});
+test("unavailable legacy fruit routes return a real 404 and never a redirect", async () => {
+  for (const slug of ["avocado", "unavailable-fruit"]) {
+    const response = await fetch(local+"/fruits/"+slug,{redirect:"manual"});
+    const html = await response.text(), meta = inspectHtml(html);
+    assert.equal(response.status,404);
+    assert.equal(response.headers.get("location"),null);
+    assert.deepEqual(meta.canonical,[]);
+    assert.ok(meta.robots.every((value) => value === "noindex,follow"));
+    assert.doesNotMatch(html,/Fruit page unavailable/);
+  }
+});
+test("fruit redirects require a generated indexable self-canonical replacement", async () => {
+  const redirectBuild = fs.mkdtempSync(path.join(temp,"replacement-"));
+  const route = "/fruits/guava", target = path.join(redirectBuild,"fruit-lots/guava/index.html");
+  const options = {template:base,fetchImpl:publicApi,buildDir:redirectBuild};
+  assert.equal((await getPublicPageResponse(route,options)).status,404);
+  fs.mkdirSync(path.dirname(target),{recursive:true});
+  const valid = fs.readFileSync(path.join(temp,"fruit-lots/guava/index.html"),"utf8");
+  for (const invalid of [
+    valid.replace(/index,follow/g,"noindex,follow"),
+    valid.replace(/rel="canonical" href="[^"]+"/, 'rel="canonical" href="'+origin+'/fruits/guava"'),
+  ]) {
+    assert.notEqual(invalid,valid,"The fixture must differ from the valid replacement HTML");
+    fs.writeFileSync(target,invalid);
+    const response = await getPublicPageResponse(route,options);
+    assert.equal(response.status,404);
+    assert.equal(response.headers.Location,undefined);
+  }
+  fs.writeFileSync(target,valid);
+  const response = await getPublicPageResponse(route,options);
+  assert.equal(response.status,308);
+  assert.equal(response.headers.Location,"/fruit-lots/guava");
+});
+test("temporary public API failures are 503 while confirmed missing profiles and rates are 404", async () => {
+  for (const route of ["/growers/grower-fixture-1", "/buyers/buyer-fixture-1", "/mandi-rates/apple"]) {
+    for (const fetchImpl of [
+      async () => { throw new Error("network unavailable"); },
+      async () => ({status:503,ok:false}),
+      async () => ({status:200,ok:true,json:async()=>({})}),
+    ]) {
+      const response = await getPublicPageResponse(route,{template:base,fetchImpl,buildDir:temp});
+      assert.equal(response.status,503,route);
+      assert.deepEqual(inspectHtml(response.html).canonical,[]);
+      assert.match(response.headers["X-Robots-Tag"],/noindex/);
+      assert.ok(response.headers["Retry-After"]);
+    }
+  }
+  for (const route of ["/growers/missing", "/buyers/missing", "/mandi-rates/avocado"]) {
+    const response = await fetchPage(local+route);
+    assert.equal(response.status,404,route);
+    assert.equal(response.location,null);
+    assert.deepEqual(response.meta.canonical,[]);
   }
 });
 test("existing 404 handles every missing dynamic family",async () => {
@@ -141,8 +298,10 @@ test("private and registration routes retain robots and header exclusions",async
     assert.ok(!sitemap.includes(route));
   }
 });
-test("all sitemap entries agree with generated HTML, directives, and headers", () => {
-  assert.equal(validateBuild(temp,sitemap,config,robots),metas.filter((m)=>!m.noIndex).length);
+test("all sitemap entries agree with raw runtime HTML, directives, and headers", async () => {
+  const pages = await loadDynamicPublicPages(sitemap,base,{fetchImpl:publicApi,buildDir:temp});
+  assert.equal(validateBuild(temp,sitemap,config,robots,pages),metas.filter((m)=>!m.noIndex).length);
+  assert.doesNotMatch(sitemap, /search|search_term_string|\/fruits\/(apple|guava|pear|avocado)<\/loc>/);
 });
 test("validator rejects redirect, non-200, noindex, blocked, duplicate and conflicting canonicals",() => {
   const good={url:origin+"/buyer-guide",status:200,meta:inspectHtml(fs.readFileSync(path.join(temp,"buyer-guide/index.html"),"utf8"))};
@@ -155,6 +314,20 @@ test("validator rejects redirect, non-200, noindex, blocked, duplicate and confl
     {...good,url:origin+"/profile-dashboard"},
   ]) assert.ok(validateIndexable(bad,robots).length);
 });
+test("raw HTML validator rejects duplicate robots, googlebot, title and description tags", () => {
+  const route = "/buyer-guide";
+  const html = fs.readFileSync(path.join(temp,route,"index.html"),"utf8");
+  for (const tag of [
+    '<meta name="robots" content="index,follow">',
+    '<meta name="googlebot" content="index,follow">',
+    '<meta name="description" content="A conflicting description">',
+    '<title>A conflicting title</title>',
+    '<link rel="canonical" href="'+origin+route+'">',
+  ]) {
+    const meta = inspectHtml(html.replace("</head>",tag+"</head>"));
+    assert.ok(validateIndexable({url:origin+route,status:200,meta},robots).length,tag);
+  }
+});
 test("Website and Organization survive removal of obsolete SearchAction",()=>{
   const schema=JSON.stringify(seo.buildHomepageSchema());
   assert.match(schema,/"WebSite"/);assert.match(schema,/"Organization"/);
@@ -166,6 +339,13 @@ test("generated SEO tags are owned by Helmet, avoiding duplicate canonical/noind
   assert.match(html,/<link data-rh="true" rel="canonical"/);
   assert.match(html,/<meta data-rh="true" name="robots"/);
   assert.equal(inspectHtml(seo.replaceProfileHeadTags(html,meta)).canonical.length,1);
+});
+test("runtime rendering replaces stale noindex tags in the original response", async () => {
+  const staleTemplate = base.replace("</head>", '<meta name="robots" content="noindex,follow"><meta name="googlebot" content="noindex,follow"><title>Loading profile</title><meta name="description" content="Loading"><link rel="canonical" href="'+origin+'/wrong"></head>');
+  for (const route of ["/growers/grower-fixture-1", "/buyers/buyer-fixture-1", "/mandi-rates/pear"]) {
+    const response = await getPublicPageResponse(route,{template:staleTemplate,fetchImpl:publicApi,buildDir:temp});
+    assertRawIndexable(response.html,route,response.status,response.headers);
+  }
 });
 
 test("API failure and malformed responses fail instead of publishing empty/noindex routes", async () => {
@@ -183,7 +363,7 @@ test("API failure and malformed responses fail instead of publishing empty/noind
 });
 test("empty successful eligibility data stays excluded rather than being invented", async () => {
   assert.deepEqual(seo.getFruitPrerenderMetas({fruits:[]}),[]);
-  assert.equal(seo.routes.find((r) => r.path === "/mandi-rates/pear").noIndex,true);
+  assert.equal(seo.getPublicMandiMeta("pear",[]),null);
 });
 
 const publicLot = {_id:"6a0000000000000000000001", fruitName:"Mango", variety:"Alphonso", district:"Ratnagiri", state:"Maharashtra", quantity:100, status:"ACTIVE"};
@@ -228,4 +408,11 @@ test("sitemap validation checks runtime lot status and rejects unavailable entri
   assert.equal(validateBuild(temp,xml,config,robots,pages),1);
   const missing=xml.replace(publicLot._id,deletedId);
   await assert.rejects(async()=>validateBuild(temp,missing,config,robots,await loadDynamicLotPages(missing,base,{fetchImpl:lotApi})),/Prerender\/sitemap mismatch/);
+});
+test("sitemap validation rejects unavailable profiles, missing rates, redirects and search URLs", async () => {
+  for (const route of ["/growers/missing", "/buyers/missing", "/mandi-rates/avocado", "/fruits/guava", "/fruits/avocado", "/search", "/search?q=apple"]) {
+    const xml = `<urlset><url><loc>${origin}${route}</loc></url></urlset>`;
+    const pages = await loadDynamicPublicPages(xml,base,{fetchImpl:publicApi,buildDir:temp});
+    assert.throws(() => validateBuild(temp,xml,config,robots,pages),/Prerender\/sitemap mismatch/,route);
+  }
 });

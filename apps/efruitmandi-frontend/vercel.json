@@ -329,19 +329,31 @@
     },
     {
       "source": "/mandi-rates/:commoditySlug",
-      "destination": "/mandi-rates/:commoditySlug/index.html"
+      "destination": "/api/public-page?path=/mandi-rates/:commoditySlug"
     },
     {
       "source": "/growers",
       "destination": "/growers/index.html"
     },
     {
+      "source": "/growers/:slug",
+      "destination": "/api/public-page?path=/growers/:slug"
+    },
+    {
       "source": "/buyers",
       "destination": "/buyers/index.html"
     },
     {
+      "source": "/buyers/:slug",
+      "destination": "/api/public-page?path=/buyers/:slug"
+    },
+    {
       "source": "/fruits",
       "destination": "/fruits/index.html"
+    },
+    {
+      "source": "/fruits/:fruitSlug",
+      "destination": "/api/public-page?path=/fruits/:fruitSlug"
     },
     {
       "source": "/fruits/:path*",
@@ -349,7 +361,7 @@
     },
     {
       "source": "/search",
-      "destination": "/search/index.html"
+      "destination": "/api/public-page?path=/search"
     },
     {
       "source": "/contact-us",
@@ -375,6 +387,9 @@
   "functions": {
     "api/lot.js": {
       "includeFiles": "{build/index.html,src/data/fruitLotsContent.js}"
+    },
+    "api/public-page.js": {
+      "includeFiles": "{build/index.html,build/fruit-lots/**,src/data/fruitLotsContent.js}"
     }
   }
 }

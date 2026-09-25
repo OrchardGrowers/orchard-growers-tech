@@ -127,6 +127,17 @@ function RouteFallback() {
   return <StartupSplash autoHide={false} />;
 }
 
+function LegacyFruitRoute() {
+  const location = useLocation();
+
+  useEffect(() => {
+    // Use the server's permanent redirect or real 404 for legacy fruit roots.
+    window.location.replace(`${location.pathname}${location.search}${location.hash}`);
+  }, [location.pathname, location.search, location.hash]);
+
+  return <RouteFallback />;
+}
+
 function AuthenticatedRoute({ children }) {
   const location = useLocation();
 
@@ -274,7 +285,7 @@ function App() {
             <Route path="/fruits/:fruitSlug/buyers/state/:stateSlug" element={<PublicFruitDiscovery role="buyer" />} />
             <Route path="/fruits/:fruitSlug/growers" element={<PublicFruitDiscovery role="grower" />} />
             <Route path="/fruits/:fruitSlug/buyers" element={<PublicFruitDiscovery role="buyer" />} />
-            <Route path="/fruits/:fruitSlug" element={<PublicFruitDiscovery />} />
+            <Route path="/fruits/:fruitSlug" element={<LegacyFruitRoute />} />
             <Route path="/about" element={<PolicyPage type="about" />} />
             <Route path="/our-story" element={<PolicyPage type="story" />} />
             <Route path="/vision-mission" element={<PolicyPage type="visionMission" />} />

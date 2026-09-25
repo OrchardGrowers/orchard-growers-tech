@@ -32,16 +32,19 @@ function formatDate(date) {
 }
 
 function hasSafePublicSlug(slug = "") {
-  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(String(slug || ""));
+  return typeof slug === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug);
 }
 
 const CURATED_FRUIT_LOT_SLUGS = [
   ...new Set(FRUIT_ENTITIES.map((fruit) => fruit.slug).filter(hasSafePublicSlug)),
 ];
+const SUPPORTED_FRUIT_SLUGS = new Set(CURATED_FRUIT_LOT_SLUGS);
 
 export function buildMandiRateSitemapEntries(availableSlugs = []) {
   const safeSlugs = [...new Set(
-    (Array.isArray(availableSlugs) ? availableSlugs : []).filter(hasSafePublicSlug)
+    (Array.isArray(availableSlugs) ? availableSlugs : []).filter(
+      (slug) => hasSafePublicSlug(slug) && SUPPORTED_FRUIT_SLUGS.has(slug)
+    )
   )];
   return [
     { loc: "/mandi-rates", changefreq: "daily", priority: "0.8" },
@@ -87,7 +90,9 @@ export function buildDataDependentDirectorySitemapEntries({ buyerProfiles = [], 
   if (Array.isArray(buyerProfiles) && buyerProfiles.length > 0) {
     entries.push({ loc: "/buyers", changefreq: "daily", priority: "0.8" });
   }
-  if (Array.isArray(fruitDiscovery?.fruits) && fruitDiscovery.fruits.length > 0) {
+  if (Array.isArray(fruitDiscovery?.fruits) && fruitDiscovery.fruits.some(
+    (fruit) => hasSafePublicSlug(fruit?.slug) && SUPPORTED_FRUIT_SLUGS.has(fruit.slug)
+  )) {
     entries.push({ loc: "/fruits", changefreq: "daily", priority: "0.8" });
   }
   return entries;
@@ -192,7 +197,10 @@ router.get("/sitemap.xml", async (req, res) => {
     staticUrls.push(...buildDataDependentDirectorySitemapEntries({ buyerProfiles, fruitDiscovery }));
     const fruitUrls = [];
     fruitDiscovery.fruits.forEach((fruit) => {
-      if (fruit.lotCount >= 1) fruitUrls.push(`/fruits/${fruit.slug}`);
+      if (!hasSafePublicSlug(fruit.slug)) return;
+      // Overview aliases redirect to curated /fruit-lots pages or return 404.
+      // Their canonical destinations are already listed above; eligible nested
+      // discovery pages remain independent and indexable.
       if (fruit.growerCount >= 2) fruitUrls.push(`/fruits/${fruit.slug}/growers`);
       if (fruit.buyerCount >= 2) fruitUrls.push(`/fruits/${fruit.slug}/buyers`);
       [["grower", fruit.growers], ["buyer", fruit.buyers]].forEach(([role, profiles]) => {
@@ -211,6 +219,7 @@ router.get("/sitemap.xml", async (req, res) => {
         stateGroups.forEach((count, routePath) => { if (count >= PUBLIC_LOCATION_MIN_PROFILES) fruitUrls.push(routePath); });
       });
       fruit.varieties.forEach((variety) => {
+        if (!hasSafePublicSlug(variety.slug)) return;
         if (variety.lotCount >= 2) fruitUrls.push(`/fruits/${fruit.slug}/varieties/${variety.slug}`);
         if (variety.growerCount >= 2) fruitUrls.push(`/fruits/${fruit.slug}/varieties/${variety.slug}/growers`);
         if (variety.buyerCount >= 2) fruitUrls.push(`/fruits/${fruit.slug}/varieties/${variety.slug}/buyers`);
@@ -259,7 +268,7 @@ router.get("/sitemap.xml", async (req, res) => {
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls
+${[...new Map(urls.map((url) => [url.loc, url])).values()]
   .map(
     (url) => `  <url>
     <loc>${escapeXml(url.loc)}</loc>

@@ -436,7 +436,7 @@ function replaceHeadTags(html, meta) {
     meta.robots ||
     (meta.noIndex ? "noindex,nofollow" : "index,follow");
   let nextHtml = html.replace(/<script\s+(?=[^>]*\bid=["']efruitmandi-home-schema["'])[^>]*>[\s\S]*?<\/script>\s*/gi, "");
-  nextHtml = replaceUnique(nextHtml, /<title>[\s\S]*?<\/title>/gi, `<title>${escapeHtml(meta.title)}</title>`);
+  nextHtml = replaceUnique(nextHtml, /<title\b[^>]*>[\s\S]*?<\/title>/gi, `<title>${escapeHtml(meta.title)}</title>`);
   nextHtml = replaceUnique(nextHtml, /<meta\s+(?=[^>]*\bname=["']description["'])[^>]*>\s*/gi, `<meta name="description" content="${escapeHtml(meta.description)}" />\n    `);
   nextHtml = replaceUnique(nextHtml, /<link\s+(?=[^>]*\brel=["']canonical["'])[^>]*>\s*/gi, `<link rel="canonical" href="${escapeHtml(canonical)}" />\n    `);
   nextHtml = replaceUnique(nextHtml, /<meta\s+(?=[^>]*\bproperty=["']og:title["'])[^>]*>\s*/gi, `<meta property="og:title" content="${escapeHtml(meta.title)}" />\n    `);
@@ -527,6 +527,48 @@ function renderPublicLotFallback(meta) {
           <p><a href="/auctions">Browse public fruit lots</a></p>
         </article>
       </main>`;
+}
+
+// The same metadata writer serves build pages and current public HTTP responses.
+// Availability comes from the public records API, never a default noindex shell.
+function getPublicMandiMeta(slug, records) {
+  const fruit = fruitLotCategories.find((entry) => entry.slug === slug);
+  if (!fruit || !Array.isArray(records) || !records.length) return null;
+  const rows = records.filter((record) => record && typeof record === "object" &&
+    (record.market || record.mandi) && (record.commodity || record.fruit));
+  if (!rows.length) return null;
+  return {
+    path: `/mandi-rates/${slug}`,
+    title: `${fruit.name} Mandi Rates Today | eFruitMandi`,
+    description: `Check latest ${fruit.name.toLowerCase()} mandi rates from AGMARKNET markets across India with min, modal and max price per kg.`,
+    h1: `${fruit.name} Mandi Rates`,
+    fruitName: fruit.name,
+    fruitSlug: slug,
+    records: rows,
+    robots: "index,follow",
+  };
+}
+
+function renderPublicMandiFallback(meta) {
+  const price = (record, key) => {
+    const value = record[`${key}Kg`] ?? (record[key] == null ? null : Number(record[key]) / 100);
+    return value !== null && Number.isFinite(Number(value)) ? `₹${Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}` : "Unavailable";
+  };
+  const rows = meta.records.slice(0, 50).map((record) => {
+    const date = new Date(record.arrivalDate);
+    const values = [record.market || record.mandi, record.district, record.state, record.variety || "—",
+      Number.isNaN(date.getTime()) ? "Unavailable" : date.toISOString().slice(0, 10),
+      price(record, "minPrice"), price(record, "modalPrice"), price(record, "maxPrice")];
+    return `<tr>${values.map((value) => `<td>${escapeHtml(value || "—")}</td>`).join("")}</tr>`;
+  }).join("\n");
+  return `<main style="padding:32px;font-family:Arial,sans-serif;line-height:1.6">
+    <h1>${escapeHtml(meta.h1)}</h1><p>${escapeHtml(meta.description)}</p>
+    <table><caption>Latest available ${escapeHtml(meta.fruitName)} market records. Prices in INR per kg; dates show market arrivals.</caption>
+      <thead><tr><th>Market</th><th>District</th><th>State</th><th>Variety</th><th>Arrival date</th><th>Minimum</th><th>Modal</th><th>Maximum</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table><p>Source: AGMARKNET via data.gov.in.</p>
+    <nav><a href="/mandi-rates">All mandi rates</a> | <a href="/fruit-lots/${meta.fruitSlug}">${escapeHtml(meta.fruitName)} fruit lots</a></nav>
+  </main>`;
 }
 
 function renderPublicDirectoryFallback(meta) {
@@ -973,10 +1015,11 @@ function getFruitPrerenderMetas(discovery) {
       { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` }, { "@type": "ListItem", position: 2, name: "Fruits", item: `${SITE_URL}/fruits` }] },
     ],
   });
-  const fruits = Array.isArray(discovery?.fruits) ? discovery.fruits : [];
-  if (fruits.length) metas.push(makeMeta("/fruits", "Fruits Traded on eFruitMandi", "Explore fruits publicly listed on eFruitMandi. Discover fruit lots, eligible growers, orchards, buyers and traders across India.", fruits.map((fruit) => ({ name: fruit.name, path: `/fruits/${fruit.slug}` }))));
+  const safeSlug = (slug) => typeof slug === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug);
+  const fruits = (Array.isArray(discovery?.fruits) ? discovery.fruits : []).filter((fruit) => safeSlug(fruit?.slug));
+  const replacements = fruits.filter((fruit) => fruitLotCategories.some((entry) => entry.slug === fruit.slug));
+  if (replacements.length) metas.push(makeMeta("/fruits", "Fruits Traded on eFruitMandi", "Explore fruits publicly listed on eFruitMandi. Discover fruit lots, eligible growers, orchards, buyers and traders across India.", replacements.map((fruit) => ({ name: fruit.name, path: `/fruit-lots/${fruit.slug}` }))));
   fruits.forEach((fruit) => {
-    if (fruit.lotCount >= 1) metas.push(makeMeta(`/fruits/${fruit.slug}`, `${fruit.name} on eFruitMandi`, `Explore public ${fruit.name} growers, buyers and fruit lots on eFruitMandi.`, []));
     [["grower", "Growers and Orchards"], ["buyer", "Buyers and Traders"]].forEach(([role, label]) => {
       const profiles = fruit[`${role}s`] || [];
       if (profiles.length >= 2) metas.push(makeMeta(`/fruits/${fruit.slug}/${role}s`, `${fruit.name} ${label}`, `Explore eligible public ${fruit.name} ${role}s on eFruitMandi.`, profiles.map((profile) => ({ name: profile.companyName, path: getPublicDirectoryEntry(profile, role)?.path })).filter((item) => item.path)));
@@ -998,7 +1041,7 @@ function getFruitPrerenderMetas(discovery) {
         if (group.profiles.length >= 2) metas.push(makeMeta(routePath, `${fruit.name} ${label} in ${group.name}`, `Explore eligible public ${fruit.name} ${role}s in ${group.name} on eFruitMandi.`, group.profiles.map((profile) => ({ name: profile.companyName, path: getPublicDirectoryEntry(profile, role)?.path })).filter((item) => item.path)));
       });
     });
-    (fruit.varieties || []).forEach((variety) => {
+    (fruit.varieties || []).filter((variety) => safeSlug(variety?.slug)).forEach((variety) => {
       if (variety.lotCount >= 2) metas.push(makeMeta(`/fruits/${fruit.slug}/varieties/${variety.slug}`, `${variety.name} ${fruit.name}`, `Explore public ${variety.name} ${fruit.name} marketplace activity on eFruitMandi.`, []));
       [["grower", "Growers"], ["buyer", "Buyers"]].forEach(([role, label]) => {
         const profiles = variety[`${role}s`] || [];
@@ -1045,7 +1088,8 @@ async function prerenderPublicProfiles(baseHtml) {
       }
 
       try {
-        prerenderPublicProfile(baseHtml, meta);
+        // Individual profiles use the existing renderer at request time so new
+        // or removed public profiles do not wait for a frontend rebuild.
         writtenRoutes.add(meta.path);
       } catch (error) {
         throw new Error(`Could not write ${meta.path}: ${error.message || "write failed"}`);
@@ -1057,9 +1101,9 @@ async function prerenderPublicProfiles(baseHtml) {
 }
 
 function renderNotFoundPage(baseHtml, { lot = false, temporary = false } = {}) {
-  const heading = temporary ? "Fruit Lot Temporarily Unavailable" : lot ? "Fruit Lot Not Found" : "Page Not Found";
+  const heading = temporary ? (lot ? "Fruit Lot Temporarily Unavailable" : "Page Temporarily Unavailable") : lot ? "Fruit Lot Not Found" : "Page Not Found";
   const description = temporary
-    ? "Fruit lot details are temporarily unavailable. Please try again shortly."
+    ? "Public page details are temporarily unavailable. Please try again shortly."
     : lot ? "The requested eFruitMandi fruit lot could not be found or is no longer available."
       : "The requested eFruitMandi page could not be found or is no longer publicly available.";
   let html = replaceHeadTags(baseHtml, {
@@ -1072,46 +1116,32 @@ function renderNotFoundPage(baseHtml, { lot = false, temporary = false } = {}) {
   html = removeHeadTag(html, /<meta\s+(?=[^>]*\bproperty=["']og:url["'])[^>]*>\s*/gi);
   const errorContent = `      <main style="background:#f7fff4;color:#123;padding:32px;font-family:Arial,sans-serif;line-height:1.6;text-align:center">
         <h1>${heading}</h1>
-        <p>${lot ? description : "The requested fruit lot, public profile or page is unavailable or is no longer publicly listed."}</p>
+        <p>${description}</p>
         <p><a href="/auctions">Browse public fruit lots</a> | <a href="/growers">Browse growers</a> | <a href="/buyers">Browse buyers</a></p>
       </main>`;
   html = replaceRootContent(html, errorContent);
-  if (lot) {
-    // Definitive error documents must not boot React's temporary loading SEO.
-    html = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>\s*/gi, "");
-    html = html.replace(/<body\b[^>]*>[\s\S]*?<\/body>/i, `<body><div id="root">${errorContent}</div></body>`);
-  }
+  // Error documents preserve their status/content rather than booting loading SEO.
+  html = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>\s*/gi, "");
+  html = html.replace(/<body\b[^>]*>[\s\S]*?<\/body>/i, `<body><div id="root">${errorContent}</div></body>`);
   return html;
 }
 
 async function prerenderAll() {
   if (!fs.existsSync(indexPath)) throw new Error("Run vite build before prerender-seo.");
   // Static files outrank Vercel rewrites. Never publish stale lot snapshots.
-  for (const route of ["lots", "delivery"]) {
+  for (const route of ["lots", "delivery", "growers", "buyers", "fruits", "mandi-rates", "search"]) {
     if (fs.existsSync(path.join(buildDir, route))) throw new Error(`Stale ${route} output: run a clean vite build before prerender-seo.`);
   }
   const baseHtml = synchronizeHomepageSchema(fs.readFileSync(indexPath, "utf8"));
   fs.writeFileSync(indexPath, baseHtml, "utf8");
   fs.writeFileSync(path.join(buildDir, "404.html"), renderNotFoundPage(baseHtml), "utf8");
-  const availableMandiSlugs = await fetchAvailableMandiSlugs();
-  const availableSet = new Set(availableMandiSlugs);
 
   const editorialRoutes = await getEditorialRoutes();
   const allRoutes = [...routes.filter((route) => !editorialRoutes.some((page) => page.path === route.path)), ...editorialRoutes];
   allRoutes.forEach((route) => {
-    if (!route.mandiFruit || !availableSet.has(route.fruitSlug)) {
-      prerenderRoute(baseHtml, route);
-      return;
-    }
-
-    prerenderRoute(baseHtml, {
-      ...route,
-      title: `${route.fruitName} Mandi Rates Today | eFruitMandi`,
-      description: `Check latest ${route.fruitName.toLowerCase()} mandi rates from AGMARKNET markets across India with min, modal and max price per kg.`,
-      body: `Review the latest available ${route.fruitName.toLowerCase()} mandi records, markets and update dates on eFruitMandi.`,
-      noIndex: false,
-      robots: "index,follow",
-    });
+    // These HTTP routes must never be shadowed by stale static snapshots.
+    if (route.mandiFruit || route.path === "/search") return;
+    prerenderRoute(baseHtml, route);
   });
 
   await prerenderPublicProfiles(baseHtml);
@@ -1119,8 +1149,8 @@ async function prerenderAll() {
   const sitemapResponse = await fetch(API_BASE_URL.replace(/\/api$/, "") + "/sitemap.xml");
   if (!sitemapResponse.ok) throw new Error("Sitemap HTTP " + sitemapResponse.status);
   const sitemapXml = await sitemapResponse.text();
-  const { validateBuild, loadDynamicLotPages } = require("./validate-seo-build.cjs");
-  const dynamicPages = await loadDynamicLotPages(sitemapXml, baseHtml);
+  const { validateBuild, loadDynamicPublicPages } = require("./validate-seo-build.cjs");
+  const dynamicPages = await loadDynamicPublicPages(sitemapXml, baseHtml);
   const count = validateBuild(buildDir, sitemapXml,
     JSON.parse(fs.readFileSync(path.join(appRoot, "vercel.json"), "utf8")),
     fs.readFileSync(path.join(buildDir, "robots.txt"), "utf8"), dynamicPages);
@@ -1129,6 +1159,8 @@ async function prerenderAll() {
 
 module.exports = { fetchAvailableMandiSlugs, fetchPublicFruitDiscovery, fetchPublicProfiles, getEditorialRoutes, renderNotFoundPage, routes, buildHomepageSchema, replaceHeadTags, replaceProfileHeadTags, replaceRootContent, getPublicProfileMeta, getPublicDirectoryMeta, getPublicLocationMetas, getFruitPrerenderMetas, getPublicLotMeta, renderFallback, renderPublicProfileFallback, renderPublicDirectoryFallback, renderPublicLotFallback, prerenderAll };
 module.exports.API_BASE_URL = API_BASE_URL;
+module.exports.getPublicMandiMeta = getPublicMandiMeta;
+module.exports.renderPublicMandiFallback = renderPublicMandiFallback;
 if (require.main === module) prerenderAll().catch((error) => {
   console.error(`prerender-seo: generation failed (${error.message || "unexpected error"})`);
   process.exitCode = 1;
