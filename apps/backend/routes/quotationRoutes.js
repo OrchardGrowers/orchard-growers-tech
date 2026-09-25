@@ -19,7 +19,6 @@ import {
 } from "../services/kycEligibilityService.js";
 import { getGrowerVerificationLevel, getPublicGrowerKycEligibility } from "../utils/publicProfileVerification.js";
 import { canLotAcceptOffers } from "../services/dealLifecycleService.js";
-import { sendMetaLeadEvent } from "../services/metaConversionsApiService.js";
 
 const router = express.Router();
 const PAYMENT_CONFIRMATION_WINDOW_MS = 15 * 60 * 1000;
@@ -541,13 +540,6 @@ export const createQuoteForLot = async (req, res) => {
       growerReceivable: breakdown.growerReceivable,
     });
 
-    // Meta CAPI must never block quotation creation.
-    void sendMetaLeadEvent({
-      quotation,
-      buyer,
-      product,
-      req,
-    });
     const populated = await populateQuoteQuery(Quotation.findById(quotation._id)).lean();
 
     res.status(201).json({

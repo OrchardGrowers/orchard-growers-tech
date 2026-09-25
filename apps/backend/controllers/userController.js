@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import User from "../models/User.js";
+import { sendMetaLeadEvent } from "../services/metaConversionsApiService.js";
 import Product from "../models/Product.js";
 import Order from "../models/Order.js";
 import Quotation from "../models/Quotation.js";
@@ -1718,6 +1719,15 @@ export const updateKyc = async (req, res) => {
       ));
     }
 
+    if (
+      isInitialSubmission &&
+      submittedRoleType === roleType &&
+      req.method === "POST" &&
+      /\/kyc\/submit\/?(?:\?|$)/.test(req.originalUrl || "")
+    ) {
+      // A failed Meta request must not block a successful KYC submission.
+      void sendMetaLeadEvent({ user, roleType, req });
+    }
     res.json(user);
   } catch (err) {
     res.status(err.statusCode || 500).json({ msg: err.message });

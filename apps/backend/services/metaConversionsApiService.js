@@ -4,15 +4,7 @@ import crypto from "crypto";
 const sha256 = (value) =>
   crypto.createHash("sha256").update(String(value)).digest("hex");
 
-const normalizeEmail = (value) =>
-  String(value || "").trim().toLowerCase();
-
-export const sendMetaLeadEvent = async ({
-  quotation,
-  buyer,
-  product,
-  req,
-}) => {
+export const sendMetaLeadEvent = async ({ user, roleType, req }) => {
   const enabled =
     String(process.env.META_CAPI_ENABLED || "false").toLowerCase() === "true";
   const pixelId = String(process.env.META_CAPI_PIXEL_ID || "").trim();
@@ -22,9 +14,23 @@ export const sendMetaLeadEvent = async ({
     return { sent: false, skipped: true };
   }
 
-  const email = normalizeEmail(buyer?.email);
-  const eventId = `quotation_lead_${String(quotation?._id || Date.now())}`;
+  const origin = String(req?.get?.("origin") || "").trim().toLowerCase();
+  const allowedOrigins = new Set([
+    "https://www.efruitmandi.live",
+    "https://efruitmandi.live",
+  ]);
+  if (!allowedOrigins.has(origin)) {
+    return { sent: false, skipped: true };
+  }
 
+  const userId = String(user?._id || "");
+  const role = String(roleType || "").trim().toLowerCase();
+  if (!userId || !["buyer", "grower", "driver"].includes(role)) {
+    return { sent: false, skipped: true };
+  }
+
+  const email = String(user?.email || "").trim().toLowerCase();
+  const eventId = `kyc_lead_${userId}_${role}`;
   const payload = {
     data: [
       {
@@ -32,22 +38,16 @@ export const sendMetaLeadEvent = async ({
         event_time: Math.floor(Date.now() / 1000),
         event_id: eventId,
         action_source: "website",
-        event_source_url:
-          req?.get("referer") ||
-          process.env.META_CAPI_EVENT_SOURCE_URL ||
-          "https://www.efruitmandi.live/",
+        event_source_url: "https://www.efruitmandi.live/kyc",
         user_data: {
           ...(email ? { em: [sha256(email)] } : {}),
-          ...(req?.get("user-agent")
+          ...(req?.get?.("user-agent")
             ? { client_user_agent: req.get("user-agent") }
             : {}),
         },
         custom_data: {
-          content_name:
-            product?.fruitName || product?.title || "Fruit quotation",
-          lead_type: "buyer_quotation",
-          quotation_id: String(quotation?._id || ""),
-          lot_id: String(product?._id || ""),
+          lead_type: "kyc_submitted",
+          user_role: role,
         },
       },
     ],
@@ -72,7 +72,6 @@ export const sendMetaLeadEvent = async ({
       status: error.response?.status || null,
       message: error.response?.data?.error?.message || error.message,
     });
-
     return { sent: false, error: true };
   }
 };
