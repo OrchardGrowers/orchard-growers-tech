@@ -48,10 +48,9 @@ test("public-page initializes without fruit source parsing and isolates fruit fa
       assert.equal((await fresh.getPublicPageResponse("/search", { template: base })).status, 200);
       assert.equal(fruitReads, 0, "Non-fruit operations must never parse fruitLotsContent");
       const fruitResponse = await fresh.getPublicPageResponse("/fruits/guava", { template: base, buildDir: temp });
-      assert.equal(fruitResponse.status, 404);
-      assert.equal(fruitResponse.headers.Location, undefined);
-      assert.match(fruitResponse.headers["X-Robots-Tag"], /noindex/);
-      assert.deepEqual(inspectHtml(fruitResponse.html).canonical, []);
+      assert.equal(fruitResponse.status, 308);
+      assert.equal(fruitResponse.headers.Location, "/fruit-lots/guava");
+      assert.equal(fruitReads, 0, "Runtime redirects must not parse source text");
       assert.throws(() => renderer.routes, /fruit source|fruitLotsContent/i, "Build route validation must remain strict");
       assert.equal((await fresh.getPublicPageResponse("/growers/grower-fixture-1", { template: base, fetchImpl: publicApi })).status, 200);
       assert.equal((await fresh.getPublicPageResponse("/growers/missing", { template: base, fetchImpl: publicApi })).status, 404);
@@ -262,7 +261,23 @@ test("unavailable legacy fruit routes return a real 404 and never a redirect", a
     assert.doesNotMatch(html,/Fruit page unavailable/);
   }
 });
-test("fruit redirects require a generated indexable self-canonical replacement", async () => {
+test("fruit redirects require a generated indexable self-canonical replacement", async (t) => {
+  const rendererPath = require.resolve("./prerender-seo.cjs");
+  const handlerPath = require.resolve("../api/public-page.js");
+  const previousRenderer = require.cache[rendererPath], previousHandler = require.cache[handlerPath];
+  const read = fs.readFileSync;
+  t.mock.method(fs, "readFileSync", function (file, ...args) {
+    if (String(file).replace(/\\/g, "/").endsWith("/src/data/fruitLotsContent.js")) {
+      throw new Error("Could not parse fruitLotsContent");
+    }
+    return read.call(this, file, ...args);
+  });
+  t.after(() => {
+    require.cache[rendererPath] = previousRenderer;
+    require.cache[handlerPath] = previousHandler;
+  });
+  delete require.cache[rendererPath]; delete require.cache[handlerPath];
+  const { getPublicPageResponse } = require("../api/public-page.js");
   const redirectBuild = fs.mkdtempSync(path.join(temp,"replacement-"));
   const route = "/fruits/guava", target = path.join(redirectBuild,"fruit-lots/guava/index.html");
   const options = {template:base,fetchImpl:publicApi,buildDir:redirectBuild};

@@ -1,7 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const {
-  API_BASE_URL, staticRoutes, getFruitLotRoutes, getMandiFruit, getPublicProfileMeta, getPublicMandiMeta,
+  API_BASE_URL, staticRoutes, getMandiFruit, getPublicProfileMeta, getPublicMandiMeta,
   replaceProfileHeadTags, replaceRootContent, renderFallback,
   renderPublicProfileFallback, renderPublicMandiFallback, renderNotFoundPage,
 } = require("../scripts/prerender-seo.cjs");
@@ -63,8 +63,9 @@ async function getPublicPageResponse(route, {
     if (!safeSlug(slug)) return unavailable();
     const destination = `/fruit-lots/${slug}`;
     try {
-      const replacement = getFruitLotRoutes().find((entry) => entry.path === destination && !entry.noIndex);
-      if (!replacement) return unavailable();
+      // Use canonical data as a module, not the build-only source-text parser.
+      const { FRUIT_ENTITIES } = await import("../../../packages/shared-config/fruitSearch.mjs");
+      if (!FRUIT_ENTITIES.some((entry) => entry.slug === slug)) return unavailable();
       // A category name alone is not enough: the exact deployed replacement must
       // exist, be indexable and be its own canonical. No destination is /fruits.
       const html = fs.readFileSync(path.join(buildDir, "fruit-lots", slug, "index.html"), "utf8");
