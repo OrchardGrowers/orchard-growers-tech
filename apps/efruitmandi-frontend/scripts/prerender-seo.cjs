@@ -123,8 +123,16 @@ function readFruitLotCategories() {
   return categories;
 }
 
-const fruitLotCategories = readFruitLotCategories();
-const fruitLotRoutes = fruitLotCategories.map(({ slug, name }) => {
+let fruitLotCategories;
+function getFruitLotCategories() {
+  return fruitLotCategories ||= readFruitLotCategories();
+}
+
+async function getMandiFruit(slug) {
+  const { FRUIT_ENTITIES } = await import("../../../packages/shared-config/fruitSearch.mjs");
+  return FRUIT_ENTITIES.find((fruit) => fruit.slug === slug);
+}
+const getFruitLotRoutes = () => getFruitLotCategories().map(({ slug, name }) => {
   const routePath = `/fruit-lots/${slug}`;
   const canonical = `${SITE_URL}${routePath}`;
   const description = `Discover ${name.toLowerCase()} fruit lots from verified growers. Explore Fruit Lot No., Lot Size, grade, packing details, orchard location and buyer offer options on eFruitMandi.`;
@@ -151,9 +159,9 @@ const fruitLotRoutes = fruitLotCategories.map(({ slug, name }) => {
   };
 });
 
-const publicLinks = [
+const getPublicLinks = (categories) => [
   { href: "/auctions", label: "Fruit Lots Marketplace" },
-  ...fruitLotCategories.map(({ slug, name }) => ({ href: `/fruit-lots/${slug}`, label: `${name} Fruit Lots` })),
+  ...categories.map(({ slug, name }) => ({ href: `/fruit-lots/${slug}`, label: `${name} Fruit Lots` })),
   { href: "/mandi-rates", label: "Mandi Rates" },
   { href: "/buyer-guide", label: "Buyer Guide" },
   { href: "/grower-guide", label: "Grower Guide" },
@@ -356,7 +364,9 @@ const staticRoutes = [
     h1: "Mandi Rates",
     body: "Mandi Rates on eFruitMandi help visitors review fruit market price context, public rate information and marketplace sourcing signals.",
   },
-  ...fruitLotCategories.map(({ slug: commodity, name }) => {
+];
+
+const getMandiRoutes = (categories) => categories.map(({ slug: commodity, name }) => {
     return {
       path: `/mandi-rates/${commodity}`,
       title: `${name} Mandi Rates | eFruitMandi`,
@@ -369,8 +379,7 @@ const staticRoutes = [
       noIndex: true,
       robots: "noindex,follow",
     };
-  }),
-];
+  });
 
 async function getEditorialRoutes() {
   // Load the existing browser ESM data without relying on require(ESM) support.
@@ -385,14 +394,15 @@ async function getEditorialRoutes() {
     }))
   );
 }
-const routes = [...staticRoutes, ...fruitLotRoutes];
-const routePaths = new Set();
-routes.forEach((route) => {
-  if (routePaths.has(route.path)) {
-    throw new Error(`Duplicate prerender route: ${route.path}`);
+function getRoutes() {
+  const routes = [...staticRoutes, ...getMandiRoutes(getFruitLotCategories()), ...getFruitLotRoutes()];
+  const paths = new Set();
+  for (const route of routes) {
+    if (paths.has(route.path)) throw new Error('Duplicate prerender route: ' + route.path);
+    paths.add(route.path);
   }
-  routePaths.add(route.path);
-});
+  return routes;
+}
 
 function escapeHtml(value = "") {
   return String(value)
@@ -483,8 +493,8 @@ function replaceProfileHeadTags(html, meta) {
   return appendToHead(nextHtml, schemas);
 }
 
-function renderFallback(meta) {
-  const links = publicLinks
+function renderFallback(meta, categories = fruitLotCategories || []) {
+  const links = getPublicLinks(categories)
     .map((link) => `<a href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`)
     .join(" | ");
 
@@ -531,8 +541,8 @@ function renderPublicLotFallback(meta) {
 
 // The same metadata writer serves build pages and current public HTTP responses.
 // Availability comes from the public records API, never a default noindex shell.
-function getPublicMandiMeta(slug, records) {
-  const fruit = fruitLotCategories.find((entry) => entry.slug === slug);
+async function getPublicMandiMeta(slug, records) {
+  const fruit = await getMandiFruit(slug);
   if (!fruit || !Array.isArray(records) || !records.length) return null;
   const rows = records.filter((record) => record && typeof record === "object" &&
     (record.market || record.mandi) && (record.commodity || record.fruit));
@@ -1017,7 +1027,7 @@ function getFruitPrerenderMetas(discovery) {
   });
   const safeSlug = (slug) => typeof slug === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug);
   const fruits = (Array.isArray(discovery?.fruits) ? discovery.fruits : []).filter((fruit) => safeSlug(fruit?.slug));
-  const replacements = fruits.filter((fruit) => fruitLotCategories.some((entry) => entry.slug === fruit.slug));
+  const replacements = fruits.filter((fruit) => getFruitLotCategories().some((entry) => entry.slug === fruit.slug));
   if (replacements.length) metas.push(makeMeta("/fruits", "Fruits Traded on eFruitMandi", "Explore fruits publicly listed on eFruitMandi. Discover fruit lots, eligible growers, orchards, buyers and traders across India.", replacements.map((fruit) => ({ name: fruit.name, path: `/fruit-lots/${fruit.slug}` }))));
   fruits.forEach((fruit) => {
     [["grower", "Growers and Orchards"], ["buyer", "Buyers and Traders"]].forEach(([role, label]) => {
@@ -1127,6 +1137,8 @@ function renderNotFoundPage(baseHtml, { lot = false, temporary = false } = {}) {
 }
 
 async function prerenderAll() {
+  // Build validation stays strict; runtime imports never parse fruit source text.
+  const routes = getRoutes();
   if (!fs.existsSync(indexPath)) throw new Error("Run vite build before prerender-seo.");
   // Static files outrank Vercel rewrites. Never publish stale lot snapshots.
   for (const route of ["lots", "delivery", "growers", "buyers", "fruits", "mandi-rates", "search"]) {
@@ -1157,7 +1169,8 @@ async function prerenderAll() {
   console.log("prerender-seo: validated " + count + " sitemap URLs against generated HTML");
 }
 
-module.exports = { fetchAvailableMandiSlugs, fetchPublicFruitDiscovery, fetchPublicProfiles, getEditorialRoutes, renderNotFoundPage, routes, buildHomepageSchema, replaceHeadTags, replaceProfileHeadTags, replaceRootContent, getPublicProfileMeta, getPublicDirectoryMeta, getPublicLocationMetas, getFruitPrerenderMetas, getPublicLotMeta, renderFallback, renderPublicProfileFallback, renderPublicDirectoryFallback, renderPublicLotFallback, prerenderAll };
+module.exports = { fetchAvailableMandiSlugs, fetchPublicFruitDiscovery, fetchPublicProfiles, getEditorialRoutes, renderNotFoundPage, staticRoutes, getFruitLotRoutes, getMandiFruit, buildHomepageSchema, replaceHeadTags, replaceProfileHeadTags, replaceRootContent, getPublicProfileMeta, getPublicDirectoryMeta, getPublicLocationMetas, getFruitPrerenderMetas, getPublicLotMeta, renderFallback, renderPublicProfileFallback, renderPublicDirectoryFallback, renderPublicLotFallback, prerenderAll };
+Object.defineProperty(module.exports, "routes", { enumerable: true, get: getRoutes });
 module.exports.API_BASE_URL = API_BASE_URL;
 module.exports.getPublicMandiMeta = getPublicMandiMeta;
 module.exports.renderPublicMandiFallback = renderPublicMandiFallback;

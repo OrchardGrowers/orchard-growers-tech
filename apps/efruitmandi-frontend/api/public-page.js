@@ -1,7 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const {
-  API_BASE_URL, routes, getPublicProfileMeta, getPublicMandiMeta,
+  API_BASE_URL, staticRoutes, getFruitLotRoutes, getMandiFruit, getPublicProfileMeta, getPublicMandiMeta,
   replaceProfileHeadTags, replaceRootContent, renderFallback,
   renderPublicProfileFallback, renderPublicMandiFallback, renderNotFoundPage,
 } = require("../scripts/prerender-seo.cjs");
@@ -52,8 +52,9 @@ async function getPublicPageResponse(route, {
       /^\{?\s*search_term_string\s*\}?$/i.test(query.replace(/\\/g, "").trim())
     );
     if (placeholder) return unavailable(400);
-    const meta = routes.find((entry) => entry.path === "/search");
-    return render(meta, renderFallback(meta));
+    const meta = staticRoutes.find((entry) => entry.path === "/search");
+    const { FRUIT_ENTITIES } = await import("../../../packages/shared-config/fruitSearch.mjs");
+    return render(meta, renderFallback(meta, FRUIT_ENTITIES));
   }
 
   const fruit = /^\/fruits\/([^/]+)$/.exec(pathname);
@@ -61,9 +62,9 @@ async function getPublicPageResponse(route, {
     const slug = fruit[1];
     if (!safeSlug(slug)) return unavailable();
     const destination = `/fruit-lots/${slug}`;
-    const replacement = routes.find((entry) => entry.path === destination && !entry.noIndex);
-    if (!replacement) return unavailable();
     try {
+      const replacement = getFruitLotRoutes().find((entry) => entry.path === destination && !entry.noIndex);
+      if (!replacement) return unavailable();
       // A category name alone is not enough: the exact deployed replacement must
       // exist, be indexable and be its own canonical. No destination is /fruits.
       const html = fs.readFileSync(path.join(buildDir, "fruit-lots", slug, "index.html"), "utf8");
@@ -80,12 +81,12 @@ async function getPublicPageResponse(route, {
   const slug = profile ? profile[2] : mandi[1];
   if (!safeSlug(slug)) return unavailable();
   const role = profile?.[1] === "growers" ? "grower" : "buyer";
-  const mandiRoute = mandi && routes.find((entry) => entry.mandiFruit && entry.fruitSlug === slug);
-  if (mandi && !mandiRoute) return unavailable();
-  const endpoint = profile
-    ? `${API_BASE_URL}/user/public-profiles/by-slug/${role}/${encodeURIComponent(slug)}`
-    : `${API_BASE_URL}/mandi-rates?commodity=${encodeURIComponent(mandiRoute.fruitName)}`;
   try {
+    const mandiFruit = mandi && await getMandiFruit(slug);
+    if (mandi && !mandiFruit) return unavailable();
+    const endpoint = profile
+      ? `${API_BASE_URL}/user/public-profiles/by-slug/${role}/${encodeURIComponent(slug)}`
+      : `${API_BASE_URL}/mandi-rates?commodity=${encodeURIComponent(mandiFruit.name)}`;
     const response = await fetchImpl(endpoint, {
       headers: { Accept: "application/json" }, cache: "no-store", redirect: "error",
       signal: AbortSignal.timeout(10000),
@@ -101,7 +102,7 @@ async function getPublicPageResponse(route, {
     }
     if (!Array.isArray(payload?.records)) return unavailable(503);
     if (!payload.records.length) return unavailable();
-    const meta = getPublicMandiMeta(slug, payload.records);
+    const meta = await getPublicMandiMeta(slug, payload.records);
     if (!meta) return unavailable(503);
     return render(meta, renderPublicMandiFallback(meta));
   } catch {

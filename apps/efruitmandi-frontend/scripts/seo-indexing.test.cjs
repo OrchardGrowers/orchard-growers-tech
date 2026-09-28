@@ -14,6 +14,55 @@ const config = JSON.parse(fs.readFileSync(path.join(app, "vercel.json")));
 const robots = fs.readFileSync(path.join(app, "public/robots.txt"), "utf8");
 const base = fs.readFileSync(path.join(app, "index.html"), "utf8");
 const origin = "https://www.efruitmandi.live";
+test("public-page initializes without fruit source parsing and isolates fruit failures", async () => {
+  const rendererPath = require.resolve("./prerender-seo.cjs");
+  const handlerPath = require.resolve("../api/public-page.js");
+  const previousRenderer = require.cache[rendererPath], previousHandler = require.cache[handlerPath];
+  const read = fs.readFileSync;
+  try {
+    for (const missing of [false, true]) {
+      let fruitReads = 0;
+      delete require.cache[rendererPath]; delete require.cache[handlerPath];
+      fs.readFileSync = function (file, ...args) {
+        if (String(file).replace(/\\/g, "/").endsWith("/src/data/fruitLotsContent.js")) {
+          fruitReads++;
+          if (missing) throw new Error("Fruit source unavailable");
+          return "invalid fruit source";
+        }
+        return read.call(this, file, ...args);
+      };
+      const fresh = require("../api/public-page.js");
+      assert.equal(typeof fresh, "function");
+      const renderer = require("./prerender-seo.cjs");
+      for (const role of ["grower", "buyer"]) {
+        const route = `/${role}s/${role}-fixture-1`;
+        const response = await fresh.getPublicPageResponse(route, { template: base, fetchImpl: publicApi });
+        assertRawIndexable(response.html, route, response.status, response.headers);
+      }
+      const rate = await fresh.getPublicPageResponse("/mandi-rates/apple", { template: base, fetchImpl: publicApi });
+      assertRawIndexable(rate.html, "/mandi-rates/apple", rate.status, rate.headers);
+      for (const route of ["/buyer-guide", "/mandi-rates"]) {
+        const meta = renderer.staticRoutes.find((entry) => entry.path === route);
+        assertRawIndexable(renderer.replaceRootContent(renderer.replaceHeadTags(base, meta), renderer.renderFallback(meta)), route);
+      }
+      assert.equal((await fresh.getPublicPageResponse("/search", { template: base })).status, 200);
+      assert.equal(fruitReads, 0, "Non-fruit operations must never parse fruitLotsContent");
+      const fruitResponse = await fresh.getPublicPageResponse("/fruits/guava", { template: base, buildDir: temp });
+      assert.equal(fruitResponse.status, 404);
+      assert.equal(fruitResponse.headers.Location, undefined);
+      assert.match(fruitResponse.headers["X-Robots-Tag"], /noindex/);
+      assert.deepEqual(inspectHtml(fruitResponse.html).canonical, []);
+      assert.throws(() => renderer.routes, /fruit source|fruitLotsContent/i, "Build route validation must remain strict");
+      assert.equal((await fresh.getPublicPageResponse("/growers/grower-fixture-1", { template: base, fetchImpl: publicApi })).status, 200);
+      assert.equal((await fresh.getPublicPageResponse("/growers/missing", { template: base, fetchImpl: publicApi })).status, 404);
+      assert.equal((await fresh.getPublicPageResponse("/growers/grower-fixture-1", { template: base, fetchImpl: async () => { throw new Error("offline"); } })).status, 503);
+    }
+  } finally {
+    fs.readFileSync = read;
+    require.cache[rendererPath] = previousRenderer;
+    require.cache[handlerPath] = previousHandler;
+  }
+});
 const profiles = ["grower", "buyer"].flatMap((role) => [1,2].map((i) => ({
   role, slug: role + "-fixture-" + i, companyName: role + " fixture " + i,
   orchardName: role === "grower" ? "Orchard " + i : undefined,
@@ -43,7 +92,6 @@ const publicApi = async (url) => {
 const isDynamicPublic = (route) => /^\/(growers|buyers|mandi-rates)\/[^/]+\/?$/.test(route);
 const metas = [
   ...seo.routes.filter((r) => ["/mandi-rates", "/buyer-guide", "/contact-us", "/search", "/fruit-lots/apple", "/fruit-lots/guava", "/fruit-lots/pear"].includes(r.path)),
-  ...mandiRecords.map((record) => seo.getPublicMandiMeta(record.commodity.toLowerCase(), [record])),
   ...seo.getFruitPrerenderMetas({fruits:[fruit]}),
   ...profiles.map((p) => seo.getPublicProfileMeta(p, p.role)),
   ...["grower","buyer"].flatMap((role) => [
@@ -55,6 +103,7 @@ const temp = fs.mkdtempSync(path.join(os.tmpdir(), "efruitmandi-seo-"));
 let server, local;
 let sitemap = "<urlset>" + metas.filter((m) => !m.noIndex).map((m) => "<url><loc>" + origin + m.path + "</loc></url>").join("") + "</urlset>";
 before(async () => {
+  metas.push(...await Promise.all(mandiRecords.map((record) => seo.getPublicMandiMeta(record.commodity.toLowerCase(), [record]))));
   metas.push(...await seo.getEditorialRoutes());
   sitemap = "<urlset>" + metas.filter((m) => !m.noIndex).map((m) => "<url><loc>" + origin + m.path + "</loc></url>").join("") + "</urlset>";
   for (const meta of metas) {
@@ -363,7 +412,7 @@ test("API failure and malformed responses fail instead of publishing empty/noind
 });
 test("empty successful eligibility data stays excluded rather than being invented", async () => {
   assert.deepEqual(seo.getFruitPrerenderMetas({fruits:[]}),[]);
-  assert.equal(seo.getPublicMandiMeta("pear",[]),null);
+  assert.equal(await seo.getPublicMandiMeta("pear",[]),null);
 });
 
 const publicLot = {_id:"6a0000000000000000000001", fruitName:"Mango", variety:"Alphonso", district:"Ratnagiri", state:"Maharashtra", quantity:100, status:"ACTIVE"};
