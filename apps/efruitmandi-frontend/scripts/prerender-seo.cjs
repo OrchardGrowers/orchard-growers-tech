@@ -1136,6 +1136,17 @@ function renderNotFoundPage(baseHtml, { lot = false, temporary = false } = {}) {
   return html;
 }
 
+async function validateFruitRedirects(outputDir) {
+  const { FRUIT_ENTITIES } = await import("../../../packages/shared-config/fruitSearch.mjs");
+  const { inspectHtml, validateIndexable } = require("./validate-seo.cjs");
+  for (const { slug } of FRUIT_ENTITIES) {
+    const html = fs.readFileSync(path.join(outputDir, "fruit-lots", slug, "index.html"), "utf8");
+    const errors = validateIndexable({ url: `${SITE_URL}/fruit-lots/${slug}`, status: 200, meta: inspectHtml(html) });
+    if (errors.length) throw new Error(`Invalid fruit redirect destination ${slug}: ${errors.join(", ")}`);
+  }
+  return FRUIT_ENTITIES.length;
+}
+
 async function prerenderAll() {
   // Build validation stays strict; runtime imports never parse fruit source text.
   const routes = getRoutes();
@@ -1156,6 +1167,9 @@ async function prerenderAll() {
     prerenderRoute(baseHtml, route);
   });
 
+  // Validate the exact canonical manifest used by runtime redirects, independently
+  // of which category URLs the live sitemap currently advertises.
+  await validateFruitRedirects(buildDir);
   await prerenderPublicProfiles(baseHtml);
   // Check the existing backend sitemap against this exact generated build.
   const sitemapResponse = await fetch(API_BASE_URL.replace(/\/api$/, "") + "/sitemap.xml");
@@ -1174,6 +1188,7 @@ Object.defineProperty(module.exports, "routes", { enumerable: true, get: getRout
 module.exports.API_BASE_URL = API_BASE_URL;
 module.exports.getPublicMandiMeta = getPublicMandiMeta;
 module.exports.renderPublicMandiFallback = renderPublicMandiFallback;
+module.exports.validateFruitRedirects = validateFruitRedirects;
 if (require.main === module) prerenderAll().catch((error) => {
   console.error(`prerender-seo: generation failed (${error.message || "unexpected error"})`);
   process.exitCode = 1;

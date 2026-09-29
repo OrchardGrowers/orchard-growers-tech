@@ -5,7 +5,6 @@ const {
   replaceProfileHeadTags, replaceRootContent, renderFallback,
   renderPublicProfileFallback, renderPublicMandiFallback, renderNotFoundPage,
 } = require("../scripts/prerender-seo.cjs");
-const { inspectHtml, validateIndexable } = require("../scripts/validate-seo.cjs");
 
 const SITE_URL = "https://www.efruitmandi.live";
 const defaultBuildDir = path.join(__dirname, "../build");
@@ -66,10 +65,8 @@ async function getPublicPageResponse(route, {
       // Use canonical data as a module, not the build-only source-text parser.
       const { FRUIT_ENTITIES } = await import("../../../packages/shared-config/fruitSearch.mjs");
       if (!FRUIT_ENTITIES.some((entry) => entry.slug === slug)) return unavailable();
-      // A category name alone is not enough: the exact deployed replacement must
-      // exist, be indexable and be its own canonical. No destination is /fruits.
-      const html = fs.readFileSync(path.join(buildDir, "fruit-lots", slug, "index.html"), "utf8");
-      if (validateIndexable({ url: SITE_URL + destination, status: 200, meta: inspectHtml(html) }).length) return unavailable();
+      // Prerendering validates every manifest destination before deployment.
+      // CDN static files need not exist inside the serverless function bundle.
       return redirect(destination);
     } catch {
       return unavailable();

@@ -261,44 +261,40 @@ test("unavailable legacy fruit routes return a real 404 and never a redirect", a
     assert.doesNotMatch(html,/Fruit page unavailable/);
   }
 });
-test("fruit redirects require a generated indexable self-canonical replacement", async (t) => {
-  const rendererPath = require.resolve("./prerender-seo.cjs");
-  const handlerPath = require.resolve("../api/public-page.js");
-  const previousRenderer = require.cache[rendererPath], previousHandler = require.cache[handlerPath];
-  const read = fs.readFileSync;
-  t.mock.method(fs, "readFileSync", function (file, ...args) {
-    if (String(file).replace(/\\/g, "/").endsWith("/src/data/fruitLotsContent.js")) {
-      throw new Error("Could not parse fruitLotsContent");
-    }
-    return read.call(this, file, ...args);
-  });
-  t.after(() => {
-    require.cache[rendererPath] = previousRenderer;
-    require.cache[handlerPath] = previousHandler;
-  });
-  delete require.cache[rendererPath]; delete require.cache[handlerPath];
-  const { getPublicPageResponse } = require("../api/public-page.js");
-  const redirectBuild = fs.mkdtempSync(path.join(temp,"replacement-"));
-  const route = "/fruits/guava", target = path.join(redirectBuild,"fruit-lots/guava/index.html");
-  const options = {template:base,fetchImpl:publicApi,buildDir:redirectBuild};
-  assert.equal((await getPublicPageResponse(route,options)).status,404);
-  fs.mkdirSync(path.dirname(target),{recursive:true});
-  const valid = fs.readFileSync(path.join(temp,"fruit-lots/guava/index.html"),"utf8");
+test("fruit redirects work without a generated runtime build directory", async () => {
+  const options = { template: base, buildDir: path.join(temp, "absent-serverless-build") };
+  assert.equal(fs.existsSync(options.buildDir), false);
+  const guava = await getPublicPageResponse("/fruits/guava", options);
+  assert.equal(guava.status, 308);
+  assert.equal(guava.headers.Location, "/fruit-lots/guava");
+  const avocado = await getPublicPageResponse("/fruits/avocado", options);
+  assert.equal(avocado.status, 404);
+  assert.equal(avocado.headers.Location, undefined);
+  assert.match(avocado.headers["X-Robots-Tag"], /noindex/);
+  assert.deepEqual(inspectHtml(avocado.html).canonical, []);
+});
+test("fruit redirect manifest requires valid generated destinations at build time", async () => {
+  const output = fs.mkdtempSync(path.join(temp, "fruit-build-"));
+  await assert.rejects(seo.validateFruitRedirects(output), /ENOENT/);
+  const categories = seo.getFruitLotRoutes();
+  for (const meta of categories) {
+    const file = path.join(output, meta.path, "index.html");
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, seo.replaceRootContent(seo.replaceHeadTags(base, meta), seo.renderFallback(meta)));
+  }
+  assert.equal(await seo.validateFruitRedirects(output), categories.length);
+  const file = path.join(output, "fruit-lots/guava/index.html");
+  const valid = fs.readFileSync(file, "utf8");
   for (const invalid of [
-    valid.replace(/index,follow/g,"noindex,follow"),
+    valid.replace(/index,follow/g, "noindex,follow"),
     valid.replace(/rel="canonical" href="[^"]+"/, 'rel="canonical" href="'+origin+'/fruits/guava"'),
   ]) {
-    assert.notEqual(invalid,valid,"The fixture must differ from the valid replacement HTML");
-    fs.writeFileSync(target,invalid);
-    const response = await getPublicPageResponse(route,options);
-    assert.equal(response.status,404);
-    assert.equal(response.headers.Location,undefined);
+    assert.notEqual(invalid, valid);
+    fs.writeFileSync(file, invalid);
+    await assert.rejects(seo.validateFruitRedirects(output), /Invalid fruit redirect destination guava/);
   }
-  fs.writeFileSync(target,valid);
-  const response = await getPublicPageResponse(route,options);
-  assert.equal(response.status,308);
-  assert.equal(response.headers.Location,"/fruit-lots/guava");
 });
+
 test("temporary public API failures are 503 while confirmed missing profiles and rates are 404", async () => {
   for (const route of ["/growers/grower-fixture-1", "/buyers/buyer-fixture-1", "/mandi-rates/apple"]) {
     for (const fetchImpl of [
