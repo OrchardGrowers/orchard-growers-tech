@@ -23,5 +23,5 @@ export const getCloudinaryUploadSignature = async (req, res) => {
   }
 
   const folder = `efruitmandi/kyc/${role}/${userId}`;
-  res.json(createSignedUploadParams({ folder }));
+  res.json(createSignedUploadParams({ folder, ...(["buyer", "grower"].includes(role) ? { type: "authenticated" } : {}) }));
 };

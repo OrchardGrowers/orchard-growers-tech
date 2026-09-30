@@ -9,6 +9,7 @@ import {
 } from "react-icons/fa";
 import API, { getApiErrorMessage, getApiFieldErrors } from "../services/api";
 import { trackKycSubmitted } from "../services/analytics";
+import KycCameraCapture from "../components/KycCameraCapture";
 import BackHomeButton from "../components/BackHomeButton";
 import VerificationFeedback from "../components/VerificationFeedback";
 import { getKycStatusLabel, getProfileTypes } from "../utils/auth";
@@ -321,6 +322,7 @@ const uploadToCloudinary = ({ file, signature, onProgress }) =>
     data.append("timestamp", signature.timestamp);
     data.append("signature", signature.signature);
     data.append("folder", signature.folder);
+    if (signature.type) data.append("type", signature.type);
 
     const xhr = new XMLHttpRequest();
     const resourceType = file.type === "application/pdf" ? "raw" : "image";
@@ -375,6 +377,7 @@ export default function Kyc() {
   const isInitialSubmission = kycStatus === "NOT_SUBMITTED";
   const isSectionEditable = (section) => isInitialSubmission || Boolean(sectionStates[section]?.editable);
   const canEdit = isInitialSubmission || Object.values(sectionStates).some((state) => state?.editable);
+  const IdTypeField = form.roleType === "driver" ? KycInput : SelectField;
   const requiredDocumentLabels =
     REQUIRED_DOCUMENT_LABELS_BY_ROLE[form.roleType] ||
     REQUIRED_DOCUMENT_LABELS_BY_ROLE.buyer;
@@ -676,6 +679,8 @@ export default function Kyc() {
 
       const document = {
         label,
+        captureMethod: file.captureMethod,
+        documentType: file.documentType,
         url: uploaded.secure_url,
         storageProvider: "cloudinary",
         storageKey: uploaded.public_id,
@@ -1006,7 +1011,8 @@ export default function Kyc() {
             </div>
             <KycSectionStatus state={sectionStates.identity} />
             <div className="grid min-w-0 gap-3 md:grid-cols-2">
-              <KycInput
+              <IdTypeField
+                options={["Aadhaar", "Voter ID", "Driving Licence", "Passport"].map((value) => [value, value])}
                 label="ID Proof Type"
                 required
                 value={form.idProofType}
@@ -1035,8 +1041,12 @@ export default function Kyc() {
                 label="Upload ID Proof"
                 disabled={!isSectionEditable("identity")}
                 error={fieldErrors.idProof || fieldErrors.documents}
+                documentLabel="idProof"
                 upload={uploads.idProof}
                 existingUrl={existingDocuments.idProof}
+                roleType={form.roleType}
+                cameraOnly={["buyer", "grower"].includes(form.roleType)}
+                documentTypes={[form.idProofType]}
                 onFileChange={(file) => uploadKycFile("idProofImage", file)}
                 onRetry={() =>
                   uploads.idProof?.file &&
@@ -1062,9 +1072,13 @@ export default function Kyc() {
                   label={["buyer", "grower"].includes(form.roleType) ? "Upload PAN Card" : "Upload PAN optional"}
                   disabled={!isSectionEditable("pan")}
                   error={fieldErrors.pan}
-                  upload={uploads.pan}
+                  documentLabel="pan"
+                upload={uploads.pan}
                   existingUrl={existingDocuments.pan}
-                  onFileChange={(file) => uploadKycFile("panImage", file)}
+                  roleType={form.roleType}
+                cameraOnly={["buyer", "grower"].includes(form.roleType)}
+                documentTypes={["PAN Card"]}
+                onFileChange={(file) => uploadKycFile("panImage", file)}
                   onRetry={() =>
                     uploads.pan?.file &&
                     uploadKycFile("panImage", uploads.pan.file)
@@ -1085,11 +1099,15 @@ export default function Kyc() {
                 />
                 <FileField
                   label="Upload GST Certificate optional"
-                  disabled={!isSectionEditable("identity")}
+                  disabled={!isSectionEditable("identity") || (["buyer", "grower"].includes(form.roleType) && !form.gstNumber.trim())}
                   error={fieldErrors.gstCertificate}
-                  upload={uploads.gstCertificate}
+                  documentLabel="gstCertificate"
+                upload={uploads.gstCertificate}
                   existingUrl={existingDocuments.gstCertificate}
-                  onFileChange={(file) => uploadKycFile("gstCertificate", file)}
+                  roleType={form.roleType}
+                cameraOnly={["buyer", "grower"].includes(form.roleType)}
+                documentTypes={["GST Certificate"]}
+                onFileChange={(file) => uploadKycFile("gstCertificate", file)}
                   onRetry={() =>
                     uploads.gstCertificate?.file &&
                     uploadKycFile("gstCertificate", uploads.gstCertificate.file)
@@ -1155,8 +1173,12 @@ export default function Kyc() {
                 label="Upload Bank Proof / Passbook"
                 disabled={!isSectionEditable("bank")}
                 error={fieldErrors.passbookFile || fieldErrors.documents}
+                documentLabel="passbookFile"
                 upload={uploads.passbookFile}
                 existingUrl={existingDocuments.passbookFile}
+                roleType={form.roleType}
+                cameraOnly={["buyer", "grower"].includes(form.roleType)}
+                documentTypes={["Bank Passbook", "Cancelled Cheque"]}
                 onFileChange={(file) => uploadKycFile("passbookFile", file)}
                 onRetry={() =>
                   uploads.passbookFile?.file &&
@@ -1534,6 +1556,10 @@ function MobileSubmitBar({
 }
 
 function FileField({
+  roleType,
+  documentLabel,
+  cameraOnly = false,
+  documentTypes = [],
   label,
   required = false,
   disabled,
@@ -1544,6 +1570,7 @@ function FileField({
   onRetry,
 }) {
   const [fileName, setFileName] = useState("");
+  const [previewError, setPreviewError] = useState("");
   const statusText =
     upload?.status === "optimizing"
       ? "Optimizing image..."
@@ -1555,8 +1582,9 @@ function FileField({
             ? "Failed"
             : "";
   const missing = required && !existingUrl && upload?.status !== "uploaded";
+  const Container = cameraOnly ? "div" : "label";
   return (
-    <label className="block w-full min-w-0 max-w-full">
+    <Container className="block w-full min-w-0 max-w-full">
       <RequiredFieldLabel label={label} required={required} missing={missing} />
       <span
         className={`mt-1 block min-h-11 w-full max-w-full rounded-md border border-dashed bg-white p-3 text-sm font-semibold text-gray-600 ${error || missing || upload?.status === "failed" ? "border-red-400" : "border-green-300"}`}
@@ -1574,11 +1602,11 @@ function FileField({
         </span>
         {!upload?.status && !existingUrl && (
           <span className="mt-1 block truncate text-[11px] font-bold text-gray-400">
-            JPG, JPEG, PNG, PDF | Max {MAX_DOCUMENT_SIZE_MB} MB
+            {cameraOnly ? "Live camera capture" : "JPG, JPEG, PNG, PDF"} | Max {MAX_DOCUMENT_SIZE_MB} MB
             {required ? " | Required" : " | Optional"}
           </span>
         )}
-        <input
+        {cameraOnly ? <KycCameraCapture disabled={disabled} documentTypes={documentTypes} onCapture={(file) => { setFileName(file.name); onFileChange(file); }} /> : <input
           type="file"
           disabled={disabled}
           accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
@@ -1588,7 +1616,7 @@ function FileField({
             setFileName(file?.name || "");
             onFileChange(file);
           }}
-        />
+        />}
       </span>
       {error && (
         <span className="mt-1 block text-xs font-bold text-red-700">
@@ -1600,6 +1628,7 @@ function FileField({
           {upload.error}
         </span>
       )}
+      {previewError && <span role="alert">{previewError}</span>}
       {statusText && (
         <div
           className={`mt-1 flex min-w-0 items-center gap-2 text-xs font-extrabold ${upload?.status === "failed" ? "text-red-700" : "text-green-800"}`}
@@ -1626,7 +1655,25 @@ function FileField({
               href={existingUrl}
               target="_blank"
               rel="noreferrer"
-              onClick={(event) => event.stopPropagation()}
+              onClick={async (event) => {
+                event.stopPropagation();
+                if (!cameraOnly || !existingUrl.includes("/authenticated/")) return;
+                event.preventDefault();
+                const popup = window.open("about:blank", "_blank");
+                if (popup) popup.opener = null;
+                try {
+                  const file = upload?.file;
+                  if (file instanceof Blob) {
+                    const url = URL.createObjectURL(file);
+                    if (popup) popup.location = url;
+                    setTimeout(() => URL.revokeObjectURL(url), 60000);
+                  } else {
+                    const previewLabel = documentLabel;
+                    const response = await API.get("/kyc/me", { params: { roleType, previewLabel } });
+                    if (popup) popup.location = response.data.url;
+                  }
+                } catch { popup?.close(); setPreviewError("Document preview unavailable. Retry."); }
+              }}
               className="inline-flex min-h-8 shrink-0 items-center rounded-full bg-green-50 px-2 py-1 text-[10px] font-extrabold text-green-700 ring-1 ring-green-100"
             >
               Preview
@@ -1644,7 +1691,7 @@ function FileField({
           />
         </div>
       )}
-    </label>
+    </Container>
   );
 }
 

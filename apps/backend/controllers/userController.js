@@ -1,3 +1,4 @@
+import { validateNewKycCaptures } from "../services/kycCaptureValidation.js";
 import mongoose from "mongoose";
 import User from "../models/User.js";
 import { sendMetaLeadEvent } from "../services/metaConversionsApiService.js";
@@ -6,6 +7,7 @@ import Order from "../models/Order.js";
 import Quotation from "../models/Quotation.js";
 import {
   getResourceType,
+  getCloudinaryPrivateDownloadUrls,
   uploadBufferToCloudinary,
 } from "../services/cloudinaryService.js";
 import {
@@ -1167,6 +1169,13 @@ export const getMyKyc = async (req, res) => {
     if (!user) return res.status(404).json({ msg: "User not found" });
     const roleType = resolveRequestedKycRole(user, req.query.roleType || req.query.role || "");
     const roleKyc = getRoleKyc(user, roleType);
+    if (req.query.previewLabel) {
+      const document = roleKyc.documents?.find((entry) => entry.label === req.query.previewLabel);
+      const url = document?.url && getCloudinaryPrivateDownloadUrls(document.url)[0];
+      if (!url) return res.status(404).json({ msg: "Document preview unavailable" });
+      res.set("Cache-Control", "no-store");
+      return res.json({ url });
+    }
     const kyc = {
       ...roleKyc,
       roleType,
@@ -1627,6 +1636,8 @@ export const updateKyc = async (req, res) => {
       adminRemarks: "",
       submittedAt: new Date(),
     };
+
+    await validateNewKycCaptures({ roleType, body: req.body, files: req.files, existingKyc, userId: req.user.id });
 
     const serverUploadedDocuments = [];
     const uploadAndAssignKycDocument = async (file, field, label) => {

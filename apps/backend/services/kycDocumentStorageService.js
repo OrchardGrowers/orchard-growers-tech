@@ -41,6 +41,8 @@ export const normalizeKycDocumentMetadata = (
     ).trim(),
     sizeBytes: Number(document.sizeBytes || document.bytes || 0) || 0,
     mimeType: String(document.mimeType || document.mimetype || "").trim(),
+    captureMethod: document.captureMethod,
+    documentType: document.documentType,
     roleType,
     uploadedBy: userId,
     uploadedAt: document.uploadedAt || new Date(),

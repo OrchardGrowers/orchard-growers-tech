@@ -179,13 +179,14 @@ export const deleteCloudinaryAssetsByUrls = async (values = []) => {
   };
 };
 
-export const createSignedUploadParams = ({ folder, publicIdPrefix = "" } = {}) => {
+export const createSignedUploadParams = ({ folder, publicIdPrefix = "", type } = {}) => {
   const client = configureCloudinary();
   const timestamp = Math.round(Date.now() / 1000);
   const params = {
     folder,
     timestamp,
   };
+  if (type) params.type = type;
   if (publicIdPrefix) params.public_id_prefix = publicIdPrefix;
 
   return {
@@ -193,6 +194,7 @@ export const createSignedUploadParams = ({ folder, publicIdPrefix = "" } = {}) =
     apiKey: client.config().api_key,
     timestamp,
     folder,
+    ...(type ? { type } : {}),
     signature: client.utils.api_sign_request(params, client.config().api_secret),
   };
 };
