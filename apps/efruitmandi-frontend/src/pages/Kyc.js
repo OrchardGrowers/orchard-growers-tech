@@ -789,7 +789,7 @@ export default function Kyc() {
 
     try {
       setLoading(true);
-      setMessage("Submitting KYC...");
+      setMessage(["buyer", "grower"].includes(form.roleType) ? "Checking document type..." : "Submitting KYC...");
       const data = {};
       const growerOnlyFields = new Set(["orchardName", "orchardLocation"]);
       const driverOnlyFields = new Set([
@@ -855,6 +855,18 @@ export default function Kyc() {
       );
     } catch (err) {
       const apiFieldErrors = getApiFieldErrors(err);
+      const captureError = getApiErrorMessage(err, "");
+      if (["buyer", "grower"].includes(form.roleType) && /Captured document does not match|Document text could not be read clearly/.test(captureError)) {
+        const rejectedLabels = Object.keys(uploads).filter((label) => uploads[label]?.document && (!resubmitSection || KYC_SECTION_UPLOAD_LABELS[resubmitSection]?.includes(label)));
+        setUploads((current) => {
+          const next = { ...current };
+          rejectedLabels.forEach((label) => { next[label] = { status: "failed", recaptureRequired: true, error: captureError + " Expected: " + current[label].document.documentType + "." }; });
+          return next;
+        });
+        setExistingDocuments((current) => {
+          const next = { ...current }; rejectedLabels.forEach((label) => { delete next[label]; }); return next;
+        });
+      }
       setFieldErrors(apiFieldErrors);
       setMessage(
         getFirstErrorMessage(apiFieldErrors) ||
@@ -1577,7 +1589,7 @@ function FileField({
       : upload?.status === "uploading"
         ? `Uploading... ${upload.progress || 0}%`
         : upload?.status === "uploaded" || existingUrl
-          ? "Uploaded"
+          ? cameraOnly && upload?.document ? "Captured; type check on submission" : "Uploaded"
           : upload?.status === "failed"
             ? "Failed"
             : "";
@@ -1634,7 +1646,7 @@ function FileField({
           className={`mt-1 flex min-w-0 items-center gap-2 text-xs font-extrabold ${upload?.status === "failed" ? "text-red-700" : "text-green-800"}`}
         >
           <span className="min-w-0 truncate">{statusText}</span>
-          {upload?.status === "failed" && (
+          {upload?.status === "failed" && !upload?.recaptureRequired && (
             <>
               <button
                 type="button"
