@@ -1,5 +1,5 @@
 // Quality heuristics only; these do not identify or authenticate a document.
-export function checkCaptureQuality({ data, width, height }, sourceWidth, sourceHeight) {
+export function checkCaptureQuality({ data, width, height }, sourceWidth, sourceHeight, requireText = true) {
   if (Math.min(sourceWidth, sourceHeight) < 720) return "Move closer or use a higher resolution camera";
   let sum = 0, dark = 0, light = 0, edges = 0, edgeSquares = 0, count = 0;
   const gray = new Float32Array(width * height);
@@ -17,7 +17,7 @@ export function checkCaptureQuality({ data, width, height }, sourceWidth, source
     edges += edge; edgeSquares += edge * edge; count++;
   }
   if (!count || edgeSquares / count - (edges / count) ** 2 < 90) return "Image is blurred. Hold camera steady";
-  if (regions.filter((amount) => amount > count * 0.005).length < 3) return "Move document inside frame";
+  if (requireText && regions.filter((amount) => amount > count * 0.005).length < 3) return "Move document inside frame";
   return "";
 }
 
@@ -45,28 +45,33 @@ export function inspectDocumentFrame(frame, sourceWidth, sourceHeight) {
     const seen=new Uint8Array(w*h),out=[];
     for(let i=0;i<seen.length;i++) {
       if(seen[i] || !predicate(gray[i])) continue;
-      const queue=[i]; seen[i]=1; let minX=w,maxX=0,minY=h,maxY=0;
+      const queue=[i]; seen[i]=1; let minX=w,maxX=0,minY=h,maxY=0; const corners=[null,null,null,null];
       for(let n=0;n<queue.length;n++) {
         const at=queue[n],x=at%w,y=Math.floor(at/w);
+        const point={x,y};
+        if(!corners[0]||x+y<corners[0].x+corners[0].y)corners[0]=point;
+        if(!corners[1]||x-y>corners[1].x-corners[1].y)corners[1]=point;
+        if(!corners[2]||x+y>corners[2].x+corners[2].y)corners[2]=point;
+        if(!corners[3]||x-y<corners[3].x-corners[3].y)corners[3]=point;
         minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);
         for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
           const a=x+dx,b=y+dy,k=b*w+a;
           if(a>=0 && a<w && b>=0 && b<h && !seen[k] && predicate(gray[k])){seen[k]=1;queue.push(k);}
         }
       }
-      out.push({x:minX,y:minY,width:maxX-minX+1,height:maxY-minY+1,count:queue.length});
+      out.push({x:minX,y:minY,width:maxX-minX+1,height:maxY-minY+1,count:queue.length,corners});
     }
     return out;
   }
   const chars=components(v=>v<threshold).filter(c=>c.count>=3 && c.width>=2 && c.width<w*.065 && c.height>=2 && c.height<h*.12 && c.count/(c.width*c.height)>.18);
   if(chars.length<12 || chars.length>650) return {error: gray.filter(v=>v>248).length/gray.length>.35 ? "Reduce glare" : "Show document"};
   let best={score:0,angle:0};
-  for(let degrees=-25;degrees<=25;degrees+=5){
+  for(let degrees=-90;degrees<=90;degrees+=5){
     const angle=degrees*Math.PI/180,rows=new Map();
     for(const c of chars){const y=(c.y+c.height/2)*Math.cos(angle)-(c.x+c.width/2)*Math.sin(angle);const bin=Math.round(y/7);rows.set(bin,(rows.get(bin)||0)+1);}
     const lines=[...rows.values()].filter(n=>n>=4);
     const score=lines.length>=3?lines.reduce((a,b)=>a+b,0):0;
-    if(score>best.score)best={score,angle:degrees};
+    if(score>best.score || (score===best.score && Math.abs(degrees)<Math.abs(best.angle)))best={score,angle:degrees};
   }
   if(best.score<12 || best.score<chars.length*.55) return {error:"Text is not readable"};
   const minX=Math.min(...chars.map(c=>c.x)),maxX=Math.max(...chars.map(c=>c.x+c.width));
@@ -76,7 +81,7 @@ export function inspectDocumentFrame(frame, sourceWidth, sourceHeight) {
   let bounds={x:0,y:0,width:1,height:1};
   if(page){const x=Math.max(0,page.x-w*.035),y=Math.max(0,page.y-h*.035);bounds={x:x/w,y:y/h,width:(Math.min(w,page.x+page.width+w*.035)-x)/w,height:(Math.min(h,page.y+page.height+h*.035)-y)/h};}
   if(Math.min(sourceWidth*bounds.width,sourceHeight*bounds.height)<720) bounds={x:0,y:0,width:1,height:1};
-  return {error:"",bounds,rotation:Math.abs(best.angle)<=20?best.angle:0, signature:Array.from({length:128},(_,i)=>gray[Math.floor(i*gray.length/128)])};
+  return {error:"",bounds,corners:page?.corners.map(p=>({x:p.x/w,y:p.y/h})),verticalText:Math.abs(best.angle)>60,rotation:Math.abs(best.angle)<=60?best.angle:0, signature:Array.from({length:128},(_,i)=>gray[Math.floor(i*gray.length/128)])};
 }
 
 export function canUseCapture({ checked, busy, disabled, expected, capturedType }) {

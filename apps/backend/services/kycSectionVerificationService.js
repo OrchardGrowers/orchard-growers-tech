@@ -15,7 +15,7 @@ export const KYC_SECTION_DEFINITIONS = Object.freeze({
   personal: {
     label: "Personal Details",
     fields: ["fullName", "phone", "email", "address", "district", "state", "pinCode"],
-    documentLabels: [],
+    documentLabels: ["liveFace"],
     fileFields: [],
   },
   identity: {

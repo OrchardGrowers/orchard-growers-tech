@@ -1,6 +1,7 @@
 import { verifyKycDocumentContent } from "./kycDocumentOcr.js";
 import { configureCloudinary } from "./cloudinaryService.js";
 const TYPES = {
+  liveFace: ["Live Face Capture"],
   idProof: ["Aadhaar", "Voter ID", "Driving Licence", "Passport"],
   tradeLicence: ["Trade Licence"],
   pan: ["PAN Card"], gstCertificate: ["GST Certificate"],

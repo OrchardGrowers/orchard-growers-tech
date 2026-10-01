@@ -1,3 +1,4 @@
+import KycFaceCapture from "../components/KycFaceCapture";
 import { captureReview, confirmCaptureReview } from "../utils/kycCaptureReview.mjs";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -69,7 +70,7 @@ const KYC_SECTION_FIELDS = {
   driver: ["vehicleNumber", "drivingLicenseNumber"],
 };
 const KYC_SECTION_UPLOAD_LABELS = {
-  personal: [],
+  personal: ["liveFace"],
   identity: ["idProof", "gstCertificate", "tradeLicence"],
   pan: ["pan"],
   bank: ["passbookFile"],
@@ -458,6 +459,7 @@ export default function Kyc() {
           idProof: kyc.idProofImage || kyc.aadhaarCardFileUrl || "",
           pan: kyc.panImage || "",
           gstCertificate: kyc.gstCertificate || "",
+          liveFace: kyc.documents?.find((doc) => doc.label === "liveFace")?.url || "",
           tradeLicence: kyc.documents?.find((doc) => doc.label === "tradeLicence")?.url || "",
           passbookFile: kyc.passbookFileUrl || "",
           udyanCard: kyc.udyanCardFileUrl || "",
@@ -703,7 +705,10 @@ export default function Kyc() {
         const response = await API.post("/kyc/submit?captureReview=1", body, { timeout: 180000 });
         const result = response.data?.captures?.find((item) => item.label === label);
         if (!result) throw new Error("Document could not be checked. Please recapture.");
-        setUploads((current) => ({ ...current, [label]: { file, fileName:file.name, status:"review", document, detected:result.fields || {} } }));
+        if(label === "liveFace") {
+          setUploads((current)=>({...current,[label]:{fileName:file.name,status:"uploaded",document}}));
+          setExistingDocuments((current)=>({...current,[label]:document.url}));
+        } else setUploads((current) => ({ ...current, [label]: { file, fileName:file.name, status:"review", document, detected:result.fields || {} } }));
         return true;
       }
       setUploads((current) => ({
@@ -1037,6 +1042,10 @@ export default function Kyc() {
                 onChange={(value) => updateForm("pinCode", value)}
               />
             </div>
+            {["buyer","grower"].includes(form.roleType) && <OptionalKycSection title="Live Face Capture - Optional">
+              <KycFaceCapture disabled={!isSectionEditable("personal")} onCapture={(file)=>uploadKycFile("liveFace",file)} />
+              <p role="status" className="mt-2 text-sm">{uploads.liveFace?.error || (uploads.liveFace?.status==="uploaded" || existingDocuments.liveFace ? "Face captured" : uploads.liveFace?.status==="checking" || uploads.liveFace?.status==="uploading" ? "Saving face image..." : "Only the final image is saved; this is not identity verification.")}</p>
+            </OptionalKycSection>}
             <KycSectionResubmit section="personal" state={sectionStates.personal} loading={loading} onResubmit={submitKyc} />
           </section>
 

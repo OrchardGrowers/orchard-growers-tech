@@ -6,6 +6,17 @@ vi.mock("tesseract.js", () => ({ createWorker: mocks.create }));
 import sharp from "sharp";
 import { verifyKycDocumentContent } from "./kycDocumentOcr.js";
 afterEach(() => vi.useRealTimers());
+it("validates only the final face JPEG without invoking document OCR", async () => {
+  const before = mocks.recognize.mock.calls.length;
+  const image = await sharp({ create: { width: 800, height: 800, channels: 3, background: "white" } }).jpeg().toBuffer();
+  mocks.get.mockResolvedValue({ data: image });
+  await expect(verifyKycDocumentContent({ secure_url: "private" }, "Live Face Capture")).resolves.toEqual({});
+  for (const data of [Buffer.from("invalid"), await sharp(image).png().toBuffer(), await sharp(image).resize(200).jpeg().toBuffer()]) {
+    mocks.get.mockResolvedValue({ data });
+    await expect(verifyKycDocumentContent({ secure_url: "private" }, "Live Face Capture")).rejects.toThrow();
+  }
+  expect(mocks.recognize).toHaveBeenCalledTimes(before);
+});
 it("reuses the worker, hides OCR failures and cleans up after idle", async () => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   const image = await sharp({ create: { width: 800, height: 800, channels: 3, background: "white" } }).jpeg().toBuffer();

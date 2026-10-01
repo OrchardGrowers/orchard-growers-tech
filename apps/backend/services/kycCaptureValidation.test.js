@@ -5,6 +5,15 @@ const doc = { label: "pan", captureMethod: "live-camera", documentType: "PAN Car
 const asset = { type: "authenticated", resource_type: "image", format: "jpg", bytes: 1000, width: 1280, height: 960, secure_url: doc.url };
 const check = (document = doc, lookup = async () => asset, extra = {}) => validateNewKycCaptures({ roleType: "buyer", userId: "u", body: { documents: [document] }, ...extra }, lookup, async () => {});
 describe("KYC camera validation", () => {
+  it("accepts optional final face captures while rejecting manual, public and foreign assets", async () => {
+    const face = { ...doc, label: "liveFace", documentType: "Live Face Capture" };
+    await check(face);
+    await check({ ...face, publicId: "efruitmandi/kyc/grower/u/face" }, undefined, { roleType: "grower" });
+    for (const change of [{ captureMethod: "manual-upload" }, { mimeType: "application/pdf" }, { publicId: "foreign/face" }]) {
+      await expect(check({ ...face, ...change })).rejects.toThrow();
+    }
+    await expect(check(face, async () => ({ ...asset, type: "upload" }))).rejects.toThrow();
+  });
   it("accepts provider-verified captures for both roles", async () => {
     await check();
     await check({ ...doc, publicId: "efruitmandi/kyc/grower/u/pan" }, undefined, { roleType: "grower" });

@@ -40,6 +40,12 @@ export function verifyKycDocumentContent(asset, expected) {
         }
         const metadata = await sharp(bytes, {limitInputPixels:25000000}).metadata();
         if (!["jpeg", "png"].includes(metadata.format)) throw fail();
+        if (expected === "Live Face Capture") {
+          // This validates the final stored image, not identity or browser movement.
+          if(metadata.format!=="jpeg" || Math.min(metadata.width||0,metadata.height||0)<720)throw fail();
+          await sharp(bytes,{limitInputPixels:25000000}).stats();
+          return {match:"match",fields:{}};
+        }
         const image = await sharp(response.data, { limitInputPixels: 25000000 }).rotate().resize({ width: 2200, height: 2200, fit: "inside", withoutEnlargement: true }).grayscale().normalize().png().toBuffer();
         if (cancelled) throw fail();
         if (!worker) {
