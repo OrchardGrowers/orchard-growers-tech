@@ -8,7 +8,7 @@ export function checkCaptureQuality({ data, width, height }, sourceWidth, source
     gray[i] = v; sum += v; dark += v < 35; light += v > 248;
   }
   if (sum / gray.length < 65 || dark / gray.length > 0.65) return "Improve lighting";
-  if (sum / gray.length > 235 || light / gray.length > 0.65) return "Reduce glare";
+  if (light / gray.length > 0.9) return "Reduce glare";
   const regions = [0, 0, 0, 0];
   for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) {
     const i = y * width + x;
@@ -22,6 +22,7 @@ export function checkCaptureQuality({ data, width, height }, sourceWidth, source
 }
 
 export const CAPTURE_GUIDANCE = {
+  "Trade Licence": "Show the complete Trade Licence with its licence number and issuing authority.",
   "PAN Card": "Place your PAN Card inside the frame.",
   Aadhaar: "Place your Aadhaar Card inside the frame.",
   "Voter ID": "Place your Voter ID Card inside the frame.",
@@ -32,51 +33,67 @@ export const CAPTURE_GUIDANCE = {
   "Cancelled Cheque": "Place the complete cancelled cheque inside the frame.",
 };
 
-// Conservative axis-aligned page detection. Tilted/low-contrast pages require
-// repositioning; this geometric gate never establishes document identity.
+// Text-like connected components are the processing gate; geometry only helps crop.
 export function inspectDocumentFrame(frame, sourceWidth, sourceHeight) {
-  const { width: w, height: h, data } = frame;
-  const gray = new Float32Array(w * h);
-  for (let i = 0; i < gray.length; i++) gray[i] = .299 * data[4*i] + .587 * data[4*i+1] + .114 * data[4*i+2];
-  const g = (x,y) => gray[y*w+x];
-  const boundary = (vertical, from, to) => {
-    let best = { pos: 0, score: 0 };
-    const length = vertical ? h : w;
-    for (let p = from; p <= to; p++) {
-      let hits = 0, total = 0;
-      for (let k = Math.floor(length*.25); k < length*.75; k++) {
-        const delta = vertical ? Math.abs(g(p+2,k)-g(p-2,k)) : Math.abs(g(k,p+2)-g(k,p-2));
-        hits += delta > 28; total++;
+  const {width:w,height:h,data}=frame;
+  const quality=checkCaptureQuality(frame,sourceWidth,sourceHeight);
+  if(quality) return {error:quality.includes("blurred") ? "Hold steady or move the document slightly for focus." : quality};
+  const gray=new Float32Array(w*h); let mean=0;
+  for(let i=0;i<gray.length;i++){gray[i]=.299*data[i*4]+.587*data[i*4+1]+.114*data[i*4+2];mean+=gray[i];}
+  const threshold=Math.min(175,Math.max(55,mean/gray.length-30));
+  function components(predicate) {
+    const seen=new Uint8Array(w*h),out=[];
+    for(let i=0;i<seen.length;i++) {
+      if(seen[i] || !predicate(gray[i])) continue;
+      const queue=[i]; seen[i]=1; let minX=w,maxX=0,minY=h,maxY=0;
+      for(let n=0;n<queue.length;n++) {
+        const at=queue[n],x=at%w,y=Math.floor(at/w);
+        minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);
+        for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+          const a=x+dx,b=y+dy,k=b*w+a;
+          if(a>=0 && a<w && b>=0 && b<h && !seen[k] && predicate(gray[k])){seen[k]=1;queue.push(k);}
+        }
       }
-      if (hits / total > best.score) best = { pos: p, score: hits / total };
+      out.push({x:minX,y:minY,width:maxX-minX+1,height:maxY-minY+1,count:queue.length});
     }
-    return best;
-  };
-  const left = boundary(true, Math.ceil(w*.07), Math.floor(w*.3));
-  const right = boundary(true, Math.ceil(w*.7), Math.floor(w*.93));
-  const top = boundary(false, Math.ceil(h*.07), Math.floor(h*.3));
-  const bottom = boundary(false, Math.ceil(h*.7), Math.floor(h*.93));
-  if ([left,right,top,bottom].some((b) => b.score < .72)) return { error: "Place the document inside the frame" };
-  const x = left.pos+3, y = top.pos+3, width = right.pos-x-3, height = bottom.pos-y-3;
-  if (width*height < w*h*.4) return { error: "Move document closer" };
-  // Require continuous outer edges, including the corner regions.
-  let covered = 0, total = 0;
-  for(let a=x; a<x+width; a++) for(const b of [top.pos,bottom.pos]) {covered += Math.abs(g(a,b+2)-g(a,b-2))>28;total++;}
-  for(let b=y; b<y+height; b++) for(const a of [left.pos,right.pos]) {covered += Math.abs(g(a+2,b)-g(a-2,b))>28;total++;}
-  if(covered/total < .75) return { error: "Show all 4 corners" };
-  const pixels = new Uint8ClampedArray(width*height*4);
-  let textEdges = 0;
-  for(let b=0;b<height;b++) for(let a=0;a<width;a++) {
-    const src=((y+b)*w+x+a)*4; pixels.set(data.subarray(src,src+4),(b*width+a)*4);
-    if(a>1 && b>1 && Math.abs(g(x+a,y+b)-g(x+a-1,y+b))>30) textEdges++;
+    return out;
   }
-  const error = checkCaptureQuality({data:pixels,width,height},sourceWidth*width/w,sourceHeight*height/h);
-  if(error) return {error};
-  const density = textEdges/(width*height);
-  if(density < .015 || density > .3) return {error:"Text is not readable"};
-  return {error:"", bounds:{x:x/w,y:y/h,width:width/w,height:height/h}};
+  const chars=components(v=>v<threshold).filter(c=>c.count>=3 && c.width>=2 && c.width<w*.065 && c.height>=2 && c.height<h*.12 && c.count/(c.width*c.height)>.18);
+  if(chars.length<12 || chars.length>650) return {error: gray.filter(v=>v>248).length/gray.length>.35 ? "Reduce glare" : "Show document"};
+  let best={score:0,angle:0};
+  for(let degrees=-25;degrees<=25;degrees+=5){
+    const angle=degrees*Math.PI/180,rows=new Map();
+    for(const c of chars){const y=(c.y+c.height/2)*Math.cos(angle)-(c.x+c.width/2)*Math.sin(angle);const bin=Math.round(y/7);rows.set(bin,(rows.get(bin)||0)+1);}
+    const lines=[...rows.values()].filter(n=>n>=4);
+    const score=lines.length>=3?lines.reduce((a,b)=>a+b,0):0;
+    if(score>best.score)best={score,angle:degrees};
+  }
+  if(best.score<12 || best.score<chars.length*.55) return {error:"Text is not readable"};
+  const minX=Math.min(...chars.map(c=>c.x)),maxX=Math.max(...chars.map(c=>c.x+c.width));
+  const minY=Math.min(...chars.map(c=>c.y)),maxY=Math.max(...chars.map(c=>c.y+c.height));
+  if((maxX-minX)*(maxY-minY)<w*h*.06) return {error:"Move closer"};
+  const page=components(v=>v>175).filter(c=>c.x<=minX && c.y<=minY && c.x+c.width>=maxX && c.y+c.height>=maxY && c.count/(c.width*c.height)>.6 && c.width*c.height>w*h*.2).sort((a,b)=>a.count-b.count)[0];
+  let bounds={x:0,y:0,width:1,height:1};
+  if(page){const x=Math.max(0,page.x-w*.035),y=Math.max(0,page.y-h*.035);bounds={x:x/w,y:y/h,width:(Math.min(w,page.x+page.width+w*.035)-x)/w,height:(Math.min(h,page.y+page.height+h*.035)-y)/h};}
+  if(Math.min(sourceWidth*bounds.width,sourceHeight*bounds.height)<720) bounds={x:0,y:0,width:1,height:1};
+  return {error:"",bounds,rotation:Math.abs(best.angle)<=20?best.angle:0, signature:Array.from({length:128},(_,i)=>gray[Math.floor(i*gray.length/128)])};
 }
 
 export function canUseCapture({ checked, busy, disabled, expected, capturedType }) {
   return Boolean(checked && !busy && !disabled && expected === capturedType);
+}
+
+export async function requestContinuousFocus(track) {
+  try {
+    if (track?.getCapabilities?.().focusMode?.includes("continuous")) {
+      await track.applyConstraints({ advanced: [{ focusMode:"continuous" }] });
+    }
+  } catch { /* Optional camera control; preserve camera on unsupported devices. */ }
+}
+
+export function advanceScanner(previous = {}, result = {}) {
+  const a=previous.signature || [],b=result.signature || [];
+  const motion=a.length===b.length && a.length ? a.reduce((sum,v,i)=>sum+Math.abs(v-b[i]),0)/a.length : Infinity;
+  const count=result.error ? 0 : motion<12 ? (previous.count||0)+1 : 1;
+  return {count,signature:b,ready:count>=3 && !result.error};
 }

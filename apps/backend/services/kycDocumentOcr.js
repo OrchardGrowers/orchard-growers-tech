@@ -1,8 +1,9 @@
+import { reviewReadablePdf } from "./kycPdfReview.js";
 import { tmpdir } from "node:os";
 import axios from "axios";
 import sharp from "sharp";
 import { getCloudinaryPrivateDownloadUrls } from "./cloudinaryService.js";
-import { matchKycDocument, MISMATCH, UNREADABLE } from "./kycDocumentMatching.js";
+import { matchKycDocument, extractKycFields, MISMATCH, UNREADABLE } from "./kycDocumentMatching.js";
 
 let worker;
 let queue = Promise.resolve();
@@ -26,9 +27,19 @@ export function verifyKycDocumentContent(asset, expected) {
     let cancelled = false;
     try {
       const work = async () => {
-        const url = getCloudinaryPrivateDownloadUrls(asset.secure_url)[0];
-        if (!url) throw fail();
-        const response = await axios.get(url, { responseType: "arraybuffer", timeout: 12000, maxContentLength: 10 * 1024 * 1024, maxRedirects: 0 });
+        const urls = getCloudinaryPrivateDownloadUrls(asset.secure_url);
+        let response;
+        for (const url of urls) {
+          try { response = await axios.get(url, { responseType: "arraybuffer", timeout: 12000, maxContentLength: 10 * 1024 * 1024, maxRedirects: 0 }); break; } catch { if (cancelled) throw fail(); }
+        }
+        if (!response) throw fail();
+        const bytes = Buffer.from(response.data);
+        if (asset.resource_type === "raw") {
+          if (!["GST Certificate", "Trade Licence"].includes(expected) || bytes.subarray(0,5).toString() !== "%PDF-") throw fail();
+          return reviewReadablePdf(bytes, expected);
+        }
+        const metadata = await sharp(bytes, {limitInputPixels:25000000}).metadata();
+        if (!["jpeg", "png"].includes(metadata.format)) throw fail();
         const image = await sharp(response.data, { limitInputPixels: 25000000 }).rotate().resize({ width: 2200, height: 2200, fit: "inside", withoutEnlargement: true }).grayscale().normalize().png().toBuffer();
         if (cancelled) throw fail();
         if (!worker) {
@@ -38,13 +49,15 @@ export function verifyKycDocumentContent(asset, expected) {
           worker = created;
         }
         const { data } = await worker.recognize(image);
-        return matchKycDocument(expected, data);
+        return { match: matchKycDocument(expected, data), fields: extractKycFields(expected, data) };
       };
       const result = await Promise.race([work(), new Promise((_, reject) => { timer = setTimeout(() => { cancelled = true; reject(fail()); }, 45000); })]);
-      if (result !== "match") throw fail(result === "mismatch" ? MISMATCH : UNREADABLE);
+      if (result.match !== "match") throw fail(result.match === "mismatch" ? MISMATCH : UNREADABLE);
+      return result.fields;
     } catch (error) {
       await dispose();
-      throw fail(error.message === MISMATCH ? MISMATCH : UNREADABLE);
+      const optional = ["GST Certificate", "Trade Licence"].includes(expected);
+      throw fail(error.message === MISMATCH ? `Wrong document detected. Please ${optional ? "scan or upload" : "capture"} your ${expected}.` : optional ? "Document could not be read. Please scan or upload a clearer image or a readable text PDF (maximum 5 pages)." : UNREADABLE);
     } finally {
       clearTimeout(timer);
     }

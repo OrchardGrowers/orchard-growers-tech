@@ -1,3 +1,4 @@
+import { captureReview, confirmCaptureReview } from "../utils/kycCaptureReview.mjs";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -69,7 +70,7 @@ const KYC_SECTION_FIELDS = {
 };
 const KYC_SECTION_UPLOAD_LABELS = {
   personal: [],
-  identity: ["idProof", "gstCertificate"],
+  identity: ["idProof", "gstCertificate", "tradeLicence"],
   pan: ["pan"],
   bank: ["passbookFile"],
   business: ["udyanCard"],
@@ -86,6 +87,7 @@ const KYC_DIRECT_UPLOAD_LABELS = {
   idProofImage: "idProof",
   panImage: "pan",
   gstCertificate: "gstCertificate",
+  tradeLicence: "tradeLicence",
   passbookFile: "passbookFile",
   udyanCardFile: "udyanCard",
   drivingLicenseImage: "drivingLicense",
@@ -397,7 +399,8 @@ export default function Kyc() {
   const canSubmitWithUploads =
     requiredDocumentsUploaded &&
     !hasRequiredUploadingDocuments &&
-    !hasRequiredUploadFailure;
+    !hasRequiredUploadFailure &&
+    !Object.values(uploads).some((item) => ["checking", "review"].includes(item?.status));
   const visibleProgressItems = DOCUMENT_PROGRESS_ITEMS.filter((item) =>
     item.requiredFor ? item.requiredFor.includes(form.roleType) : true,
   );
@@ -455,6 +458,7 @@ export default function Kyc() {
           idProof: kyc.idProofImage || kyc.aadhaarCardFileUrl || "",
           pan: kyc.panImage || "",
           gstCertificate: kyc.gstCertificate || "",
+          tradeLicence: kyc.documents?.find((doc) => doc.label === "tradeLicence")?.url || "",
           passbookFile: kyc.passbookFileUrl || "",
           udyanCard: kyc.udyanCardFileUrl || "",
           drivingLicense: kyc.drivingLicenseImage || "",
@@ -645,7 +649,7 @@ export default function Kyc() {
     setUploadingLabel(label);
 
     try {
-      const uploadFile = await compressImageFile(file);
+      const uploadFile = file.type === "application/pdf" ? file : await compressImageFile(file);
       if (uploadFile.size > MAX_DOCUMENT_SIZE_BYTES) {
         throw new Error(
           `Image must be under ${MAX_DOCUMENT_SIZE_MB} MB after compression.`,
@@ -690,6 +694,18 @@ export default function Kyc() {
         sizeBytes: uploaded.bytes || uploadFile.size || file.size,
         mimeType: uploadFile.type || file.type,
       };
+      if (["buyer", "grower"].includes(form.roleType)) {
+        setUploads((current) => ({ ...current, [label]: { fileName:file.name, status:"checking" } }));
+        const section = Object.keys(KYC_SECTION_UPLOAD_LABELS).find((key) => KYC_SECTION_UPLOAD_LABELS[key].includes(label));
+        const body = { roleType:form.roleType, documents:[document] };
+        if (!isInitialSubmission) body.section = section;
+        if (section === "identity") { body.idProofType = form.idProofType; body.gstNumber = form.gstNumber; }
+        const response = await API.post("/kyc/submit?captureReview=1", body, { timeout: 180000 });
+        const result = response.data?.captures?.find((item) => item.label === label);
+        if (!result) throw new Error("Document could not be checked. Please recapture.");
+        setUploads((current) => ({ ...current, [label]: { file, fileName:file.name, status:"review", document, detected:result.fields || {} } }));
+        return true;
+      }
       setUploads((current) => ({
         ...current,
         [label]: {
@@ -715,15 +731,25 @@ export default function Kyc() {
           file,
           fileName: file.name,
           status: "failed",
+          recaptureRequired: /Wrong document detected|Document text could not be read clearly|Document could not be read/.test(errorMessage),
           progress: 0,
           error: errorMessage,
         },
       }));
       setMessage(errorMessage);
       setMessageIsError(true);
+      return { error: errorMessage };
     } finally {
       setUploadingLabel("");
     }
+  };
+
+  const confirmCapture = (label) => {
+    const upload = uploads[label];
+    if (upload?.status !== "review") return;
+    setForm((current) => confirmCaptureReview(current, captureReview(upload.detected, current, label)));
+    setUploads((current) => ({ ...current, [label]: { ...current[label], status:"uploaded", reviewed:true } }));
+    setExistingDocuments((current) => ({ ...current, [label]: upload.document.url }));
   };
 
   const submitKyc = async (event, resubmitSection = "") => {
@@ -824,8 +850,8 @@ export default function Kyc() {
       const endpoint =
         kycStatus === "NOT_SUBMITTED" ? "/kyc/submit" : "/kyc/update";
       const res = endpoint.endsWith("submit")
-        ? await API.post(endpoint, data)
-        : await API.put(endpoint, data);
+        ? await API.post(endpoint, data, ["buyer", "grower"].includes(form.roleType) ? {timeout:240000} : {})
+        : await API.put(endpoint, data, ["buyer", "grower"].includes(form.roleType) ? {timeout:240000} : {});
       saveUserToStorage(res.data);
       setKycStatus(res.data?.kyc?.status || "PENDING");
       setVerificationFeedback(null);
@@ -856,7 +882,7 @@ export default function Kyc() {
     } catch (err) {
       const apiFieldErrors = getApiFieldErrors(err);
       const captureError = getApiErrorMessage(err, "");
-      if (["buyer", "grower"].includes(form.roleType) && /Captured document does not match|Document text could not be read clearly/.test(captureError)) {
+      if (["buyer", "grower"].includes(form.roleType) && /Captured document does not match|Wrong document detected|Document text could not be read clearly/.test(captureError)) {
         const rejectedLabels = Object.keys(uploads).filter((label) => uploads[label]?.document && (!resubmitSection || KYC_SECTION_UPLOAD_LABELS[resubmitSection]?.includes(label)));
         setUploads((current) => {
           const next = { ...current };
@@ -1054,6 +1080,8 @@ export default function Kyc() {
                 disabled={!isSectionEditable("identity")}
                 error={fieldErrors.idProof || fieldErrors.documents}
                 documentLabel="idProof"
+                formValues={form}
+                onConfirm={() => confirmCapture("idProof")}
                 upload={uploads.idProof}
                 existingUrl={existingDocuments.idProof}
                 roleType={form.roleType}
@@ -1085,6 +1113,8 @@ export default function Kyc() {
                   disabled={!isSectionEditable("pan")}
                   error={fieldErrors.pan}
                   documentLabel="pan"
+                formValues={form}
+                onConfirm={() => confirmCapture("pan")}
                 upload={uploads.pan}
                   existingUrl={existingDocuments.pan}
                   roleType={form.roleType}
@@ -1111,13 +1141,15 @@ export default function Kyc() {
                 />
                 <FileField
                   label="Upload GST Certificate optional"
-                  disabled={!isSectionEditable("identity") || (["buyer", "grower"].includes(form.roleType) && !form.gstNumber.trim())}
+                  disabled={!isSectionEditable("identity")}
                   error={fieldErrors.gstCertificate}
                   documentLabel="gstCertificate"
+                formValues={form}
+                onConfirm={() => confirmCapture("gstCertificate")}
                 upload={uploads.gstCertificate}
                   existingUrl={existingDocuments.gstCertificate}
                   roleType={form.roleType}
-                cameraOnly={["buyer", "grower"].includes(form.roleType)}
+                optionalUpload={["buyer", "grower"].includes(form.roleType)}
                 documentTypes={["GST Certificate"]}
                 onFileChange={(file) => uploadKycFile("gstCertificate", file)}
                   onRetry={() =>
@@ -1127,6 +1159,14 @@ export default function Kyc() {
                 />
               </div>
             </OptionalKycSection>
+            {["buyer", "grower"].includes(form.roleType) && <OptionalKycSection title="Trade Licence - Optional">
+              <FileField label="Trade Licence - Optional" disabled={!isSectionEditable("identity")}
+                documentLabel="tradeLicence" roleType={form.roleType} optionalUpload documentTypes={["Trade Licence"]}
+                formValues={form} onConfirm={() => confirmCapture("tradeLicence")}
+                upload={uploads.tradeLicence} existingUrl={existingDocuments.tradeLicence}
+                onFileChange={(file) => uploadKycFile("tradeLicence", file)}
+                onRetry={() => uploads.tradeLicence?.file && uploadKycFile("tradeLicence", uploads.tradeLicence.file)} />
+            </OptionalKycSection>}
           </section>
 
           <section id="bank" className="w-full min-w-0 max-w-full scroll-mt-24 rounded-lg border border-green-100 bg-green-50 p-3 md:p-4">
@@ -1186,6 +1226,8 @@ export default function Kyc() {
                 disabled={!isSectionEditable("bank")}
                 error={fieldErrors.passbookFile || fieldErrors.documents}
                 documentLabel="passbookFile"
+                formValues={form}
+                onConfirm={() => confirmCapture("passbookFile")}
                 upload={uploads.passbookFile}
                 existingUrl={existingDocuments.passbookFile}
                 roleType={form.roleType}
@@ -1570,7 +1612,10 @@ function MobileSubmitBar({
 function FileField({
   roleType,
   documentLabel,
+  formValues = {},
+  onConfirm,
   cameraOnly = false,
+  optionalUpload = false,
   documentTypes = [],
   label,
   required = false,
@@ -1584,17 +1629,19 @@ function FileField({
   const [fileName, setFileName] = useState("");
   const [previewError, setPreviewError] = useState("");
   const statusText =
+    upload?.status === "checking" ? "Reading document... Checking document type..." :
+    upload?.status === "review" ? "Document checked. Review detected details." :
     upload?.status === "optimizing"
       ? "Optimizing image..."
       : upload?.status === "uploading"
         ? `Uploading... ${upload.progress || 0}%`
         : upload?.status === "uploaded" || existingUrl
-          ? cameraOnly && upload?.document ? "Captured; type check on submission" : "Uploaded"
+          ? (cameraOnly || optionalUpload) && upload?.reviewed ? "Done - document ready for submission" : "Uploaded"
           : upload?.status === "failed"
             ? "Failed"
             : "";
   const missing = required && !existingUrl && upload?.status !== "uploaded";
-  const Container = cameraOnly ? "div" : "label";
+  const Container = cameraOnly || optionalUpload ? "div" : "label";
   return (
     <Container className="block w-full min-w-0 max-w-full">
       <RequiredFieldLabel label={label} required={required} missing={missing} />
@@ -1618,7 +1665,7 @@ function FileField({
             {required ? " | Required" : " | Optional"}
           </span>
         )}
-        {cameraOnly ? <KycCameraCapture disabled={disabled} documentTypes={documentTypes} onCapture={(file) => { setFileName(file.name); onFileChange(file); }} /> : <input
+        {(cameraOnly || optionalUpload) ? <KycCameraCapture openLabel={optionalUpload ? "Scan with Camera" : "Open camera"} disabled={disabled || (optionalUpload && ["uploading", "checking", "optimizing"].includes(upload?.status))} documentTypes={documentTypes} onCapture={(file) => { setFileName(file.name); return onFileChange(file); }} /> : <input
           type="file"
           disabled={disabled}
           accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
@@ -1629,6 +1676,15 @@ function FileField({
             onFileChange(file);
           }}
         />}
+        {optionalUpload && <label className="mt-2 inline-block cursor-pointer rounded-md border border-green-300 px-3 py-2 text-sm font-bold">
+          Upload PDF/Image
+          <input type="file" className="hidden" disabled={disabled || ["uploading","checking","optimizing"].includes(upload?.status)} accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event)=>{
+            const file=event.target.files?.[0]; event.target.value="";
+            if(!file)return;
+            if(!["application/pdf","image/jpeg","image/jpg","image/png"].includes(file.type) || file.size > MAX_DOCUMENT_SIZE_BYTES) {setPreviewError("Upload a PDF, JPEG or PNG under 10 MB.");return;}
+            setPreviewError("");file.captureMethod="manual-upload";file.documentType=documentTypes[0];setFileName(file.name);onFileChange(file);
+          }} />
+        </label>}
       </span>
       {error && (
         <span className="mt-1 block text-xs font-bold text-red-700">
@@ -1640,6 +1696,14 @@ function FileField({
           {upload.error}
         </span>
       )}
+      {(cameraOnly || optionalUpload) && upload?.status === "review" && <div className="mt-2 rounded border border-green-200 p-2 text-xs">
+        <p>{Object.keys(upload.detected || {}).length ? "Information detected. Please review your details." : "Document type checked. No high-confidence fields detected; review your entered details."}</p>
+        {captureReview(upload.detected, formValues, documentLabel).map(({field,value,entered,changed}) => <p key={field}>
+          {({panNumber:"PAN Number",idProofNumber:"ID Number",gstNumber:"GST Number",accountNumber:"Account Number",ifscCode:"IFSC",bankAccountHolderName:"Account holder",tradeLicenceNumber:"Trade licence number",tradeBusinessName:"Business/trade name"})[field] || field}: Detected {value}
+          {changed ? "; entered: " + entered + ". Confirm to update." : ""}
+        </p>)}
+        <button type="button" disabled={disabled} onClick={onConfirm} className="mt-2 rounded bg-green-700 px-3 py-2 text-white">Confirm details - Done</button>
+      </div>}
       {previewError && <span role="alert">{previewError}</span>}
       {statusText && (
         <div
@@ -1669,7 +1733,7 @@ function FileField({
               rel="noreferrer"
               onClick={async (event) => {
                 event.stopPropagation();
-                if (!cameraOnly || !existingUrl.includes("/authenticated/")) return;
+                if (!(cameraOnly || optionalUpload) || !existingUrl.includes("/authenticated/")) return;
                 event.preventDefault();
                 const popup = window.open("about:blank", "_blank");
                 if (popup) popup.opener = null;

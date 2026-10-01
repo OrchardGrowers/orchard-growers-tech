@@ -21,7 +21,7 @@ export const KYC_SECTION_DEFINITIONS = Object.freeze({
   identity: {
     label: "Identity / Aadhaar",
     fields: ["idProofType", "idProofNumber", "idProofImage", "aadhaarCardNo", "aadhaarCardFileUrl", "gstNumber", "gstCertificate"],
-    documentLabels: ["idProof", "gstCertificate"],
+    documentLabels: ["idProof", "gstCertificate", "tradeLicence"],
     fileFields: ["idProofImage", "aadhaarCardFile", "gstCertificate"],
   },
   pan: {

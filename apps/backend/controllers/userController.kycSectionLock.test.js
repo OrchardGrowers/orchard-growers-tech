@@ -1,3 +1,4 @@
+import * as captureValidation from "../services/kycCaptureValidation.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import User from "../models/User.js";
 import VerificationRemark from "../models/VerificationRemark.js";
@@ -40,6 +41,7 @@ const userWithKyc = (status) => ({
 });
 
 const response = () => ({
+  set: vi.fn().mockReturnThis(),
   status: vi.fn().mockReturnThis(),
   json: vi.fn().mockReturnThis(),
 });
@@ -129,4 +131,23 @@ describe("KYC section update authorization", () => {
     }));
     expect(res.json).toHaveBeenCalledWith(updatedUser);
   });
+});
+
+it("returns structured capture review without saving KYC", async () => {
+  vi.spyOn(User,"findById").mockReturnValue({select:vi.fn().mockResolvedValue(userWithKyc("NOT_SUBMITTED"))});
+  const save=vi.spyOn(User,"findByIdAndUpdate");
+  vi.spyOn(captureValidation,"validateNewKycCaptures").mockResolvedValue([{label:"pan",documentType:"PAN Card",fields:{panNumber:"BBBBB1234B"}}]);
+  const res=response();
+  await updateKyc({user:{id:USER_ID},query:{captureReview:"1"},body:{roleType:"buyer",documents:[]},files:{}},res);
+  expect(save).not.toHaveBeenCalled();
+  expect(res.set).toHaveBeenCalledWith("Cache-Control","no-store");
+  expect(res.json).toHaveBeenCalledWith({captures:[{label:"pan",documentType:"PAN Card",fields:{panNumber:"BBBBB1234B"}}]});
+});
+it("rejects final form identifiers that disagree with server extraction",async()=>{
+  vi.spyOn(User,"findById").mockReturnValue({select:vi.fn().mockResolvedValue(userWithKyc("NOT_SUBMITTED"))});
+  const save=vi.spyOn(User,"findByIdAndUpdate");
+  vi.spyOn(captureValidation,"validateNewKycCaptures").mockResolvedValue([{label:"pan",fields:{panNumber:"BBBBB1234B"}}]);
+  const res=response();
+  await updateKyc({user:{id:USER_ID},body:{roleType:"buyer"},files:{}},res);
+  expect(res.status).toHaveBeenCalledWith(400);expect(save).not.toHaveBeenCalled();
 });

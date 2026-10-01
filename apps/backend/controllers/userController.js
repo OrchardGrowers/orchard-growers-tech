@@ -1637,7 +1637,20 @@ export const updateKyc = async (req, res) => {
       submittedAt: new Date(),
     };
 
-    await validateNewKycCaptures({ roleType, body: req.body, files: req.files, existingKyc, userId: req.user.id });
+    const captureResults = await validateNewKycCaptures({ roleType, body: req.body, files: req.files, existingKyc, userId: req.user.id, reviewOnly: req.query?.captureReview === "1" });
+    if (req.query?.captureReview === "1" && ["buyer", "grower"].includes(roleType)) {
+      res.set("Cache-Control", "no-store");
+      return res.json({ captures: captureResults });
+    }
+    // Final submissions must still agree with server-extracted identifiers.
+    for (const result of captureResults || []) {
+      for (const [field, value] of Object.entries(result.fields)) {
+        if (["bankAccountHolderName", "tradeLicenceNumber", "tradeBusinessName"].includes(field)) continue;
+        if (String(kyc[field] || "").toUpperCase().replace(/[ -]/g, "") !== value) {
+          return res.status(400).json({ msg: "Detected document information differs from the form. Please review your details.", errors: { [field]: "Review the detected document information before submitting." } });
+        }
+      }
+    }
 
     const serverUploadedDocuments = [];
     const uploadAndAssignKycDocument = async (file, field, label) => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { inspectDocumentFrame, canUseCapture, CAPTURE_GUIDANCE } from "./kycCaptureQuality.mjs";
+import { inspectDocumentFrame, canUseCapture, CAPTURE_GUIDANCE, advanceScanner, requestContinuousFocus } from "./kycCaptureQuality.mjs";
 function scene(kind) {
   const width=320,height=240,data=new Uint8ClampedArray(width*height*4);
   let seed=1234;
@@ -27,7 +27,7 @@ function scene(kind) {
 describe('scanner presence gate',()=>{
   it.each(['random','person','room','blankPage'])('rejects %s scene',kind=>expect(inspectDocumentFrame(scene(kind),1920,1440).error).toBeTruthy());
   it('rejects blank frame',()=>expect(inspectDocumentFrame(scene('blank'),1920,1440).error).toBeTruthy());
-  it('rejects blurred document',()=>expect(inspectDocumentFrame(scene('blur'),1920,1440).error).toMatch(/blurred/));
+  it('rejects blurred document',()=>expect(inspectDocumentFrame(scene('blur'),1920,1440).error).toMatch(/focus/));
   it('rejects glare',()=>expect(inspectDocumentFrame(scene('glare'),1920,1440).error).toBe('Reduce glare'));
   it('allows document-like frame to proceed to submission OCR',()=>expect(inspectDocumentFrame(scene('document'),1920,1440).error).toBe(''));
   it('keeps Use capture disabled until checks pass and expected type matches',()=>{
@@ -36,9 +36,37 @@ describe('scanner presence gate',()=>{
     for(const change of [{checked:false},{busy:true},{disabled:true},{expected:'Aadhaar'}])expect(canUseCapture({...state,...change})).toBe(false);
   });
   it('provides distinct guidance for each supported expected type',()=>{
-    expect(Object.keys(CAPTURE_GUIDANCE)).toHaveLength(8);
-    expect(new Set(Object.values(CAPTURE_GUIDANCE)).size).toBe(8);
+    expect(Object.keys(CAPTURE_GUIDANCE)).toHaveLength(9);
+    expect(new Set(Object.values(CAPTURE_GUIDANCE)).size).toBe(9);
     expect(CAPTURE_GUIDANCE.Passport).toContain('photo/details');
     expect(CAPTURE_GUIDANCE['Bank Passbook']).toContain('account-details');
   });
+});
+
+function reposition(frame, degrees=0, dx=0, scale=1) {
+  const {width,height}=frame,data=new Uint8ClampedArray(frame.data.length),angle=degrees*Math.PI/180;
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+    const a=(x-width/2-dx)/scale,b=(y-height/2)/scale;
+    const sx=Math.round(a*Math.cos(angle)+b*Math.sin(angle)+width/2),sy=Math.round(-a*Math.sin(angle)+b*Math.cos(angle)+height/2);
+    const i=(y*width+x)*4,v=sx>=0&&sx<width&&sy>=0&&sy<height?frame.data[(sy*width+sx)*4]:45;
+    data[i]=data[i+1]=data[i+2]=v;data[i+3]=255;
+  }
+  return {width,height,data};
+}
+it.each([[0,30,1],[12,0,1],[0,15,.8]])('accepts imperfect placement %j', (angle,dx,scale)=>{
+  expect(inspectDocumentFrame(reposition(scene('document'),angle,dx,scale),1920,1440).error).toBe('');
+});
+it('requires three stable frames, resets on movement or rejection',()=>{
+  const result=inspectDocumentFrame(scene('document'),1920,1440);
+  let state=advanceScanner({},result);expect(state.ready).toBe(false);
+  state=advanceScanner(state,result);expect(state.ready).toBe(false);
+  state=advanceScanner(state,result);expect(state.ready).toBe(true);
+  expect(advanceScanner(state,{error:'Show document'}).ready).toBe(false);
+});
+it('feature-detects autofocus and tolerates unsupported devices',async()=>{
+  let applied;
+  await requestContinuousFocus({getCapabilities:()=>({focusMode:['continuous']}),applyConstraints:async value=>{applied=value;}});
+  expect(applied.advanced[0].focusMode).toBe('continuous');
+  await expect(requestContinuousFocus({})).resolves.toBeUndefined();
+  await expect(requestContinuousFocus({getCapabilities:()=>{throw Error('unsupported');}})).resolves.toBeUndefined();
 });

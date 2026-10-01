@@ -47,3 +47,30 @@ describe("server-side OCR integration", () => {
     expect(verify).not.toHaveBeenCalled();
   });
 });
+
+describe('optional document upload exceptions',()=>{
+  it.each(['gstCertificate','tradeLicence'])('allows camera, manual image and PDF for %s',async(label)=>{
+    const documentType=label==='gstCertificate'?'GST Certificate':'Trade Licence';
+    for(const [captureMethod,mimeType,resourceType,format] of [['live-camera','image/jpeg','image','jpg'],['manual-upload','image/png','image','png'],['manual-upload','application/pdf','raw',undefined]]) {
+      const document={...doc,label,documentType,captureMethod,mimeType};
+      const verify=vi.fn().mockResolvedValue({});
+      await validateNewKycCaptures({roleType:'buyer',userId:'u',reviewOnly:true,body:{documents:[document]}},async()=>({...asset,resource_type:resourceType,format}),verify);
+      expect(verify).toHaveBeenCalledWith(expect.objectContaining({resource_type:resourceType}),documentType);
+    }
+  });
+  it.each([['idProof','Aadhaar'],['pan','PAN Card'],['passbookFile','Bank Passbook'],['passbookFile','Cancelled Cheque']])('rejects manual %s',async(label,documentType)=>{
+    await expect(check({...doc,label,documentType,captureMethod:'manual-upload'})).rejects.toThrow('camera');
+  });
+  it('allows blank GST for review but preserves final GST prerequisite',async()=>{
+    const document={...doc,label:'gstCertificate',documentType:'GST Certificate'};
+    await expect(check(document,undefined,{reviewOnly:true})).resolves.toBeDefined();
+    await expect(check(document)).rejects.toThrow('GST number');
+  });
+  it('does not require GST or trade documents',async()=>{
+    await expect(validateNewKycCaptures({roleType:'buyer',body:{documents:[]}})).resolves.toEqual([]);
+  });
+  it('still rejects disallowed manual types and public provider assets',async()=>{
+    await expect(check({...doc,label:'tradeLicence',documentType:'Trade Licence',captureMethod:'manual-upload',mimeType:'image/webp'})).rejects.toThrow();
+    await expect(check({...doc,label:'tradeLicence',documentType:'Trade Licence',captureMethod:'manual-upload'},async()=>({...asset,type:'upload'}))).rejects.toThrow();
+  });
+});
